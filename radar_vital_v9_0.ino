@@ -236,7 +236,7 @@ float applyNotchChain(float x) {
 #define NLMS_TAPS 8
 float nlmsW[NLMS_TAPS] = {0};
 float nlmsX[NLMS_TAPS] = {0};
-const float NLMS_MU  = 0.03f;
+const float NLMS_MU  = 0.03f;  // retained for const-name compatibility; see IMP-6 adaptive mu below
 const float NLMS_EPS = 1e-4f;
 
 const float NLMS_MU_MAX   = 0.10f;   // IMP-6
@@ -701,8 +701,8 @@ void loop() {
   }
 
   // SS-3: phaseDataValid flag replaces hard return
-  float _unused_phase, breath_phase, heart_phase;  // IMP-13: total_phase not used
-  bool phaseDataValid = mmWave.getHeartBreathPhases(_unused_phase, breath_phase, heart_phase);  // SS-3
+  float unusedPhase, breath_phase, heart_phase;  // IMP-13: total_phase not used
+  bool phaseDataValid = mmWave.getHeartBreathPhases(unusedPhase, breath_phase, heart_phase);  // SS-3
 
   if(phaseDataValid) {  // SS-3: phase DSP only when valid
 
@@ -809,7 +809,7 @@ void loop() {
     inMotion = motionDetected(dh, db) || roughMotion;
 
     float breathInstPhase = atan2f(smoothedB, db + 1e-6f);
-    float breathGate      = fabsf(lut_sin(breathInstPhase));  // SS-4: was lut_cos
+    float breathGate      = fabsf(lut_sin(breathInstPhase));  // SS-4: sin=1 at breath peak (chest still=best HR window); cos was inverted
     float dhGated         = dh * (0.5f + 0.5f * breathGate);
     // IMP-7: prevBreathSample assignment removed
 
@@ -859,7 +859,7 @@ void loop() {
       if(motionCooldown > 0) motionCooldown--;  // IMP-9: always decrement
       if(inMotion && !wasMotion) {               // IMP-9: rising edge only
         motionCooldown = 15;
-        rejectionCount = 0;                      // IMP-12
+        rejectionCount = 0;                      // IMP-12: allow faster HR re-lock after motion stabilises
       }
 
       if(inMotion) {

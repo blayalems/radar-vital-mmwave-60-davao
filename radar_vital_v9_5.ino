@@ -1,6 +1,59 @@
-/* radar_vital_v9_4.ino
+/* radar_vital_v9_5.ino
  *
  * XIAO ESP32-C6 + MR60BHA2 60 GHz FMCW radar + MLX90614 + HD44780 LCD
+ *
+ * Change log from v9.4 → v9.5:
+ * +---------+-----------------------------------+----------------------------------------------+
+ * | ID      | Location                          | Change                                       |
+ * +---------+-----------------------------------+----------------------------------------------+
+ * | FIX-5   | loop() presence SM                | radarPresenceKeepAlive suppressed when no     |
+ * |         |                                   | valid HR/RR for 15 s → fixes "NO HUMAN       |
+ * |         |                                   | DETECTED" never reappearing after first lock. |
+ * | FIX-6   | Global + setup() + loop() MLX     | I²C bus recovery: 9-SCL-pulse bit-bang per    |
+ * |         |                                   | I²C spec §3.1.16. Re-inits LCD + BH1750      |
+ * |         |                                   | after bus reset. Replaces bare Wire.end/begin.|
+ * | FIX-7   | Global + loop() DSP outputs       | SAFE_FLOAT macro guards Kalman/fusion outputs |
+ * |         |                                   | against NaN propagation (permanent corruption)|
+ * | FIX-8   | Global + loop() newData path      | Consecutive bad-frame counter: 20 invalid     |
+ * |         |                                   | frames → serial buffer flush for resync.      |
+ * | FIX-9   | loop() newData radar getters      | mmWave.getHeartRate/getBreathRate/getDistance  |
+ * |         |                                   | return values checked; stale data rejected.   |
+ * | FIX-10  | Global + loop() calibration       | 30 s calibration timeout: default gain=1.0    |
+ * |         |                                   | if sensor never delivers 100 valid phases.    |
+ * | FIX-11  | setup() LCD scan                  | LCD address scan skips 0x23 if BH1750 claimed |
+ * |         |                                   | it, preventing I²C address collision.         |
+ * | FIX-12  | loop() MLX read block             | MLX read + ambientEvidence moved outside      |
+ * |         |                                   | if(newData) so temp is polled during radar     |
+ * |         |                                   | dropouts.                                     |
+ * | FIX-13  | loop() motion detection            | Buffer flush on motion→still transition:      |
+ * |         |                                   | bufIndex/bufCount zeroed, memset buffers.      |
+ * |         |                                   | Eliminates ~25 s of stale post-motion data.   |
+ * | FIX-14  | resetVitals()                     | rawHR, rawRR, rawHRWin[] now zeroed on        |
+ * |         |                                   | patient departure. Prevents stale-data carry- |
+ * |         |                                   | over to next patient.                         |
+ * | FIX-15  | loop() dspTask==0                 | ghostSuspect / rhcSuspect now cleared when    |
+ * |         |                                   | the triggering condition no longer holds,      |
+ * |         |                                   | instead of requiring a motion event.           |
+ * | FIX-16  | loop() motionCooldown             | motionCooldown only decrements when !inMotion.|
+ * |         |                                   | Prevents premature cooldown expiry during     |
+ * |         |                                   | sustained motion.                             |
+ * | FIX-17  | Global + loop() MLX read          | Software emissivity correction (ε=0.98 for    |
+ * |         |                                   | human skin). Avoids EEPROM wear from          |
+ * |         |                                   | writeEmissivity(). ≈0.24 °C correction at     |
+ * |         |                                   | 12 °C differential.                           |
+ * | FIX-18  | loop() phaseDelta                 | phaseDelta wrapped to [-π,π] before fabsf to  |
+ * |         |                                   | prevent false 6.28 rad spike on 2π→0 wrap.    |
+ * | FIX-19  | loop() wasMotion                  | wasMotion updated only on newData frames to   |
+ * |         |                                   | prevent edge-detection erasure between frames. |
+ * | PROD-1  | setup() + loop()                  | Explicit ESP32-C6 task watchdog: loopTask      |
+ * |         |                                   | subscribed to TWDT. Fed at top of every loop().|
+ * | PROD-2  | Global + loop() presence SM       | NVS persistence via Preferences: saves radar- |
+ * |         |                                   | Gain + KF priors on absence, restores on next  |
+ * |         |                                   | presence with bounds-validated values.         |
+ * | PROD-3  | Global + setup() + loop() LCD     | Rolling 10-sample HR stddev: "HR 72±3" with   |
+ * |         |                                   | custom ± glyph. Temp drops to integer to free  |
+ * |         |                                   | LCD columns.                                  |
+ * +---------+-----------------------------------+----------------------------------------------+
  *
  * Change log from v9.3 → v9.4:
  * +---------+---------------------------------+------------------------------------------------+
@@ -172,6 +225,8 @@
 #include <Adafruit_MLX90614.h>
 #include <BH1750.h>               // BH1750-1: ambient light; tie ADDR high → 0x5C
 #include <Adafruit_NeoPixel.h>    // WS2-1: onboard RGB LED
+#include <esp_task_wdt.h>         // PROD-1: explicit task watchdog
+#include <Preferences.h>          // PROD-2: NVS state persistence
 
 #ifdef ESP32
   #include <HardwareSerial.h>
@@ -184,17 +239,46 @@
   #define PI 3.14159265358979323846f
 #endif
 
+// FIX-7: guard macro — prevents NaN from entering IIR/Kalman chains permanently
+#define SAFE_FLOAT(x) (isfinite(x) ? (x) : 0.0f)
+
+// FIX-17: human skin emissivity for MLX90614 software correction
+// Melexis datasheet: default ε=1.0 (perfect blackbody); human skin ε≈0.95–0.98
+// (Togawa, 1989; Steketee, 1973).  0.98 is conservative for exposed forehead/wrist.
+const float MLX_EMISSIVITY = 0.98f;
+
 SEEED_MR60BHA2    mmWave;
 hd44780_I2Cexp    lcd;
 Adafruit_MLX90614 mlx;
 BH1750            lightMeter;              // BH1-1: ADDR pin tied HIGH → I2C 0x5C
 Adafruit_NeoPixel pixel(1, D1, NEO_GRB + NEO_KHZ800); // HW-1: D1 = external WS2812
+Preferences       prefs;                  // PROD-2: NVS key-value storage
 
 bool lcdConnected  = false;
 bool mlxReady      = false;
 bool bh1750Ready   = false;               // BH1-1
 uint8_t bh1750Addr = 0x5C;               // HW-2: records address that succeeded
 float luxLevel     = 1000.0f;             // BH1-1: default to daytime until first read
+
+// FIX-6: I²C bus recovery per I²C specification §3.1.16 "bus clear procedure".
+// If an I²C slave (MLX90614 is the usual offender) holds SDA low after a
+// power glitch or interrupted transaction, Wire.end()/begin() alone cannot
+// release it because the peripheral driver only tri-states its own pins.
+// Nine SCL clock pulses force the slave to complete its current byte and
+// release SDA.  Called at startup and on MLX error recovery.
+void i2cRecover() {
+  Wire.end();
+  pinMode(SCL, OUTPUT);
+  pinMode(SDA, INPUT_PULLUP);
+  for (int i = 0; i < 9; i++) {
+    digitalWrite(SCL, HIGH); delayMicroseconds(5);
+    digitalWrite(SCL, LOW);  delayMicroseconds(5);
+  }
+  digitalWrite(SCL, HIGH);
+  delayMicroseconds(5);
+  Wire.begin();
+  Wire.setTimeOut(500);
+}
 
 #define BUF_SIZE 256
 
@@ -215,6 +299,7 @@ const float MAX_GAIN      = 10.0f;
 const float TARGET_ENERGY = 0.02f;
 
 const int CALIBRATION_FRAMES  = 100;
+const unsigned long CALIB_TIMEOUT_MS = 30000;  // FIX-10: 30 s fallback if phases never arrive
 const int CONFIRM_VOTES        = 5;
 const int ABSENT_VOTES         = 5;
 const int MOTION_WARMUP_FRAMES = 10;
@@ -466,6 +551,7 @@ float radarGain      = 1.0f;
 float baselineEnergy = 0;
 bool  calibrationDone  = false;
 int   calibrationCount = 0;
+unsigned long calibStartMs = 0;  // FIX-10: millis() when calibration began
 
 float rollingEnergy = 0;
 int   recalFrames   = 0;
@@ -548,6 +634,23 @@ float radarDistance  = 0;     // TEL-2: mmWave.getDistance(); 0 = no target trac
 float prevTotalPhase = 0;     // TEL-3: previous totalPhase for phaseDelta
 float phaseDelta     = 0;     // TEL-3: |totalPhase - prevTotalPhase| rad/frame
 
+// FIX-5: stale-data timeout for presence keepalive.
+// If no valid HR or RR is received for this many ms, suppress radarPresenceKeepAlive
+// even if the sensor's own isHumanDetected() flag is still high.  The MR60BHA2's
+// built-in holdoff can keep that flag active 10–60 s after the patient leaves.
+const unsigned long PRESENCE_KEEPALIVE_TIMEOUT = 15000;
+unsigned long       lastValidRateMs            = 0;
+
+// FIX-8: consecutive bad-frame counter for UART resynchronisation.
+int       consecutiveBadRadar = 0;
+const int BAD_RADAR_LIMIT     = 20;
+
+// PROD-3: rolling HR variance for LCD display (HR 72±3)
+#define HR_VAR_WIN 10
+static float hrVarBuf[HR_VAR_WIN];
+static int   hrVarIdx   = 0;
+static int   hrVarCount = 0;
+
 // TEL-3: gross body motion produces > ~0.50 rad/frame change in total phase.
 // Normal breathing at RR=15 produces ~0.15 rad/frame at 10 Hz.
 // Threshold is placed above breathing to avoid false motion gates.
@@ -567,6 +670,9 @@ byte barChars[5][8] = {
   {0x1C,0x1C,0x1C,0x1C,0x1C,0x1C,0x1C,0x1C},
   {0x1F,0x1F,0x1F,0x1F,0x1F,0x1F,0x1F,0x1F}
 };
+
+// PROD-3: ± glyph for LCD custom char slot 6
+byte pmChar[8] = {0x04,0x04,0x1F,0x04,0x04,0x00,0x1F,0x00};
 
 void drawBar(int level) {
   for(int i = 0; i < 5; i++) {
@@ -615,6 +721,7 @@ void resetVitals() {
 
   rawHRWinIdx   = 0;
   rawHRWinCount = 0;
+  memset(rawHRWin, 0, sizeof(rawHRWin));   // FIX-14: clear stale rawHR window data
   ghostSuspect  = false;  // GHO-1
   rhcSuspect    = false;  // RHC-1
 
@@ -655,6 +762,17 @@ void resetVitals() {
   radarDistance  = 0;
   prevTotalPhase = 0;
   phaseDelta     = 0;
+
+  // FIX-5/8/14: reset keepalive timer, bad-frame counter, raw rates
+  lastValidRateMs    = millis();
+  consecutiveBadRadar = 0;
+  rawHR = 0;   // FIX-14: prevent stale carry-over to next patient
+  rawRR = 0;   // FIX-14
+
+  // PROD-3: clear HR variance window
+  hrVarIdx   = 0;
+  hrVarCount = 0;
+  memset(hrVarBuf, 0, sizeof(hrVarBuf));
 
   // SS-2: clear circular buffers to prevent stale patient data
   bufIndex = 0; bufCount = 0;
@@ -851,6 +969,7 @@ void updateLED(bool inMotion) {
     // smoothHR in BPM → period in ms; clamp to physiological range to avoid
     // divide-by-zero or absurdly fast/slow flicker
     float hr     = constrain(smoothHR, HR_MIN, HR_MAX);
+    if(!isfinite(hr)) hr = 72.0f;  // FIX-7: prevent UB from NaN→unsigned cast
     unsigned long period = (unsigned long)(60000.0f / hr);  // ms per beat
     float phase  = (float)(now % period) / (float)period;
     // Narrow bright pulse: rises quickly, holds briefly, falls quickly
@@ -877,8 +996,9 @@ void updateLED(bool inMotion) {
 void setup() {
   Serial.begin(115200);
   buildSinLUT();
-  Wire.begin();
-  Wire.setTimeOut(500);  // FIX-3: prevent indefinite I2C hang on SDA hold
+
+  // FIX-6: attempt bus recovery before Wire.begin in case SDA stuck from prior crash
+  i2cRecover();
 
   // WS2-1: NeoPixel boot — show blue while hardware initialises
   pixel.begin();
@@ -910,13 +1030,16 @@ void setup() {
   pixel.setPixelColor(0, pixel.Color(0, 60, 60));
   pixel.show();
 
-  int addresses[] = {0x23, 0x27};
+  // FIX-11: skip any address the BH1750 already claimed to prevent collision
+  int lcdCandidates[] = {0x23, 0x27};
   for(int i = 0; i < 2; i++) {
-    lcd = hd44780_I2Cexp(addresses[i]);
+    if(bh1750Ready && lcdCandidates[i] == bh1750Addr) continue;  // FIX-11
+    lcd = hd44780_I2Cexp(lcdCandidates[i]);
     if(lcd.begin(16, 2) == 0) {
       lcdConnected = true;
       lcd.backlight();
       for(int c = 0; c < 5; c++) lcd.createChar(c + 1, barChars[c]);
+      lcd.createChar(6, pmChar);  // PROD-3: ± glyph
       break;
     }
   }
@@ -928,13 +1051,44 @@ void setup() {
   if(lcdConnected) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Radar Vital v9.4");
+    lcd.print("Radar Vital v9.5");
     delay(1500);
     lcd.clear();
   }
+
+  // FIX-10: record calibration start time
+  calibStartMs = millis();
+
+  // FIX-5: initialise keepalive timer
+  lastValidRateMs = millis();
+
+  // PROD-1: explicit task watchdog — 8 s timeout, panic on expiry
+  esp_task_wdt_init(8, true);
+  esp_task_wdt_add(NULL);   // subscribe loopTask
+
+  // PROD-2: restore persisted state from NVS (if previous session wrote it)
+  prefs.begin("rvital", true);  // read-only
+  float savedGain = prefs.getFloat("gain", 0);
+  if(savedGain >= MIN_GAIN && savedGain <= MAX_GAIN) {
+    radarGain = savedGain;
+    Serial.printf("[NVS] restored radarGain=%.3f\n", radarGain);
+  }
+  float savedKfHR = prefs.getFloat("kfHR", 0);
+  if(savedKfHR >= HR_MIN && savedKfHR <= HR_MAX) {
+    kfHR_x = savedKfHR;
+    Serial.printf("[NVS] restored kfHR_x=%.1f\n", kfHR_x);
+  }
+  float savedKfRR = prefs.getFloat("kfRR", 0);
+  if(savedKfRR >= RR_MIN && savedKfRR <= RR_MAX) {
+    kfRR_x = savedKfRR;
+    Serial.printf("[NVS] restored kfRR_x=%.1f\n", kfRR_x);
+  }
+  prefs.end();
 }
 
 void loop() {
+
+  esp_task_wdt_reset();  // PROD-1: feed watchdog at top of every loop pass
 
   bool inMotion       = false;
   bool ambientEvidence = false;  // FIX-2: hoisted; must be visible to presence SM below
@@ -949,19 +1103,8 @@ void loop() {
   // Radar regularly returns false during large motion or out-of-range (> ~1.5 m).
   // Old if(!newData) return caused humanDetected to freeze permanently.
 
-  if(newData) {  // FIX-2: sensor reads + DSP gated on fresh radar frame
-
-  mmWave.getHeartRate(rawHR);
-  mmWave.getBreathRate(rawRR);
-  radarIsPresent = mmWave.isHumanDetected();  // TEL-1
-  mmWave.getDistance(radarDistance);          // TEL-2
-
-  if(rawHR >= HR_MIN && rawHR <= HR_MAX && !wasMotion) {
-    rawHRWin[rawHRWinIdx] = rawHR;
-    rawHRWinIdx = (rawHRWinIdx + 1) % RAW_STAB_WIN;
-    if(rawHRWinCount < RAW_STAB_WIN) rawHRWinCount++;
-  }
-
+  // FIX-12: MLX + ambientEvidence polled OUTSIDE if(newData) so temperature and
+  // ambient drift continue to be sampled during radar dropouts (motion, range edge).
   // IMP-14: MLX90614 polling downsampled to 1 Hz
   static unsigned long lastTempRead = 0;
   // ambientEvidence declared at top of loop() — FIX-2
@@ -969,27 +1112,75 @@ void loop() {
   if(mlxReady && millis() - lastTempRead >= 1000) {  // IMP-14: 1 Hz
     lastTempRead = millis();
 
+    float amb = mlx.readAmbientTempC();  // FIX-17: read ambient first for emissivity correction
     float obj = mlx.readObjectTempC();
-    float amb = mlx.readAmbientTempC();
 
     static int mlxErrors = 0;
-    if(!isnan(obj)) {
+    if(!isnan(obj) && !isnan(amb)) {
       mlxErrors = 0;
+      // FIX-17: software emissivity correction for human skin (ε=0.98).
+      // Linearised Stefan-Boltzmann: Tcorr ≈ Traw + (1−ε)/ε × (Traw−Tamb).
+      // At 12 °C differential: correction ≈ +0.24 °C.  Avoids EEPROM wear from
+      // writeEmissivity() (100 k cycle limit per Melexis datasheet §8.4.5).
+      obj = obj + (1.0f - MLX_EMISSIVITY) / MLX_EMISSIVITY * (obj - amb);
+
       if(isnan(smoothTemp)) smoothTemp = obj;
-      else                  smoothTemp = 0.9f * smoothTemp + 0.1f * obj;
+      else                  smoothTemp = SAFE_FLOAT(0.9f * smoothTemp + 0.1f * obj);  // FIX-7
     } else {
       if(++mlxErrors > 3) {
         mlxReady  = false;
         mlxErrors = 0;
-        Wire.end();           // FIX-4: release bus in case SDA is held low by latch-up
-        Wire.begin();
-        Wire.setTimeOut(500);
+        // FIX-6: proper bus recovery + peripheral re-init (replaces bare Wire.end/begin)
+        i2cRecover();
+        if(bh1750Ready)
+          bh1750Ready = lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, bh1750Addr, &Wire);
+        if(lcdConnected) {
+          lcd.begin(16, 2);
+          lcd.backlight();
+        }
       }
     }
 
     float drift     = fabsf(amb - prevAmbient);
     prevAmbient     = amb;
-    ambientEvidence = (drift > 0.2f);
+    ambientEvidence = (!isnan(drift) && drift > 0.2f);  // FIX-7: guard NaN from bad amb read
+  }
+
+  if(newData) {  // FIX-2: sensor reads + DSP gated on fresh radar frame
+
+  // FIX-9: check return values from mmWave getters.  The library returns false
+  // if the last parsed frame did not contain the requested data type (partial frame,
+  // UART noise, firmware mismatch).  Ignoring the return leaves rawHR/rawRR/distance
+  // at their previous (stale) values, silently poisoning fusion and presence logic.
+  bool hrOk   = mmWave.getHeartRate(rawHR);
+  bool rrOk   = mmWave.getBreathRate(rawRR);
+  radarIsPresent = mmWave.isHumanDetected();  // TEL-1 (bool return = presence itself)
+  bool distOk = mmWave.getDistance(radarDistance);          // TEL-2
+
+  // FIX-8: consecutive bad-frame counter.  If the UART desyncs (partial frame offset),
+  // the parser returns garbage indefinitely.  After BAD_RADAR_LIMIT failures, flush
+  // the serial buffer to force the parser to resynchronise on the next frame header.
+  if(!hrOk && !rrOk && !distOk) {
+    consecutiveBadRadar++;
+    if(consecutiveBadRadar >= BAD_RADAR_LIMIT) {
+      while(mmWaveSerial.available()) mmWaveSerial.read();  // flush RX buffer
+      consecutiveBadRadar = 0;
+    }
+  } else {
+    consecutiveBadRadar = 0;
+  }
+
+  // FIX-5: update keepalive timer whenever a physiologically valid rate arrives
+  if((hrOk && rawHR >= HR_MIN && rawHR <= HR_MAX) ||
+     (rrOk && rawRR >= RR_MIN && rawRR <= RR_MAX)) {
+    lastValidRateMs = millis();
+  }
+
+  // FIX-9: only feed rawHR window with actually-fresh, valid data
+  if(hrOk && rawHR >= HR_MIN && rawHR <= HR_MAX && !wasMotion) {
+    rawHRWin[rawHRWinIdx] = rawHR;
+    rawHRWinIdx = (rawHRWinIdx + 1) % RAW_STAB_WIN;
+    if(rawHRWinCount < RAW_STAB_WIN) rawHRWinCount++;
   }
 
   // SS-3: phaseDataValid flag replaces hard return
@@ -998,12 +1189,36 @@ void loop() {
   float totalPhase, breath_phase, heart_phase;
   bool phaseDataValid = mmWave.getHeartBreathPhases(totalPhase, breath_phase, heart_phase);  // SS-3
 
+  // FIX-10: if calibration hasn't completed and phases aren't arriving (phaseDataValid
+  // is persistently false), the timeout must still be checked here — the in-block
+  // timeout only fires when phaseDataValid is true and energy can be accumulated.
+  if(!calibrationDone && !phaseDataValid && millis() - calibStartMs >= CALIB_TIMEOUT_MS) {
+    radarGain       = 1.0f;
+    rollingEnergy   = TARGET_ENERGY;
+    motionLP        = TARGET_ENERGY;
+    calibrationDone = true;
+    presentVotes    = 0;
+    absentVotes     = 0;
+    Serial.println("[CALIB] timeout (no phase data) — using default gain=1.0");
+    if(lcdConnected) {
+      lcd.setCursor(0, 0);
+      lcd.print("Calib timeout!  ");
+      delay(800);
+      lcd.clear();
+    }
+  }
+
   if(phaseDataValid) {  // SS-3: phase DSP only when valid
 
-    // TEL-3: compute phase delta for early gross-motion gate.
+    // TEL-3 + FIX-18: compute phase delta for early gross-motion gate.
     // prevTotalPhase initialises to 0; the first frame produces a large spike —
     // harmless because motionWarmup gate already suppresses motion for 10 frames.
-    phaseDelta     = fabsf(totalPhase - prevTotalPhase);
+    // FIX-18: wrap delta to [-π,π] before fabsf. Without this, a natural 2π→0
+    // totalPhase wrap produces phaseDelta ≈ 6.28 rad → false roughMotion.
+    float rawPD    = totalPhase - prevTotalPhase;
+    if(rawPD >  PI) rawPD -= 2.0f * PI;
+    if(rawPD < -PI) rawPD += 2.0f * PI;
+    phaseDelta     = fabsf(rawPD);
     prevTotalPhase = totalPhase;
 
     float uh = unwrap(heart_phase,  prevHeartPhase,  heartOffset);
@@ -1050,10 +1265,26 @@ void loop() {
         lcd.print("           ");
       }
 
-      if(calibrationCount >= CALIBRATION_FRAMES) {
-        baselineEnergy /= calibrationCount;
-        baselineEnergy  = max(baselineEnergy, 1e-6f);
-        radarGain       = constrain(TARGET_ENERGY / baselineEnergy, MIN_GAIN, MAX_GAIN);
+      // FIX-10: if sensor never delivers CALIBRATION_FRAMES valid phases within
+      // 30 s (no person in FOV, radar FW init delay, UART sync issue), fall back
+      // to unity gain + warning rather than hanging forever.
+      bool calibComplete = (calibrationCount >= CALIBRATION_FRAMES);
+      bool calibTimeout  = (millis() - calibStartMs >= CALIB_TIMEOUT_MS);
+
+      if(calibComplete || calibTimeout) {
+        if(calibComplete && calibrationCount > 0) {
+          baselineEnergy /= calibrationCount;
+          baselineEnergy  = max(baselineEnergy, 1e-6f);
+          radarGain       = constrain(TARGET_ENERGY / baselineEnergy, MIN_GAIN, MAX_GAIN);
+        } else {
+          radarGain = 1.0f;  // FIX-10: safe default
+          Serial.println("[CALIB] timeout — using default gain=1.0");
+          if(lcdConnected) {
+            lcd.setCursor(0, 0);
+            lcd.print("Calib timeout!  ");
+            delay(800);
+          }
+        }
         rollingEnergy   = TARGET_ENERGY;
         motionLP        = TARGET_ENERGY;
         calibrationDone = true;
@@ -1160,13 +1391,32 @@ void loop() {
 
     if(detectWindow > 0) {
 
-      if(motionCooldown > 0) motionCooldown--;  // IMP-9: always decrement
+      // FIX-16: only decrement motionCooldown when patient is still — prevents
+      // premature expiry during sustained motion (original code counted down
+      // even while inMotion was true).
+      if(!inMotion && motionCooldown > 0) motionCooldown--;  // FIX-16 + IMP-9
+
       if(inMotion && !wasMotion) {               // IMP-9: rising edge only
         motionCooldown = 15;
         rejectionCount = 0;                      // IMP-12: allow faster HR re-lock after motion stabilises
         rawHRWinCount  = 0;                      // GHO-1: flush stale ghost window; refill from scratch post-motion
         ghostSuspect   = false;
         rhcSuspect     = false;
+      }
+
+      // FIX-13: on motion→still transition (falling edge), flush circular buffers.
+      // Post-motion data contains noisy dh/db from motion frames that would otherwise
+      // take ~25.6 s (256 samples at 10 Hz) to rotate out, causing degraded PQI and
+      // potential false HR/RR detection.
+      if(!inMotion && wasMotion) {
+        bufIndex = 0; bufCount = 0;
+        memset(heartBuf,  0, sizeof(heartBuf));
+        memset(breathBuf, 0, sizeof(breathBuf));
+        memset(fusedBuf,  0, sizeof(fusedBuf));
+        memset(phaseTimes, 0, sizeof(phaseTimes));
+        // Reset NLMS weights: old clutter coefficients are invalid post-motion
+        for(int i = 0; i < NLMS_TAPS; i++) { nlmsW[i] = 0; nlmsX[i] = 0; }
+        nlmsMuCurrent = NLMS_MU_MAX;
       }
 
       if(inMotion) {
@@ -1227,6 +1477,12 @@ void loop() {
             lastConfHR    = confHR;
           } else {
             lastAutoValid = false;
+            // FIX-15: clear suspect flags when the triggering condition no longer
+            // holds.  Without this, a transient vibration or harmonic coincidence
+            // sets the flag permanently (orange LED / confidence penalty) until a
+            // motion event occurs — the system cannot self-recover.
+            ghostSuspect = false;
+            rhcSuspect   = false;
           }
           dspTask = 1;
 
@@ -1267,7 +1523,7 @@ void loop() {
 
             finalHR  = constrain(finalHR, HR_MIN, HR_MAX);
             finalHR  = coherenceFilter(finalHR);
-            smoothHR = kalmanHR(finalHR);
+            smoothHR = SAFE_FLOAT(kalmanHR(finalHR));  // FIX-7
           }
           dspTask = 2;
 
@@ -1304,8 +1560,7 @@ void loop() {
             if(hrState > 0) {
               finalHR  = constrain(finalHR, HR_MIN, HR_MAX);
               finalHR  = coherenceFilter(finalHR);
-              smoothHR = kalmanHR(finalHR);
-            }
+              smoothHR = SAFE_FLOAT(kalmanHR(finalHR));  // FIX-7            }
           }
           dspTask = 3;  // IMP-3: advance to slot 3
 
@@ -1330,7 +1585,7 @@ void loop() {
 
           if(finalRR >= RR_MIN && finalRR <= RR_MAX) {
             finalRR  = constrain(finalRR, RR_MIN, RR_MAX);
-            smoothRR = kalmanRR(finalRR);
+            smoothRR = SAFE_FLOAT(kalmanRR(finalRR));  // FIX-7
 
             // SS-1: enable notch after first valid RR
             if(!notchEnabled && smoothRR >= RR_MIN) notchEnabled = true;  // SS-1
@@ -1351,8 +1606,11 @@ void loop() {
 
   }  // end if(newData)  // FIX-2: presence SM + LCD now always execute below
 
-  // FIX-2: These ALWAYS run — radar dropout drives absentVotes via radarEvidence=false
-  wasMotion = inMotion;
+  // FIX-19: only update wasMotion on frames that actually evaluated inMotion.
+  // Without this, non-newData iterations wipe wasMotion=false (inMotion is local,
+  // defaults to false at top of loop), causing the motion rising-edge detector to
+  // re-fire on every valid motion frame instead of once at onset.
+  if(newData) wasMotion = inMotion;
 
   // FIX-2: gate radarEvidence on newData — stale rawHR/rawRR from previous frames
   // must not sustain false presence after a radar dropout
@@ -1360,12 +1618,17 @@ void loop() {
                           ((rawHR >= HR_MIN && rawHR <= HR_MAX) ||
                            (rawRR >= RR_MIN && rawRR <= RR_MAX));
 
-  // TEL-1: radarIsPresent is the sensor's own human-detection flag (good up to ~6 m).
-  // We allow it to PREVENT false-absent (a still patient stops generating HR/RR)
-  // but NOT to generate false-present (hence the humanDetected guard).
-  // Without this, a motionless, unconscious triage patient would time out after
-  // ABSENT_VOTES frames and drop the display even though the sensor still sees them.
-  bool radarPresenceKeepAlive = newData && humanDetected && radarIsPresent;
+  // TEL-1 + FIX-5: radarIsPresent is the sensor's own human-detection flag (good up
+  // to ~6 m).  We allow it to PREVENT false-absent (a still patient stops generating
+  // HR/RR) but NOT to generate false-present (hence the humanDetected guard).
+  // FIX-5: suppress keepalive when no valid HR/RR has arrived for 15 s.
+  // The MR60BHA2 sensor firmware has a holdoff (10–60 s+) on its isHumanDetected()
+  // flag — once set, it stays true long after the patient leaves.  Without the
+  // timeout, presenceEvidence stays true indefinitely and "NO HUMAN DETECTED"
+  // never reappears.  lastValidRateMs is updated whenever a physiologically valid
+  // rawHR or rawRR arrives (FIX-9 gate above).
+  bool keepAliveTimedOut       = (millis() - lastValidRateMs >= PRESENCE_KEEPALIVE_TIMEOUT);
+  bool radarPresenceKeepAlive  = newData && humanDetected && radarIsPresent && !keepAliveTimedOut;
 
   bool presenceEvidence = radarEvidence || ambientEvidence || radarPresenceKeepAlive;
 
@@ -1395,6 +1658,14 @@ void loop() {
 
   if(humanDetected && absentVotes >= ABSENT_VOTES) {
     humanDetected = false;
+
+    // PROD-2: persist state to NVS before clearing — instant re-lock on next patient
+    prefs.begin("rvital", false);  // read-write
+    prefs.putFloat("gain", radarGain);
+    prefs.putFloat("kfHR", kfHR_x);
+    prefs.putFloat("kfRR", kfRR_x);
+    prefs.end();
+
     resetVitals();
   }
 
@@ -1417,16 +1688,57 @@ void loop() {
     lastDisplay = millis();
 
     if(humanDetected) {
-      char line1[20];  // IMP-8: expanded from 18
-      if(isnan(smoothTemp))
-        snprintf(line1, sizeof(line1), "HR%3d RR%2d T--.-",  // IMP-8: sizeof
-                 (int)smoothHR, (int)smoothRR);
-      else
-        snprintf(line1, sizeof(line1), "HR%3d RR%2d T%4.1f",  // FIX-1: %4.1f fits 16-char LCD; %5.1f was 17 chars
-                 (int)smoothHR, (int)smoothRR, smoothTemp);
+      // PROD-3: feed rolling HR variance buffer (only when locked or sensing)
+      if(hrState > 0 && smoothHR >= HR_MIN) {
+        hrVarBuf[hrVarIdx] = smoothHR;
+        hrVarIdx = (hrVarIdx + 1) % HR_VAR_WIN;
+        if(hrVarCount < HR_VAR_WIN) hrVarCount++;
+      }
+
+      // PROD-3: compute 10-sample rolling stddev for ± display
+      int hrSD = 0;
+      if(hrVarCount >= 3) {
+        float mean = 0;
+        for(int i = 0; i < hrVarCount; i++) mean += hrVarBuf[i];
+        mean /= hrVarCount;
+        float var = 0;
+        for(int i = 0; i < hrVarCount; i++) {
+          float d = hrVarBuf[i] - mean; var += d * d;
+        }
+        hrSD = (int)(sqrtf(var / hrVarCount) + 0.5f);
+      }
+
+      // PROD-3: line 1 format — "HR 72±3 RR12 T36" (16 chars)
+      // Temp dropped to integer to free columns for ± variance display.
+      char line1[20];
+      int iHR = (int)SAFE_FLOAT(smoothHR);  // FIX-7
+      int iRR = (int)SAFE_FLOAT(smoothRR);  // FIX-7
+      if(hrVarCount >= 3) {
+        if(isnan(smoothTemp))
+          snprintf(line1, sizeof(line1), "HR%3d", iHR);
+        else
+          snprintf(line1, sizeof(line1), "HR%3d", iHR);
+        // We'll compose the line with custom ± char below
+      } else {
+        if(isnan(smoothTemp))
+          snprintf(line1, sizeof(line1), "HR%3d   RR%2d T--", iHR, iRR);
+        else
+          snprintf(line1, sizeof(line1), "HR%3d   RR%2d T%2d", iHR, iRR, (int)smoothTemp);
+      }
 
       lcd.setCursor(0, 0);
-      lcd.print(line1);
+      if(hrVarCount >= 3) {
+        lcd.print(line1);         // "HR 72" (5 chars)
+        lcd.write(byte(6));       // ± glyph (1 char)
+        char rest[11];
+        if(isnan(smoothTemp))
+          snprintf(rest, sizeof(rest), "%-2dRR%2d T--", hrSD, iRR);
+        else
+          snprintf(rest, sizeof(rest), "%-2dRR%2d T%2d", hrSD, iRR, (int)smoothTemp);
+        lcd.print(rest);
+      } else {
+        lcd.print(line1);
+      }
 
       lcd.setCursor(0, 1);
       if(inMotion)           lcd.print("MOV ");

@@ -1560,7 +1560,8 @@ void loop() {
             if(hrState > 0) {
               finalHR  = constrain(finalHR, HR_MIN, HR_MAX);
               finalHR  = coherenceFilter(finalHR);
-              smoothHR = SAFE_FLOAT(kalmanHR(finalHR));  // FIX-7            }
+              smoothHR = SAFE_FLOAT(kalmanHR(finalHR));  // FIX-7
+            }
           }
           dspTask = 3;  // IMP-3: advance to slot 3
 
@@ -1710,20 +1711,20 @@ void loop() {
 
       // PROD-3: line 1 format — "HR 72±3 RR12 T36" (16 chars)
       // Temp dropped to integer to free columns for ± variance display.
+      // Temperature clamped to [-9,99] to guarantee %2d stays ≤ 2 chars on LCD.
       char line1[20];
-      int iHR = (int)SAFE_FLOAT(smoothHR);  // FIX-7
-      int iRR = (int)SAFE_FLOAT(smoothRR);  // FIX-7
+      int iHR   = (int)SAFE_FLOAT(smoothHR);  // FIX-7
+      int iRR   = (int)SAFE_FLOAT(smoothRR);  // FIX-7
+      int iTemp = isnan(smoothTemp) ? -1 : constrain((int)smoothTemp, -9, 99);
+
       if(hrVarCount >= 3) {
-        if(isnan(smoothTemp))
-          snprintf(line1, sizeof(line1), "HR%3d", iHR);
-        else
-          snprintf(line1, sizeof(line1), "HR%3d", iHR);
-        // We'll compose the line with custom ± char below
+        snprintf(line1, sizeof(line1), "HR%3d", iHR);
+        // Remaining chars composed with custom ± char below
       } else {
-        if(isnan(smoothTemp))
+        if(iTemp < 0)
           snprintf(line1, sizeof(line1), "HR%3d   RR%2d T--", iHR, iRR);
         else
-          snprintf(line1, sizeof(line1), "HR%3d   RR%2d T%2d", iHR, iRR, (int)smoothTemp);
+          snprintf(line1, sizeof(line1), "HR%3d   RR%2d T%2d", iHR, iRR, iTemp);
       }
 
       lcd.setCursor(0, 0);
@@ -1731,10 +1732,10 @@ void loop() {
         lcd.print(line1);         // "HR 72" (5 chars)
         lcd.write(byte(6));       // ± glyph (1 char)
         char rest[11];
-        if(isnan(smoothTemp))
+        if(iTemp < 0)
           snprintf(rest, sizeof(rest), "%-2dRR%2d T--", hrSD, iRR);
         else
-          snprintf(rest, sizeof(rest), "%-2dRR%2d T%2d", hrSD, iRR, (int)smoothTemp);
+          snprintf(rest, sizeof(rest), "%-2dRR%2d T%2d", hrSD, iRR, iTemp);
         lcd.print(rest);
       } else {
         lcd.print(line1);

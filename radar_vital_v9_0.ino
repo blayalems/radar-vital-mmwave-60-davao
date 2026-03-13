@@ -292,7 +292,7 @@ float goertzel(float *buf, int n, float freq, float fs) {
     s0 = buf[k] + coeff * s1 - s2;
     s2 = s1; s1 = s0;
   }
-  return s1*s1 + s2*s2 - coeff*s1*s2;  // IMP-2: power (no sqrtf needed here)
+  return s1*s1 + s2*s2 - coeff*s1*s2;  // IMP-2: magnitude squared; callers apply sqrtf for amplitude
 }
 
 void respirationLockedClean(float *buf, int n, float fs, float rrBPM) {
@@ -638,7 +638,7 @@ void setup() {
   if(lcdConnected) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Radar Vital v9.0");  // Part C: version splash
+    lcd.print("Radar Vital v9.0");
     delay(1500);
     lcd.clear();
   }

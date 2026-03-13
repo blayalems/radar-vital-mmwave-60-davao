@@ -1063,7 +1063,8 @@ void setup() {
   lastValidRateMs = millis();
 
   // PROD-1: explicit task watchdog — 8 s timeout, panic on expiry
-  esp_task_wdt_init(8, true);
+  if(esp_task_wdt_init(8, true) != ESP_OK)
+    Serial.println("[WDT] init failed — hardware watchdog not active");
   esp_task_wdt_add(NULL);   // subscribe loopTask
 
   // PROD-2: restore persisted state from NVS (if previous session wrote it)
@@ -1715,6 +1716,8 @@ void loop() {
       char line1[20];
       int iHR   = (int)SAFE_FLOAT(smoothHR);  // FIX-7
       int iRR   = (int)SAFE_FLOAT(smoothRR);  // FIX-7
+      // Temperature clamped to [-9,99] to guarantee %2d stays ≤ 2 chars on LCD
+      // (body temp range 30-45 °C; clamp is defensive against sensor fault).
       int iTemp = isnan(smoothTemp) ? -1 : constrain((int)smoothTemp, -9, 99);
 
       if(hrVarCount >= 3) {

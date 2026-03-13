@@ -26,6 +26,8 @@
  * | IMP-12  | Motion rising-edge block          | rejectionCount=0 on motion onset               |
  * | IMP-13  | loop() phase call                 | total_phase → _unused_phase                    |
  * | IMP-14  | MLX read block                    | 1 Hz polling gate                              |
+ * | QA-1    | resetVitals()                     | Reset dspTask + inter-slot static variables    |
+ * | QA-2    | goertzel()                         | fmaxf(0) floor prevents NaN from sqrtf         |
  * +---------+---------------------------------+------------------------------------------------+
  */
 
@@ -292,7 +294,7 @@ float goertzel(float *buf, int n, float freq, float fs) {
     s0 = buf[k] + coeff * s1 - s2;
     s2 = s1; s1 = s0;
   }
-  return s1*s1 + s2*s2 - coeff*s1*s2;  // IMP-2: magnitude squared; callers apply sqrtf for amplitude
+  return fmaxf(0.0f, s1*s1 + s2*s2 - coeff*s1*s2);  // IMP-2 + QA-2: floor to 0 prevents NaN from sqrtf
 }
 
 void respirationLockedClean(float *buf, int n, float fs, float rrBPM) {
@@ -461,6 +463,15 @@ void resetVitals() {
 
   prevStableHeartPhase  = 0;
   prevStableBreathPhase = 0;
+
+  // QA-1: reset DSP task slot and inter-slot state to prevent stale patient data
+  dspTask       = 0;
+  lastAutoValid = false;
+  lastHrAuto    = 0;
+  lastConfHR    = 0;
+  lastRRDSP     = 0;
+  lastConfRR    = 0;
+  lastRRValid   = false;
 
   // SS-2: clear circular buffers to prevent stale patient data
   bufIndex = 0; bufCount = 0;

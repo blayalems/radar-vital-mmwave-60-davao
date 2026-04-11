@@ -1,40 +1,34 @@
-/* radar_vital_v13_8_0.ino
+/* radar_vital_v13_9b.ino
  *
  * XIAO ESP32-C6 + MR60BHA2 60 GHz FMCW radar + MLX90614 + HD44780 20x4 LCD
  * + Active Buzzer for audio feedback
  *
- * Firmware release: v13.8.0
- * CSV schema release: v13.8.0 / trainer contract v8.4.0
+ * Firmware release: v13.9b
+ * CSV schema release: v13.9b / trainer contract v8.5b
  *
 * Manuscript-facing calibration / release notes
 * -------------------------------------------
-* + FW_VERSION is v13.8.0.
+* + FW_VERSION is v13.9b.
 * + The raw CSV now exposes both sketch identity and radar-module identity:
 *   sketch_major/sketch_sub/sketch_mod and
 *   module_fw_major/module_fw_sub/module_fw_mod.
 * + The stabilized phase columns are now named
 *   heart_phase_stabilized and breath_phase_stabilized.
-* + The v13.8 telemetry tail adds dsp_ran_this_frame and
-*   hr_confidence_source for freshness / confidence-path truthfulness.
+* + The v13.9b telemetry tail retains the branch-stable v13.9a schema and
+*   adds first-lock and AGC-recovery behavior diagnostics.
 * + The main calibration constants introduced in the v13.7 line remain:
 *   - CHIP_HR_BIAS_CORRECTION_BPM = 6.0f (blind raw-only reseed damping)
 *   - clutter warmup alpha: 0.08 -> 0.005 over valid-phase warmup samples
 *   - anchor-aware RR harmonic guard around the smoothRR anchor
 *
 * =========================================================================
-* CHANGELOG v13.8.0 (truthfulness + telemetry contract alignment)
+* CHANGELOG v13.9b (first-lock protection + AGC recovery)
 * =========================================================================
-* + Fold in the missed narrow truthfulness fixes: correct FW_VERSION,
-*   fix HR publish CONF threshold to 0.10, reset gate reasons at loop
-*   start, and apply RR bias correction only on accepted phase-backed RR.
-* + Rename phase CSV fields to heart_phase_stabilized /
-*   breath_phase_stabilized for clearer manuscript semantics.
-* + Add telemetry columns: dsp_ran_this_frame, hr_confidence_source,
-*   sketch_major, sketch_sub, sketch_mod.
-* + Rename fw_major/fw_sub/fw_mod telemetry to
-*   module_fw_major/module_fw_sub/module_fw_mod.
-* + Harden CSV float emission so non-finite values explicitly serialize
-*   as -1.0 instead of blank or nan text.
+* + Require confirmation before trusting suspicious low first phase anchors.
+* + Add AGC gain-floor recovery plus near-field reflector guarding to reduce
+*   long skip-DSP dead zones.
+* + Preserve the widened v13.9a telemetry contract so analysis artifacts
+*   remain comparable across 13.9a/13.9b.
 *
 * =========================================================================
 * CHANGELOG v13.7.5 (Audit Bugfixes & Improvements)
@@ -173,10 +167,10 @@ static inline float safe_float(float x) {
 // LOGGING & OBSERVABILITY
 // =========================================================================
 #define LOG_MODE 1       // 1 = Enable CSV "DATA,..." logging
-#define FW_VERSION "v13.9c"
+#define FW_VERSION "v13.9b"
 #define SKETCH_VERSION_MAJOR 13
 #define SKETCH_VERSION_SUB 9
-#define SKETCH_VERSION_MOD 3
+#define SKETCH_VERSION_MOD 2
 #define DIAG_PLOTTER 0   // 1 = Enable live Serial Plotter DSP diagnostics, 0 = Off
 #define LOG_INTERVAL_MS 200
 
@@ -4290,14 +4284,7 @@ void loop() {
 
                         if (isfinite(finalHR)) {
                           float hrTrustPqiGate = currentHeartPQIGate();
-                          bool hrDriftGuardNow = (hrState >= 2) &&
-                                                (lastTrackingHRMs > 0) &&
-                                                (safeElapsedMs(now, lastTrackingHRMs) <= 10000UL) &&
-                                                isfinite(trackingHR) &&
-                                                (pqiHeart < 0.55f) &&
-                                                (fabsf(finalHR - trackingHR) >= 8.0f);
-                          float savedR = kfHR_R * (hrDriftGuardNow ? 4.0f : 1.0f);
-                          if (hrDriftGuardNow) hrAnchorDriftSuspect = true;
+                          float savedR = kfHR_R;
                           float pqiScale = constrain(pqiHeart / fmaxf(hrTrustPqiGate, 0.01f), 0.1f, 2.0f);
                           kfHR_R = savedR / fmaxf(pqiScale * pqiScale, 0.01f);
                           if (pqiHeart < HR_PQI_UPDATE_FLOOR) {
@@ -4447,14 +4434,7 @@ void loop() {
                                                          (rawSp && hrRawAgreementGood && spectralMag >= spectralMagMin && hrConfidence >= HR_LOG_CONF_BYPASS_MIN);
                             hrGateReason = HR_GATE_OK;
                             {
-                              bool hrDriftGuardNow = (hrState >= 2) &&
-                                                    (lastTrackingHRMs > 0) &&
-                                                    (safeElapsedMs(now, lastTrackingHRMs) <= 10000UL) &&
-                                                    isfinite(trackingHR) &&
-                                                    (pqiHeart < 0.55f) &&
-                                                    (fabsf(finalHR - trackingHR) >= 8.0f);
-                              float savedR_s = kfHR_R * (hrDriftGuardNow ? 4.0f : 1.0f);
-                              if (hrDriftGuardNow) hrAnchorDriftSuspect = true;
+                              float savedR_s = kfHR_R;
                               float pqiScale_s = constrain(pqiHeart / fmaxf(spectralPqiGate, 0.01f), 0.1f, 2.0f);
                               kfHR_R = savedR_s / fmaxf(pqiScale_s * pqiScale_s, 0.01f);
                               if (pqiHeart < HR_PQI_UPDATE_FLOOR) kfHR_R = savedR_s * 16.0f;
@@ -5270,11 +5250,6 @@ void loop() {
   bool allowLoggedHRVitals = humanDetected && trustedHrFreshNow && haveFreshHREvidence && !inPublishWarmup;
   bool allowLoggedRRVitals = humanDetected && trustedRrFreshNow && haveFreshRREvidence && !inPublishWarmup;
   bool rrPostMotionHold = (lastMotionDetectedMs > 0) && (safeElapsedMs(now, lastMotionDetectedMs) < RR_POST_MOTION_HOLDOFF_MS);
-  if (inMotion || rrPostMotionHold) {
-    hrPhaseBackedUpdateCount = 0;
-    rrPhaseBackedUpdateCount = 0;
-    phaseBackedPublishReady = false;
-  }
 
   // 3. State Downgrade (Aggressive UI invalidation if phase freezes)
   if (humanDetected && lastPhaseDataMs > 0 && (now - lastPhaseDataMs > PHASE_STALE_DOWNGRADE_MS)) {
@@ -5357,8 +5332,8 @@ void loop() {
 
   unsigned long hrAgeMs = (lastHRUpdateMs > 0) ? safeElapsedMs(now, lastHRUpdateMs) : 999999UL;
   bool hrFreshForLog = hrFreshNow && (hrAgeMs <= HR_PUBLISH_MAX_AGE_MS);
-  bool loggedHRValid = allowLoggedHRVitals && phaseBackedPublishReady && hrFreshForLog && loggedHRQualityGate;
-  bool loggedRRValid = allowLoggedRRVitals && phaseBackedPublishReady && rrFreshNow && loggedRRQualityGate;
+  bool loggedHRValid = allowLoggedHRVitals && (hrState > 0) && hrFreshForLog && loggedHRQualityGate;
+  bool loggedRRValid = allowLoggedRRVitals && rrFreshNow && loggedRRQualityGate;
   bool loggedDistValid = allowLoggedVitals && distFreshNow;
 
   if (loggedHRValid) hrPublishReason = HR_PUB_OK;
@@ -5366,7 +5341,7 @@ void loop() {
   else if (!trustedHrFreshNow) hrPublishReason = HR_PUB_TRUST_STALE;
   else if (inPublishWarmup) hrPublishReason = HR_PUB_STATE;
   else if (!haveFreshHREvidence) hrPublishReason = HR_PUB_NO_EVIDENCE;
-  else if (!phaseBackedPublishReady) hrPublishReason = HR_PUB_STATE;
+  else if (!(hrState > 0)) hrPublishReason = HR_PUB_STATE;
   else if (!hrFreshForLog) hrPublishReason = HR_PUB_AGE;
   else if (!hrFreshNow) hrPublishReason = HR_PUB_STALE;
   else if (hrPublishGraceBlocked && hrPhaseBackedCandidateNow) hrPublishReason = HR_PUB_GRACE_BLOCKED;
@@ -5381,7 +5356,6 @@ void loop() {
   else if (!trustedRrFreshNow) rrPublishReason = RR_PUB_TRUST_STALE;
   else if (inPublishWarmup) rrPublishReason = RR_PUB_HOLDOFF;
   else if (!haveFreshRREvidence) rrPublishReason = RR_PUB_NO_EVIDENCE;
-  else if (!phaseBackedPublishReady) rrPublishReason = RR_PUB_HOLDOFF;
   else if (!rrFreshNow) rrPublishReason = RR_PUB_STALE;
   else if (!(pqiBreath >= RR_PQI_LOG_THRESHOLD)) rrPublishReason = RR_PUB_PQI;
   else if (rrPostMotionHoldActive) rrPublishReason = RR_PUB_HOLDOFF;
@@ -5804,7 +5778,7 @@ void loop() {
       CSVI((int)spatialSource);
       CSVU(spatialFreshAgeMs);
       CSVF(positionRadiusCm, 2);
-      // v13.7 P2/P3 Truthfulness & Experiment Instrumentation
+      // v13.9b truthfulness / first-lock / AGC instrumentation
       CSVI((int)phaseWarmupComplete);
       CSVI(clutterWarmupCount);
       CSVF(currentClutterAlpha, 4);

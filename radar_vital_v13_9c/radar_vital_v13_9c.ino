@@ -1,40 +1,35 @@
-/* radar_vital_v13_8_0.ino
+/* radar_vital_v13_9c.ino
  *
  * XIAO ESP32-C6 + MR60BHA2 60 GHz FMCW radar + MLX90614 + HD44780 20x4 LCD
  * + Active Buzzer for audio feedback
  *
- * Firmware release: v13.8.0
- * CSV schema release: v13.8.0 / trainer contract v8.4.0
+ * Firmware release: v13.9c
+ * CSV schema release: v13.9c / trainer contract v8.5c
  *
 * Manuscript-facing calibration / release notes
 * -------------------------------------------
-* + FW_VERSION is v13.8.0.
+* + FW_VERSION is v13.9c.
 * + The raw CSV now exposes both sketch identity and radar-module identity:
 *   sketch_major/sketch_sub/sketch_mod and
 *   module_fw_major/module_fw_sub/module_fw_mod.
 * + The stabilized phase columns are now named
 *   heart_phase_stabilized and breath_phase_stabilized.
-* + The v13.8 telemetry tail adds dsp_ran_this_frame and
-*   hr_confidence_source for freshness / confidence-path truthfulness.
+* + The v13.9c telemetry tail retains the branch-stable v13.9a schema and
+*   adds publish-readiness and anchor-drift policy diagnostics.
 * + The main calibration constants introduced in the v13.7 line remain:
 *   - CHIP_HR_BIAS_CORRECTION_BPM = 6.0f (blind raw-only reseed damping)
 *   - clutter warmup alpha: 0.08 -> 0.005 over valid-phase warmup samples
 *   - anchor-aware RR harmonic guard around the smoothRR anchor
 *
 * =========================================================================
-* CHANGELOG v13.8.0 (truthfulness + telemetry contract alignment)
+* CHANGELOG v13.9c (publish readiness + drift brake hardening)
 * =========================================================================
-* + Fold in the missed narrow truthfulness fixes: correct FW_VERSION,
-*   fix HR publish CONF threshold to 0.10, reset gate reasons at loop
-*   start, and apply RR bias correction only on accepted phase-backed RR.
-* + Rename phase CSV fields to heart_phase_stabilized /
-*   breath_phase_stabilized for clearer manuscript semantics.
-* + Add telemetry columns: dsp_ran_this_frame, hr_confidence_source,
-*   sketch_major, sketch_sub, sketch_mod.
-* + Rename fw_major/fw_sub/fw_mod telemetry to
-*   module_fw_major/module_fw_sub/module_fw_mod.
-* + Harden CSV float emission so non-finite values explicitly serialize
-*   as -1.0 instead of blank or nan text.
+* + Require phase-backed publish readiness before HR/RR rows can become
+*   logged-valid after settling or motion recovery.
+* + Add weak-PQI anchor-drift braking so locked windows resist rapid
+*   tracking drift under marginal evidence.
+* + Preserve the widened v13.9a telemetry contract so analysis artifacts
+*   remain comparable across 13.9a/13.9c.
 *
 * =========================================================================
 * CHANGELOG v13.7.5 (Audit Bugfixes & Improvements)
@@ -173,10 +168,10 @@ static inline float safe_float(float x) {
 // LOGGING & OBSERVABILITY
 // =========================================================================
 #define LOG_MODE 1       // 1 = Enable CSV "DATA,..." logging
-#define FW_VERSION "v13.9a"
+#define FW_VERSION "v13.9c"
 #define SKETCH_VERSION_MAJOR 13
 #define SKETCH_VERSION_SUB 9
-#define SKETCH_VERSION_MOD 1
+#define SKETCH_VERSION_MOD 3
 #define DIAG_PLOTTER 0   // 1 = Enable live Serial Plotter DSP diagnostics, 0 = Off
 #define LOG_INTERVAL_MS 200
 
@@ -1086,6 +1081,11 @@ static const unsigned long RAW_HR_FIRST_SEED_COOLDOWN_MS = 15000UL;
 static bool sessionFirstSeedDone = false;
 static const float RAW_HR_SEED_MIN_STABILITY = 0.40f;
 static const float RAW_HR_SEED_MAX_DIFF_WITH_CAND = 15.0f;
+static const float HR_FIRST_PHASE_SEED_MIN_BPM = 65.0f;
+static const float HR_FIRST_PHASE_SEED_PQI_SUSPECT = 0.60f;
+static const uint8_t HR_FIRST_PHASE_SEED_CONFIRM_CYCLES = 3;
+static const float HR_FIRST_PHASE_SEED_CONFIRM_DELTA_BPM = 4.0f;
+static const unsigned long AGC_SKIP_RECOVERY_MS = 8000UL;
 static const float CHIP_HR_BIAS_CORRECTION_BPM = 6.0f;   // v13.7.3: unchanged from v13.7.2; only applied on blind raw-only reseed path
 static const float HR_LOG_PQI_BYPASS_MIN = 0.10f;
 static const float HR_LOG_CONF_BYPASS_MIN = 0.45f;
@@ -1796,6 +1796,9 @@ static bool dspRanThisFrame = false;
 static uint8_t hrPathSourceLatched = HR_PATH_NONE;
 static uint8_t hrConfidenceSourceLatched = HR_CONF_NONE;
 static bool rrPhaseBackedUpdateThisCycle = false;
+static uint8_t hrFirstPhaseSeedConfirmCount = 0;
+static float hrFirstPhaseSeedConfirmLastBpm = 0.0f;
+static unsigned long agcFloorRecoveryStartMs = 0UL;
 static unsigned int phaseValidRunLen = 0;
 static unsigned int phaseInvalidRunLen = 0;
 static unsigned int hrPhaseBackedUpdateCount = 0;
@@ -2548,6 +2551,7 @@ void resetVitals() {
   hrAgeMsLogged = 0; candidateHrAgeMsLogged = 0; candidateRrAgeMsLogged = 0;
   hrUpdatedThisCycle = false; hrUpdateSourceThisCycle = HR_PATH_NONE; hrConfidenceSourceThisCycle = HR_CONF_NONE; dspRanThisFrame = false;
   rrPhaseBackedUpdateThisCycle = false;
+  hrFirstPhaseSeedConfirmCount = 0; hrFirstPhaseSeedConfirmLastBpm = 0.0f; agcFloorRecoveryStartMs = 0UL;
   phaseValidRunLen = 0; phaseInvalidRunLen = 0;
   hrPhaseBackedUpdateCount = 0; rrPhaseBackedUpdateCount = 0;
   nearFieldReflectorSuspect = false; agcFloorSuspect = false;
@@ -2902,6 +2906,7 @@ static void forceClearAllVitalState() {
   hrConfidence = 0.0f; pqiHeart = 0.0f; pqiBreath = 0.0f;
   lastStableHR = 0.0f; rejectionCount = 0;
   rrPhaseBackedUpdateThisCycle = false;
+  hrFirstPhaseSeedConfirmCount = 0; hrFirstPhaseSeedConfirmLastBpm = 0.0f; agcFloorRecoveryStartMs = 0UL;
   phaseValidRunLen = 0; phaseInvalidRunLen = 0;
   hrPhaseBackedUpdateCount = 0; rrPhaseBackedUpdateCount = 0;
   nearFieldReflectorSuspect = false; agcFloorSuspect = false;
@@ -2980,6 +2985,7 @@ static void handlePersonDetected(unsigned long now) {
   hrLowerPersistWindows = 0; hrUpwardConfirmWindows = 0; hrGraceBlockWindows = 0;
   hrDownwardOverrideActive = false; hrPublishGraceBlocked = false;
   rrPhaseBackedUpdateThisCycle = false;
+  hrFirstPhaseSeedConfirmCount = 0; hrFirstPhaseSeedConfirmLastBpm = 0.0f; agcFloorRecoveryStartMs = 0UL;
   phaseValidRunLen = 0; phaseInvalidRunLen = 0;
   hrPhaseBackedUpdateCount = 0; rrPhaseBackedUpdateCount = 0;
   nearFieldReflectorSuspect = false; agcFloorSuspect = false;
@@ -3718,6 +3724,20 @@ void loop() {
 
         if (rawEnergy < energyFloor && calibrationDone) {
             skipDSP_consecMisses++;
+            bool agcAtFloorNow = isfinite(radarGain) && radarGain <= (MIN_GAIN + 0.01f);
+            if (agcAtFloorNow) {
+              if (agcFloorRecoveryStartMs == 0UL) agcFloorRecoveryStartMs = now;
+              if (safeElapsedMs(now, agcFloorRecoveryStartMs) >= AGC_SKIP_RECOVERY_MS) {
+                radarGain = 1.0f;
+                rollingEnergy = TARGET_ENERGY;
+                motionLP = TARGET_ENERGY;
+                recalFrames = 0;
+                skipDSP_consecMisses = 0;
+                agcFloorRecoveryStartMs = 0UL;
+              }
+            } else {
+              agcFloorRecoveryStartMs = 0UL;
+            }
             if (skipDSP_consecMisses >= SKIP_DSP_MISS_THRESH) {
               pqiHeart = 0.0f;
               pqiBreath = 0.0f;
@@ -3739,6 +3759,7 @@ void loop() {
         } else {
             skipDSP_consecMisses = 0;
             skipDSP = false;
+            agcFloorRecoveryStartMs = 0UL;
         }
 
         if (!skipDSP) {
@@ -3758,9 +3779,10 @@ void loop() {
             } else {
               bool roughMotionBase=(rawEnergy>fmaxf(motionLP*8.0f,1e-6f));
               bool roughMotion=roughMotionBase || dopplerMotionDetected;
-              if (!roughMotion) rollingEnergy=0.99f*rollingEnergy+0.01f*rawEnergy;
+              if (!roughMotion && !nearFieldReflectorSuspect) rollingEnergy=0.99f*rollingEnergy+0.01f*rawEnergy;
 
-              if (rollingEnergy>TARGET_ENERGY*RECAL_RATIO_HI||rollingEnergy<TARGET_ENERGY*RECAL_RATIO_LO) {
+              if (!nearFieldReflectorSuspect &&
+                  (rollingEnergy>TARGET_ENERGY*RECAL_RATIO_HI||rollingEnergy<TARGET_ENERGY*RECAL_RATIO_LO)) {
                 recalFrames++;
                 if (recalFrames>RECAL_HOLD_FRAMES) {
                   rollingEnergy=fmaxf(rollingEnergy,1e-6f);
@@ -4263,7 +4285,14 @@ void loop() {
 
                         if (isfinite(finalHR)) {
                           float hrTrustPqiGate = currentHeartPQIGate();
-                          float savedR = kfHR_R;
+                          bool hrDriftGuardNow = (hrState >= 2) &&
+                                                (lastTrackingHRMs > 0) &&
+                                                (safeElapsedMs(now, lastTrackingHRMs) <= 10000UL) &&
+                                                isfinite(trackingHR) &&
+                                                (pqiHeart < 0.55f) &&
+                                                (fabsf(finalHR - trackingHR) >= 8.0f);
+                          float savedR = kfHR_R * (hrDriftGuardNow ? 4.0f : 1.0f);
+                          if (hrDriftGuardNow) hrAnchorDriftSuspect = true;
                           float pqiScale = constrain(pqiHeart / fmaxf(hrTrustPqiGate, 0.01f), 0.1f, 2.0f);
                           kfHR_R = savedR / fmaxf(pqiScale * pqiScale, 0.01f);
                           if (pqiHeart < HR_PQI_UPDATE_FLOOR) {
@@ -4281,12 +4310,31 @@ void loop() {
                           bool hrKalmanUpdateAllowed = (pqiHeart >= hrTrustPqiGate) ||
                                                        (rawUse && hrRawAgreementGood && lastConfHR >= HR_LOG_CONF_BYPASS_MIN);
                           bool trustedHrEvidence = ((hrUpdateSourceThisCycle == HR_PATH_AUTO || hrUpdateSourceThisCycle == HR_PATH_SPECTRAL) && pqiHeart >= hrTrustPqiGate && hrConfidence >= 0.09f);
+                          if (trustedHrEvidence && lastTrustedPhaseHRMs == 0UL) {
+                            bool lowFirstSeedSuspect = smoothHR < HR_FIRST_PHASE_SEED_MIN_BPM &&
+                                                       pqiHeart >= HR_FIRST_PHASE_SEED_PQI_SUSPECT;
+                            if (lowFirstSeedSuspect) {
+                              if (fabsf(smoothHR - hrFirstPhaseSeedConfirmLastBpm) <= HR_FIRST_PHASE_SEED_CONFIRM_DELTA_BPM) {
+                                if (hrFirstPhaseSeedConfirmCount < 255) hrFirstPhaseSeedConfirmCount++;
+                              } else {
+                                hrFirstPhaseSeedConfirmCount = 1;
+                                hrFirstPhaseSeedConfirmLastBpm = smoothHR;
+                              }
+                              if (hrFirstPhaseSeedConfirmCount < HR_FIRST_PHASE_SEED_CONFIRM_CYCLES) {
+                                trustedHrEvidence = false;
+                              }
+                            } else {
+                              hrFirstPhaseSeedConfirmCount = HR_FIRST_PHASE_SEED_CONFIRM_CYCLES;
+                              hrFirstPhaseSeedConfirmLastBpm = smoothHR;
+                            }
+                          }
                           if (trustedHrEvidence && hrKalmanUpdateAllowed) {
                             lastValidRateMs = now;
                             lastTrustedHRMs = now;
                             lastTrustedVitalMs = now;
                             trustedPhaseHR = smoothHR;
                             lastTrustedPhaseHRMs = now;
+                            sessionFirstSeedDone = true;
                           }
                           if (!hrKalmanUpdateAllowed && hrGateReason == HR_GATE_OK) {
                             hrGateReason = HR_GATE_PQI;
@@ -4394,7 +4442,14 @@ void loop() {
                                                          (rawSp && hrRawAgreementGood && spectralMag >= spectralMagMin && hrConfidence >= HR_LOG_CONF_BYPASS_MIN);
                             hrGateReason = HR_GATE_OK;
                             {
-                              float savedR_s = kfHR_R;
+                              bool hrDriftGuardNow = (hrState >= 2) &&
+                                                    (lastTrackingHRMs > 0) &&
+                                                    (safeElapsedMs(now, lastTrackingHRMs) <= 10000UL) &&
+                                                    isfinite(trackingHR) &&
+                                                    (pqiHeart < 0.55f) &&
+                                                    (fabsf(finalHR - trackingHR) >= 8.0f);
+                              float savedR_s = kfHR_R * (hrDriftGuardNow ? 4.0f : 1.0f);
+                              if (hrDriftGuardNow) hrAnchorDriftSuspect = true;
                               float pqiScale_s = constrain(pqiHeart / fmaxf(spectralPqiGate, 0.01f), 0.1f, 2.0f);
                               kfHR_R = savedR_s / fmaxf(pqiScale_s * pqiScale_s, 0.01f);
                               if (pqiHeart < HR_PQI_UPDATE_FLOOR) kfHR_R = savedR_s * 16.0f;
@@ -4409,12 +4464,31 @@ void loop() {
                             }
                             if (hrKalmanUpdateAllowed) {
                               bool trustedSpectralEvidence = (spectralPlausible && spectralMag > spectralMagMin && (rawSp || pqiHeart >= spectralPqiGate));
+                              if (trustedSpectralEvidence && lastTrustedPhaseHRMs == 0UL) {
+                                bool lowFirstSeedSuspect = smoothHR < HR_FIRST_PHASE_SEED_MIN_BPM &&
+                                                           pqiHeart >= HR_FIRST_PHASE_SEED_PQI_SUSPECT;
+                                if (lowFirstSeedSuspect) {
+                                  if (fabsf(smoothHR - hrFirstPhaseSeedConfirmLastBpm) <= HR_FIRST_PHASE_SEED_CONFIRM_DELTA_BPM) {
+                                    if (hrFirstPhaseSeedConfirmCount < 255) hrFirstPhaseSeedConfirmCount++;
+                                  } else {
+                                    hrFirstPhaseSeedConfirmCount = 1;
+                                    hrFirstPhaseSeedConfirmLastBpm = smoothHR;
+                                  }
+                                  if (hrFirstPhaseSeedConfirmCount < HR_FIRST_PHASE_SEED_CONFIRM_CYCLES) {
+                                    trustedSpectralEvidence = false;
+                                  }
+                                } else {
+                                  hrFirstPhaseSeedConfirmCount = HR_FIRST_PHASE_SEED_CONFIRM_CYCLES;
+                                  hrFirstPhaseSeedConfirmLastBpm = smoothHR;
+                                }
+                              }
                               if (trustedSpectralEvidence) {
                                 lastValidRateMs = now;
                                 lastTrustedHRMs = now;
                                 lastTrustedVitalMs = now;
                                 trustedPhaseHR = smoothHR;
                                 lastTrustedPhaseHRMs = now;
+                                sessionFirstSeedDone = true;
                               }
                             } else {
                               hrGateReason = HR_GATE_PQI;
@@ -5191,6 +5265,11 @@ void loop() {
   bool allowLoggedHRVitals = humanDetected && trustedHrFreshNow && haveFreshHREvidence && !inPublishWarmup;
   bool allowLoggedRRVitals = humanDetected && trustedRrFreshNow && haveFreshRREvidence && !inPublishWarmup;
   bool rrPostMotionHold = (lastMotionDetectedMs > 0) && (safeElapsedMs(now, lastMotionDetectedMs) < RR_POST_MOTION_HOLDOFF_MS);
+  if (inMotion || rrPostMotionHold) {
+    hrPhaseBackedUpdateCount = 0;
+    rrPhaseBackedUpdateCount = 0;
+    phaseBackedPublishReady = false;
+  }
 
   // 3. State Downgrade (Aggressive UI invalidation if phase freezes)
   if (humanDetected && lastPhaseDataMs > 0 && (now - lastPhaseDataMs > PHASE_STALE_DOWNGRADE_MS)) {
@@ -5273,8 +5352,8 @@ void loop() {
 
   unsigned long hrAgeMs = (lastHRUpdateMs > 0) ? safeElapsedMs(now, lastHRUpdateMs) : 999999UL;
   bool hrFreshForLog = hrFreshNow && (hrAgeMs <= HR_PUBLISH_MAX_AGE_MS);
-  bool loggedHRValid = allowLoggedHRVitals && (hrState > 0) && hrFreshForLog && loggedHRQualityGate;
-  bool loggedRRValid = allowLoggedRRVitals && rrFreshNow && loggedRRQualityGate;
+  bool loggedHRValid = allowLoggedHRVitals && phaseBackedPublishReady && hrFreshForLog && loggedHRQualityGate;
+  bool loggedRRValid = allowLoggedRRVitals && phaseBackedPublishReady && rrFreshNow && loggedRRQualityGate;
   bool loggedDistValid = allowLoggedVitals && distFreshNow;
 
   if (loggedHRValid) hrPublishReason = HR_PUB_OK;
@@ -5282,7 +5361,7 @@ void loop() {
   else if (!trustedHrFreshNow) hrPublishReason = HR_PUB_TRUST_STALE;
   else if (inPublishWarmup) hrPublishReason = HR_PUB_STATE;
   else if (!haveFreshHREvidence) hrPublishReason = HR_PUB_NO_EVIDENCE;
-  else if (!(hrState > 0)) hrPublishReason = HR_PUB_STATE;
+  else if (!phaseBackedPublishReady) hrPublishReason = HR_PUB_STATE;
   else if (!hrFreshForLog) hrPublishReason = HR_PUB_AGE;
   else if (!hrFreshNow) hrPublishReason = HR_PUB_STALE;
   else if (hrPublishGraceBlocked && hrPhaseBackedCandidateNow) hrPublishReason = HR_PUB_GRACE_BLOCKED;
@@ -5297,6 +5376,7 @@ void loop() {
   else if (!trustedRrFreshNow) rrPublishReason = RR_PUB_TRUST_STALE;
   else if (inPublishWarmup) rrPublishReason = RR_PUB_HOLDOFF;
   else if (!haveFreshRREvidence) rrPublishReason = RR_PUB_NO_EVIDENCE;
+  else if (!phaseBackedPublishReady) rrPublishReason = RR_PUB_HOLDOFF;
   else if (!rrFreshNow) rrPublishReason = RR_PUB_STALE;
   else if (!(pqiBreath >= RR_PQI_LOG_THRESHOLD)) rrPublishReason = RR_PUB_PQI;
   else if (rrPostMotionHoldActive) rrPublishReason = RR_PUB_HOLDOFF;
@@ -5719,7 +5799,7 @@ void loop() {
       CSVI((int)spatialSource);
       CSVU(spatialFreshAgeMs);
       CSVF(positionRadiusCm, 2);
-      // v13.7 P2/P3 Truthfulness & Experiment Instrumentation
+      // v13.9c truthfulness / readiness / drift instrumentation
       CSVI((int)phaseWarmupComplete);
       CSVI(clutterWarmupCount);
       CSVF(currentClutterAlpha, 4);

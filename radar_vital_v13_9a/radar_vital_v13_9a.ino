@@ -1,40 +1,36 @@
-/* radar_vital_v13_8_0.ino
+/* radar_vital_v13_9a.ino
  *
  * XIAO ESP32-C6 + MR60BHA2 60 GHz FMCW radar + MLX90614 + HD44780 20x4 LCD
  * + Active Buzzer for audio feedback
  *
- * Firmware release: v13.8.0
- * CSV schema release: v13.8.0 / trainer contract v8.4.0
+ * Firmware release: v13.9a
+ * CSV schema release: v13.9a / trainer contract v8.5a
  *
 * Manuscript-facing calibration / release notes
 * -------------------------------------------
-* + FW_VERSION is v13.8.0.
+* + FW_VERSION is v13.9a.
 * + The raw CSV now exposes both sketch identity and radar-module identity:
 *   sketch_major/sketch_sub/sketch_mod and
 *   module_fw_major/module_fw_sub/module_fw_mod.
 * + The stabilized phase columns are now named
 *   heart_phase_stabilized and breath_phase_stabilized.
-* + The v13.8 telemetry tail adds dsp_ran_this_frame and
-*   hr_confidence_source for freshness / confidence-path truthfulness.
+* + The v13.9a telemetry tail adds publish/gate observability, phase run
+*   lengths, phase-backed update counters, and AGC/near-field truthfulness.
 * + The main calibration constants introduced in the v13.7 line remain:
 *   - CHIP_HR_BIAS_CORRECTION_BPM = 6.0f (blind raw-only reseed damping)
 *   - clutter warmup alpha: 0.08 -> 0.005 over valid-phase warmup samples
 *   - anchor-aware RR harmonic guard around the smoothRR anchor
 *
 * =========================================================================
-* CHANGELOG v13.8.0 (truthfulness + telemetry contract alignment)
+* CHANGELOG v13.9a (observability + truthfulness baseline)
 * =========================================================================
-* + Fold in the missed narrow truthfulness fixes: correct FW_VERSION,
-*   fix HR publish CONF threshold to 0.10, reset gate reasons at loop
-*   start, and apply RR bias correction only on accepted phase-backed RR.
-* + Rename phase CSV fields to heart_phase_stabilized /
-*   breath_phase_stabilized for clearer manuscript semantics.
-* + Add telemetry columns: dsp_ran_this_frame, hr_confidence_source,
-*   sketch_major, sketch_sub, sketch_mod.
-* + Rename fw_major/fw_sub/fw_mod telemetry to
-*   module_fw_major/module_fw_sub/module_fw_mod.
-* + Harden CSV float emission so non-finite values explicitly serialize
-*   as -1.0 instead of blank or nan text.
+* + Establish the branch-stable v13.9x telemetry contract used by
+*   v8.5x analysis and dashboard releases.
+* + Add publish gating telemetry, trusted freshness telemetry, phase run
+*   lengths, phase-backed update counters, and AGC/near-field anomaly flags.
+* + Latch confidence/path sources across non-DSP loops so idle rows do not
+*   overwrite the last meaningful source with "none".
+* + Surface version-truthfulness support for sketch/module firmware pairing.
 *
 * =========================================================================
 * CHANGELOG v13.7.5 (Audit Bugfixes & Improvements)
@@ -5719,7 +5715,7 @@ void loop() {
       CSVI((int)spatialSource);
       CSVU(spatialFreshAgeMs);
       CSVF(positionRadiusCm, 2);
-      // v13.7 P2/P3 Truthfulness & Experiment Instrumentation
+      // v13.9a truthfulness / observability instrumentation
       CSVI((int)phaseWarmupComplete);
       CSVI(clutterWarmupCount);
       CSVF(currentClutterAlpha, 4);

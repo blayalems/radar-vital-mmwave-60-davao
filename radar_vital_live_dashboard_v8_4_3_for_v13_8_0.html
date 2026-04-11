@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Radar Vital Trainer Live Dashboard — v13.8.0 / v8.4.3 Full Telemetry + Position/Waveforms + Agreement Labels</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,500,1,0" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f9ff;
+      --surface: #ffffff;
+      --surface-2: #f3f4fb;
+      --surface-3: #eceef5;
+      --text: #171c24;
+      --text-muted: #5b6170;
+      --outline: #c8ccd6;
+      --primary: #2f6df6;
+      --primary-container: #dde4ff;
+      --secondary-container: #e5e9f7;
+      --success: #146c37;
+      --success-container: #d6f4db;
+      --warning: #8f4f00;
+      --warning-container: #ffe1bf;
+      --error: #b3261e;
+      --error-container: #ffd9d4;
+      --rr: #1b9c67;
+      --rr-container: #d5f5e7;
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 18px;
+      --shadow-1: 0 1px 2px rgba(16,24,40,.06), 0 2px 8px rgba(16,24,40,.05);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: Roboto, system-ui, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(47,109,246,.10), transparent 24%),
+        radial-gradient(circle at top right, rgba(27,156,103,.08), transparent 18%),
+        var(--bg);
+      color: var(--text);
+      padding: 20px 16px 28px;
+    }
+    .page { max-width: 1520px; margin: 0 auto; display: grid; gap: 18px; }
+    .topbar, .card {
+      background: color-mix(in srgb, var(--surface) 95%, white);
+      border: 1px solid var(--outline);
+      box-shadow: var(--shadow-1);
+    }
+    .topbar {
+      border-radius: 34px;
+      padding: 22px;
+      display: grid;
+      gap: 16px;
+      position: sticky;
+      top: 8px;
+      z-index: 10;
+      backdrop-filter: blur(12px);
+    }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .brand-icon {
+      width: 56px; height: 56px; border-radius: 18px;
+      display: grid; place-items: center;
+      background: linear-gradient(135deg, var(--primary-container), white);
+      color: var(--primary);
+      flex: 0 0 auto;
+    }
+    .brand-icon .material-symbols-rounded { font-size: 30px; }
+    .eyebrow {
+      font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    h1 {
+      margin: 0; font-size: clamp(28px, 4vw, 42px); line-height: 1.02; letter-spacing: -.5px; font-weight: 900;
+    }
+    .subtitle { color: var(--text-muted); font-size: 14px; margin-top: 6px; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-radius: 999px;
+      font-size: 14px; font-weight: 700; background: var(--secondary-container); color: #22314c;
+    }
+    .chip.good { background: var(--success-container); color: var(--success); }
+    .chip.warn { background: var(--warning-container); color: var(--warning); }
+    .chip.bad { background: var(--error-container); color: var(--error); }
+    .grid { display: grid; gap: 16px; }
+    .cards-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .cards-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+    .cards-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    .card { border-radius: var(--radius-xl); padding: 18px; min-width: 0; }
+    .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .title-wrap { display: flex; align-items: center; gap: 10px; }
+    .title-wrap .material-symbols-rounded { color: var(--primary); font-size: 24px; }
+    .title-wrap.rr .material-symbols-rounded { color: var(--rr); }
+    .card-title { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: -.02em; }
+    .card-subtitle { margin-top: 4px; font-size: 13px; color: var(--text-muted); }
+    .metric-row { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; margin-bottom: 12px; }
+    .metric {
+      display: flex; align-items: baseline; gap: 8px;
+      background: var(--surface-2); padding: 14px 16px; border-radius: 20px;
+    }
+    .metric.rr { background: color-mix(in srgb, var(--rr-container) 58%, white); }
+    .metric-label { font-size: 18px; font-weight: 600; color: var(--text-muted); }
+    .metric-value { font-size: 40px; font-weight: 900; color: var(--primary); letter-spacing: -1px; }
+    .metric.rr .metric-value { color: var(--rr); }
+    .metric-unit { font-size: 14px; color: var(--text-muted); font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 10px 4px; border-bottom: 1px solid var(--outline); font-size: 14px; }
+    tr:last-child td { border-bottom: none; }
+    td:first-child { color: var(--text-muted); font-weight: 500; }
+    td:last-child { color: var(--text); text-align: right; font-weight: 700; font-family: 'Roboto Mono', monospace; }
+    .pillbar { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 999px;
+      background: var(--surface-2); color: var(--text-muted); font-size: 12px; font-weight: 700;
+    }
+    .pill.good { background: var(--success-container); color: var(--success); }
+    .pill.warn { background: var(--warning-container); color: var(--warning); }
+    .pill.bad { background: var(--error-container); color: var(--error); }
+    .faults { display: grid; gap: 10px; }
+    .fault {
+      border-radius: var(--radius-md); padding: 14px 16px; display: grid; gap: 6px;
+      border: 1px solid rgba(0,0,0,.04);
+    }
+    .fault.good { background: color-mix(in srgb, var(--success-container) 60%, white); }
+    .fault.warn { background: color-mix(in srgb, var(--warning-container) 62%, white); }
+    .fault.bad { background: color-mix(in srgb, var(--error-container) 64%, white); }
+    .fault-title { display: flex; align-items: center; gap: 8px; font-weight: 900; }
+    .fault-copy { font-size: 13px; color: var(--text-muted); line-height: 1.45; }
+    .chart-panel {
+      background: var(--surface-2); border-radius: 22px; padding: 14px 14px 8px; border: 1px solid rgba(0,0,0,.03); min-height: 300px;
+    }
+    .chart-title { margin: 0; font-size: 16px; font-weight: 900; }
+    .chart-subtitle { margin: 4px 0 10px; font-size: 12px; color: var(--text-muted); }
+    canvas { width: 100% !important; height: 230px !important; }
+    pre {
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--outline); border-radius: 20px; padding: 14px;
+      white-space: pre-wrap; font-family: 'Roboto Mono', monospace; font-size: 12px; line-height: 1.55; margin: 0;
+      overflow-x: auto;
+    }
+    .footer { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; font-family: 'Roboto Mono', monospace; padding: 0 8px; }
+
+    .radar-card-union {
+      padding: 18px;
+    }
+    .radar-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+    .radar-panel, .telemetry-block, .wave-card {
+      background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(243,244,251,.9));
+      border: 1px solid rgba(0,0,0,.05);
+      border-radius: 22px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    }
+    .radar-panel {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      min-height: 100%;
+    }
+    .radar-panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .radar-panel-note {
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--text-muted);
+      max-width: 62ch;
+    }
+    .target-badge {
+      flex: 0 0 auto;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: var(--primary-container);
+      color: var(--primary);
+      font-weight: 900;
+      font-size: 14px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    }
+    .radar-wrap {
+      position: relative;
+      background: linear-gradient(180deg, #eef3ff 0%, #f8faff 100%);
+      border: 1px solid rgba(47,109,246,.12);
+      border-radius: 20px;
+      padding: 10px;
+      min-height: 360px;
+      overflow: hidden;
+    }
+    #radarCanvas { height: 340px !important; }
+    .spatial-side {
+      display: grid;
+      gap: 16px;
+      min-width: 0;
+    }
+    .telemetry-block {
+      padding: 16px;
+    }
+    .telemetry-big {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .telemetry-line {
+      background: var(--surface);
+      border: 1px solid rgba(0,0,0,.05);
+      border-radius: 18px;
+      padding: 12px 14px;
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+    .telemetry-line .label {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-muted);
+    }
+    .telemetry-line .value {
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1;
+      font-weight: 900;
+      color: var(--primary);
+      letter-spacing: -.04em;
+      min-width: 0;
+    }
+    .telemetry-line .value.rr { color: var(--rr); }
+    .kv-grid {
+      display: grid;
+      grid-template-columns: minmax(0,1fr) auto;
+      gap: 10px 14px;
+      align-items: center;
+    }
+    .kv-grid > div:nth-child(odd) {
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .kv-grid > div:nth-child(even) {
+      text-align: right;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      word-break: break-word;
+    }
+    .wave-grid-union {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .wave-card {
+      padding: 14px 16px 10px;
+    }
+    .wave-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: -.02em;
+    }
+    .wave-sub {
+      margin: 4px 0 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    #breathChart, #heartChart { height: 170px !important; }
+    @media (max-width: 1180px) {
+      .radar-layout { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 820px) {
+      .telemetry-big { grid-template-columns: 1fr; }
+      .kv-grid { grid-template-columns: 1fr; }
+      .kv-grid > div:nth-child(even) { text-align: left; }
+      #radarCanvas { height: 280px !important; }
+    }
+
+    @media (max-width: 1180px) { .cards-3, .cards-4, .cards-2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="topbar">
+      <div class="row">
+        <div class="brand">
+          <div class="brand-icon"><span class="material-symbols-rounded">monitor_heart</span></div>
+          <div>
+            <div class="eyebrow">Live collection</div>
+            <h1>Radar Vital Trainer</h1>
+            <div class="subtitle">v13.8.0 / v8.4.3 dashboard with spatial telemetry, session phases, harmonic labels, and HR anchor-bias diagnostics</div>
+          </div>
+        </div>
+        <div class="chip-row" id="statusChips"></div>
+      </div>
+    </section>
+
+    <section class="grid cards-2">
+      <article class="card radar-card-union">
+        <div class="card-header">
+          <div class="title-wrap"><span class="material-symbols-rounded">explore</span><div><h2 class="card-title">Position / module view</h2><div class="card-subtitle">Semicircle position view plus live module-side spatial telemetry</div></div></div>
+        </div>
+        <div class="radar-layout">
+          <div class="radar-panel">
+            <div class="radar-panel-head">
+              <div>
+                <div class="eyebrow">Spatial view</div>
+                <div class="radar-panel-note">Primary position uses <strong>target-info-first</strong> telemetry. The semicircle stays while all original 8.1 telemetry panels remain below.</div>
+              </div>
+              <div class="target-badge" id="targetCount">Target: --</div>
+            </div>
+            <div class="radar-wrap"><canvas id="radarCanvas"></canvas></div>
+          </div>
+          <div class="spatial-side">
+            <div class="telemetry-block">
+              <div class="telemetry-big">
+                <div class="telemetry-line"><span class="label">FPS</span><span class="value" id="fpsValue">--</span></div>
+                <div class="telemetry-line"><span class="label">Breath rate</span><span class="value rr" id="brValue">--</span></div>
+                <div class="telemetry-line"><span class="label">Heart rate</span><span class="value" id="hrValue">--</span></div>
+              </div>
+              <div class="kv-grid">
+                <div>Person detected</div><div id="personValue">--</div>
+                <div>Distance</div><div id="distanceValue">--</div>
+                <div>X position</div><div id="xValue">--</div>
+                <div>Y position</div><div id="yValue">--</div>
+                <div>Radius</div><div id="radiusValue">--</div>
+                <div>Firmware</div><div id="fwValue">--</div>
+                <div>Spatial source</div><div id="sourceValue">--</div>
+                <div>Spatial age</div><div id="sourceAgeValue">--</div>
+                <div>Doppler index</div><div id="dopValue">--</div>
+                <div>Doppler estimate</div><div id="dopCmsValue">--</div>
+              </div>
+            </div>
+            <div class="telemetry-block">
+              <div class="card-title" style="font-size:16px; margin-bottom:10px;">Position source summary</div>
+              <table><tbody id="positionTable"></tbody></table>
+            </div>
+          </div>
+        </div>
+      </article>
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap"><span class="material-symbols-rounded">monitor_heart</span><div><h2 class="card-title">Live phase waveforms</h2><div class="card-subtitle">Keep the new breath and heartbeat phase graphs without removing the original 8.1 trend panels</div></div></div>
+        </div>
+        <div class="wave-grid-union">
+          <div class="wave-card">
+            <h3 class="wave-title">Breath</h3>
+            <div class="wave-sub">Live breath_phase history from 0x0A13-compatible phase stream</div>
+            <canvas id="breathChart"></canvas>
+          </div>
+          <div class="wave-card">
+            <h3 class="wave-title">Heartbeat</h3>
+            <div class="wave-sub">Live heart_phase history from 0x0A13-compatible phase stream</div>
+            <canvas id="heartChart"></canvas>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid cards-4">
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap"><span class="material-symbols-rounded">radar</span><div><h2 class="card-title">Radar</h2><div class="card-subtitle">Latest parsed radar row</div></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric"><span class="metric-label">HR</span><span class="metric-value" id="radarHr">--</span><span class="metric-unit">bpm</span></div>
+          <div class="metric rr"><span class="metric-label">RR</span><span class="metric-value" id="radarRr">--</span><span class="metric-unit">br/min</span></div>
+        </div>
+        <table><tbody id="radarTable"></tbody></table>
+      </article>
+
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap"><span class="material-symbols-rounded">bluetooth_connected</span><div><h2 class="card-title">BLE Reference</h2><div class="card-subtitle">Latest decoded oximeter packet</div></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric"><span class="metric-label">HR</span><span class="metric-value" id="bleHr">--</span><span class="metric-unit">bpm</span></div>
+          <div class="metric rr"><span class="metric-label">RR</span><span class="metric-value" id="bleRr">--</span><span class="metric-unit">br/min</span></div>
+        </div>
+        <table><tbody id="bleTable"></tbody></table>
+      </article>
+
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap"><span class="material-symbols-rounded">difference</span><div><h2 class="card-title">Current mismatch</h2><div class="card-subtitle">Operator-facing delta and fault view</div></div></div>
+        </div>
+        <div class="faults" id="faults"></div>
+      </article>
+
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap"><span class="material-symbols-rounded">my_location</span><div><h2 class="card-title">Spatial / module</h2><div class="card-subtitle">Point cloud, target count, Doppler index + speed estimate, and firmware</div></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric"><span class="metric-label">Targets</span><span class="metric-value" id="numTargets">--</span><span class="metric-unit">count</span></div>
+          <div class="metric rr"><span class="metric-label">|Dop|</span><span class="metric-value" id="maxDop">--</span><span class="metric-unit">idx</span></div>
+        </div>
+        <table><tbody id="spatialTable"></tbody></table>
+      </article>
+    </section>
+
+    <section class="grid cards-2">
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap"><span class="material-symbols-rounded">conversion_path</span><div><h2 class="card-title">HR funnel telemetry</h2><div class="card-subtitle">Arbiter → reject-phase → blend → coherence → publish</div></div></div>
+        </div>
+        <div class="pillbar" id="hrFunnelPills"></div>
+        <table><tbody id="hrFunnelTable"></tbody></table>
+      </article>
+
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap"><span class="material-symbols-rounded">analytics</span><div><h2 class="card-title">HR stage values</h2><div class="card-subtitle">Numeric values carried through the HR path</div></div></div>
+        </div>
+        <table><tbody id="hrStageTable"></tbody></table>
+      </article>
+    </section>
+
+    <section class="grid cards-2">
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap rr"><span class="material-symbols-rounded">air</span><div><h2 class="card-title">RR funnel telemetry</h2><div class="card-subtitle">Selector → accept-phase → blend → bias correction → Kalman → publish</div></div></div>
+        </div>
+        <div class="pillbar" id="rrFunnelPills"></div>
+        <table><tbody id="rrFunnelTable"></tbody></table>
+      </article>
+
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap rr"><span class="material-symbols-rounded">timeline</span><div><h2 class="card-title">RR stage values</h2><div class="card-subtitle">Anchor, recovery, and final RR stage values</div></div></div>
+        </div>
+        <table><tbody id="rrStageTable"></tbody></table>
+      </article>
+    </section>
+
+    <section class="grid cards-2">
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap"><span class="material-symbols-rounded">show_chart</span><div><h2 class="card-title">Heart-rate trend</h2><div class="card-subtitle">Reported, candidate, raw, and BLE reference</div></div></div>
+        </div>
+        <div class="chart-panel"><canvas id="hrChart"></canvas></div>
+      </article>
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap rr"><span class="material-symbols-rounded">show_chart</span><div><h2 class="card-title">Respiration trend</h2><div class="card-subtitle">Reported, candidate, final-publish, anchor, and BLE reference</div></div></div>
+        </div>
+        <div class="chart-panel"><canvas id="rrChart"></canvas></div>
+      </article>
+    </section>
+
+    <section class="grid cards-2">
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap rr"><span class="material-symbols-rounded">monitoring</span><div><h2 class="card-title">RR recovery diagnostics</h2><div class="card-subtitle">Confidence, recovery counter, seed consistency, re-anchor state</div></div></div>
+        </div>
+        <div class="chart-panel"><canvas id="rrDiagChart"></canvas></div>
+      </article>
+      <article class="card">
+        <div class="card-header">
+          <div class="title-wrap"><span class="material-symbols-rounded">notification_important</span><div><h2 class="card-title">RR / stale-state warnings</h2><div class="card-subtitle">Anchor, recovery, candidate aging, and telemetry integrity</div></div></div>
+        </div>
+        <div class="faults" id="rrFaults"></div>
+      </article>
+    </section>
+
+    <article class="card">
+      <div class="card-header">
+        <div class="title-wrap"><span class="material-symbols-rounded">history</span><div><h2 class="card-title">Recent events</h2><div class="card-subtitle">Live tail from the current session</div></div></div>
+      </div>
+      <pre id="eventsLog">Waiting for data...</pre>
+    </article>
+
+    <div class="footer" id="footerText"></div>
+  </div>
+
+  <script>
+    const state = { charts: {}, dataUrl: './live_dashboard.json', refreshMs: 1000, lastPayload: null, disconnectedCount: 0, hardStaleAfter: 5, hardStaleAgeS: 5.0 };
+
+    function num(v){ const n = Number(v); return Number.isFinite(n) ? n : null; }
+    function fmt(v, d=1){ const n = num(v); return n === null ? '--' : n.toFixed(d); }
+    function boolish(v){ const n = num(v); return n !== null ? (n >= 0.5) : !!v; }
+    function textOrDash(v){ return (v === null || v === undefined || v === '') ? '--' : String(v); }
+    function makeRow(label, value){ return `<tr><td>${label}</td><td>${value}</td></tr>`; }
+    function chip(label, cls, icon){ return `<div class="chip ${cls||''}"><span class="material-symbols-rounded">${icon}</span>${label}</div>`; }
+    function pill(label, value){
+      let cls = '';
+      if (value === 1 || value === true || value === 'yes' || value === 'triggered') cls = 'good';
+      else if (value === 0 || value === false || value === 'no') cls = 'warn';
+      return `<div class="pill ${cls}">${label}: ${value === null || value === undefined || value === '' ? '--' : value}</div>`;
+    }
+    function faultCard(severity, title, copy){
+      const icon = severity === 'bad' ? 'error' : severity === 'warn' ? 'warning' : 'check_circle';
+      return `<div class="fault ${severity}"><div class="fault-title"><span class="material-symbols-rounded">${icon}</span>${title}</div><div class="fault-copy">${copy}</div></div>`;
+    }
+    function normalize(raw){ return { meta: raw?.meta||{}, radar: raw?.radar||{}, ble: raw?.ble||{}, thresholds: raw?.thresholds||{}, faults: Array.isArray(raw?.faults)?raw.faults:[], events: Array.isArray(raw?.events)?raw.events:[], series: raw?.series||{}, analysis: raw?.analysis||null }; }
+    function lastFromSeries(series, key){ const arr = Array.isArray(series?.[key]) ? series[key] : []; return arr.length ? arr[arr.length-1] : null; }
+    function getRadar(payload, key){
+      const radar = payload.radar || {};
+      if (radar[key] !== undefined) return radar[key];
+      const direct = lastFromSeries(payload.series, key);
+      if (direct !== null) return direct;
+      return null;
+    }
+    function stageOrFallback(payload, primary, fallbackKeys=[]){
+      const first = getRadar(payload, primary);
+      if (first !== null && first !== undefined) return first;
+      for (const k of fallbackKeys){
+        const val = getRadar(payload, k);
+        if (val !== null && val !== undefined) return val;
+      }
+      return null;
+    }
+    function payloadIsHardStale(payload){
+      const age = num(payload?.radar?.last_seen_age_s);
+      return state.disconnectedCount >= state.hardStaleAfter || (age !== null && age >= state.hardStaleAgeS);
+    }
+    function rrStageValue(payload, primary, fallbackKeys=[]){
+      const anchorFresh = boolish(getRadar(payload,'rr_anchor_fresh'));
+      if (!anchorFresh && primary === 'rr_post_kalman') return null;
+      return stageOrFallback(payload, primary, fallbackKeys);
+    }
+
+    function sourceName(v){ return ({0:'none',1:'target_info',2:'point_cloud',3:'frame_0x0A17'}[Math.round(num(v) ?? 0)] || textOrDash(v)); }
+    function sessionPhaseName(v){ return ({0:'absent',1:'warmup',2:'settling',3:'locked',4:'post_motion',5:'leaving'}[Math.round(num(v) ?? 0)] || textOrDash(v)); }
+    function harmonicSummary(v){ const n=Math.round(num(v) ?? 0); if(!n) return 'none'; const tags=[]; if(n&1) tags.push('rr_raw'); if(n&2) tags.push('hr_arb'); if(n&4) tags.push('hr_half'); if(n&8) tags.push('hr_amb'); if(n&16) tags.push('rr_sub'); if(n&32) tags.push('rr_harm'); return tags.join('|'); }
+    function hrPathSourceName(v, fallback){ if (fallback) return String(fallback); const n=Math.round(num(v) ?? -999); return ({0:'none',1:'auto publish',2:'spectral path',3:'raw blend',4:'raw fallback',5:'raw only (no phase)',6:'direct raw fast path'})[n] || textOrDash(v); }
+    function hrAnchorSourceName(v, fallback){ if (fallback) return String(fallback); const n=Math.round(num(v) ?? -999); return ({0:'none',1:'trusted_phase',2:'tracking_raw',3:'latched_raw',4:'arbiter_anchor',5:'rejectphase_anchor'})[n] || textOrDash(v); }
+    function computeFps(payload){
+      const explicit = num(getRadar(payload, 'fps_hz'));
+      if (explicit !== null && explicit > 0) return explicit;
+      const t = Array.isArray(payload?.series?.t) ? payload.series.t.map(num).filter(v => v !== null) : [];
+      if (t.length < 3) return null;
+      const diffs = [];
+      for (let i=1;i<t.length;i++){ const d=t[i]-t[i-1]; if (d>0) diffs.push(d); }
+      if (!diffs.length) return null;
+      diffs.sort((a,b)=>a-b);
+      const med = diffs[Math.floor(diffs.length/2)];
+      return med > 0 ? 1/med : null;
+    }
+    function drawRadar(payload){
+      const c = document.getElementById('radarCanvas');
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const rect = c.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      c.width = rect.width * dpr; c.height = rect.height * dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+      const w = rect.width, h = rect.height;
+      ctx.clearRect(0,0,w,h);
+      ctx.fillStyle = '#f7f9fc'; ctx.fillRect(0,0,w,h);
+      const originX = w/2, originY = h - 18;
+      const maxR = Math.min(w*0.46, h*0.84); const maxMeters = 6;
+      ctx.strokeStyle = '#cfd7e4'; ctx.lineWidth = 2;
+      for(let i=1;i<=6;i++){
+        const r = maxR * (i/maxMeters);
+        ctx.beginPath(); ctx.arc(originX, originY, r, Math.PI, 2*Math.PI); ctx.stroke();
+        ctx.fillStyle = '#9aa6ba'; ctx.font='12px Roboto'; ctx.fillText(`${i}m`, originX + 6, originY - r - 4);
+      }
+      ctx.beginPath(); ctx.moveTo(originX, originY); ctx.lineTo(originX, originY - maxR); ctx.strokeStyle='#3b434f'; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, originY); ctx.lineTo(w, originY); ctx.stroke();
+      ctx.fillStyle = '#171c24'; ctx.beginPath(); ctx.arc(originX, originY, 4, 0, Math.PI*2); ctx.fill();
+      const x = num(getRadar(payload,'primary_x'));
+      const y = num(getRadar(payload,'primary_y'));
+      if (x !== null && y !== null && y >= 0){
+        const px = originX + (x / maxMeters) * maxR;
+        const py = originY - (y / maxMeters) * maxR;
+        ctx.fillStyle = '#2f6df6'; ctx.beginPath(); ctx.arc(px, py, 8, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.fillStyle = '#171c24'; ctx.font = '12px Roboto Mono';
+        ctx.fillText(`(${x.toFixed(2)}, ${y.toFixed(2)}) m`, Math.min(w-120, px+12), Math.max(18, py-10));
+      } else {
+        ctx.fillStyle = '#7b8494'; ctx.font = '14px Roboto'; ctx.fillText('No fresh spatial fix', 16, 24);
+      }
+    }
+
+    function buildCharts(){
+      const common = {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'top' } },
+        scales: { x: { ticks: { color: '#5b6070' }, grid: { color: 'rgba(116,120,132,.12)' } }, y: { ticks: { color: '#5b6070' }, grid: { color: 'rgba(116,120,132,.12)' } } }
+      };
+      state.charts.hr = new Chart(document.getElementById('hrChart'), {
+        type: 'line',
+        data: { labels: [], datasets: [
+          { label: 'Reported HR', data: [], borderColor: '#2f6df6', backgroundColor: '#2f6df6', borderWidth: 3, tension: .25 },
+          { label: 'Candidate HR', data: [], borderColor: '#7e57c2', backgroundColor: '#7e57c2', borderWidth: 2, tension: .25, borderDash: [7,4] },
+          { label: 'Raw HR', data: [], borderColor: '#8d99ae', backgroundColor: '#8d99ae', borderWidth: 2, tension: .25, borderDash: [3,4] },
+          { label: 'BLE HR', data: [], borderColor: '#ef4444', backgroundColor: '#ef4444', borderWidth: 2, tension: .25 },
+          { label: 'Trusted phase anchor', data: [], borderColor: '#0f766e', backgroundColor: '#0f766e', borderWidth: 2, tension: .25, borderDash: [4,4] }
+        ] }, options: common
+      });
+      state.charts.rr = new Chart(document.getElementById('rrChart'), {
+        type: 'line',
+        data: { labels: [], datasets: [
+          { label: 'Reported RR', data: [], borderColor: '#16a34a', backgroundColor: '#16a34a', borderWidth: 3, tension: .25 },
+          { label: 'Candidate RR', data: [], borderColor: '#1b9c67', backgroundColor: '#1b9c67', borderWidth: 2, tension: .25, borderDash: [7,4] },
+          { label: 'Final publish candidate RR', data: [], borderColor: '#0ea5a4', backgroundColor: '#0ea5a4', borderWidth: 2, tension: .25, borderDash: [3,4] },
+          { label: 'RR anchor', data: [], borderColor: '#f59e0b', backgroundColor: '#f59e0b', borderWidth: 2, tension: .2 },
+          { label: 'BLE RR', data: [], borderColor: '#ef4444', backgroundColor: '#ef4444', borderWidth: 2, tension: .25 }
+        ] }, options: common
+      });
+      state.charts.rrDiag = new Chart(document.getElementById('rrDiagChart'), {
+        type: 'line',
+        data: { labels: [], datasets: [
+          { label: 'RR candidate conf', data: [], borderColor: '#2f6df6', backgroundColor: '#2f6df6', borderWidth: 2, tension: .25, yAxisID: 'y1' },
+          { label: 'RR recovery count', data: [], borderColor: '#7e57c2', backgroundColor: '#7e57c2', borderWidth: 2, tension: .1, yAxisID: 'y2' },
+          { label: 'RR seed consistency', data: [], borderColor: '#1b9c67', backgroundColor: '#1b9c67', borderWidth: 2, tension: .1, yAxisID: 'y2' }
+        ] },
+        options: { ...common, scales: { ...common.scales, y1: { position: 'left', min: 0, max: 1.2, grid: { color: 'rgba(116,120,132,.12)' }, ticks: { color: '#5b6070' } }, y2: { position: 'right', min: 0, max: 6, grid: { drawOnChartArea: false }, ticks: { color: '#5b6070' } } } }
+      });
+      state.charts.breath = new Chart(document.getElementById('breathChart'), {
+        type: 'line',
+        data: { labels: [], datasets: [
+          { label: 'breath_phase', data: [], borderColor: '#e05a2a', backgroundColor: '#e05a2a', borderWidth: 2, pointRadius: 0, tension: .18 }
+        ] },
+        options: common
+      });
+      state.charts.heart = new Chart(document.getElementById('heartChart'), {
+        type: 'line',
+        data: { labels: [], datasets: [
+          { label: 'heart_phase', data: [], borderColor: '#c93232', backgroundColor: '#c93232', borderWidth: 2, pointRadius: 0, tension: .18 }
+        ] },
+        options: common
+      });
+    }
+    function updateCharts(payload){
+      const s = payload.series || {};
+      const labels = Array.isArray(s.t) ? s.t : [];
+      state.charts.hr.data.labels = labels;
+      state.charts.hr.data.datasets[0].data = Array.isArray(s.reported_hr) ? s.reported_hr : (Array.isArray(s.radar_hr) ? s.radar_hr : []);
+      state.charts.hr.data.datasets[1].data = Array.isArray(s.candidate_hr) ? s.candidate_hr : [];
+      state.charts.hr.data.datasets[2].data = Array.isArray(s.raw_hr) ? s.raw_hr : [];
+      state.charts.hr.data.datasets[3].data = Array.isArray(s.ble_hr) ? s.ble_hr : [];
+      state.charts.hr.data.datasets[4].data = Array.isArray(s.hr_trusted_phase_anchor) ? s.hr_trusted_phase_anchor : [];
+      state.charts.hr.update('none');
+
+      state.charts.rr.data.labels = labels;
+      state.charts.rr.data.datasets[0].data = Array.isArray(s.reported_rr) ? s.reported_rr : (Array.isArray(s.radar_rr) ? s.radar_rr : []);
+      state.charts.rr.data.datasets[1].data = Array.isArray(s.candidate_rr) ? s.candidate_rr : [];
+      state.charts.rr.data.datasets[2].data = Array.isArray(s.rr_final_publish_candidate) ? s.rr_final_publish_candidate : [];
+      state.charts.rr.data.datasets[3].data = Array.isArray(s.rr_anchor_value) ? s.rr_anchor_value : [];
+      state.charts.rr.data.datasets[4].data = Array.isArray(s.ble_rr) ? s.ble_rr : [];
+      state.charts.rr.update('none');
+
+      state.charts.rrDiag.data.labels = labels;
+      state.charts.rrDiag.data.datasets[0].data = Array.isArray(s.candidate_rr_conf) ? s.candidate_rr_conf : [];
+      state.charts.rrDiag.data.datasets[1].data = Array.isArray(s.rr_fundamental_recovery_count) ? s.rr_fundamental_recovery_count : [];
+      state.charts.rrDiag.data.datasets[2].data = Array.isArray(s.rr_raw_seed_consistent_count) ? s.rr_raw_seed_consistent_count : [];
+      state.charts.rrDiag.update('none');
+
+      const breath = Array.isArray(s.breath_phase) ? s.breath_phase : [];
+      const heart = Array.isArray(s.heart_phase) ? s.heart_phase : [];
+      const breathLabels = labels.slice(-breath.length);
+      const heartLabels = labels.slice(-heart.length);
+      state.charts.breath.data.labels = breathLabels;
+      state.charts.breath.data.datasets[0].data = breath;
+      state.charts.breath.update('none');
+      state.charts.heart.data.labels = heartLabels;
+      state.charts.heart.data.datasets[0].data = heart;
+      state.charts.heart.update('none');
+    }
+    function render(payload){
+      const meta = payload.meta || {};
+      const radar = payload.radar || {};
+      const ble = payload.ble || {};
+      const thresholds = payload.thresholds || {};
+      const hardStale = payloadIsHardStale(payload);
+      const statusChips = [
+        chip(meta.status || 'unknown', meta.status === 'running' ? 'good' : (String(meta.status||'').includes('stopped') ? 'bad' : 'warn'), meta.status === 'running' ? 'play_circle' : 'pause_circle'),
+        chip(`${fmt(meta.elapsed_s,1)}s elapsed`, '', 'timer'),
+        chip(meta.remaining_s === null || meta.remaining_s === undefined ? 'manual stop' : `${fmt(meta.remaining_s,1)}s remaining`, Number(meta.remaining_s) <= 5 ? 'warn' : '', 'schedule')
+      ];
+      const moduleFwParts = [radar.module_fw_major, radar.module_fw_sub, radar.module_fw_mod].filter(v => v !== undefined && v !== null && `${v}` !== '');
+      const sketchFwParts = [radar.sketch_major, radar.sketch_sub, radar.sketch_mod].filter(v => v !== undefined && v !== null && `${v}` !== '');
+      if (sketchFwParts.length === 3 && sketchFwParts.every(v => Number.isFinite(Number(v)) && Number(v) >= 0)) statusChips.push(chip(`sketch ${sketchFwParts.join('.')}`, 'good', 'memory'));
+      if (moduleFwParts.length === 3 && moduleFwParts.every(v => Number.isFinite(Number(v)) && Number(v) >= 0)) statusChips.push(chip(`module fw ${moduleFwParts.join('.')}`, '', 'memory'));
+      if (boolish(radar.use_fast_path)) statusChips.push(chip('raw fast path', 'good', 'bolt'));
+      if (num(radar.session_phase) !== null) statusChips.push(chip(`phase ${sessionPhaseName(radar.session_phase)}`, '', 'schedule'));
+      if (boolish(radar.phase_valid_this_frame)) statusChips.push(chip('live phase valid', 'good', 'check_circle'));
+      if (!boolish(radar.dsp_ran_this_frame) && !hardStale) statusChips.push(chip('DSP idle this loop', 'warn', 'pause_circle'));
+      const lastSeenAge = num(radar.last_seen_age_s);
+      if (lastSeenAge !== null && lastSeenAge > 2.5) statusChips.push(chip(`telemetry stale ${fmt(lastSeenAge,1)}s`, hardStale ? 'bad' : 'warn', hardStale ? 'error' : 'warning'));
+      if (state.disconnectedCount > 0) statusChips.push(chip(`using last payload (${state.disconnectedCount})`, hardStale ? 'bad' : 'warn', 'wifi_off'));
+      if (hardStale) statusChips.push(chip('live values expired', 'bad', 'timer_off'));
+      
+      const anchorName = textOrDash(getRadar(payload, 'hr_anchor_source_name') || hrAnchorSourceName(getRadar(payload, 'hr_anchor_source')));
+      if (anchorName !== '--' && anchorName !== 'none') statusChips.push(chip(`anchor ${anchorName}`, '', 'anchor'));
+      if (boolish(getRadar(payload, 'hr_raw_high_bias_suspect'))) statusChips.push(chip('high bias suspect', 'warn', 'trending_up'));
+      
+      document.getElementById('statusChips').innerHTML = statusChips.join('');
+
+      const radarHrLive = getRadar(payload, 'reported_hr') ?? getRadar(payload, 'radar_hr');
+      const radarRrLive = getRadar(payload, 'reported_rr') ?? getRadar(payload, 'radar_rr');
+      const radarHr = hardStale ? null : radarHrLive;
+      const radarRr = hardStale ? null : radarRrLive;
+      const bleHr = ble.hr ?? lastFromSeries(payload.series, 'ble_hr');
+      const bleRr = ble.rr ?? lastFromSeries(payload.series, 'ble_rr');
+      document.getElementById('radarHr').textContent = fmt(radarHr, 1);
+      document.getElementById('radarRr').textContent = fmt(radarRr, 1);
+      document.getElementById('bleHr').textContent = fmt(bleHr, 1);
+      document.getElementById('bleRr').textContent = fmt(bleRr, 1);
+
+      const fps = computeFps(payload);
+      const radiusCm = num(getRadar(payload,'position_radius_cm')) ?? ((num(getRadar(payload,'primary_x')) !== null && num(getRadar(payload,'primary_y')) !== null) ? Math.hypot(num(getRadar(payload,'primary_x')), num(getRadar(payload,'primary_y'))) * 100 : null);
+      const sketchFwParts2 = [radar.sketch_major, radar.sketch_sub, radar.sketch_mod].map(v => num(v));
+      const moduleFwParts2 = [radar.module_fw_major, radar.module_fw_sub, radar.module_fw_mod].map(v => num(v));
+      const sketchFwText = textOrDash(radar.sketch_firmware_version || radar.firmware_version);
+      const moduleFwText = textOrDash(radar.module_firmware_version);
+      const fwText = (() => {
+        const sketchText = (sketchFwText !== '--' && !String(sketchFwText).includes('-1'))
+          ? sketchFwText
+          : (sketchFwParts2.every(v => v !== null && v >= 0) ? `${sketchFwParts2[0]}.${sketchFwParts2[1]}.${sketchFwParts2[2]}` : '--');
+        const moduleText = (moduleFwText !== '--' && !String(moduleFwText).includes('-1'))
+          ? moduleFwText
+          : (moduleFwParts2.every(v => v !== null && v >= 0) ? `${moduleFwParts2[0]}.${moduleFwParts2[1]}.${moduleFwParts2[2]}` : '--');
+        if (sketchText !== '--' && moduleText !== '--') return `${sketchText} | module ${moduleText}`;
+        return sketchText !== '--' ? sketchText : moduleText;
+      })();
+      document.getElementById('targetCount').textContent = `Target: ${textOrDash(getRadar(payload,'num_targets'))}`;
+      document.getElementById('fpsValue').textContent = fmt(fps,1);
+      document.getElementById('brValue').textContent = fmt(radarRr,1);
+      document.getElementById('hrValue').textContent = fmt(radarHr,1);
+      document.getElementById('personValue').textContent = boolish(getRadar(payload,'human')) ? 'Yes' : 'No';
+      document.getElementById('distanceValue').textContent = fmt(getRadar(payload,'distance_cm'),1) === '--' ? '--' : `${fmt(getRadar(payload,'distance_cm'),1)} cm`;
+      document.getElementById('xValue').textContent = fmt(getRadar(payload,'primary_x'),3) === '--' ? '--' : `${fmt(getRadar(payload,'primary_x'),3)} m`;
+      document.getElementById('yValue').textContent = fmt(getRadar(payload,'primary_y'),3) === '--' ? '--' : `${fmt(getRadar(payload,'primary_y'),3)} m`;
+      document.getElementById('radiusValue').textContent = radiusCm === null ? '--' : `${radiusCm.toFixed(1)} cm`;
+      document.getElementById('fwValue').textContent = fwText;
+      document.getElementById('sourceValue').textContent = sourceName(getRadar(payload,'spatial_source'));
+      document.getElementById('sourceAgeValue').textContent = fmt(getRadar(payload,'spatial_age_ms'),0) === '--' ? '--' : `${fmt(getRadar(payload,'spatial_age_ms'),0)} ms`;
+      document.getElementById('dopValue').textContent = textOrDash(getRadar(payload,'primary_dop'));
+      document.getElementById('dopCmsValue').textContent = fmt(getRadar(payload,'primary_dop_speed_cms'),2) === '--' ? '--' : `${fmt(getRadar(payload,'primary_dop_speed_cms'),2)} cm/s`;
+      document.getElementById('positionTable').innerHTML = [
+        makeRow('Spatial source', sourceName(getRadar(payload,'spatial_source'))),
+        makeRow('Target info live', boolish(getRadar(payload,'target_info_ok')) ? 'Yes' : 'No'),
+        makeRow('Point cloud live', boolish(getRadar(payload,'point_cloud_ok')) ? 'Yes' : 'No'),
+        makeRow('Multi-target', boolish(getRadar(payload,'multi_target')) ? 'Yes' : 'No'),
+        makeRow('Cluster', textOrDash(getRadar(payload,'primary_cluster'))),
+        makeRow('Spatial age', fmt(getRadar(payload,'spatial_age_ms'),0) === '--' ? '--' : `${fmt(getRadar(payload,'spatial_age_ms'),0)} ms`),
+        makeRow('Phase warmup', boolish(getRadar(payload,'phase_warmup_complete')) ? 'Yes' : 'No'),
+        makeRow('Clutter alpha', fmt(getRadar(payload,'current_clutter_alpha'),3))
+      ].join('');
+      drawRadar(payload);
+
+      document.getElementById('radarTable').innerHTML = [
+        makeRow('Rows', textOrDash(radar.rows)),
+        makeRow('Display source', hardStale ? 'expired / stale payload' : ((num(radar.reported_hr) !== null && num(radar.reported_hr) > 0) ? 'validated publish' : ((num(radar.hr) !== null && num(radar.hr) > 0) ? 'last valid (stale)' : '--'))),
+        makeRow('Session phase', sessionPhaseName(getRadar(payload,'session_phase'))),
+        makeRow('Harmonic mode', (Array.isArray(radar.harmonic_mode_labels) && radar.harmonic_mode_labels.length) ? radar.harmonic_mode_labels.join(' | ') : harmonicSummary(getRadar(payload,'harmonic_mode'))),
+        makeRow('HR triple agree', textOrDash(getRadar(payload,'hr_triple_agree'))),
+        makeRow('RR triple agree', textOrDash(getRadar(payload,'rr_triple_agree'))),
+        makeRow('Candidate HR', fmt(getRadar(payload,'candidate_hr'),1)),
+        makeRow('Candidate RR', fmt(getRadar(payload,'candidate_rr'),1)),
+        makeRow('Raw HR', fmt(getRadar(payload,'raw_hr'),1)),
+        makeRow('Raw RR', fmt(getRadar(payload,'raw_rr'),1)),
+        makeRow('PQI Heart', fmt(getRadar(payload,'pqi_heart'),2)),
+        makeRow('Heart PQI gate', fmt(getRadar(payload,'heart_pqi_gate'),2)),
+        makeRow('PQI Breath', fmt(getRadar(payload,'pqi_breath'),2)),
+        makeRow('Phase valid this frame', boolish(getRadar(payload,'phase_valid_this_frame')) ? 'Yes' : 'No'),
+        makeRow('Distance (cm)', fmt(getRadar(payload,'distance_cm') ?? radar.distance_cm,1)),
+        makeRow('Motion', textOrDash(radar.motion)),
+        makeRow('Human', textOrDash(radar.human)),
+        makeRow('HR valid', textOrDash(radar.logged_hr_valid)),
+        makeRow('RR valid', textOrDash(radar.logged_rr_valid))
+      ].join('');
+
+      document.getElementById('numTargets').textContent = textOrDash(radar.num_targets);
+      document.getElementById('maxDop').textContent = fmt(radar.max_dop_abs, 1);
+      const maxDopSpeedEl = document.getElementById('maxDopSpeed'); if (maxDopSpeedEl) maxDopSpeedEl.textContent = fmt(radar.max_dop_speed_cms, 2);
+      document.getElementById('spatialTable').innerHTML = [
+        makeRow('Point cloud ok', textOrDash(radar.point_cloud_ok)),
+        makeRow('Target info ok', textOrDash(radar.target_info_ok)),
+        makeRow('Doppler motion', textOrDash(radar.doppler_motion)),
+        makeRow('Cluster anomaly', textOrDash(radar.cluster_anomaly)),
+        makeRow('Multi-target', textOrDash(radar.multi_target)),
+        makeRow('Primary X', fmt(radar.primary_x, 2)),
+        makeRow('Primary Y', fmt(radar.primary_y, 2)),
+        makeRow('Primary dop', textOrDash(radar.primary_dop)),
+        makeRow('Primary cluster', textOrDash(radar.primary_cluster)),
+        makeRow('Fast path', textOrDash(radar.use_fast_path)),
+        makeRow('Phase warmup', textOrDash(radar.phase_warmup_complete)),
+        makeRow('Clutter alpha', fmt(radar.current_clutter_alpha, 3)),
+        makeRow('Phase valid', textOrDash(radar.phase_valid_this_frame)),
+        makeRow('Speed estimate basis', '0.49 cm/s per dop index'),
+        makeRow('HR path source', hrPathSourceName(radar.hr_path_source, radar.hr_path_source_name)),
+        makeRow('Module fw', moduleFwParts.length === 3 ? moduleFwParts.join('.') : '--')
+      ].join('');
+
+      document.getElementById('bleTable').innerHTML = [
+        makeRow('Rows', textOrDash(ble.rows)),
+        makeRow('Raw packets', textOrDash(ble.raw_packets)),
+        makeRow('SpO₂', ble.spo2 === undefined ? '--' : `${fmt(ble.spo2,0)}%`),
+        makeRow('PI', fmt(ble.pi,1)),
+        makeRow('Address', textOrDash(ble.address)),
+        makeRow('Profile', textOrDash(ble.profile))
+      ].join('');
+
+      const hrDelta = (num(radarHr) !== null && num(bleHr) !== null) ? num(radarHr) - num(bleHr) : null;
+      const rrDelta = (num(radarRr) !== null && num(bleRr) !== null) ? num(radarRr) - num(bleRr) : null;
+      const hrWarn = num(thresholds.hr_delta_warn) ?? 3; const hrCrit = num(thresholds.hr_delta_crit) ?? 8;
+      const rrWarn = num(thresholds.rr_delta_warn) ?? 2; const rrCrit = num(thresholds.rr_delta_crit) ?? 4;
+      const cards = [];
+      if (hrDelta !== null) cards.push(faultCard(Math.abs(hrDelta) > hrCrit ? 'bad' : (Math.abs(hrDelta) > hrWarn ? 'warn' : 'good'), 'Heart-rate mismatch', `Radar ${fmt(radarHr,1)} vs BLE ${fmt(bleHr,1)} → Δ ${fmt(hrDelta,1)} bpm.`));
+      if (rrDelta !== null) cards.push(faultCard(Math.abs(rrDelta) > rrCrit ? 'bad' : (Math.abs(rrDelta) > rrWarn ? 'warn' : 'good'), 'Respiration mismatch', `Radar ${fmt(radarRr,1)} vs BLE ${fmt(bleRr,1)} → Δ ${fmt(rrDelta,1)} br/min.`));
+      if (boolish(radar.multi_target)) cards.push(faultCard('bad', 'Multiple targets detected', 'More than one target is present in the point-cloud/target-info stream. Host DSP is likely contaminated.'));
+      if (boolish(radar.cluster_anomaly)) cards.push(faultCard('warn', 'Cluster anomaly', 'Point-cloud clusters disagree with the single-target assumption. Review multipath / ghost behavior.'));
+      if (boolish(radar.doppler_motion)) cards.push(faultCard('warn', 'Doppler motion active', 'Point-cloud Doppler indicates body motion even if phase-energy motion is subtle.'));
+      if (boolish(getRadar(payload,'hr_raw_high_bias_suspect'))) cards.push(faultCard('warn', 'High HR anchor bias suspected', 'Raw/latch HR is staying above the trusted phase anchor while lower phase-backed evidence is present.'));
+      const faults = Array.isArray(payload.faults) ? payload.faults : [];
+      cards.push(...faults.slice(0,2).map(f => faultCard(f.severity || 'warn', f.title || 'Fault', f.copy || '')));
+      document.getElementById('faults').innerHTML = cards.length ? cards.join('') : faultCard('good','No active fault','No operator-facing fault was reported in the current payload.');
+
+      document.getElementById('hrFunnelPills').innerHTML = [
+        pill('Arbiter corrected', boolish(getRadar(payload,'hr_arbiter_corrected')) ? 1 : 0),
+        pill('Reject-phase rejected', boolish(getRadar(payload,'hr_rejectphase_rejected')) ? 1 : 0),
+        pill('Coherence rejected', boolish(getRadar(payload,'hr_coherence_rejected')) ? 1 : 0),
+        pill('Raw source', textOrDash(getRadar(payload,'hr_raw_source'))),
+        pill('Raw agree', boolish(getRadar(payload,'hr_raw_agree')) ? 1 : 0),
+        pill('Bypass active', boolish(getRadar(payload,'hr_bypass_active')) ? 1 : 0),
+        pill('Grace active', boolish(getRadar(payload,'hr_grace_active')) ? 1 : 0),
+        pill('Triple agree', boolish(getRadar(payload,'hr_triple_agree')) ? 1 : 0),
+        pill('Trust fresh', boolish(getRadar(payload,'hr_trust_fresh')) ? 1 : 0),
+        pill('High-bias suspect', boolish(getRadar(payload,'hr_raw_high_bias_suspect')) ? 1 : 0),
+        pill('RR anchor fresh', boolish(getRadar(payload,'rr_anchor_fresh')) ? 1 : 0),
+        pill('RR outlier persist', textOrDash(getRadar(payload,'rr_outlier_persist')))
+      ].join('');
+
+      document.getElementById('hrFunnelTable').innerHTML = [
+        makeRow('Agreement error (bpm)', fmt(getRadar(payload,'hr_agree_err_bpm'),2)),
+        makeRow('HR ZC bpm/conf', `${fmt(getRadar(payload,'hr_zc_bpm'),2)} / ${fmt(getRadar(payload,'hr_zc_conf'),3)}`),
+        makeRow('HR spec bpm/mag', `${fmt(getRadar(payload,'hr_spec_bpm'),2)} / ${fmt(getRadar(payload,'hr_spec_mag'),5)}`),
+        makeRow('HR triple agree', textOrDash(getRadar(payload,'hr_triple_agree'))),
+        makeRow('Bypass PQI ok', textOrDash(getRadar(payload,'hr_bypass_pqi_ok'))),
+        makeRow('Bypass conf ok', textOrDash(getRadar(payload,'hr_bypass_conf_ok'))),
+        makeRow('Bypass gate ok', textOrDash(getRadar(payload,'hr_bypass_gate_ok'))),
+        makeRow('Grace eligible', textOrDash(getRadar(payload,'hr_grace_eligible'))),
+        makeRow('Grace active', textOrDash(getRadar(payload,'hr_grace_active'))),
+        makeRow('Reject-phase anchor used', textOrDash(getRadar(payload,'hr_rejectphase_anchor_used'))),
+        makeRow('Reject-phase anchor value', fmt(getRadar(payload,'hr_rejectphase_anchor_value'),2)),
+        makeRow('Arbiter anchor used', textOrDash(getRadar(payload,'hr_arbiter_anchor_used'))),
+        makeRow('Arbiter anchor value', fmt(getRadar(payload,'hr_arbiter_anchor_value'),2)),
+        makeRow('Raw looks like half-rate', textOrDash(getRadar(payload,'hr_raw_looks_like_half_rate'))),
+        makeRow('Trusted anchor value', fmt(getRadar(payload,'hr_trusted_anchor_value'),2)),
+        makeRow('Trusted phase anchor', fmt(getRadar(payload,'hr_trusted_phase_anchor'),2)),
+        makeRow('Anchor source', textOrDash(getRadar(payload,'hr_anchor_source_name') || hrAnchorSourceName(getRadar(payload,'hr_anchor_source')))),
+        makeRow('Anchor error (bpm)', fmt(getRadar(payload,'hr_anchor_err_bpm'),2)),
+        makeRow('Raw high-bias suspect', textOrDash(getRadar(payload,'hr_raw_high_bias_suspect'))),
+        makeRow('RR raw agree ok', textOrDash(getRadar(payload,'rr_raw_agree_ok')))
+      ].join('');
+
+      document.getElementById('hrStageTable').innerHTML = [
+        makeRow('Pre reject-phase', fmt(getRadar(payload,'hr_pre_rejectphase'),2)),
+        makeRow('Post reject-phase', fmt(getRadar(payload,'hr_post_rejectphase'),2)),
+        makeRow('Post blend', fmt(getRadar(payload,'hr_post_blend'),2)),
+        makeRow('Post coherence', fmt(getRadar(payload,'hr_post_coherence'),2)),
+        makeRow('Final publish candidate', fmt(getRadar(payload,'hr_final_publish_candidate'),2)),
+        makeRow('Trusted phase anchor', fmt(getRadar(payload,'hr_trusted_phase_anchor'),2)),
+        makeRow('Anchor source', textOrDash(getRadar(payload,'hr_anchor_source_name') || hrAnchorSourceName(getRadar(payload,'hr_anchor_source')))),
+        makeRow('Anchor error', fmt(getRadar(payload,'hr_anchor_err_bpm'),2)),
+        makeRow('HR ZC bpm', fmt(getRadar(payload,'hr_zc_bpm'),2)),
+        makeRow('HR spec bpm', fmt(getRadar(payload,'hr_spec_bpm'),2)),
+        makeRow('Logged HR valid', textOrDash(radar.logged_hr_valid)),
+        makeRow('HR publish reason', textOrDash(radar.hr_publish_reason_name ? `${radar.hr_publish_reason_name} (${textOrDash(getRadar(payload,'hr_publish_reason') ?? radar.hr_publish_reason)})` : (getRadar(payload,'hr_publish_reason') ?? radar.hr_publish_reason))),
+        makeRow('RR publish reason', textOrDash(radar.rr_publish_reason_name ? `${radar.rr_publish_reason_name} (${textOrDash(getRadar(payload,'rr_publish_reason') ?? radar.rr_publish_reason)})` : (getRadar(payload,'rr_publish_reason') ?? radar.rr_publish_reason)))
+      ].join('');
+
+      document.getElementById('rrFunnelPills').innerHTML = [
+        pill('Anchor fresh', boolish(getRadar(payload,'rr_anchor_fresh')) ? 1 : 0),
+        pill('Raw agree', boolish(getRadar(payload,'rr_raw_agree_ok')) ? 1 : 0),
+        pill('Outlier persist', textOrDash(getRadar(payload,'rr_outlier_persist'))),
+        pill('Recovery trigger', boolish(getRadar(payload,'rr_fundamental_recovery_triggered')) ? 'triggered' : 'no'),
+        pill('Seed from raw', boolish(getRadar(payload,'rr_seed_from_raw_used')) ? 1 : 0),
+        pill('Re-anchor allowed', boolish(getRadar(payload,'rr_midsession_raw_reanchor_allowed')) ? 1 : 0),
+        pill('Re-anchor blocked', boolish(getRadar(payload,'rr_midsession_raw_reanchor_blocked')) ? 1 : 0),
+        pill('Trust fresh', boolish(getRadar(payload,'trusted_rr_fresh')) ? 1 : 0)
+      ].join('');
+
+      document.getElementById('rrFunnelTable').innerHTML = [
+        makeRow('Gate reason', textOrDash(radar.rr_gate_reason_name ? `${radar.rr_gate_reason_name} (${textOrDash(getRadar(payload,'rr_gate_reason') ?? radar.rr_gate_reason)})` : (getRadar(payload,'rr_gate_reason') ?? radar.rr_gate_reason))),
+        makeRow('Publish reason', textOrDash(radar.rr_publish_reason_name ? `${radar.rr_publish_reason_name} (${textOrDash(getRadar(payload,'rr_publish_reason') ?? radar.rr_publish_reason)})` : (getRadar(payload,'rr_publish_reason') ?? radar.rr_publish_reason))),
+        makeRow('RR ZC bpm/conf', `${fmt(getRadar(payload,'rr_zc_bpm'),2)} / ${fmt(getRadar(payload,'rr_zc_conf'),3)}`),
+        makeRow('RR spec bpm/conf', `${fmt(getRadar(payload,'rr_spec_bpm'),2)} / ${fmt(getRadar(payload,'rr_spec_conf'),3)}`),
+        makeRow('RR triple agree', textOrDash(getRadar(payload,'rr_triple_agree'))),
+        makeRow('Gate PQI used', fmt(getRadar(payload,'rr_gate_pqi_used'),3)),
+        makeRow('Candidate conf', fmt(getRadar(payload,'candidate_rr_conf'),3)),
+        makeRow('Raw anchor err', fmt(getRadar(payload,'rr_raw_anchor_err_bpm'),2)),
+        makeRow('Recovery count', textOrDash(getRadar(payload,'rr_fundamental_recovery_count'))),
+        makeRow('Seed consistency', textOrDash(getRadar(payload,'rr_raw_seed_consistent_count'))),
+        makeRow('Re-anchor reason', textOrDash(getRadar(payload,'rr_midsession_raw_reanchor_reason')))
+      ].join('');
+
+      document.getElementById('rrStageTable').innerHTML = [
+        makeRow('Pre accept-phase', fmt(stageOrFallback(payload,'rr_pre_acceptphase',['candidate_rr']),2)),
+        makeRow('Post accept-phase', fmt(stageOrFallback(payload,'rr_post_acceptphase',['candidate_rr']),2)),
+        makeRow('Post blend', fmt(stageOrFallback(payload,'rr_post_blend',['reported_rr']),2)),
+        makeRow('Post bias correction', fmt(stageOrFallback(payload,'rr_post_bias_correction',['rr_post_blend','reported_rr']),2)),
+        makeRow('Post Kalman', rrStageValue(payload,'rr_post_kalman',['reported_rr']) === null ? '--' : fmt(rrStageValue(payload,'rr_post_kalman',['reported_rr']),2)),
+        makeRow('Final publish candidate', fmt(stageOrFallback(payload,'rr_final_publish_candidate',['reported_rr']),2)),
+        makeRow('Anchor value', fmt(getRadar(payload,'rr_anchor_value'),2)),
+        makeRow('Anchor age (ms)', textOrDash(getRadar(payload,'rr_anchor_age_ms'))),
+        makeRow('Anchor source', textOrDash(getRadar(payload,'rr_anchor_source'))),
+        makeRow('Anchor confidence', fmt(getRadar(payload,'rr_anchor_confidence'),2)),
+        makeRow('RR ZC bpm', fmt(getRadar(payload,'rr_zc_bpm'),2)),
+        makeRow('RR spec bpm', fmt(getRadar(payload,'rr_spec_bpm'),2))
+      ].join('');
+
+      const rrFaultCards = [];
+      const rrAnchorFresh = boolish(getRadar(payload,'rr_anchor_fresh'));
+      const rrCandidateAge = num(getRadar(payload,'candidate_rr_age_ms'));
+      const rrReanchorBlocked = boolish(getRadar(payload,'rr_midsession_raw_reanchor_blocked'));
+      const rrRecoveryTriggered = boolish(getRadar(payload,'rr_fundamental_recovery_triggered'));
+      const rrPublishReason = textOrDash(radar.rr_publish_reason_name || getRadar(payload,'rr_publish_reason'));
+      if (!rrAnchorFresh) rrFaultCards.push(faultCard('warn','RR anchor stale','The RR anchor is not fresh. Recovery and publish behavior may now rely on stale state or fallback gating.'));
+      if (rrCandidateAge !== null && rrCandidateAge > 10000) rrFaultCards.push(faultCard('warn','RR candidate aging','The RR candidate is older than 10 seconds. Treat it as historical unless fresh telemetry confirms it.'));
+      if (rrReanchorBlocked) rrFaultCards.push(faultCard('warn','RR re-anchor blocked',`The current payload says mid-session RR re-anchor is blocked (${textOrDash(getRadar(payload,'rr_midsession_raw_reanchor_reason'))}).`));
+      if (rrRecoveryTriggered) rrFaultCards.push(faultCard('good','RR recovery active','Fundamental recovery triggered on the RR path. Check anchor and final publish candidate to verify the recovery direction.'));
+      if (rrPublishReason.includes('TRUST_STALE')) rrFaultCards.push(faultCard('bad','RR publish suppressed by stale trust','RR still has an internal candidate path, but publish is blocked by stale trust.'));
+      if (!rrAnchorFresh && num(getRadar(payload,'rr_post_kalman')) !== null) rrFaultCards.push(faultCard('warn','RR stage frozen','Post-Kalman RR is hidden when the anchor is stale so the stage panel does not look live while publish is suppressed.'));
+      if (hardStale) rrFaultCards.push(faultCard('bad','Dashboard payload expired','Live values are now blanked because telemetry age exceeded the stale timeout.'));
+      document.getElementById('rrFaults').innerHTML = rrFaultCards.length ? rrFaultCards.join('') : faultCard('good','No RR-specific warning','No RR telemetry-specific warning was raised in the current payload.');
+
+      document.getElementById('eventsLog').textContent = (payload.events || []).length ? payload.events.join('\n') : 'Waiting for events...';
+      document.getElementById('footerText').innerHTML = `<span class="material-symbols-rounded" style="font-size:16px;">folder_open</span>Session folder: ${textOrDash(meta.session_dir)}`;
+      updateCharts(payload);
+    }
+    async function poll(){
+      try {
+        const res = await fetch(`${state.dataUrl}?t=${Date.now()}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = normalize(await res.json());
+        state.lastPayload = payload; state.disconnectedCount = 0;
+        try { render(payload); } catch (renderErr) { console.error('Dashboard render failed', renderErr); throw renderErr; }
+      } catch (e) {
+        console.error('Dashboard poll/render failed', e);
+        state.disconnectedCount += 1;
+        if (state.lastPayload) {
+          try { render(state.lastPayload); } catch (fallbackErr) { console.error('Dashboard fallback render failed', fallbackErr); }
+        }
+      }
+    }
+    buildCharts();
+    render(normalize({ meta: { status: 'waiting' }, events: ['Waiting for live_dashboard.json...'] }));
+    poll();
+    setInterval(poll, state.refreshMs);
+    window.addEventListener('resize', ()=> state.lastPayload && drawRadar(state.lastPayload));
+  </script>
+</body>
+</html>

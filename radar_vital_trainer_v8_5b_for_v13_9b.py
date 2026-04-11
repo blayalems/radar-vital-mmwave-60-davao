@@ -3,7 +3,7 @@
 Leakage-aware offline trainer + full session pipeline for the
 XIAO ESP32-C6 + MR60BHA2 system.
 
-v8.4.0 keeps the full session pipeline and adds the v13.8.0 telemetry-contract release: sketch/module firmware identity, stabilized phase labels, DSP freshness flags, and confidence-source truthfulness for thesis-ready analysis.
+v8.5b keeps the v8.5a analysis contract and adds the v13.9b first-lock and AGC-recovery release support for thesis-ready analysis.
 Material 3 Expressive live dashboard stack for thesis use:
 - session orchestration remains the primary collection workflow
 - live dashboarding, regression QA, and stronger analysis outputs remain intact
@@ -904,7 +904,7 @@ _DASHBOARD_TEMPLATE_EMBEDDED = r'''<!DOCTYPE html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Radar Vital Trainer Live Dashboard — v13.8.0 / v8.4.3 Full Telemetry + Position/Waveforms + Agreement Labels</title>
+<title>Radar Vital Trainer Live Dashboard - v13.9b / v8.5b First-Lock + AGC Recovery Audit</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -1202,7 +1202,7 @@ _DASHBOARD_TEMPLATE_EMBEDDED = r'''<!DOCTYPE html>
           <div>
             <div class="eyebrow">Live collection</div>
             <h1>Radar Vital Trainer</h1>
-            <div class="subtitle">v13.8.0 / v8.4.3 dashboard with spatial telemetry, session phases, harmonic labels, and HR anchor-bias diagnostics</div>
+            <div class="subtitle">v13.9b / v8.5b dashboard with first-lock protection, AGC recovery telemetry, and phase-split analysis audit</div>
           </div>
         </div>
         <div class="chip-row" id="statusChips"></div>

@@ -1,9 +1,9 @@
-"""radar_vital_trainer_v8_4_1_for_v13_8_0.py — v8.4.3
+"""radar_vital_trainer_v8_5c_for_v13_9c.py — v8.5c
 =====================================================
 Leakage-aware offline trainer + full session pipeline for the
 XIAO ESP32-C6 + MR60BHA2 system.
 
-v8.5c keeps the v8.5a analysis contract and adds the v13.9c publish-readiness and minimum-n policy release support for thesis-ready analysis.
+v8.5c keeps the v8.5b contract and adds the v13.9c publish-readiness and minimum-n policy for production-ready gating.
 Material 3 Expressive live dashboard stack for thesis use:
 - session orchestration remains the primary collection workflow
 - live dashboarding, regression QA, and stronger analysis outputs remain intact
@@ -12,26 +12,26 @@ Material 3 Expressive live dashboard stack for thesis use:
 
 Change highlights
 ────────────────
-  • v13.7.1 telemetry contract: raw_rr_effective/raw_rr_likely_harmonic, session_phase, harmonic_mode, and HR/RR zero-crossing + spectral agreement fields
-  • fixes the silent v8.1.8a header-shift bug by aligning RADAR_LOG_COLUMNS with the widened firmware CSV contract
+  • v13.9c telemetry contract: phase-backed publish readiness, minimum-n policy, and drift-brake logic.
+  • trainer minimum-n policy implemented: returns INSUFFICIENT_DATA if requirements are not met.
   • write_text_report now forces UTF-8 so Windows auto-analyse runs do not crash on Unicode arrows in the text report
   • training keeps explicit pre-Kalman candidate HR/RR + confidence features in the model input set
-  • dashboard loader prefers an external v8.2 HTML template when present
+  • dashboard loader prefers an external v8.5c HTML template when present
 
 Primary workflow
 ────────────────
-  1.  python radar_vital_trainer_v8_4_3_for_v13_8_0.py doctor
-  2.  python radar_vital_trainer_v8_4_3_for_v13_8_0.py quickstart
+  1.  python radar_vital_trainer_v8_5c_for_v13_9c.py doctor
+  2.  python radar_vital_trainer_v8_5c_for_v13_9c.py quickstart
 
   Per session (single command):
-      python radar_vital_trainer_v8_4_3_for_v13_8_0.py session \
+      python radar_vital_trainer_v8_5c_for_v13_9c.py session \
         --port COM10 \
         --address 10:22:33:9E:8F:63 \
         --duration-s 480 \
         --open-dashboard
 
   After session:
-      python radar_vital_trainer_v8_4_3_for_v13_8_0.py compare --sessions-dir sessions/ --out report.html
+      python radar_vital_trainer_v8_5c_for_v13_9c.py compare --sessions-dir sessions/ --out report.html
 
   Optional manual workflow:
       log / ble_reflog / align / analyse / train / sweep

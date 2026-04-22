@@ -4405,6 +4405,7 @@ def _build_ml_readiness_verdict(analyse_summary, **kwargs) -> Dict[str, object]:
     readiness_kind = "not_ready"
     limitation_kind = None
     next_action = "ship"
+    gate_passed_with_reference = False
 
     if not critical_cols_ok or contract_len <= 0:
         schema_verdict = "firmware_rejected"
@@ -4437,7 +4438,7 @@ def _build_ml_readiness_verdict(analyse_summary, **kwargs) -> Dict[str, object]:
         next_action = "run a longer session"
         add_cat("duration", "Session duration", "warn", "Secondary gate deferred the session because it is too short to judge", "Collect a longer capture before training.")
     elif bool(gate.get("passed")) and (not np.isfinite(coverage) or coverage >= ML_READY_MIN_BLE_COVERAGE_PCT):
-        pass
+        gate_passed_with_reference = True
     elif bool(gate.get("passed")):
         signal_verdict = "degraded_signal"
         training_verdict = "degraded_signal"
@@ -4481,6 +4482,8 @@ def _build_ml_readiness_verdict(analyse_summary, **kwargs) -> Dict[str, object]:
     if bool(gate.get("passed")) and (not np.isfinite(coverage) or coverage >= ML_READY_MIN_BLE_COVERAGE_PCT) and schema_verdict in {"ok", "provenance_warning"}:
         if np.isfinite(hr_cov) and hr_cov >= ML_READY_MIN_HR_COVERAGE_PCT and np.isfinite(hr_mae) and hr_mae < ML_READY_MIN_HR_MAE_BPM and np.isfinite(hr_bias) and abs(hr_bias) < ML_READY_MIN_HR_BIAS_BPM and np.isfinite(rr_cov) and rr_cov >= ML_READY_MIN_RR_COVERAGE_PCT and np.isfinite(rr_mae) and rr_mae < ML_READY_MIN_RR_MAE_BPM and schema_verdict != "firmware_rejected":
             training_verdict = "ready"
+            if readiness_kind == "not_ready" and gate_passed_with_reference:
+                readiness_kind = "ready"
             limitation_kind = None
             next_action = "ship"
             add_cat("primary_gate", "Primary gate", "pass", "Primary HR gate passed", "")

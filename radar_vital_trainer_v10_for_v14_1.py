@@ -1,9 +1,9 @@
-﻿"""radar_vital_trainer_v9_1_for_v14_1.py — v9.0.0
+"""radar_vital_trainer_v10_for_v14_1.py — v10.0.0
 =====================================================
 Leakage-aware offline trainer + full session pipeline for the
 XIAO ESP32-C6 + MR60BHA2 system.
 
-v9 keeps the v14 telemetry contract and adds matched trainer-side truthfulness, manifest, leakage-firewall, bootstrap-comparison, and dashboard support.
+v10 keeps the v14 telemetry contract and adds matched trainer-side truthfulness, manifest, leakage-firewall, bootstrap-comparison, and dashboard support.
 Material 3 Expressive live dashboard stack for thesis use:
 - session orchestration remains the primary collection workflow
 - live dashboarding, regression QA, and stronger analysis outputs remain intact
@@ -21,18 +21,18 @@ Change highlights
 
 Primary workflow
 ────────────────
-  1.  python radar_vital_trainer_v9_1_for_v14_1.py doctor
-  2.  python radar_vital_trainer_v9_1_for_v14_1.py quickstart
+  1.  python radar_vital_trainer_v10_for_v14_1.py doctor
+  2.  python radar_vital_trainer_v10_for_v14_1.py quickstart
 
   Per session (single command):
-      python radar_vital_trainer_v9_for_v14.py session \
+      python radar_vital_trainer_v10_for_v14_1.py session \
         --port COM10 \
         --address 10:22:33:9E:8F:63 \
         --duration-s 480 \
         --open-dashboard
 
   After session:
-      python radar_vital_trainer_v9_1_for_v14_1.py compare --sessions-dir sessions/ --out report.html
+      python radar_vital_trainer_v10_for_v14_1.py compare --sessions-dir sessions/ --out report.html
 
   Optional manual workflow:
       log / ble_reflog / align / analyse / train / sweep
@@ -3172,7 +3172,7 @@ function contractDiagnosisHtml(d){
   d=d||{}; const bad=d.status==='mismatch'; const unknown=d.status==='unknown';
   const rows=[row('Expected columns',d.expected_contract_length),row('Observed columns',d.observed_contract_length),row('Expected FW',d.expected_firmware),row('Observed FW',d.observed_firmware),row('Expected schema',shortHash(d.expected_schema_hash)),row('Observed schema',shortHash(d.observed_schema_hash))].join('');
   const issues=(d.mismatches||[]).map(m=>flt('bad',m.field||'mismatch',`expected ${textOrDash(m.expected)} / actual ${textOrDash(m.actual)}. ${m.remediation||''}`)).join('');
-  return `<article class="card" style="margin-top:var(--gap)" data-help="fw_truthfulness"><div class="ch"><div class="tw"><span class="material-symbols-rounded">${bad?'gpp_maybe':unknown?'help':'verified_user'}</span><div><h2 class="ct">Contract diagnosis</h2><div class="cs">Expected-vs-observed firmware/schema contract.</div></div></div><span class="pill ${bad?'bad':unknown?'warn':'good'}">${esc(d.status||'unknown')}</span></div><table><tbody>${rows}</tbody></table><div class="contract-list">${issues||(unknown?flt('warn','Analysis unavailable','Contract diagnosis needs analyse_summary.json.'):flt('good','No detected mismatch','Observed fields match the expected v14/v9 contract.'))}</div></article>`;
+  return `<article class="card" style="margin-top:var(--gap)" data-help="fw_truthfulness"><div class="ch"><div class="tw"><span class="material-symbols-rounded">${bad?'gpp_maybe':unknown?'help':'verified_user'}</span><div><h2 class="ct">Contract diagnosis</h2><div class="cs">Expected-vs-observed firmware/schema contract.</div></div></div><span class="pill ${bad?'bad':unknown?'warn':'good'}">${esc(d.status||'unknown')}</span></div><table><tbody>${rows}</tbody></table><div class="contract-list">${issues||(unknown?flt('warn','Analysis unavailable','Contract diagnosis needs analyse_summary.json.'):flt('good','No detected mismatch','Observed fields match the expected v14/v10 contract.'))}</div></article>`;
 }
 function compareMetricBlock(label,s){
   s=s||{}; return `<div class="compare-card"><h3>${esc(label)}</h3><table><tbody>${[row('Session',s.session_id),row('Verdict',s.verdict),row('HR RMSE',fmt(s.hr_rmse??s.hr_metrics?.rmse,2)),row('HR r',fmt(s.hr_r??s.hr_metrics?.r,3)),row('RR RMSE',fmt(s.rr_rmse??s.rr_metrics?.rmse,2)),row('BLE coverage',fmt(s.reference_quality?.distilled_rows_pct_of_raw??s.reference_quality?.coverage_pct??s.ref_coverage_pct,1))].join('')}</tbody></table></div>`;
@@ -5107,11 +5107,12 @@ def _analysis_job_status(sessions_root: str, session_id: str) -> Dict[str, objec
     if job:
         proc = job.get("proc")
         code = proc.poll() if proc is not None else None
-        status = "running" if code is None else ("completed" if code == 0 else "failed")
+        status = "running" if code is None else ("complete" if code == 0 else "failed")
         payload = {
             "job_id": job.get("job_id"),
             "session_id": session_id,
             "status": status,
+            "analysis_status": status,
             "pid": job.get("pid"),
             "started_at": job.get("started_at"),
             "analysis_dir": job.get("analysis_dir"),
@@ -5127,13 +5128,14 @@ def _analysis_job_status(sessions_root: str, session_id: str) -> Dict[str, objec
         return _schema_wrap({
             "session_id": session_id,
             "status": "running",
+            "analysis_status": "running",
             "progress_pct": 35,
             "last_line": "auto-analyse is running",
             "sentinel": sent,
         })
     if summary_path.exists():
-        return _schema_wrap({"session_id": session_id, "status": "completed", "progress_pct": 100, "last_line": "analyse_summary.json exists"})
-    return _schema_wrap({"session_id": session_id, "status": "not_started", "progress_pct": 0, "last_line": "No analysis job is tracked for this session."})
+        return _schema_wrap({"session_id": session_id, "status": "complete", "analysis_status": "complete", "progress_pct": 100, "last_line": "analyse_summary.json exists"})
+    return _schema_wrap({"session_id": session_id, "status": "idle", "analysis_status": "idle", "progress_pct": 0, "last_line": "No analysis job is tracked for this session."})
 
 
 def _build_report_export_html(session_dir: str, out_dir: Optional[str] = None) -> str:
@@ -5444,7 +5446,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         self.send_header("Expires", "0")
         self.send_header("Access-Control-Allow-Origin", getattr(self.server, "cors_origin", "*"))
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Radar-Vital-Token")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Radar-Vital-Token, X-RVT-Token")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         super().end_headers()
@@ -5479,7 +5481,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         self.send_response(204)
         self.end_headers()
 
-    def _send_sse(self):
+    def _send_sse(self, session_id_hint: Optional[str] = None):
         if not FEATURE_FLAGS.get("enable_sse", True):
             self._send_json(404, {"ok": False, "error": {"code": "SSE_DISABLED", "message": "SSE is disabled by feature flag"}})
             return
@@ -5490,9 +5492,13 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         last_mtime = None
         seq = 0
+        last_emit_monotonic = time.monotonic()
+        had_active_session = False
+        ping_interval_s = 5.0
+        last_session_id = None
 
         def write_event(name: str, data: Dict[str, object]):
-            nonlocal seq
+            nonlocal seq, last_emit_monotonic
             seq += 1
             payload = dict(data)
             payload.setdefault("schema_version", LIVE_EVENT_SCHEMA_VERSION)
@@ -5500,9 +5506,10 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             raw = f"event: {name}\ndata: {json.dumps(nan_safe(payload), allow_nan=False)}\n\n".encode("utf-8")
             self.wfile.write(raw)
             self.wfile.flush()
+            last_emit_monotonic = time.monotonic()
 
         try:
-            write_event("ping", {})
+            write_event("ping", {"at": _iso_now()})
             deadline = time.monotonic() + 60 * 60
             while time.monotonic() < deadline:
                 if getattr(self.server, "mock", False):
@@ -5511,7 +5518,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     continue
                 cur = self.server.supervisor.current()
                 if cur:
+                    had_active_session = True
                     live_path = Path(str(cur.get("session_dir", ""))) / "live_dashboard.json"
+                    current_sid = str(cur.get("session_id") or "")
+                    if current_sid:
+                        last_session_id = current_sid
+                    if session_id_hint and current_sid and session_id_hint != current_sid:
+                        write_event("stopped", {"reason": "different_active_session", "session_id": session_id_hint, "active_session_id": current_sid})
+                        return
                     if live_path.exists():
                         mtime = live_path.stat().st_mtime_ns
                         if mtime != last_mtime:
@@ -5521,9 +5535,15 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                                 payload.setdefault("session_id", cur.get("session_id"))
                                 payload.setdefault("revision", mtime)
                             write_event("live", payload if isinstance(payload, dict) else {"payload": payload})
-                elif last_mtime is not None:
-                    write_event("stopped", {"reason": "no_active_session"})
+                            write_event("data_update", {"session_id": cur.get("session_id"), "revision": mtime})
+                elif session_id_hint and not had_active_session and last_mtime is None:
+                    write_event("stopped", {"reason": "session_not_active", "session_id": session_id_hint})
                     return
+                elif had_active_session or last_mtime is not None:
+                    write_event("stopped", {"reason": "no_active_session", "session_id": session_id_hint or last_session_id})
+                    return
+                if (time.monotonic() - last_emit_monotonic) >= ping_interval_s:
+                    write_event("ping", {"at": _iso_now(), "session_id": session_id_hint})
                 time.sleep(1.0)
         except (BrokenPipeError, ConnectionResetError):
             return
@@ -5564,6 +5584,10 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/session/events":
             self._send_sse()
+            return
+        if path.startswith("/api/sessions/") and path.endswith("/events"):
+            sid = unquote(path.split("/")[3])
+            self._send_sse(session_id_hint=sid)
             return
         if path == "/api/trainer/log":
             self._send_json(200, {"ok": True, "lines": list(_TRAINER_LOG)[-200:]})
@@ -5640,6 +5664,26 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_bytes(200, target.read_bytes(), mimetypes.guess_type(str(target))[0] or "application/octet-stream")
             return
+        if path.startswith("/api/sessions/") and path.endswith("/notes"):
+            sid = unquote(path.split("/")[3])
+            try:
+                root = _session_path(self.server.sessions_root, sid)
+            except Exception:
+                self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": "session not found"}})
+                return
+            notes_path = root / "session_notes.json"
+            existing = _read_json_if_exists(str(notes_path)) or {}
+            notes = existing.get("notes") if isinstance(existing.get("notes"), list) else []
+            updated_at = existing.get("updated_at")
+            if not updated_at and notes_path.exists():
+                updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(notes_path.stat().st_mtime))
+            self._send_json(200, {
+                "schema_version": SESSION_NOTES_SCHEMA_VERSION,
+                "session_id": sid,
+                "updated_at": updated_at,
+                "notes": notes,
+            })
+            return
         if path.startswith("/api/sessions/") and path.endswith("/summary"):
             sid = unquote(path.split("/")[3])
             try:
@@ -5681,7 +5725,32 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": "session not found"}})
                 return
             progress = _read_json_if_exists(str(root / "analysis" / "training_progress.json"))
-            self._send_json(200, progress or {"status": "idle", "session_id": sid, "schema_version": TRAINING_PROGRESS_SCHEMA_VERSION})
+            if isinstance(progress, dict):
+                if str(progress.get("status", "")).lower() == "completed":
+                    progress["status"] = "complete"
+                progress.setdefault("schema_version", TRAINING_PROGRESS_SCHEMA_VERSION)
+                progress.setdefault("session_id", sid)
+                progress.setdefault("updated_at", _iso_now())
+                progress.setdefault("target", "hr,rr")
+                progress.setdefault("n_estimators_done", 0)
+                progress.setdefault("n_estimators_total", 0)
+                progress.setdefault("train_loss", None)
+                progress.setdefault("val_loss", None)
+                progress.setdefault("elapsed_s", 0.0)
+                self._send_json(200, progress)
+                return
+            self._send_json(200, {
+                "schema_version": TRAINING_PROGRESS_SCHEMA_VERSION,
+                "session_id": sid,
+                "status": "idle",
+                "target": "hr,rr",
+                "n_estimators_done": 0,
+                "n_estimators_total": 0,
+                "train_loss": None,
+                "val_loss": None,
+                "elapsed_s": 0.0,
+                "updated_at": _iso_now(),
+            })
             return
         if path.startswith("/api/sessions/") and path.endswith("/predict"):
             sid = unquote(path.split("/")[3])
@@ -5808,7 +5877,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "created_at": _iso_now(),
             }
             notes.append(entry)
-            existing.update({"schema_version": SESSION_NOTES_SCHEMA_VERSION, "session_id": cur.get("session_id"), "notes": notes})
+            existing.update({"schema_version": SESSION_NOTES_SCHEMA_VERSION, "session_id": cur.get("session_id"), "notes": notes, "updated_at": _iso_now()})
             save_json(existing, str(notes_path))
             self._send_json(200, {"ok": True, "entry": entry})
             return
@@ -7438,10 +7507,10 @@ _QUICKSTART_TEXT = """
 RECOMMENDED THESIS WORKFLOW (single command per session)
 
 STEP 0 â€” Check your setup
-  python radar_vital_trainer_v9_for_v14.py doctor
+  python radar_vital_trainer_v10_for_v14_1.py doctor
 
 STEP 1 â€” Run one full session
-  python radar_vital_trainer_v9_for_v14.py session \
+  python radar_vital_trainer_v10_for_v14_1.py session \
     --port COM10 \
     --address 10:22:33:9E:8F:63 \
     --duration-s 480 \
@@ -7477,11 +7546,11 @@ STEP 2 â€” Review the outputs
     â€¢ session_quick_report.txt
 
 STEP 3 â€” Compare sessions after you collect several runs
-  python radar_vital_trainer_v9_for_v14.py compare \
+  python radar_vital_trainer_v10_for_v14_1.py compare \
     --sessions-dir sessions/ --out report.html
 
 STEP 4 â€” Train a correction model after baseline quality is acceptable
-  python radar_vital_trainer_v9_for_v14.py train \
+  python radar_vital_trainer_v10_for_v14_1.py train \
     --radar sessions/s01/radar.csv --ref sessions/s01/ref.csv \
     --feature-mode core --require-baseline-gate \
     --out model_s01/
@@ -7489,27 +7558,27 @@ STEP 4 â€” Train a correction model after baseline quality is acceptable
 ADVANCED / MANUAL WORKFLOW
 
 Manual radar logging:
-  python radar_vital_trainer_v9_for_v14.py log --port COM10 --out sessions/s01/radar.csv
+  python radar_vital_trainer_v10_for_v14_1.py log --port COM10 --out sessions/s01/radar.csv
 
 Manual BLE reference logging:
-  python radar_vital_trainer_v9_for_v14.py ble_reflog \
+  python radar_vital_trainer_v10_for_v14_1.py ble_reflog \
     --out sessions/s01/ref.csv \
     --address 10:22:33:9E:8F:63 \
     --ble-profile ailink_oximeter \
     --notify-char 0000ffe2-0000-1000-8000-00805f9b34fb
 
 Manual analysis:
-  python radar_vital_trainer_v9_for_v14.py analyse \
+  python radar_vital_trainer_v10_for_v14_1.py analyse \
     --radar sessions/s01/radar.csv --ref sessions/s01/ref.csv \
     --out sessions/s01/analysis/
 
 DSP sweep:
-  python radar_vital_trainer_v9_for_v14.py sweep \
+  python radar_vital_trainer_v10_for_v14_1.py sweep \
     --sweep-json params_sweep.json \
     --port COM10 --sketch path/to/radar_vital_v11.ino \
     --out-dir sweep_results/
 
-Run  python radar_vital_trainer_v9_for_v14.py doctor  to verify your environment.
+Run  python radar_vital_trainer_v10_for_v14_1.py doctor  to verify your environment.
 For BLE pulse oximeter logging, also install:  pip install bleak
 """.format(ver=VERSION)
 
@@ -9939,7 +10008,7 @@ def validity_masks(df: pd.DataFrame) -> pd.DataFrame:
         rr_source_current_ok_mask = (_pick("rr_source_current_ok_last", "rr_source_current_ok_mean", 0.0) >= 0.5)
     else:
         # v13.9.7 did not emit rr_source_current_ok. Reconstruct it from
-        # rr_gate_reason_last, which v9.0.0 now aggregates explicitly.
+        # rr_gate_reason_last, which is emitted by newer firmware contracts.
         rr_source_current_ok_mask = (_pick("rr_gate_reason_last", "rr_gate_reason_mean", -1.0).round().astype(int) == 0)
     rr_phase_ready_mask = (_pick("rr_phase_backed_publish_ready_last", "rr_phase_backed_publish_ready_mean", 1.0) >= 0.5)
 
@@ -11129,22 +11198,46 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, feature_cols, impute_value
 def cmd_train(args):
     os.makedirs(args.out, exist_ok=True)
     progress_path = os.path.join(args.out, "training_progress.json")
+    target_label = ",".join(getattr(args, "targets", ["hr", "rr"]))
+    n_estimators_total = int(getattr(args, "n_estimators", 0) or 0)
+    started_at = _iso_now()
     save_json({
         "schema_version": TRAINING_PROGRESS_SCHEMA_VERSION,
         "status": "running",
-        "target": ",".join(getattr(args, "targets", ["hr", "rr"])),
+        "target": target_label,
         "n_estimators_done": 0,
-        "n_estimators_total": int(getattr(args, "n_estimators", 0) or 0),
+        "n_estimators_total": n_estimators_total,
+        "train_loss": None,
+        "val_loss": None,
         "elapsed_s": 0.0,
-        "started_at": _iso_now(),
+        "started_at": started_at,
+        "updated_at": started_at,
     }, progress_path)
     train_started_t = time.monotonic()
+    def _write_training_progress(status="running", n_done=0, train_loss=None, val_loss=None, **extra):
+        payload = {
+            "schema_version": TRAINING_PROGRESS_SCHEMA_VERSION,
+            "status": status,
+            "target": target_label,
+            "n_estimators_done": int(max(0, n_done)),
+            "n_estimators_total": int(max(0, n_estimators_total)),
+            "train_loss": None if train_loss is None else float(train_loss),
+            "val_loss": None if val_loss is None else float(val_loss),
+            "elapsed_s": round(time.monotonic() - train_started_t, 3),
+            "started_at": started_at,
+            "updated_at": _iso_now(),
+        }
+        payload.update(extra)
+        save_json(payload, progress_path)
+
+    _write_training_progress(status="running", n_done=0, phase="aligning")
     base_df = load_and_align_multiple_base(
         args.radar, args.ref,
         tolerance_s=args.tolerance_s, ref_offsets_s=args.ref_offset_s,
         auto_align_start=args.auto_align_start, merge_direction=args.merge_direction,
         phase_unit=args.phase_unit, heart_fft_window_s=args.heart_fft_window_s,
         breath_fft_window_s=args.breath_fft_window_s)
+    _write_training_progress(status="running", n_done=0, phase="feature_engineering")
 
     if args.three_way_split:
         train_base, stop_base, eval_base, split_info = split_three_way(
@@ -11192,6 +11285,8 @@ def cmd_train(args):
             f"Requested={requested_targets}, skipped={skipped_targets}")
     if skipped_targets:
         warn(f"Skipping targets without enough valid reference rows: {skipped_targets}")
+    n_estimators_total = int(getattr(args, "n_estimators", 0) or 0) * max(1, len(available_targets))
+    _write_training_progress(status="running", n_done=0, phase="training_targets")
 
     feature_cols = pick_feature_columns(
         train_df, feature_mode=args.feature_mode,
@@ -11232,17 +11327,22 @@ def cmd_train(args):
     model_rr = None
     hr_fit_meta = {"skipped": True}
     rr_fit_meta = {"skipped": True}
+    n_estimators_done = 0
 
     if "hr" in available_targets:
         model_hr, hr_fit_meta = fit_target_model(
             train_df, stop_df, "hr", X_train_all, X_stop_all, params=params,
             random_state=args.random_state, sample_weight_mode=args.sample_weight_mode,
             use_early_stopping=use_es, early_stop_strategy=args.early_stop_strategy)
+        n_estimators_done += int(hr_fit_meta.get("best_n_estimators", params.get("n_estimators", 0)) or 0)
+        _write_training_progress(status="running", n_done=n_estimators_done, phase="trained_hr", val_loss=hr_fit_meta.get("best_val_rmse"))
     if "rr" in available_targets:
         model_rr, rr_fit_meta = fit_target_model(
             train_df, stop_df, "rr", X_train_all, X_stop_all, params=params,
             random_state=args.random_state + 1, sample_weight_mode=args.sample_weight_mode,
             use_early_stopping=use_es, early_stop_strategy=args.early_stop_strategy)
+        n_estimators_done += int(rr_fit_meta.get("best_n_estimators", params.get("n_estimators", 0)) or 0)
+        _write_training_progress(status="running", n_done=n_estimators_done, phase="trained_rr", val_loss=rr_fit_meta.get("best_val_rmse"))
 
     train_pred = add_predictions(train_df, X_train_all, model_hr=model_hr, model_rr=model_rr,
                                  hr_slew_limit=args.slew_limit_hr_per_s,
@@ -11418,15 +11518,21 @@ def cmd_train(args):
         },
     }
     save_json(summary, os.path.join(args.out, "train_summary.json"))
-    save_json({
-        "schema_version": TRAINING_PROGRESS_SCHEMA_VERSION,
-        "status": "completed",
-        "target": ",".join(available_targets),
-        "n_estimators_done": int(getattr(args, "n_estimators", 0) or 0),
-        "n_estimators_total": int(getattr(args, "n_estimators", 0) or 0),
-        "elapsed_s": round(time.monotonic() - train_started_t, 3),
-        "completed_at": _iso_now(),
-    }, progress_path)
+    hr_train_rmse = num((hr_model_train or {}).get("valid_only", {}).get("rmse")) if isinstance(hr_model_train, dict) else None
+    rr_train_rmse = num((rr_model_train or {}).get("valid_only", {}).get("rmse")) if isinstance(rr_model_train, dict) else None
+    hr_eval_rmse = num((hr_model_eval or {}).get("valid_only", {}).get("rmse")) if isinstance(hr_model_eval, dict) else None
+    rr_eval_rmse = num((rr_model_eval or {}).get("valid_only", {}).get("rmse")) if isinstance(rr_model_eval, dict) else None
+    train_losses = [x for x in (hr_train_rmse, rr_train_rmse) if x is not None]
+    val_losses = [x for x in (hr_eval_rmse, rr_eval_rmse) if x is not None]
+    _write_training_progress(
+        status="complete",
+        n_done=n_estimators_total,
+        train_loss=(sum(train_losses) / len(train_losses)) if train_losses else None,
+        val_loss=(sum(val_losses) / len(val_losses)) if val_losses else None,
+        completed_at=_iso_now(),
+        target=",".join(available_targets),
+        phase="done",
+    )
     write_text_report(os.path.join(args.out, "train_report.txt"), summary)
     print(f"\n[OUT] Training outputs saved to {args.out}")
 
@@ -11497,7 +11603,7 @@ def cmd_align(args):
     print(f"\n[OUT] Merged CSV: {out_csv}")
     print(f"[OUT] Report:     {os.path.join(args.out, 'alignment_report.txt')}")
     print(f"\nNext step:")
-    print(f"  python radar_vital_trainer_v9_for_v14.py analyse --radar {args.radar[0]} "
+    print(f"  python radar_vital_trainer_v10_for_v14_1.py analyse --radar {args.radar[0]} "
           f"--ref {args.ref[0]} --out <analysis_dir>")
 
 
@@ -11639,7 +11745,7 @@ def cmd_sweep(args):
         print(f"\n  {_bold('GET INTO POSITION:')} sit {args.distance_hint}m from the radar.")
         print(f"  Session will log for {duration_s}s (~{duration_s/60:.1f} min) once you press Enter.")
         if args.ref:
-            print(f"  {_yellow('REMINDER:')} run  python radar_vital_trainer_v9_for_v14.py reflog  in a second terminal!")
+            print(f"  {_yellow('REMINDER:')} run  python radar_vital_trainer_v10_for_v14_1.py reflog  in a second terminal!")
         try:
             input("  Press Enter when ready... ")
         except KeyboardInterrupt:
@@ -11710,7 +11816,7 @@ def cmd_sweep(args):
 
     if args.ref:
         print(f"\nTo compare all sessions:")
-        print(f"  python radar_vital_trainer_v9_for_v14.py compare --sessions-dir {args.out_dir} --out report.html")
+        print(f"  python radar_vital_trainer_v10_for_v14_1.py compare --sessions-dir {args.out_dir} --out report.html")
 
 
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -1,38 +1,29 @@
-﻿"""radar_vital_trainer_v9_1_for_v14_1.py — v9.0.0
+﻿"""radar_vital_trainer_v10_for_v14_1.py — v10.0.0
 =====================================================
 Leakage-aware offline trainer + full session pipeline for the
 XIAO ESP32-C6 + MR60BHA2 system.
 
-v9 keeps the v14 telemetry contract and adds matched trainer-side truthfulness, manifest, leakage-firewall, bootstrap-comparison, and dashboard support.
-Material 3 Expressive live dashboard stack for thesis use:
-- session orchestration remains the primary collection workflow
-- live dashboarding, regression QA, and stronger analysis outputs remain intact
-- stale v6 command references are removed from help text and quickstart
-- version strings and guidance are aligned with the current file
-
-Change highlights
-────────────────
-  â€¢ v14 telemetry contract: v13.9.7 tail plus explicit RR current/latch source, publish-source, freeze, and RAW_DISAGREE audit fields.
-  â€¢ trainer validity masks now repair RR current-source aggregation and label metric basis / evaluability explicitly.
-  â€¢ write_text_report now forces UTF-8 so Windows auto-analyse runs do not crash on Unicode arrows in the text report
-  â€¢ training now defaults away from policy-leaking publish/gate fields for physiology regression and emits explicit audit masks.
-  â€¢ dashboard loader prefers a same-version external HTML template when present; embedded template is also patched
-  â€¢ contributions blended from Opus 4.6/4.7, Sonnet 4.5/4.6, Claude Ultrareview, ChatGPT 5.4 Codex/Pro, Gemini, Grok, GLM, Muse, DeepSeek, and Qwen audits, with only code-backed or low-risk changes applied.
+v10 keeps the v14.1 telemetry contract and adds:
+- live SSE endpoint for dashboards (tab-audit, events panel)
+- structured training progress telemetry and LOO eval capture
+- auto-analyse orchestration on session stop with disk-space guard
+- refreshed preflight/doctor JSON for dashboard consumption
+- updated manifests, audit masks, and ML gate truthfulness checks
 
 Primary workflow
 ────────────────
-  1.  python radar_vital_trainer_v9_1_for_v14_1.py doctor
-  2.  python radar_vital_trainer_v9_1_for_v14_1.py quickstart
+  1.  python radar_vital_trainer_v10_for_v14_1.py doctor --json
+  2.  python radar_vital_trainer_v10_for_v14_1.py quickstart
 
   Per session (single command):
-      python radar_vital_trainer_v9_for_v14.py session \
+      python radar_vital_trainer_v10_for_v14_1.py session \
         --port COM10 \
         --address 10:22:33:9E:8F:63 \
         --duration-s 480 \
         --open-dashboard
 
   After session:
-      python radar_vital_trainer_v9_1_for_v14_1.py compare --sessions-dir sessions/ --out report.html
+      python radar_vital_trainer_v10_for_v14_1.py compare --sessions-dir sessions/ --out report.html
 
   Optional manual workflow:
       log / ble_reflog / align / analyse / train / sweep
@@ -7523,26 +7514,10 @@ def cmd_quickstart(args):
 
 def cmd_doctor(args):
     if getattr(args, "json", False):
-        checks = []
-
-        def add_check(check_id, ok, detail=""):
-            checks.append({"id": check_id, "status": "ok" if ok else "fail", "detail": detail})
-
-        for name, import_name in [("numpy", "numpy"), ("pandas", "pandas"), ("scipy", "scipy"), ("scikit-learn", "sklearn"), ("matplotlib", "matplotlib"), ("pyserial", "serial")]:
-            spec = importlib.util.find_spec(import_name)
-            add_check(import_name, spec is not None, name if spec is not None else f"pip install {name}")
-        cli_path = shutil.which("arduino-cli")
-        add_check("arduino_cli", bool(cli_path), cli_path or "install arduino-cli and esp32 core")
-        add_check("control_api_schema", True, CONTROL_API_SCHEMA_VERSION)
-        legacy = []
-        sessions_dir = Path("sessions")
-        if sessions_dir.exists():
-            for manifest_path in sessions_dir.glob("*/session_manifest.json"):
-                manifest = _read_json_if_exists(str(manifest_path)) or {}
-                if manifest.get("schema_version") != "rvt-session-manifest-v10.0":
-                    legacy.append(manifest_path.parent.name)
-        add_check("legacy_session_manifests", not legacy, "none" if not legacy else ",".join(legacy[:20]))
-        print(json.dumps(nan_safe({"schema_version": CONTROL_API_SCHEMA_VERSION, "version": VERSION, "checks": checks}), indent=2, allow_nan=False))
+        payload = _run_preflight_all(sessions_root="sessions")
+        payload["schema_version"] = CONTROL_API_SCHEMA_VERSION
+        payload["version"] = VERSION
+        print(json.dumps(nan_safe(payload), indent=2, allow_nan=False))
         return
     print(_bold(f"\n=== Radar Vital Trainer v{VERSION} â€” Dependency Check ===\n"))
     ok_all = True

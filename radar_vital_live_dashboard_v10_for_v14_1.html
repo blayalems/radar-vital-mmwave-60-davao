@@ -791,7 +791,20 @@ body[data-ctl="on"]:not([data-view="live"]) .r-item:not(.nav-ctl):not(.rail-acti
 .status-pill.bad .status-dot{background:var(--bad-500);animation:none}
 .status-pill.warn{border-color:var(--ember-500);color:var(--ember-500)}
 .status-pill.warn .status-dot{background:var(--ember-500);animation:none}
-.topbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.topbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:relative}
+.tb-overflow{display:none}
+.tb-overflow-menu{
+  position:absolute;right:0;top:calc(100% + 8px);min-width:220px;
+  background:var(--surface-1);border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow-3);padding:10px;z-index:220;
+  display:none;gap:8px;
+}
+.tb-overflow-menu.open{display:grid}
+.tb-overflow-menu .ov-row{display:flex;align-items:center;gap:10px}
+.tb-overflow-menu .ov-row .material-symbols-rounded{font-size:18px}
+.tb-overflow-menu .ov-label{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-400)}
+.tb-overflow-menu .ov-btn{width:100%;justify-content:flex-start;padding:10px 12px;border-radius:12px;gap:10px;font-weight:700}
+.tb-overflow-menu .ov-hint{margin-left:auto;font-size:12px;color:var(--ink-400);font-weight:700}
 .icon-btn{width:38px;height:38px;box-shadow:var(--shadow-1)}
 .btn-primary{box-shadow:0 12px 28px -14px var(--brand-500)}
 
@@ -2139,6 +2152,7 @@ body:not([data-ctl="on"]) .bottom-nav .bn-view{display:none}
   .topbar-actions .tb-density,
   .topbar-actions .tb-pause,
   .topbar-actions .tb-theme{display:none !important}
+  .topbar-actions .tb-overflow{display:grid !important;place-items:center;width:44px;height:44px;min-height:44px;border-radius:14px}
   .topbar-actions .tb-nav,
   .topbar-actions .tb-search,
   .topbar-actions .tb-settings,
@@ -2182,7 +2196,8 @@ body:not([data-ctl="on"]) .bottom-nav .bn-view{display:none}
   .topbar-actions .tb-nav,
   .topbar-actions .tb-search,
   .topbar-actions .tb-settings,
-  .topbar-actions .tb-alerts{width:42px;height:42px;min-height:42px;border-radius:12px}
+  .topbar-actions .tb-alerts,
+  .topbar-actions .tb-overflow{width:42px;height:42px;min-height:42px;border-radius:12px}
   .topbar-actions .tb-export{left:10px;right:10px;height:46px !important;min-height:46px !important;border-radius:14px}
   .ready-cta{grid-template-columns:1fr}
 }
@@ -4562,6 +4577,16 @@ body:not([data-ctl="on"]) .bottom-nav .bn-view{display:none}
       <button class="ic-btn icon-btn tb-theme" type="button" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle theme"><span class="material-symbols-rounded" id="themeIcon">dark_mode</span></button>
       <button class="ic-btn icon-btn tb-settings" type="button" onclick="openSettings()" title="Settings" aria-label="Open settings"><span class="material-symbols-rounded">settings</span></button>
       <button class="ic-btn icon-btn tb-alerts" type="button" onclick="openDrawer()" title="Alerts" aria-label="Open alerts drawer"><span class="material-symbols-rounded">notifications</span><span class="ic-badge icon-badge" id="alertsBadge" style="display:none;">0</span></button>
+      <button class="ic-btn icon-btn tb-overflow" type="button" id="topbarOverflowBtn" aria-haspopup="true" aria-expanded="false" aria-controls="topbarOverflow" title="More actions" aria-label="More actions" onclick="toggleOverflowMenu()"><span class="material-symbols-rounded">more_vert</span></button>
+      <div class="tb-overflow-menu" id="topbarOverflow" role="menu" aria-label="Overflow actions" aria-hidden="true">
+        <div class="ov-label">Density</div>
+        <div class="seg seg-sm tb-density" role="radiogroup" aria-label="Density">
+          <button class="active" data-density="comfortable" role="radio" aria-checked="true" tabindex="0" type="button" onclick="setDensity('comfortable'); closeOverflowMenu()" title="Comfortable" aria-label="Comfortable density"><span class="material-symbols-rounded">density_medium</span></button>
+          <button data-density="compact" role="radio" aria-checked="false" tabindex="-1" type="button" onclick="setDensity('compact'); closeOverflowMenu()" title="Compact" aria-label="Compact density"><span class="material-symbols-rounded">density_small</span></button>
+        </div>
+        <button class="ghost-btn ov-btn" type="button" id="overflowPauseBtn" role="menuitem" onclick="togglePause(); closeOverflowMenu()" aria-label="Pause or resume live polling"><span class="material-symbols-rounded">pause</span><span class="ov-row"><span class="ov-title" id="overflowPauseLabel">Pause polling</span><span class="ov-hint" id="overflowPauseHint"></span></span></button>
+        <button class="ghost-btn ov-btn" type="button" id="overflowThemeBtn" role="menuitem" onclick="toggleTheme(); closeOverflowMenu()" aria-label="Cycle theme"><span class="material-symbols-rounded">dark_mode</span><span class="ov-row"><span class="ov-title" id="overflowThemeLabel">Cycle theme</span><span class="ov-hint" id="overflowThemeHint"></span></span></button>
+      </div>
       <button class="fab btn-primary tb-export" type="button" onclick="exportData()" title="Export JSON payload" aria-label="Export JSON payload"><span class="material-symbols-rounded">download</span>Export</button>
     </div>
   </header>
@@ -5351,7 +5376,59 @@ function syncDensityUi(){
   const d=document.documentElement.getAttribute('data-density')||'comfortable';
   document.querySelectorAll('.seg button[data-density]').forEach(el=>{ const active=el.dataset.density===d; el.classList.toggle('active', active); el.setAttribute('aria-checked', active?'true':'false'); el.tabIndex=active?0:-1; });
 }
-function setDensity(d){ document.documentElement.setAttribute('data-density',d); syncDensityUi(); localStorage.setItem('rvt-density',d); }
+function setDensity(d){ document.documentElement.setAttribute('data-density',d); syncDensityUi(); syncOverflowMenu(); localStorage.setItem('rvt-density',d); }
+function syncOverflowMenu(){
+  const menu=document.getElementById('topbarOverflow'); if(!menu) return;
+  const paused=!!S.paused;
+  const pauseBtn=document.getElementById('overflowPauseBtn');
+  if(pauseBtn){
+    const lbl=document.getElementById('overflowPauseLabel');
+    const hint=document.getElementById('overflowPauseHint');
+    const icon=pauseBtn.querySelector('.material-symbols-rounded');
+    if(icon) icon.textContent=paused?'play_arrow':'pause';
+    if(lbl) lbl.textContent=paused?'Resume polling':'Pause polling';
+    if(hint) hint.textContent=paused?'Paused':'Live';
+  }
+  const themeBtn=document.getElementById('overflowThemeBtn');
+  if(themeBtn){
+    const actual=document.documentElement.getAttribute('data-theme')||'light';
+    const next=actual==='light'?'dark':actual==='dark'?'night':actual==='night'?'hc':'light';
+    const icon=themeBtn.querySelector('.material-symbols-rounded');
+    const lbl=document.getElementById('overflowThemeLabel');
+    const hint=document.getElementById('overflowThemeHint');
+    if(icon) icon.textContent=actual==='dark'?'light_mode':(actual==='hc'?'contrast':(actual==='night'?'nightlight':'dark_mode'));
+    if(lbl) lbl.textContent='Cycle theme';
+    if(hint) hint.textContent=`Next: ${next}`;
+  }
+}
+function handleOverflowKey(ev){ if(ev.key==='Escape'){ closeOverflowMenu(); document.getElementById('topbarOverflowBtn')?.focus(); } }
+function handleOverflowClick(ev){
+  const menu=document.getElementById('topbarOverflow'); const btn=document.getElementById('topbarOverflowBtn');
+  if(!menu||!btn) return;
+  if(menu.contains(ev.target) || btn.contains(ev.target)) return;
+  closeOverflowMenu();
+}
+function closeOverflowMenu(){
+  const menu=document.getElementById('topbarOverflow'); const btn=document.getElementById('topbarOverflowBtn');
+  if(menu){ menu.classList.remove('open'); menu.setAttribute('aria-hidden','true'); }
+  if(btn){ btn.setAttribute('aria-expanded','false'); }
+  document.removeEventListener('click', handleOverflowClick, true);
+  document.removeEventListener('keydown', handleOverflowKey, true);
+}
+function toggleOverflowMenu(){
+  const menu=document.getElementById('topbarOverflow'); const btn=document.getElementById('topbarOverflowBtn');
+  if(!menu||!btn) return;
+  const opening=!menu.classList.contains('open');
+  closeOverflowMenu();
+  if(!opening) return;
+  syncOverflowMenu();
+  menu.classList.add('open');
+  menu.setAttribute('aria-hidden','false');
+  btn.setAttribute('aria-expanded','true');
+  document.addEventListener('click', handleOverflowClick, true);
+  document.addEventListener('keydown', handleOverflowKey, true);
+  setTimeout(()=>{ menu.querySelector('button')?.focus({preventScroll:true}); },0);
+}
 function syncHxUi(){
   document.querySelectorAll('#hxSection,.hx-section').forEach(sec=>{ sec.style.display=App.hx.supported?'':'none'; });
   document.querySelectorAll('[data-hx-mode]').forEach(btn=>{
@@ -5427,7 +5504,7 @@ function updatePreflightFeedback(){
 }
 function systemPrefersDark(){ return !!window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; }
 function currentThemeMode(){ return localStorage.getItem('rvt-theme')||'system'; }
-function applyThemeMode(mode){ const actual=mode==='system'?(systemPrefersDark()?'dark':'light'):mode; const h=document.documentElement; h.setAttribute('data-theme',actual); const icon=document.getElementById('themeIcon'); if(icon) icon.textContent=actual==='dark'?'light_mode':(actual==='hc'?'contrast':(actual==='night'?'nightlight':'dark_mode')); repaintCharts(); }
+function applyThemeMode(mode){ const actual=mode==='system'?(systemPrefersDark()?'dark':'light'):mode; const h=document.documentElement; h.setAttribute('data-theme',actual); const icon=document.getElementById('themeIcon'); if(icon) icon.textContent=actual==='dark'?'light_mode':(actual==='hc'?'contrast':(actual==='night'?'nightlight':'dark_mode')); syncOverflowMenu(); repaintCharts(); }
 function syncThemeUi(){
   const mode=currentThemeMode();
   document.querySelectorAll('[data-theme-mode]').forEach(btn=>{
@@ -5469,7 +5546,7 @@ function repaintCharts(){
   Object.values(S.charts).forEach(c=>c&&c.update?.('none'));
   if(S.lastPayload){ drawRadar(S.lastPayload,hardStale(S.lastPayload)); drawHeroRadar(S.lastPayload,hardStale(S.lastPayload)); }
 }
-function togglePause(){ S.paused=!S.paused; document.getElementById('pauseIcon').textContent=S.paused?'play_arrow':'pause'; toast(S.paused?'Polling paused':'Polling resumed'); if(!S.paused) poll(); }
+function togglePause(){ S.paused=!S.paused; document.getElementById('pauseIcon').textContent=S.paused?'play_arrow':'pause'; syncOverflowMenu(); toast(S.paused?'Polling paused':'Polling resumed'); if(!S.paused) poll(); }
 function switchTab(id){ closeRailDrawer(); document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active')); document.querySelectorAll('.r-item:not(.nav-ctl)').forEach(e=>e.classList.remove('active')); document.getElementById(id)?.classList.add('active'); document.querySelector(`.r-item[data-target="${id}"]`)?.classList.add('active'); if(S.ctl.on) document.querySelector('.nav-ctl[data-view="live"]')?.classList.add('active'); syncLiveTabA11y(); syncNavigationCurrent(document.body.dataset.view||'live'); Object.values(S.charts).forEach(c=>c&&c.resize()); if(S.lastPayload) drawRadar(S.lastPayload,hardStale(S.lastPayload)); if(id==='tab-snaps') renderSnaps(); if(window.innerWidth<=760) window.scrollTo({top:0,behavior:'smooth'}); exposeDebugState(); }
 function exportData(){
   if(!S.lastPayload) return toast('No data to export');
@@ -8773,7 +8850,7 @@ async function init(){
   exposeDebugState();
   const onResize=App.util.debounce(()=>{ syncMobileRailState(); Object.values(S.charts).forEach(c=>c&&c.resize()); syncDrawerA11y(); },150);
   window.addEventListener('resize', onResize);
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape') { closeRailDrawer(); closeDrawer(); closeSettings(); } });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') { closeRailDrawer(); closeDrawer(); closeSettings(); closeOverflowMenu(); } });
   if(window.matchMedia){ try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ if(currentThemeMode()==='system') applyThemeMode('system'); }); }catch(_){ } }
   const dn=localStorage.getItem('rvt-density'); if(dn) setDensity(dn);
   restoreRailCollapse();

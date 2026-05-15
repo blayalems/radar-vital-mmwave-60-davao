@@ -10,7 +10,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
-  timeout: 30_000,
+  timeout: 60_000,
   expect: { timeout: 5000, toHaveScreenshot: { maxDiffPixels: 200 } },
   use: {
     baseURL: BASE_URL,

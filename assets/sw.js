@@ -73,11 +73,9 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.pathname === '/api/session/current/live_dashboard.json') {
-    event.respondWith(fetch(request));
     return;
   }
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(fetch(request));
     return;
   }
   if (url.pathname === '/' || url.pathname.endsWith('/live_dashboard.html') || url.pathname.endsWith('/radar_vital_live_dashboard_v12_for_v16_0.html')) {

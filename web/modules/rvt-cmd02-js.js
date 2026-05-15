@@ -1,5 +1,0 @@
-(function(){'use strict';var R=window.rvtGammaDelta;if(!R)return;var map={dim:'dark theme',screenshot:'snapshot',loud:'audio test',mute:'quiet',colour:'color',record:'start session',stop:'end session',restart:'reconnect',log:'audit',export:'download',profile:'settings profile',calibrate:'stillness',ble:'bluetooth',serial:'port',freeze:'pause',vitals:'live',chart:'waveform',compare:'multi compare',badge:'alert badge',handoff:'operator handoff',lock:'auto lock',soak:'memory soak',density:'compact',font:'text size',tag:'quick tag',fab:'snapshot fab',ghost:'funnel ghost',duck:'volume duck',lineage:'kpi lineage',cluster:'alert cluster',snooze:'alert snooze'};
-  function search(q){q=String(q||'').toLowerCase();return Object.keys(map).filter(function(a){return a.indexOf(q)>=0||q.indexOf(a)>=0;}).map(function(a){return {action:map[a],actionId:map[a],matchedAlias:a,subtitle:'matched: '+a+' → '+map[a]};});}
-  function addSynonym(alias,actionId){map[String(alias).toLowerCase()]=actionId;return map;}
-  window.rvtCmdSynonym={search:search,addSynonym:addSynonym,getMap:function(){return Object.assign({},map);}};window.rvtCmd02=window.rvtCmdSynonym;
-})();

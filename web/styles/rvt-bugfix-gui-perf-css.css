@@ -1,8 +1,0 @@
-  :where(button, a, input, select, textarea, summary, [role="button"], [role="tab"], [tabindex]):focus {
-    outline: 2px solid var(--focus-ring, var(--brand-500, var(--md-sys-color-primary, #2563eb))) !important;
-    outline-offset: 2px !important;
-  }
-
-  :where(button, a, input, select, textarea, summary, [role="button"], [role="tab"], [tabindex]):focus:not(:focus-visible) {
-    outline-color: color-mix(in srgb, var(--focus-ring, var(--brand-500, var(--md-sys-color-primary, #2563eb))) 58%, transparent) !important;
-  }

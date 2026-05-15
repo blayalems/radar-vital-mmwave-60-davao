@@ -1,0 +1,19 @@
+      <div id="tab-snaps" class="tab">
+        <article class="card">
+          <div class="ch">
+            <div class="tw"><span class="material-symbols-rounded">bookmark</span>
+              <div>
+                <h2 class="ct">Pinned snapshots</h2>
+                <div class="cs">Capture an HR/RR/BLE/delta snapshot at the current frame to compare later</div>
+              </div>
+            </div>
+            <div class="ca">
+              <button class="fab" style="padding:8px 14px;font-size:13px" onclick="snapshotNow()"><span
+                  class="material-symbols-rounded">add</span>Pin current</button>
+              <button class="ca-btn" onclick="clearSnaps()" title="Clear all"><span
+                  class="material-symbols-rounded">delete_sweep</span></button>
+            </div>
+          </div>
+          <div class="snaps" id="snapsList"></div>
+        </article>
+      </div>

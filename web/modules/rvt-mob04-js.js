@@ -1,5 +1,0 @@
-(function(){'use strict';var R=window.rvtGammaDelta;if(!R)return;var expanded=false;
-  function render(){var d=R.ensure('rvt-swipe-dock','div');d.className='rvt-swipe-dock';d.dataset.expanded=expanded?'true':'false';d.innerHTML='<button class="rvt-gd-button" id="rvt-swipe-dock-handle" aria-expanded="'+expanded+'">Dock</button><div class="rvt-swipe-dock-actions"><button>Live</button><button>Alerts</button><button>Snap</button></div><div class="rvt-swipe-dock-extra"><button>Report</button><button>Notes</button><button>Settings</button><button>Queue</button><button>Replay</button><button>Help</button></div>';d.querySelector('#rvt-swipe-dock-handle').onclick=toggle;d.querySelector('#rvt-swipe-dock-handle').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();toggle();}};}
-  function expand(){expanded=true;render();}function collapse(){expanded=false;render();}function toggle(){expanded?collapse():expand();}
-  window.rvtSwipeDock={expand:expand,collapse:collapse,isExpanded:function(){return expanded;},toggle:toggle};R.boot(render);
-})();

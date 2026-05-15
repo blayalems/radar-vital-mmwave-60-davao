@@ -1,0 +1,252 @@
+      <div id="tab-overview" class="tab active">
+        <div class="profile-chip-row" id="profileChipRow"></div>
+        <div class="kpi-grid" style="margin-bottom:var(--gap)" role="region" aria-label="Vital sign readings">
+          <div class="kpi hr" data-help="kpi.hr" data-kpi-id="hr" draggable="true" tabindex="0">
+            <div class="kpi-drag-handle" aria-hidden="true"><span class="material-symbols-rounded">drag_indicator</span>
+            </div>
+            <div class="k-lab"><span class="k-lab-t">Heart rate</span>
+              <div class="k-ic"><span class="material-symbols-rounded">ecg_heart</span></div>
+            </div>
+            <div class="k-val-r"><span class="k-val" id="kpiHr">--</span><span class="k-u">bpm</span></div>
+            <canvas class="k-spark" id="kpiHrSpark"></canvas>
+            <div class="k-sub" id="kpiHrSub" data-help="kpi.reference_delta" tabindex="0">waiting</div>
+          </div>
+          <div class="kpi rr" data-help="kpi.rr" data-kpi-id="rr" draggable="true" tabindex="0">
+            <div class="kpi-drag-handle" aria-hidden="true"><span class="material-symbols-rounded">drag_indicator</span>
+            </div>
+            <div class="k-lab"><span class="k-lab-t">Respiration</span>
+              <div class="k-ic"><span class="material-symbols-rounded">air</span></div>
+            </div>
+            <div class="k-val-r"><span class="k-val" id="kpiRr">--</span><span class="k-u">br/min</span></div>
+            <canvas class="k-spark" id="kpiRrSpark"></canvas>
+            <div class="k-sub" id="kpiRrSub" data-help="kpi.reference_delta" tabindex="0">waiting</div>
+          </div>
+          <div class="kpi" data-help="kpi.fps" data-kpi-id="fps" draggable="true" tabindex="0">
+            <div class="kpi-drag-handle" aria-hidden="true"><span class="material-symbols-rounded">drag_indicator</span>
+            </div>
+            <div class="k-lab"><span class="k-lab-t">Frame rate</span>
+              <div class="k-ic"><span class="material-symbols-rounded">speed</span></div>
+            </div>
+            <div class="k-val-r"><span class="k-val" id="kpiFps">--</span><span class="k-u">Hz</span></div>
+            <canvas class="k-spark" id="kpiFpsSpark"></canvas>
+            <div class="k-sub" id="kpiFpsSub" data-help="kpi.fps_target" tabindex="0">DSP loop</div>
+          </div>
+          <div class="kpi" data-help="kpi.distance" data-kpi-id="distance" draggable="true" tabindex="0">
+            <div class="kpi-drag-handle" aria-hidden="true"><span class="material-symbols-rounded">drag_indicator</span>
+            </div>
+            <div class="k-lab"><span class="k-lab-t">Range</span>
+              <div class="k-ic"><span class="material-symbols-rounded">radar</span></div>
+            </div>
+            <div class="k-val-r"><span class="k-val" id="kpiDist">--</span><span class="k-u">cm</span></div>
+            <canvas class="k-spark" id="kpiDistSpark"></canvas>
+            <div class="k-sub" id="kpiDistSub" data-help="kpi.range_target" tabindex="0">target distance</div>
+          </div>
+        </div>
+
+        <article class="card session-notes-card" id="sessionNotesCard" style="margin-bottom:var(--gap)">
+          <div class="ch">
+            <div class="tw"><span class="material-symbols-rounded">edit_note</span>
+              <div>
+                <h2 class="ct">Session notes</h2>
+                <div class="cs" id="sessionNotesScope">Stored for the active session</div>
+              </div>
+            </div>
+            <div class="ca notes-toolbar">
+              <span class="notes-count" id="sessionNotesCount">0 chars</span>
+              <button class="ca-btn" type="button" onclick="exportSessionNotesTxt()" title="Export notes as TXT"><span
+                  class="material-symbols-rounded">text_snippet</span></button>
+            </div>
+          </div>
+          <textarea id="sessionNotesText" maxlength="4000" placeholder="Add operator notes for this session"
+            oninput="saveSessionNotes(this.value)" aria-label="Session notes"></textarea>
+
+
+          <div class="quick-tag-row" id="quickTagRow" role="toolbar" aria-label="Quick session tags"
+            style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 14px 12px">
+            <button class="ca-btn quick-tag-btn" type="button" onclick="addQuickTag('Motion')"
+              title="Tag motion event"><span class="material-symbols-rounded">directions_run</span>Motion</button>
+            <button class="ca-btn quick-tag-btn" type="button" onclick="addQuickTag('Position change')"
+              title="Tag position change"><span class="material-symbols-rounded">accessibility</span>Position</button>
+            <button class="ca-btn quick-tag-btn" type="button" onclick="addQuickTag('Cough')" title="Tag cough"><span
+                class="material-symbols-rounded">sick</span>Cough</button>
+            <button class="ca-btn quick-tag-btn" type="button" onclick="addQuickTag('Speaking')"
+              title="Tag speaking"><span class="material-symbols-rounded">record_voice_over</span>Speaking</button>
+            <button class="ca-btn quick-tag-btn" type="button" onclick="addQuickTag('Ref issue')"
+              title="Tag reference issue"><span class="material-symbols-rounded">bluetooth_disabled</span>Ref</button>
+            <button class="ca-btn quick-tag-btn" type="button" onclick="promptCustomTag()" title="Custom tag"><span
+                class="material-symbols-rounded">edit</span>Custom...</button>
+          </div>
+        </article>
+
+        <article class="card" style="margin-bottom:var(--gap)">
+          <div class="ch">
+            <div class="tw"><span class="material-symbols-rounded">explore</span>
+              <div>
+                <h2 class="ct">Target tracking</h2>
+                <div class="cs">Spatial telemetry with module health in sync</div>
+              </div>
+            </div>
+            <div class="ca"><button class="ca-btn" onclick="snapshotNow()" title="Pin snapshot"><span
+                  class="material-symbols-rounded">bookmark_add</span></button></div>
+          </div>
+          <div class="rad">
+            <div class="rp">
+              <div class="rp-h">
+                <div>
+                  <div class="eyebrow" style="color:var(--ink-400)">Spatial view</div>
+                  <div class="rp-n">Semicircle position uses target-info-first. Module telemetry stays in sync below.
+                  </div>
+                </div>
+                <div class="tgt" id="tgtCount">Target: --</div>
+              </div>
+              <div class="rad-w"><canvas id="radarCanvas"></canvas></div>
+            </div>
+            <div class="side">
+              <div class="tb">
+                <div class="tbig">
+                  <div class="tl"><span class="l">FPS</span><span class="v" id="fpsV">--</span></div>
+                  <div class="tl"><span class="l">Breath</span><span class="v rr" id="brV">--</span></div>
+                  <div class="tl"><span class="l">Heart</span><span class="v" id="hrV">--</span></div>
+                </div>
+                <div class="kv">
+                  <div>Person detected</div>
+                  <div id="personV">--</div>
+                  <div>Distance</div>
+                  <div id="distV">--</div>
+                  <div>X position</div>
+                  <div id="xV">--</div>
+                  <div>Y position</div>
+                  <div id="yV">--</div>
+                  <div>Radius</div>
+                  <div id="radV">--</div>
+                  <div>Firmware</div>
+                  <div id="fwV">--</div>
+                  <div>Spatial source</div>
+                  <div id="srcV">--</div>
+                  <div>Spatial age</div>
+                  <div id="srcAgeV">--</div>
+                  <div>Doppler index</div>
+                  <div id="dopV">--</div>
+                  <div>Doppler speed</div>
+                  <div id="dopCmsV">--</div>
+                </div>
+              </div>
+              <div class="tb">
+                <div class="ct" style="font-size:14px;margin-bottom:10px;">Position source summary</div>
+                <table>
+                  <tbody id="posTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="card" style="margin-bottom:var(--gap)">
+          <div class="ch">
+            <div class="tw"><span class="material-symbols-rounded">rule_settings</span>
+              <div>
+                <h2 class="ct">Physiology vs policy</h2>
+                <div class="cs">Signal quality and publish policy in one view</div>
+              </div>
+            </div>
+          </div>
+          <div class="grid c2">
+            <div class="tb">
+              <h3
+                style="margin:0 0 10px;font-size:13px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-400)">
+                Physiology</h3>
+              <table>
+                <tbody id="physTable"></tbody>
+              </table>
+            </div>
+            <div class="tb">
+              <h3
+                style="margin:0 0 10px;font-size:13px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-400)">
+                Policy</h3>
+              <table>
+                <tbody id="polTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+
+        <div class="grid c4">
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">radar</span>
+                <div>
+                  <h2 class="ct">Radar</h2>
+                  <div class="cs">Latest parsed row</div>
+                </div>
+              </div>
+            </div>
+            <div class="mr">
+              <div class="m" data-help="field.reported_hr" tabindex="0"><span class="m-l">HR</span>
+                <div class="m-vr"><span class="m-v" id="radHr">--</span><span class="m-u">bpm</span></div>
+              </div>
+              <div class="m rr" data-help="field.reported_rr" tabindex="0"><span class="m-l">RR</span>
+                <div class="m-vr"><span class="m-v" id="radRr">--</span><span class="m-u">br/m</span></div>
+              </div>
+            </div>
+            <table>
+              <tbody id="radarTable"></tbody>
+            </table>
+          </article>
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">bluetooth_connected</span>
+                <div>
+                  <h2 class="ct">BLE Reference</h2>
+                  <div class="cs">Oximeter packet</div>
+                </div>
+              </div>
+            </div>
+            <div class="mr">
+              <div class="m" data-help="reference.coverage" tabindex="0"><span class="m-l">HR</span>
+                <div class="m-vr"><span class="m-v" id="bleHr">--</span><span class="m-u">bpm</span></div>
+              </div>
+              <div class="m rr" data-help="reference.coverage" tabindex="0"><span class="m-l">RR</span>
+                <div class="m-vr"><span class="m-v" id="bleRr">--</span><span class="m-u">br/m</span></div>
+              </div>
+            </div>
+            <table>
+              <tbody id="bleTable"></tbody>
+            </table>
+          </article>
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">difference</span>
+                <div>
+                  <h2 class="ct">Mismatch</h2>
+                  <div class="cs">Operator-facing delta</div>
+                </div>
+              </div>
+            </div>
+            <div class="faults" id="faults"></div>
+          </article>
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">my_location</span>
+                <div>
+                  <h2 class="ct">Spatial</h2>
+                  <div class="cs">Point cloud & Doppler</div>
+                </div>
+              </div>
+            </div>
+            <div class="mr three">
+              <div class="m" data-help="field.num_targets" tabindex="0"><span class="m-l">Targets</span>
+                <div class="m-vr"><span class="m-v" id="numT">--</span></div>
+              </div>
+              <div class="m rr" data-help="field.primary_dop" tabindex="0"><span class="m-l">|Dop|</span>
+                <div class="m-vr"><span class="m-v" id="maxDop">--</span></div>
+              </div>
+              <div class="m" data-help="field.doppler_speed" tabindex="0"><span class="m-l">cm/s</span>
+                <div class="m-vr"><span class="m-v" id="maxDopSp">--</span></div>
+              </div>
+            </div>
+            <table>
+              <tbody id="spTable"></tbody>
+            </table>
+          </article>
+        </div>
+      </div>

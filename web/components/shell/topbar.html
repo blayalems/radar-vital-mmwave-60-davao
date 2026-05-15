@@ -1,0 +1,82 @@
+      <header class="topbar">
+        <div class="crumbs">
+          <span class="crumb-eyebrow" id="crumbEyebrow">Workflow</span>
+          <h1 class="crumb-title" id="crumbTitle">Start a new session</h1>
+          <div class="crumb-trail" id="crumbTrail" aria-label="Breadcrumb navigation"></div>
+        </div>
+        <div class="topbar-status">
+          <div class="status-pill conn" id="conn" title="Data connection health" role="status" aria-live="polite">
+            <span class="status-dot dot"></span>
+            <span class="status-txt" id="connT">Connecting...</span>
+            <span class="conn-retry-info" id="connRetryInfo">Retry in <strong id="connRetryCountdown">--</strong>s
+              <button class="conn-retry-btn" onclick="manualReconnect()" type="button">Retry now</button></span>
+            <span class="status-sub" id="connSub">--</span>
+          </div>
+          <div class="status-pill mode mode-badge" id="modeBadge" title="Source mode">
+            <span class="status-dot dot"></span>
+            <span class="material-symbols-rounded" id="modeBadgeIcon">wifi_tethering_off</span>
+            <span class="status-txt" id="modeBadgeT">waiting</span>
+            <span class="status-sub" id="modeBadgeSub">Local</span>
+          </div>
+          <div class="status-pill operator-badge" id="homeOperatorBadge" title="Current operator">
+            <span class="material-symbols-rounded">person</span>
+            <span class="status-txt" id="homeOperatorName">Operator A</span>
+            <span class="status-sub" id="homeOperatorRole">Lab · Station 3</span>
+          </div>
+        </div>
+        <div class="topbar-actions" role="group" aria-label="Console actions">
+          <button class="ic-btn icon-btn tb-search" type="button" onclick="openPalette()" title="Search and commands"
+            aria-label="Open search and commands"><span class="material-symbols-rounded">search</span></button>
+          <div class="seg seg-sm tb-live-mode" role="radiogroup" aria-label="Telemetry detail">
+            <button class="active" id="liveModeSimple" data-live-mode="simple" role="radio" aria-checked="true"
+              tabindex="0" type="button" onclick="setLiveMode('simple')" title="Simple view"
+              aria-label="Simple view"><span class="material-symbols-rounded">visibility</span></button>
+            <button id="liveModeAdvanced" data-live-mode="advanced" role="radio" aria-checked="false" tabindex="-1"
+              type="button" onclick="setLiveMode('advanced')" title="Advanced view" aria-label="Advanced view"><span
+                class="material-symbols-rounded">data_exploration</span></button>
+          </div>
+          <div class="seg seg-sm tb-density" role="radiogroup" aria-label="Density">
+            <button class="active" data-density="comfortable" role="radio" aria-checked="true" tabindex="0"
+              type="button" onclick="setDensity('comfortable')" title="Comfortable"
+              aria-label="Comfortable density"><span class="material-symbols-rounded">density_medium</span></button>
+            <button data-density="compact" role="radio" aria-checked="false" tabindex="-1" type="button"
+              onclick="setDensity('compact')" title="Compact" aria-label="Compact density"><span
+                class="material-symbols-rounded">density_small</span></button>
+          </div>
+          <button class="ic-btn icon-btn tb-pause" type="button" onclick="togglePause()"
+            title="Pause / resume live polling" aria-label="Pause or resume live polling"><span
+              class="material-symbols-rounded" id="pauseIcon">pause</span></button>
+          <button class="ic-btn icon-btn tb-settings" type="button" onclick="openSettings()" title="Settings"
+            aria-label="Open settings"><span class="material-symbols-rounded">settings</span></button>
+          <button class="ic-btn icon-btn tb-alerts" type="button" onclick="openDrawer()" title="Alerts"
+            aria-label="Open alerts drawer"><span class="material-symbols-rounded">notifications</span><span
+              class="ic-badge icon-badge" id="alertsBadge" style="display:none;">0</span></button>
+          <button class="ic-btn icon-btn tb-overflow" type="button" id="topbarOverflowBtn" aria-haspopup="true"
+            aria-expanded="false" aria-controls="topbarOverflow" title="More actions" aria-label="More actions"
+            onclick="toggleOverflowMenu()"><span class="material-symbols-rounded">more_vert</span></button>
+          <div class="tb-overflow-menu" id="topbarOverflow" role="menu" aria-label="Overflow actions"
+            aria-hidden="true">
+            <div class="ov-label">Density</div>
+            <div class="seg seg-sm tb-density" role="radiogroup" aria-label="Density">
+              <button class="active" data-density="comfortable" role="radio" aria-checked="true" tabindex="0"
+                type="button" onclick="setDensity('comfortable'); closeOverflowMenu()" title="Comfortable"
+                aria-label="Comfortable density"><span class="material-symbols-rounded">density_medium</span></button>
+              <button data-density="compact" role="radio" aria-checked="false" tabindex="-1" type="button"
+                onclick="setDensity('compact'); closeOverflowMenu()" title="Compact" aria-label="Compact density"><span
+                  class="material-symbols-rounded">density_small</span></button>
+            </div>
+            <button class="ghost-btn ov-btn" type="button" id="overflowPauseBtn" role="menuitem"
+              onclick="togglePause(); closeOverflowMenu()" aria-label="Pause or resume live polling"><span
+                class="material-symbols-rounded">pause</span><span class="ov-row"><span class="ov-title"
+                  id="overflowPauseLabel">Pause polling</span><span class="ov-hint"
+                  id="overflowPauseHint"></span></span></button>
+            <button class="ghost-btn ov-btn" type="button" id="overflowThemeBtn" role="menuitem"
+              onclick="toggleTheme(); closeOverflowMenu()" aria-label="Cycle theme"><span
+                class="material-symbols-rounded">dark_mode</span><span class="ov-row"><span class="ov-title"
+                  id="overflowThemeLabel">Cycle theme</span><span class="ov-hint"
+                  id="overflowThemeHint"></span></span></button>
+          </div>
+          <button class="fab btn-primary tb-export" type="button" onclick="exportData()" title="Export JSON payload"
+            aria-label="Export JSON payload"><span class="material-symbols-rounded">download</span>Export</button>
+        </div>
+      </header>

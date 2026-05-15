@@ -1,0 +1,72 @@
+# AGENTS.md — contract for AI coding agents working on this repo
+
+This file is the operating manual for AI agents (Claude Code, Codex, Cursor, etc.) editing this repository. Humans should read [`README.md`](./README.md) first.
+
+## Scope
+
+The current focus of this branch (`claude/mobile-first-dashboard-upABy`) is the mobile-first PWA redesign that turns the v11 desktop-only dashboard into v12 — a single document that installs as a PWA on phones, ships as an Android APK via Capacitor, and ships as a Windows EXE via Tauri.
+
+The design plan lives at `/root/.claude/plans/take-a-look-at-fizzy-taco.md` on the working machine. The condensed contract below restates what plans cannot encode: invariants, file-touching rules, and the verification protocol.
+
+## Invariants — do not break these
+
+1. **Three coupled artefacts.** Every change must be evaluated against all three: firmware (`.ino`), trainer (`.py`), dashboard (`.html`). Don't ship a dashboard call to an endpoint the trainer doesn't serve. Don't ship a trainer endpoint nobody calls.
+2. **Branch discipline.** Develop on `claude/mobile-first-dashboard-upABy`. Never push to `main` or `archive/*` without an explicit human instruction. The archive branch is frozen.
+3. **No regression in the v11 features.** All KPI cards, chart tabs (Overview/Waves/HR/RR/Snaps/Audit), alerts drawer, snapshot capture, export, sliders, preflight, session-start/stop, and the four themes (light/dark/night/hc) must keep working. Use Playwright visual regression against the `v15.0.0-pre-mobile` baseline before deleting any CSS block.
+4. **Serial protocol is frozen.** The 207-column CSV at 115 200 baud is contractual. Don't change column order, names, or units. Add new columns only as additions on the right.
+5. **No new framework.** Vanilla HTML/JS/CSS. No React, Vue, Svelte, Tailwind. Chart.js, Hammer.js, jsqr are the only runtime libraries; all are self-hosted under `assets/lib/`.
+6. **Secrets stay out of `assets/`.** TLS material lives in `.rvt_tls/` (git-ignored). The trainer's path-traversal guard denies any URL that resolves into `.rvt_tls/` or any path containing `..`. Never serve private keys from a publicly mounted directory.
+7. **CSP is per-mode, not blanket.** `--bind local` ⇒ `connect-src 'self'`. `--bind lan` ⇒ `'self' <advertised-lan-origin>` (the literal trainer URL chosen at boot). Capacitor/Tauri WebViews keep `'self'` because LAN traffic flows through native HTTP, not the WebView fetch path.
+8. **HSTS only when explicit.** Never send `Strict-Transport-Security` under a self-signed cert. Gated to `--tls-trusted` only.
+9. **Backward-compatibility tombstone.** The pre-existing `/rvt-sw.js` route stays for one release, but the body is a self-unregister stub. The new SW is `/sw.js`. Don't remove the tombstone until v12.1.
+10. **No marketing model names in artefacts.** Don't write the model ID this agent runs on into commit messages, PR bodies, code comments, or docs.
+
+## File-touching rules
+
+| Path | Edit policy |
+|---|---|
+| `radar_vital_live_dashboard_v12_for_v16_0.html` | Single source of truth for the PWA. Inline JS is wrapped in a `__RVT_INLINE_SCRIPTS__` JSON-string array (lines ~29017–29028); each string is JSON-decoded then executed via `eval`/`new Function`. Edit those strings carefully — escape `>`, `\n`, etc., correctly. New code can be added as an additional string in the array, or as a fresh `<script>` block before `</body>`. |
+| `radar_vital_trainer_v12_for_v16_0.py` | `_ControlHandler.do_GET` (line ~6131) and `do_POST` (line ~6375) are the dispatcher. Add new routes **before** the `super().do_GET()` fall-through. New endpoints must be documented in `README.md`'s endpoint table and covered by a Playwright API test. |
+| `radar_vital_v16_0_0.ino` | Firmware. `ENABLE_BLE` is `false` by default — keep v15 behavior identical until Phase 4F. Watchdog must never `delay()` in the DSP loop; use `bleSuppressUntilMs = millis() + N` instead. |
+| `assets/sw.js` | Single service worker. HTML/manifest are **network-first** (2 s timeout). Static `/lib/`, `/fonts/`, `/icons/` are cache-first. `/api/*` is network-only with an explicit passthrough for `text/event-stream`. |
+| `assets/manifest.webmanifest` | Static fallback. The trainer overrides with a dynamic, port-aware manifest at `/manifest.webmanifest`. The hosted GitHub Pages build uses the static file. |
+| `.rvt_tls/` | Git-ignored. Auto-populated on first `--tls` launch. Never commit. |
+| Legacy `radar_vital_v8_*.ino`, `_v9_*.ino`, `_v10_*.ino`, `_v11_for_v15_0.html`, `_v10_for_v14_1.html`, trainer `_v10_*.py`, `_v11_*.py` | Removed from this branch. Available on `archive/legacy-v8-to-v11`. Do not restore. |
+
+## Verification protocol — every commit
+
+1. **Trainer boots clean.** `python3 radar_vital_trainer_v12_for_v16_0.py serve --mock` exits 0 on Ctrl-C and prints the dashboard URL.
+2. **Playwright smoke passes.** `npm test` runs in under 90 s and reports zero console errors.
+3. **Visual regression.** `npx playwright test --update-snapshots` only when an intentional UI change ships; otherwise the baseline matches.
+4. **Lint.** Python: `python -m py_compile radar_vital_trainer_v12_for_v16_0.py`. JS: ESLint not configured (vanilla, inline) — review by hand.
+5. **APK build green.** `.github/workflows/build-apk.yml` produces an installable APK artifact.
+6. **EXE build green.** `.github/workflows/build-exe.yml` produces an MSI on the `windows-latest` runner.
+7. **Pages preview green.** `.github/workflows/pages.yml` builds and deploys to `gh-pages` (or `pages` env) without errors.
+
+## What "done" looks like for the redesign
+
+- Dashboard installs as a PWA on Android Chrome and Chrome desktop.
+- Bottom-nav primary on phones (< 1024 px), rail returns at ≥ 1024 px, full desktop chrome at ≥ 1280 px.
+- All four themes pass visual regression.
+- Sheets (palette, alerts, detail) trap focus, return focus on close, dismiss via Escape and back-button.
+- DEMO banner is visible whenever sandbox mode is active. IndexedDB key prefix `demo:` keeps demo data segregated from `live:`.
+- Trainer fail-fast on port conflict (default 8787 with a sane fallback range; the operator can pin a fixed port).
+- Capacitor APK + Tauri MSI both report a real session at 1 Hz against a LAN-bound trainer.
+- BLE work (Phase 4F) lands in a follow-up only when the GATT acceptance suite is green.
+
+## What "done" does **not** mean
+
+- Bit-identical desktop layout. The v12 desktop view is mobile-first scaled up — visually close, not pixel-identical to v11.
+- iOS Safari Web Bluetooth. Safari does not support it; iOS BLE only via the Capacitor iOS shell (v16.1+).
+- A new framework, build system, or charting library.
+- Subnet scanning. The pairing model is QR + PIN only.
+
+## How to ask for help
+
+If you hit ambiguity, **stop and ask the human via `AskUserQuestion`** before guessing. Specifically:
+- Conflicting feature requests (e.g., "preserve v11 exactly" vs "redesign mobile-first").
+- API shape changes that would break existing consumers.
+- New external network dependencies.
+- Any action with a destructive blast radius beyond a single commit on this branch.
+
+The plan file is a contract, not a suggestion. If a request contradicts the plan, surface the conflict instead of silently breaking the plan.

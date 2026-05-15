@@ -1,0 +1,30 @@
+# TLS material — generated at trainer startup; never committed.
+# Public key + private key for the optional --tls self-signed mode.
+.rvt_tls/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Node / packaging artifacts (Phase 6)
+node_modules/
+android/
+ios/
+src-tauri/target/
+src-tauri/Cargo.lock
+dist/
+www/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+tests/visual/diff/
+tests/visual/actual/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store

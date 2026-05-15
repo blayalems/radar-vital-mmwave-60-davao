@@ -48,6 +48,7 @@ import mimetypes
 import os
 import pickle
 import re
+import secrets
 import signal
 import shutil
 import subprocess
@@ -75,9 +76,9 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 import warnings
 warnings.filterwarnings("ignore")
 
-VERSION = "11.0.0"
-DASHBOARD_VERSION = "11.0.0"
-FIRMWARE_VERSION_EXPECTED = "v15.0.0"
+VERSION = "12.0.0-alpha.1"
+DASHBOARD_VERSION = "12.0.0-alpha.1"
+FIRMWARE_VERSION_EXPECTED = "v16.0.0"
 DEFAULT_RADAR_PORT = "COM10"
 DEFAULT_BLE_ADDRESS = "10:22:33:9E:8F:63"
 FEATURE_ENGINEERING_VERSION = "v11.0-physio-2026"
@@ -5392,19 +5393,163 @@ def _sanitize_user_string(value, max_len: int = 1000) -> str:
 
 
 
+def _build_legacy_sw_tombstone_js() -> str:
+    """Tombstone served at the legacy /rvt-sw.js route.
+
+    Existing operator installs registered /rvt-sw.js. The new /sw.js cache
+    namespace ('rvt-shell-v12.*') will never reach those clients because the
+    old SW intercepts /sw.js first. This tombstone unregisters itself and
+    reloads every open client so the new /sw.js can take over on next nav.
+
+    Remove this route in v12.1.
+    """
+    return (
+        "self.addEventListener('install',function(){self.skipWaiting();});\n"
+        "self.addEventListener('activate',function(e){\n"
+        "  e.waitUntil((async function(){\n"
+        "    try{var keys=await caches.keys();await Promise.all(keys.map(function(k){return caches.delete(k);}));}catch(_){}\n"
+        "    try{await self.registration.unregister();}catch(_){}\n"
+        "    try{var cs=await self.clients.matchAll();cs.forEach(function(c){try{c.navigate(c.url);}catch(_){}})}catch(_){}\n"
+        "  })());\n"
+        "});\n"
+    )
+
+
 def _build_service_worker_js() -> str:
-    return """const CACHE='rvt-v11-dashboard-shell';
-const CORE=['/','/%s'];
-self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE).catch(()=>{})).then(()=>self.skipWaiting()));});
-self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
-self.addEventListener('fetch',event=>{
-  const req=event.request;
-  if(req.method!=='GET') return;
-  const url=new URL(req.url);
-  if(url.pathname.startsWith('/api/')) return;
-  event.respondWith(fetch(req).then(resp=>{try{if(resp&&resp.ok){const copy=resp.clone();caches.open(CACHE).then(cache=>cache.put(req,copy)).catch(()=>{});}}catch(_){} return resp;}).catch(()=>caches.match(req).then(match=>match||caches.match('/'))));
-});
-""" % _DASHBOARD_HTML_NAME
+    """Back-compat alias kept for any external callers."""
+    return _build_legacy_sw_tombstone_js()
+
+
+# ============================================================================
+# v12 PWA support — new /sw.js, /manifest.webmanifest, /api/server-info, auth
+# ============================================================================
+
+_PWA_ASSETS_ROOT = Path(__file__).resolve().parent / "assets"
+
+
+def _read_static_asset(rel: str) -> Optional[bytes]:
+    """Read a file under assets/ with a path-traversal guard.
+
+    Denies any path that contains '..' or escapes the assets root. Returns
+    None if the asset does not exist.
+    """
+    if ".." in rel or rel.startswith("/"):
+        return None
+    target = (_PWA_ASSETS_ROOT / rel).resolve()
+    try:
+        target.relative_to(_PWA_ASSETS_ROOT.resolve())
+    except ValueError:
+        return None
+    if not target.exists() or not target.is_file():
+        return None
+    return target.read_bytes()
+
+
+def _build_pwa_service_worker_js() -> Optional[bytes]:
+    """Return the new /sw.js body from assets/sw.js, or None if missing."""
+    return _read_static_asset("sw.js")
+
+
+def _build_pwa_manifest(host: str, port: int, scheme: str = "http") -> Dict[str, object]:
+    """Construct a dynamic, port-aware Web App Manifest.
+
+    Falls back to the static assets/manifest.webmanifest values where present,
+    overriding start_url/scope with relative paths so the manifest is portable
+    across hosting modes (trainer-served, GitHub Pages, Capacitor, Tauri).
+    """
+    static = _read_static_asset("manifest.webmanifest")
+    base: Dict[str, object]
+    if static:
+        try:
+            base = json.loads(static.decode("utf-8"))
+        except Exception:
+            base = {}
+    else:
+        base = {}
+    base.setdefault("id", "/")
+    base.setdefault("name", "Radar Vital Trainer")
+    base.setdefault("short_name", "Radar Vital")
+    base.setdefault("description", "Mobile-first console for mmWave 60 GHz radar vital-sign monitoring sessions.")
+    base["start_url"] = "./"
+    base["scope"] = "./"
+    base.setdefault("display", "standalone")
+    base.setdefault("background_color", "#f4f6fb")
+    base.setdefault("theme_color", "#3b82f6")
+    base.setdefault("orientation", "any")
+    base.setdefault("categories", ["health", "medical", "utilities"])
+    base.setdefault("icons", [
+        {"src": "./assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+        {"src": "./assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+        {"src": "./assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+    ])
+    return base
+
+
+# In-memory pair state. Tokens persist for the lifetime of the trainer process.
+# PIN entries expire after PIN_TTL_S and are single-use (deleted on first successful exchange).
+_PAIR_STATE: Dict[str, object] = {
+    "required": False,
+    "pins": {},          # pin -> created_at_monotonic
+    "tokens": set(),     # set of issued tokens
+}
+PIN_TTL_S = 300
+PIN_LENGTH = 6
+
+
+def _pair_required() -> bool:
+    return bool(_PAIR_STATE.get("required"))
+
+
+def _pair_issue_pin() -> str:
+    """Issue a fresh 6-digit PIN, store it, return it."""
+    import random
+    _pair_evict_expired()
+    pin = "".join(str(random.randint(0, 9)) for _ in range(PIN_LENGTH))
+    _PAIR_STATE["pins"][pin] = time.monotonic()
+    return pin
+
+
+def _pair_evict_expired() -> None:
+    pins = _PAIR_STATE["pins"]
+    now = time.monotonic()
+    for k in list(pins.keys()):
+        if now - pins[k] > PIN_TTL_S:
+            del pins[k]
+
+
+def _pair_exchange(pin: str) -> Optional[str]:
+    """Validate the PIN, mint a token, invalidate the PIN. Returns token or None."""
+    if not pin:
+        return None
+    _pair_evict_expired()
+    pins = _PAIR_STATE["pins"]
+    if pin not in pins:
+        return None
+    del pins[pin]
+    token = secrets.token_urlsafe(24)
+    _PAIR_STATE["tokens"].add(token)
+    return token
+
+
+def _pair_token_valid(token: Optional[str]) -> bool:
+    if not token:
+        return False
+    return token in _PAIR_STATE["tokens"]
+
+
+def _is_control_endpoint(method: str, path: str) -> bool:
+    """Return True if this endpoint mutates trainer state and requires auth when --pair is on."""
+    if method.upper() != "POST":
+        return False
+    if path.startswith("/api/preflight/"):
+        return True
+    return path in {
+        "/api/session/start",
+        "/api/session/stop",
+        "/api/defaults",
+        "/api/preferences",
+        "/api/sessions/delete",
+    }
 
 
 def _session_annotations_path(session_dir: Path) -> Path:
@@ -6134,7 +6279,53 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/rvt-sw.js":
-            self._send_bytes(200, _build_service_worker_js().encode("utf-8"), "application/javascript; charset=utf-8")
+            # Legacy SW route — serves the unregister tombstone for one release so existing
+            # operator installs migrate to /sw.js on next navigation. Remove in v12.1.
+            self._send_bytes(200, _build_legacy_sw_tombstone_js().encode("utf-8"), "application/javascript; charset=utf-8")
+            return
+        if path == "/sw.js":
+            body = _build_pwa_service_worker_js()
+            if body is None:
+                self._send_json(503, {"ok": False, "error": {"code": "SW_NOT_PROVISIONED", "message": "assets/sw.js missing"}})
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, must-revalidate")
+            self.send_header("Service-Worker-Allowed", "/")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path == "/manifest.webmanifest":
+            host = self.headers.get("Host") or f"{self.server.server_address[0]}:{self.server.server_port}"
+            scheme = "https" if getattr(self.server, "tls", False) else "http"
+            data = json.dumps(_build_pwa_manifest(host, self.server.server_port, scheme=scheme), separators=(",", ":")).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/manifest+json; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, must-revalidate")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if path == "/api/server-info":
+            self._send_json(200, {
+                "ok": True,
+                "host": str(self.server.server_address[0]),
+                "port": int(self.server.server_port),
+                "scheme": "https" if getattr(self.server, "tls", False) else "http",
+                "trainer_version": VERSION,
+                "dashboard_version": DASHBOARD_VERSION,
+                "firmware_expected": FIRMWARE_VERSION_EXPECTED,
+                "pair_required": _pair_required(),
+                "started_at": self.server.started_at,
+            })
+            return
+        if path == "/api/auth/status":
+            self._send_json(200, {
+                "ok": True,
+                "pair_required": _pair_required(),
+                "authenticated": not _pair_required() or _pair_token_valid(self.headers.get("X-RVT-Auth")),
+            })
             return
         if path == "/api/health":
             t0 = time.perf_counter()
@@ -6377,6 +6568,37 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         path = urlparse(self.path).path
         body = self._read_body()
+        # PIN exchange — unauthenticated by design (the PIN itself is the credential).
+        if path == "/api/auth/exchange":
+            if not _pair_required():
+                self._send_json(403, {"ok": False, "error": {"code": "PAIRING_DISABLED", "message": "trainer is not in --pair mode"}})
+                return
+            pin = str((body or {}).get("pin") or "").strip()
+            token = _pair_exchange(pin)
+            if not token:
+                # 401 for unknown/expired PIN; matches WWW-Authenticate semantics.
+                self.send_response(401)
+                self.send_header("WWW-Authenticate", 'RVT-Token realm="Radar Vital"')
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                payload = json.dumps({"ok": False, "error": {"code": "INVALID_PIN", "message": "PIN is unknown, expired, or already used"}}).encode("utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+            self._send_json(200, {"ok": True, "token": token, "expires_at": None})
+            return
+        # Auth gate — only when --pair is on. Read endpoints stay open; control endpoints require X-RVT-Auth.
+        if _pair_required() and _is_control_endpoint("POST", path):
+            tok = self.headers.get("X-RVT-Auth")
+            if not _pair_token_valid(tok):
+                self.send_response(401)
+                self.send_header("WWW-Authenticate", 'RVT-Token realm="Radar Vital"')
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                payload = json.dumps({"ok": False, "error": {"code": "UNAUTHENTICATED", "message": "missing or invalid X-RVT-Auth token"}}).encode("utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
         if path == "/api/defaults":
             current = _effective_defaults(self.server.sessions_root)
             current.update({k: v for k, v in body.items() if k in current})
@@ -6614,8 +6836,25 @@ def _start_control_server(args):
 
 
 def cmd_serve(args):
+    # Pairing mode — generates a single-use PIN before the server starts so the
+    # operator can pair a phone immediately. Tokens persist for the trainer's
+    # lifetime; PINs expire in 5 minutes and are single-use.
+    if bool(getattr(args, "pair", False)):
+        _PAIR_STATE["required"] = True
+        pin = _pair_issue_pin()
+        print("[PAIR] PIN-paired LAN access is enabled.")
+        print(f"[PAIR]   PIN: {pin}    (5-minute TTL, single-use)")
+        print(f"[PAIR]   Pair URL: http://{getattr(args, 'host', '127.0.0.1')}:{int(getattr(args, 'control_port', 8787))}/?pair={pin}")
+        print("[PAIR]   Control endpoints (POST) now require X-RVT-Auth tokens.")
+    if bool(getattr(args, "tls", False)):
+        print("[TLS] --tls requested but TLS termination is not yet implemented in v12.0.")
+        print("[TLS] Falling back to HTTP. Use a reverse proxy (caddy, nginx) for HTTPS until v12.1.")
+
     server = _start_control_server(args)
-    url = f"http://127.0.0.1:{server.httpd.server_port}/?v={int(time.time())}"
+    scheme = "http"
+    bind_host = str(getattr(args, "host", "127.0.0.1"))
+    advertised_host = "127.0.0.1" if bind_host == "127.0.0.1" else bind_host
+    url = f"{scheme}://{advertised_host}:{server.httpd.server_port}/?v={int(time.time())}"
     print(f"[CONTROL] {url}")
     if not getattr(args, "no_browser", False):
         try:
@@ -13162,6 +13401,10 @@ def build_parser() -> argparse.ArgumentParser:
                        help="serve an integrated virtual radar stream over the live APIs and SSE")
     p_srv.add_argument("--no-browser", action="store_true",
                        help="do not open the dashboard browser tab")
+    p_srv.add_argument("--pair", action="store_true",
+                       help="enable PIN-paired LAN access — generates a 6-digit PIN at startup, gates POST control endpoints behind X-RVT-Auth tokens")
+    p_srv.add_argument("--tls", action="store_true",
+                       help="serve over HTTPS using a self-signed cert under .rvt_tls/ (not yet implemented in v12.0; falls back to HTTP)")
     p_srv.set_defaults(func=cmd_serve)
 
     # -- dashboard --------------------------------------------------------------

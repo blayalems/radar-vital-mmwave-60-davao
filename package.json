@@ -1,0 +1,32 @@
+{
+  "name": "radar-vital-mobile",
+  "version": "12.0.0-alpha.1",
+  "private": true,
+  "description": "Mobile-first PWA shell for the Radar Vital mmWave 60 GHz trainer. Capacitor APK + Tauri EXE + GitHub Pages.",
+  "type": "module",
+  "scripts": {
+    "build:web": "node scripts/build-www.mjs",
+    "test": "playwright test",
+    "test:smoke": "playwright test tests/smoke",
+    "test:visual": "playwright test tests/visual",
+    "test:update": "playwright test --update-snapshots",
+    "cap:sync": "npm run build:web && cap sync android",
+    "cap:open:android": "cap open android",
+    "tauri:dev": "npm run build:web && tauri dev",
+    "tauri:build": "npm run build:web && tauri build"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
+    "@playwright/test": "^1.55.1"
+  },
+  "dependencies": {
+    "@capacitor-community/bluetooth-le": "^7.1.0",
+    "@capacitor-community/http": "^1.4.1",
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -82,12 +82,9 @@ test.describe('Trainer API smoke', () => {
   });
 
   test('SSE /api/session/events responds with text/event-stream and at least one event', async ({ page }) => {
-    // Load a real same-origin page first so the in-page fetch is a same-origin request
-    // and we can read response.status + the stream body. Wait for the post-SW-install
-    // reload to settle before evaluating, otherwise the evaluation context is destroyed.
-    await page.goto('/radar_vital_live_dashboard_v12_for_v16_0.html');
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
-    await page.waitForTimeout(1500);
+    // Load a small same-origin document first so the in-page fetch is a same-origin
+    // request without paying the dashboard/SW boot cost in an API smoke test.
+    await page.goto('/api/health');
     await page.waitForLoadState('domcontentloaded').catch(() => {});
     const result = await page.evaluate(async () => {
       const ctrl = new AbortController();

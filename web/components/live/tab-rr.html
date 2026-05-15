@@ -1,0 +1,60 @@
+      <div id="tab-rr" class="tab">
+        <div class="grid c2" style="margin-bottom:var(--gap)">
+          <article class="card">
+            <div class="ch">
+              <div class="tw rr"><span class="material-symbols-rounded">air</span>
+                <div>
+                  <h2 class="ct">RR funnel telemetry</h2>
+                  <div class="cs">Selector → accept → blend → Kalman → publish</div>
+                </div>
+              </div>
+            </div>
+            <div class="pills" id="rrPills" style="margin-bottom:14px"></div>
+            <table>
+              <tbody id="rrFunTable"></tbody>
+            </table>
+          </article>
+          <article class="card">
+            <div class="ch">
+              <div class="tw rr"><span class="material-symbols-rounded">timeline</span>
+                <div>
+                  <h2 class="ct">RR stage values</h2>
+                  <div class="cs">Anchor, recovery, final stage values</div>
+                </div>
+              </div>
+            </div>
+            <table>
+              <tbody id="rrStageTable"></tbody>
+            </table>
+          </article>
+        </div>
+        <div class="grid c2">
+          <article class="card">
+            <div class="ch">
+              <div class="tw rr"><span class="material-symbols-rounded">monitoring</span>
+                <div>
+                  <h2 class="ct">RR recovery diagnostics</h2>
+                  <div class="cs">Confidence, recovery, seed consistency</div>
+                </div>
+              </div>
+              <div class="ca"><button class="ca-btn chart-download-btn"
+                  onclick="downloadChartPng('rrDiag','rr_recovery')" title="Download PNG" type="button"><span
+                    class="material-symbols-rounded">download</span></button><button class="ca-btn"
+                  onclick="fsCard(this)" title="Fullscreen"><span
+                    class="material-symbols-rounded">fullscreen</span></button></div>
+            </div>
+            <div class="cp"><canvas id="rrDiagChart"></canvas></div>
+          </article>
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">notification_important</span>
+                <div>
+                  <h2 class="ct">RR / stale-state warnings</h2>
+                  <div class="cs">Anchor, candidate aging, integrity</div>
+                </div>
+              </div>
+            </div>
+            <div class="faults" id="rrFaults"></div>
+          </article>
+        </div>
+      </div>

@@ -1,0 +1,73 @@
+  <button class="ic-btn icon-btn mobile-nav-btn tb-nav" id="mobileRailToggle" type="button" onclick="toggleRailDrawer()"
+    title="Navigation menu" aria-label="Open navigation"><span class="material-symbols-rounded">menu</span></button>
+
+  <div class="app">
+    <aside class="rail" aria-label="Primary">
+      <div class="brand" title="Radar Vital Trainer">
+        <div class="brand-mark"><span class="brand-ring"></span><span class="brand-ring r2"></span><span
+            class="brand-dot"></span></div>
+        <div class="brand-label"><span class="bl-top">RADAR</span><span class="bl-bot">VITAL · v16.0</span></div>
+        <button class="rail-collapse-btn" type="button" onclick="toggleRailCollapse()" title="Collapse sidebar"
+          aria-label="Collapse sidebar" aria-expanded="true" id="railCollapseBtn"><span class="material-symbols-rounded"
+            aria-hidden="true">chevron_left</span></button>
+      </div>
+      <nav class="nav-groups" aria-label="Views">
+        <div class="nav-group" id="workflowGroup">
+          <div class="nav-heading">Workflow</div>
+          <button class="r-item active" data-target="home" onclick="switchView('home')" aria-label="Home">
+            <span class="r-ic"><span class="material-symbols-rounded">home</span></span>Home
+          </button>
+          <button class="r-item" data-target="live" onclick="switchView('live')" aria-label="Live monitoring">
+            <span class="r-ic"><span class="material-symbols-rounded">sensors</span></span>Live
+          </button>
+          <button class="r-item" data-target="report" onclick="switchView('report')" aria-label="Report review">
+            <span class="r-ic"><span class="material-symbols-rounded">assignment</span></span>Report
+          </button>
+          <button class="r-item" data-target="help" onclick="switchView('help')" aria-label="Help and documentation">
+            <span class="r-ic"><span class="material-symbols-rounded">help</span></span>Help
+          </button>
+          <button class="r-item" data-target="settings" onclick="switchView('settings')" aria-label="Settings">
+            <span class="r-ic"><span class="material-symbols-rounded">settings</span></span>Settings
+          </button>
+        </div>
+        <div class="nav-group" id="liveTabsGroup">
+          <div class="nav-heading">Live views</div>
+          <button class="r-item sub active" data-target="tab-overview" data-label="Overview" aria-label="Overview"
+            onclick="switchTab('tab-overview')"><span class="r-ic"><span
+                class="material-symbols-rounded">dashboard</span></span>Overview<span class="nav-kbd">Alt
+              1</span></button>
+          <button class="r-item sub" data-target="tab-waves" data-label="Waves" onclick="switchTab('tab-waves')"
+            aria-label="Waves"><span class="r-ic"><span
+                class="material-symbols-rounded">show_chart</span></span>Waves<span class="nav-kbd">Alt
+              2</span></button>
+          <button class="r-item sub" data-target="tab-hr" data-label="HR funnel" onclick="switchTab('tab-hr')"
+            aria-label="HR funnel"><span class="r-ic"><span class="material-symbols-rounded">ecg_heart</span></span>HR
+            funnel<span class="nav-kbd">Alt 3</span></button>
+          <button class="r-item sub" data-target="tab-rr" data-label="RR funnel" onclick="switchTab('tab-rr')"
+            aria-label="RR funnel"><span class="r-ic"><span class="material-symbols-rounded">pulmonology</span></span>RR
+            funnel<span class="nav-kbd">Alt 4</span></button>
+          <button class="r-item sub" data-target="tab-snaps" data-label="Snapshots" onclick="switchTab('tab-snaps')"
+            aria-label="Snapshots"><span class="r-ic"><span
+                class="material-symbols-rounded">bookmark</span></span>Snapshots<span class="nav-kbd">Alt
+              5</span></button>
+          <button class="r-item sub" data-target="tab-audit" data-label="Audit" onclick="switchTab('tab-audit')"
+            aria-label="Audit"><span class="r-ic"><span
+                class="material-symbols-rounded">fact_check</span></span>Audit<span class="nav-kbd">Alt
+              6</span></button>
+        </div>
+      </nav>
+      <div class="rail-foot">
+        <button class="r-item rail-action" data-label="Command" onclick="openPalette()"
+          title="Command palette (Ctrl+K)"><span class="r-ic"><span
+              class="material-symbols-rounded">search</span></span>Command<span class="nav-kbd">Ctrl K</span></button>
+        <button class="operator" type="button"
+          onclick="switchView('home');document.getElementById('setupCard')?.scrollIntoView({behavior:'smooth'});"
+          title="Edit operator and station">
+          <div class="op-avatar" id="opAvatar">OA</div>
+          <div class="op-meta">
+            <div class="op-name" id="opName">Operator A</div>
+            <div class="op-role" id="opRole">Lab · Station 3</div>
+          </div>
+        </button>
+      </div>
+    </aside>

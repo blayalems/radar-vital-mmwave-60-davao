@@ -1,0 +1,85 @@
+      <div id="tab-waves" class="tab">
+        <article class="card" style="margin-bottom:var(--gap)">
+          <div class="ch">
+            <div class="tw"><span class="material-symbols-rounded">monitor_heart</span>
+              <div>
+                <h2 class="ct">Live phase waveforms</h2>
+                <div class="cs">breath_phase and heart_phase from 0x0A13</div>
+              </div>
+            </div>
+            <div class="ca"><button class="ca-btn chart-download-btn"
+                onclick="downloadChartPng('breath','breath_phase')" title="Download breath PNG" type="button"><span
+                  class="material-symbols-rounded">download</span></button><button class="ca-btn chart-download-btn"
+                onclick="downloadChartPng('heart','heart_phase')" title="Download heart PNG" type="button"><span
+                  class="material-symbols-rounded">download</span></button><button class="ca-btn chart-reset-btn"
+                data-chart-reset="breathChart" onclick="resetChartZoom('breathChart')" title="Reset breath zoom"
+                type="button" id="breathZoomReset"><span
+                  class="material-symbols-rounded">zoom_out_map</span></button><button class="ca-btn chart-reset-btn"
+                data-chart-reset="heartChart" onclick="resetChartZoom('heartChart')" title="Reset heart zoom"
+                type="button" id="heartZoomReset"><span
+                  class="material-symbols-rounded">zoom_out_map</span></button><button class="ca-btn"
+                onclick="fsCard(this)" title="Fullscreen"><span
+                  class="material-symbols-rounded">fullscreen</span></button></div>
+          </div>
+          <div class="wg">
+            <div class="wc">
+              <h3 class="wt">Breath</h3>
+              <div class="ws">Live breath_phase history</div><canvas id="breathChart"></canvas>
+                <div class="sqi-ribbon" id="breathSqiRibbon" role="img" aria-label="Breath signal quality ribbon"></div>
+              <div class="sqi-label" id="breathSqiLabel">SQI waiting</div>
+            </div>
+            <div class="wc">
+              <h3 class="wt">Heartbeat</h3>
+              <div class="ws">Live heart_phase history</div><canvas id="heartChart"></canvas>
+                <div class="sqi-ribbon" id="heartSqiRibbon" role="img" aria-label="Heart signal quality ribbon"></div>
+              <div class="sqi-label" id="heartSqiLabel">SQI waiting</div>
+            </div>
+          </div>
+        </article>
+        <div class="grid c2">
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">show_chart</span>
+                <div>
+                  <h2 class="ct">Heart-rate trend</h2>
+                  <div class="cs">Reported, candidate, raw, corrected raw, BLE, anchor</div>
+                </div>
+              </div>
+              <div class="ca">
+                <div class="seg" style="margin-right:6px">
+                  <button data-range="30" onclick="setRange(this,30)">30s</button>
+                  <button data-range="60" onclick="setRange(this,60)">60s</button>
+                  <button class="active" data-range="120" onclick="setRange(this,120)">120s</button>
+                  <button data-range="max" onclick="setRange(this,'max')">Max</button>
+                </div>
+                <button class="ca-btn chart-download-btn" onclick="downloadChartPng('hr','hr_trend')"
+                  title="Download PNG" type="button"><span class="material-symbols-rounded">download</span></button>
+                <button class="ca-btn chart-reset-btn" data-chart-reset="hrChart" onclick="resetChartZoom('hrChart')"
+                  title="Reset zoom" type="button" id="hrZoomReset"><span
+                    class="material-symbols-rounded">zoom_out_map</span></button>
+                <button class="ca-btn" onclick="fsCard(this)" title="Fullscreen"><span
+                    class="material-symbols-rounded">fullscreen</span></button>
+              </div>
+            </div>
+            <div class="cp"><canvas id="hrChart"></canvas></div>
+          </article>
+          <article class="card">
+            <div class="ch">
+              <div class="tw rr"><span class="material-symbols-rounded">show_chart</span>
+                <div>
+                  <h2 class="ct">Respiration trend</h2>
+                  <div class="cs">Reported, candidate, final, anchor, BLE</div>
+                </div>
+              </div>
+              <div class="ca"><button class="ca-btn chart-download-btn" onclick="downloadChartPng('rr','rr_trend')"
+                  title="Download PNG" type="button"><span
+                    class="material-symbols-rounded">download</span></button><button class="ca-btn chart-reset-btn"
+                  data-chart-reset="rrChart" onclick="resetChartZoom('rrChart')" title="Reset zoom" type="button"
+                  id="rrZoomReset"><span class="material-symbols-rounded">zoom_out_map</span></button><button
+                  class="ca-btn" onclick="fsCard(this)" title="Fullscreen"><span
+                    class="material-symbols-rounded">fullscreen</span></button></div>
+            </div>
+            <div class="cp"><canvas id="rrChart"></canvas></div>
+          </article>
+        </div>
+      </div>

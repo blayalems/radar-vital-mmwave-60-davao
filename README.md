@@ -7,7 +7,7 @@ The repository ships three coupled artefacts:
 | Component | File | Role |
 |---|---|---|
 | **Firmware** | [`radar_vital_v16_0_0.ino`](./radar_vital_v16_0_0.ino) | XIAO ESP32-C6 + MR60BHA2 driver. Emits a 207-column CSV at 115 200 baud over USB. v16 gates an optional NimBLE GATT path behind `ENABLE_BLE` (Phase 4F). |
-| **Trainer** | [`radar_vital_trainer_v12_for_v16_0.py`](./radar_vital_trainer_v12_for_v16_0.py) | Python 3.11 `ThreadingHTTPServer`. Reads the firmware CSV, manages sessions, runs preflight/ML-readiness/audit, writes `live_dashboard.json` once per second, and serves the dashboard plus its REST/SSE API. |
+| **Trainer** | [`radar_vital_trainer_v12_for_v16_0.py`](./radar_vital_trainer_v12_for_v16_0.py) + [`rvt_trainer/`](./rvt_trainer/) | Python 3.11 `ThreadingHTTPServer`. The root script is a compatibility shim over the package entrypoint. It reads the firmware CSV, manages sessions, runs preflight/ML-readiness/audit, writes `live_dashboard.json` once per second, and serves the dashboard plus its REST/SSE API. |
 | **Dashboard** | [`radar_vital_live_dashboard_v12_for_v16_0.html`](./radar_vital_live_dashboard_v12_for_v16_0.html) | Single-file PWA: vanilla HTML/CSS/JS, Chart.js, Hammer.js. Polls the trainer at 1 Hz, subscribes to `/api/session/events`, renders five live KPIs + waveforms + alerts + reports. Installable on Chrome desktop and Android Chrome. |
 
 The mobile-first redesign plan that this branch implements is documented in [`AGENTS.md`](./AGENTS.md).
@@ -23,9 +23,11 @@ python3 -m pip install -r requirements.txt   # pyserial, pandas, numpy, etc.
 # 2. Plug in the XIAO ESP32-C6 over USB-C (or run mock mode without hardware)
 python3 radar_vital_trainer_v12_for_v16_0.py serve --mock        # demo data, no serial
 python3 radar_vital_trainer_v12_for_v16_0.py serve --port COM10  # live capture (Linux: /dev/ttyACM0)
+# Equivalent package entrypoint:
+python3 -m rvt_trainer serve --mock
 
 # 3. Open the URL printed in the console
-#    http://127.0.0.1:8787/radar_vital_live_dashboard_v12_for_v16_0.html
+#    http://127.0.0.1:8765/radar_vital_live_dashboard_v12_for_v16_0.html
 ```
 
 The first launch will register the service worker (`/sw.js`), wire up the manifest (`/manifest.webmanifest`), and prompt a PWA install on Chrome.
@@ -40,7 +42,7 @@ By default the trainer binds `127.0.0.1` so nothing leaks to the network. Pass `
 python3 radar_vital_trainer_v12_for_v16_0.py serve --host 0.0.0.0 --pair
 ```
 
-`--pair` generates a 6-digit PIN (5 min TTL, single-use), prints a QR encoding `http://<lan-ip>:8787/?pair=<PIN>`, and gates control endpoints behind an `X-RVT-Auth` token issued on PIN exchange.
+`--pair` generates a 6-digit PIN (5 min TTL, single-use), prints a QR encoding `http://<lan-ip>:8765/?pair=<PIN>`, and gates control endpoints behind an `X-RVT-Auth` token issued on PIN exchange.
 
 | Endpoint set | Auth | Examples |
 |---|---|---|
@@ -96,12 +98,12 @@ CI: [`.github/workflows/build-exe.yml`](./.github/workflows/build-exe.yml) cross
 ```bash
 npm install
 npx playwright install --with-deps chromium
-npm test                              # runs tests/visual/*.spec.ts and tests/smoke/*.spec.ts
+npm test                              # runs tests/smoke/*.spec.ts
 ```
 
 Playwright covers:
-- **Smoke** — dashboard loads, no console errors, no failed network requests, PWA install criteria pass.
-- **Visual** — screenshot regressions across `iPhone 14 Pro`, `Pixel 7`, `iPad`, `Desktop 1280`, in every theme (light/dark/night/hc).
+- **Smoke** — dashboard loads, no uncaught script errors, core API routes answer, and PWA install criteria pass.
+- **Visual** — screenshot regressions across mobile/tablet/desktop viewports and the light/dark/night/hc themes via `npm run test:visual`.
 - **API** — `/api/health`, `/api/manifest.webmanifest`, `/api/sw.js`, `/api/server-info`, `/api/auth/exchange` (PIN happy-path + expiry + replay).
 
 CI: [`.github/workflows/playwright.yml`](./.github/workflows/playwright.yml) runs on every push.
@@ -112,8 +114,7 @@ CI: [`.github/workflows/playwright.yml`](./.github/workflows/playwright.yml) run
 
 | Branch | Purpose |
 |---|---|
-| `main` | Operator-stable v11 dashboard / v15 firmware path. |
-| `claude/mobile-first-dashboard-upABy` | Mobile-first v12 dashboard / v12 trainer / v16 firmware work-in-progress. **Current.** |
+| `main` | Operator-stable mobile-first v12 dashboard / v12 trainer / v16 firmware path. |
 | `archive/legacy-v8-to-v11` | Frozen snapshot of every legacy `.ino` / `.py` / `.html` (v8.8 → v11). Recover historical baselines from this branch only. |
 
 Pre-mobile baseline tag: `v15.0.0-pre-mobile` — rollback point for the redesign work.
@@ -125,7 +126,8 @@ Pre-mobile baseline tag: `v15.0.0-pre-mobile` — rollback point for the redesig
 ```
 .
 ├── radar_vital_v16_0_0.ino                          # firmware (v16; v15 behavior with optional BLE gated off)
-├── radar_vital_trainer_v12_for_v16_0.py             # Python trainer
+├── radar_vital_trainer_v12_for_v16_0.py             # trainer compatibility shim
+├── rvt_trainer/                                     # trainer package facade + legacy monolith
 ├── radar_vital_live_dashboard_v12_for_v16_0.html    # PWA dashboard (single file)
 ├── assets/
 │   ├── sw.js                                        # service worker (registered at /sw.js)

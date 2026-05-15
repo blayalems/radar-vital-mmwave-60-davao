@@ -1,0 +1,48 @@
+      <div id="tab-hr" class="tab">
+        <article class="card" style="margin-bottom:var(--gap)">
+          <div class="ch">
+            <div class="tw"><span class="material-symbols-rounded">scatter_plot</span>
+              <div>
+                <h2 class="ct">Raw-HR vs ref-HR rate-bucketed scatter</h2>
+                <div class="cs">Mean raw-minus-reference HR bias per 10-bpm reference bucket</div>
+              </div>
+            </div>
+            <div class="ca"><button class="ca-btn chart-download-btn"
+                onclick="downloadChartPng('bucket','raw_hr_bucket')" title="Download PNG" type="button"><span
+                  class="material-symbols-rounded">download</span></button></div>
+          </div>
+          <div class="cp s"><canvas id="rawHrBucketChart"></canvas></div>
+          <table style="margin-top:12px">
+            <tbody id="bucketTable"></tbody>
+          </table>
+        </article>
+        <div class="grid c2">
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">conversion_path</span>
+                <div>
+                  <h2 class="ct">HR funnel telemetry</h2>
+                  <div class="cs">Arbiter → reject-phase → blend → coherence → publish</div>
+                </div>
+              </div>
+            </div>
+            <div class="pills" id="hrPills" style="margin-bottom:14px"></div>
+            <table>
+              <tbody id="hrFunTable"></tbody>
+            </table>
+          </article>
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">analytics</span>
+                <div>
+                  <h2 class="ct">HR stage values</h2>
+                  <div class="cs">Values carried through the HR path</div>
+                </div>
+              </div>
+            </div>
+            <table>
+              <tbody id="hrStageTable"></tbody>
+            </table>
+          </article>
+        </div>
+      </div>

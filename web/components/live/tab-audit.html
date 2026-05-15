@@ -1,0 +1,87 @@
+      <div id="tab-audit" class="tab">
+        <div class="grid c3" style="margin-bottom:var(--gap)">
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">rule</span>
+                <div>
+                  <h2 class="ct">Live Validation</h2>
+                  <div class="cs">Schema and connectivity</div>
+                </div>
+              </div>
+            </div>
+            <table>
+              <tbody id="liveValidationTable">
+                <tr><td>Schema Invalid</td><td id="auditSchemaInvalidCount">0</td></tr>
+                <tr><td>Schema Warnings</td><td id="auditSchemaWarningCount">0</td></tr>
+                <tr><td>Reconnect Attempts</td><td id="auditReconnectCount">0 / 30</td></tr>
+              </tbody>
+            </table>
+          </article>
+          <article class="card span-2">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">gavel</span>
+                <div>
+                  <h2 class="ct">Active Enforcement Logs</h2>
+                  <div class="cs">Real-time drops and recovery events</div>
+                </div>
+              </div>
+            </div>
+            <div id="liveAuditLog" style="height: 140px; overflow-y: auto; margin: 0; padding: 12px; font-family: monospace; font-size: 13px; background: var(--bg-alt); border-radius: 0 0 16px 16px;"></div>
+          </article>
+        </div>
+        <div class="grid c2" style="margin-bottom:var(--gap)">
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">fact_check</span>
+                <div>
+                  <h2 class="ct">Analysis audit</h2>
+                  <div class="cs">Gates, firmware, funnel survival</div>
+                </div>
+              </div>
+            </div>
+            <table>
+              <tbody id="audTable"></tbody>
+            </table>
+          </article>
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">stacked_bar_chart</span>
+                <div>
+                  <h2 class="ct">Reason histograms</h2>
+                  <div class="cs">Top block reasons + AGC</div>
+                </div>
+              </div>
+            </div>
+            <table>
+              <tbody id="histTable"></tbody>
+            </table>
+          </article>
+        </div>
+        <div class="grid c2">
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">bluetooth_searching</span>
+                <div>
+                  <h2 class="ct">BLE ref quality</h2>
+                  <div class="cs">Packet, decode, perfusion</div>
+                </div>
+              </div>
+            </div>
+            <table>
+              <tbody id="bleQTable"></tbody>
+            </table>
+          </article>
+          <article class="card">
+            <div class="ch">
+              <div class="tw"><span class="material-symbols-rounded">history</span>
+                <div>
+                  <h2 class="ct">Recent events</h2>
+                  <div class="cs">Live tail from current session</div>
+                </div>
+              </div>
+            </div>
+            <pre id="evLog">Waiting for data...</pre>
+          </article>
+        </div>
+        <div class="ft" id="foot"></div>
+      </div>

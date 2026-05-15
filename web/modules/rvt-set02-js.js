@@ -1,4 +1,0 @@
-(function(){'use strict';var R=window.rvtGammaDelta;if(!R)return;var map={source:'cable',appearance:'palette',alerts:'notifications',performance:'speed','data-privacy':'lock',about:'info',developer:'code'};
-  function apply(){document.querySelectorAll('[data-settings-section],.settings-section').forEach(function(s){var id=s.dataset.settingsSection||s.id.replace(/^settings-/,'');var icon=map[id];if(!icon)return;var h=s.querySelector('h2,h3,.section-title')||s;if(!h.querySelector('.rvt-section-icon')){var span=document.createElement('span');span.className='material-symbols-rounded rvt-section-icon';span.setAttribute('aria-hidden','true');span.textContent=icon;h.prepend(span);}});}
-  window.rvtSectionIcons={apply:apply,getIconMap:function(){return Object.assign({},map);}};R.boot(apply);
-})();

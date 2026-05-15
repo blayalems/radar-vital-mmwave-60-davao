@@ -44,6 +44,9 @@ async function assemble() {
     const filePath = path.join(WEB, src);
     const body = await fs.readFile(filePath, 'utf8');
     const trimmed = body.endsWith('\n') ? body.slice(0, -1) : body;
+    if (inc.attrs.as === 'html') {
+      return trimmed;
+    }
     if (inc.attrs.as === 'style') {
       const idAttr = inc.attrs.id ? ` id="${inc.attrs.id}"` : '';
       return `${inc.indent}<style${idAttr}>\n${trimmed}\n${inc.indent}</style>`;

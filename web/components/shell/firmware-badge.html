@@ -1,0 +1,16 @@
+      <div class="fw warn" id="fwBadge" data-help="fw_truthfulness" tabindex="0">
+        <span class="material-symbols-rounded">gpp_maybe</span>
+        <div>
+          <div class="fw-title">Firmware truthfulness</div>
+          <div class="fw-line">
+            <span>sketch=--</span><span>module=--</span><span>module_valid=--</span><span>schema=--</span>
+          </div>
+        </div>
+        <button class="ca-btn" onclick="switchTab('tab-audit')" title="View audit details"><span
+            class="material-symbols-rounded">arrow_forward</span></button>
+      </div>
+
+      <div class="chips live-audit-row" id="liveAuditChips"></div>
+      <section class="live-verdict" id="liveVerdictMount" aria-live="polite"></section>
+      <div id="vitalsAnnouncer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div style="height:16px"></div>

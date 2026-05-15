@@ -1,4 +1,0 @@
-  .rvt-sec01-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-block:10px}
-  .rvt-sec01-btn{min-height:36px;border:1px solid var(--outline,#d8deea);border-radius:8px;background:var(--surface-1,#fff);color:var(--ink-900,#172033);padding:7px 10px;font:700 12px/1.2 system-ui,sans-serif;cursor:pointer}
-  .rvt-sec01-btn:disabled{opacity:.55;cursor:not-allowed}
-  .rvt-sec01-status{font:600 11px/1.35 system-ui,sans-serif;color:var(--ink-600,#596579)}

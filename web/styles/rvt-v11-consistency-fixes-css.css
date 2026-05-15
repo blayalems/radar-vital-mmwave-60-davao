@@ -1,0 +1,139 @@
+  body[data-view="home"] #homeReadinessRing {
+    --track-bg: #e5eaf3;
+    width: 56px !important;
+    height: 56px !important;
+    min-width: 56px !important;
+    min-height: 56px !important;
+    flex: 0 0 56px !important;
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 50% !important;
+    background: conic-gradient(var(--readiness-color, var(--bad-500)) calc(var(--pct, 0)*1%), var(--track-bg) 0) !important;
+    display: grid !important;
+    place-items: center !important;
+    align-self: center !important;
+    justify-self: center !important;
+    position: relative !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+  }
+  body[data-view="home"] #homeReadinessRing::after {
+    content: '' !important;
+    position: absolute !important;
+    inset: 6.5px !important;
+    background: var(--surface-1) !important;
+    border-radius: 50% !important;
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .06) !important;
+    z-index: 0 !important;
+  }
+  body[data-view="home"] #homeReadinessRing[data-state="bad"] { --readiness-color: var(--bad-500); }
+  body[data-view="home"] #homeReadinessRing[data-state="warn"] { --readiness-color: var(--ember-500); }
+  body[data-view="home"] #homeReadinessRing[data-state="good"] { --readiness-color: var(--ok-500); }
+
+  body[data-view="home"] .home-stat-card .home-stat-ic {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 54px !important;
+    height: 54px !important;
+    border-radius: 16px !important;
+    border: 1px solid var(--line) !important;
+    transition: all var(--dur-m) var(--ease);
+  }
+
+  /* Bad State (Error/Blocking) */
+  body[data-view="home"] .home-stat-card[data-state="bad"] .home-stat-ic {
+    background: var(--bad-500) !important;
+    border-color: var(--bad-500) !important;
+    box-shadow: 0 4px 12px -2px color-mix(in oklab, var(--bad-500) 25%, transparent) !important;
+  }
+  body[data-view="home"] .home-stat-card[data-state="bad"] .home-stat-ic .material-symbols-rounded {
+    color: #fff !important;
+  }
+  body[data-view="home"] .home-stat-card[data-state="bad"] .home-stat-sub {
+    color: var(--bad-500) !important;
+    font-weight: 700 !important;
+  }
+
+  /* Warn State (Needs Review) */
+  body[data-view="home"] .home-stat-card[data-state="warn"] .home-stat-ic {
+    background: var(--ember-500) !important;
+    border-color: var(--ember-500) !important;
+    box-shadow: 0 4px 12px -2px color-mix(in oklab, var(--ember-500) 25%, transparent) !important;
+  }
+  body[data-view="home"] .home-stat-card[data-state="warn"] .home-stat-ic .material-symbols-rounded {
+    color: #fff !important;
+  }
+  body[data-view="home"] .home-stat-card[data-state="warn"] .home-stat-sub {
+    color: var(--ember-600) !important;
+    font-weight: 700 !important;
+  }
+
+  /* Good State (Passed) */
+  body[data-view="home"] .home-stat-card[data-state="good"] .home-stat-ic {
+    background: var(--ok-500) !important;
+    border-color: var(--ok-500) !important;
+    box-shadow: 0 4px 12px -2px color-mix(in oklab, var(--ok-500) 25%, transparent) !important;
+  }
+  body[data-view="home"] .home-stat-card[data-state="good"] .home-stat-ic .material-symbols-rounded {
+    color: #fff !important;
+  }
+  body[data-view="home"] .home-stat-card[data-state="good"] .home-stat-sub {
+    color: var(--ok-600) !important;
+    font-weight: 700 !important;
+  }
+
+  body[data-view="home"] .home-stat-card[data-state="bad"].home-stat-readiness {
+    border-color: color-mix(in oklab, var(--bad-500) 20%, var(--line)) !important;
+  }
+
+  /* Dark/night: state badges use light colors — icon must be dark for contrast */
+  [data-theme="dark"] body[data-view="home"] .home-stat-card[data-state="bad"] .home-stat-ic .material-symbols-rounded,
+  [data-theme="night"] body[data-view="home"] .home-stat-card[data-state="bad"] .home-stat-ic .material-symbols-rounded,
+  [data-theme="dark"] body[data-view="home"] .home-stat-card[data-state="warn"] .home-stat-ic .material-symbols-rounded,
+  [data-theme="night"] body[data-view="home"] .home-stat-card[data-state="warn"] .home-stat-ic .material-symbols-rounded,
+  [data-theme="dark"] body[data-view="home"] .home-stat-card[data-state="good"] .home-stat-ic .material-symbols-rounded,
+  [data-theme="night"] body[data-view="home"] .home-stat-card[data-state="good"] .home-stat-ic .material-symbols-rounded {
+    color: var(--surface-1) !important;
+  }
+
+  /* Fix for Card Header white gap */
+  body[data-view="home"] #setupCard>.ch,
+  body[data-view="home"] .home-preview>.hero-preview-head,
+  body[data-view="home"] .sys-preflight>.card-header {
+    margin: -1.5px -1.5px 0 -1.5px !important;
+    width: calc(100% + 3px) !important;
+    border-radius: 20px 20px 0 0 !important;
+    border: 0 !important;
+    box-sizing: border-box !important;
+    z-index: 2 !important;
+  }
+  body[data-view="home"] #setupCard #bleAddress {
+    min-width: 17ch !important;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+    letter-spacing: .01em !important;
+    text-overflow: clip !important;
+  }
+  body[data-view="home"] #setupCard .field:has(#bleAddress) {
+    grid-column: 1 / -1 !important;
+  }
+  body[data-view="home"] #setupCard .field-control:has(#bleAddress) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    align-items: center !important;
+  }
+  body[data-view="home"] #setupCard>.ch .setup-reset-btn,
+  body[data-view="home"] #setupCard>.ch .ca-btn,
+  #setupCard .setup-reset-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    align-self: center !important;
+    line-height: 1 !important;
+  }
+  @media (max-width:760px) {
+    body[data-view="home"] #setupCard .field-control:has(#bleAddress) {
+      grid-template-columns: 1fr !important;
+    }
+  }

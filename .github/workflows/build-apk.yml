@@ -1,0 +1,57 @@
+name: Build Android APK (Capacitor)
+
+on:
+  push:
+    branches:
+      - main
+      - claude/mobile-first-dashboard-upABy
+    paths:
+      - 'radar_vital_live_dashboard_v12_for_v16_0.html'
+      - 'assets/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'scripts/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install npm deps
+        run: npm install
+
+      - name: Build www/
+        run: npm run build:web
+
+      - name: Add Capacitor Android platform
+        run: |
+          npx cap add android || echo "android platform already exists"
+          npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: radar-vital-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

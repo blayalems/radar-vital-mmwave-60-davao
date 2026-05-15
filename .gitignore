@@ -1,7 +1,38 @@
-packaging/capacitor/www/
+# TLS material — generated at trainer startup; never committed.
+# Public key + private key for the optional --tls self-signed mode.
 .rvt_tls/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+
+# Node / packaging artifacts (Phase 6)
+node_modules/
+android/
+ios/
+src-tauri/target/
+src-tauri/Cargo.lock
+dist/
+www/
+packaging/capacitor/www/
+packaging/capacitor/android/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+tests/visual/diff/
+tests/visual/actual/
+
+# Trainer runtime scratch
 control_server.json
 subject_profiles.json
-__pycache__/
-.pytest_cache/
-node_modules/
+sessions/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store

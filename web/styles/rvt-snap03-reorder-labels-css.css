@@ -1,0 +1,29 @@
+.rvt-snap-card-label {
+  position: relative; padding-right: 2rem;
+  cursor: pointer; user-select: none;
+}
+.rvt-snap-card-label:hover::after {
+  content: '✎'; position: absolute; right: 0; top: 0;
+  font-size: 0.85rem; color: var(--md-sys-color-primary, #6750a4);
+  opacity: 0.6;
+}
+.rvt-snap-card.rvt-dragging { opacity: 0.5; border: 2px dashed var(--md-sys-color-primary, #6750a4); }
+.rvt-snap-card.rvt-drag-over { background-color: var(--md-sys-color-surface-dim, #dad8de); }
+
+.rvt-snap-label-edit {
+  display: inline-block; width: 100%; box-sizing: border-box;
+  padding: 0.25rem 0.5rem; border: 1px solid var(--md-sys-color-outline, #79747e);
+  border-radius: 0.25rem; font-size: 0.95rem;
+  background: var(--md-sys-color-surface, #fffbfe);
+}
+.rvt-snap-label-edit:focus { outline: 2px solid var(--md-sys-color-primary, #6750a4); outline-offset: 1px; }
+
+.rvt-snap-reorder-hint {
+  display: none; font-size: 0.75rem; color: var(--md-sys-color-on-surface-variant, #49454f);
+  margin-top: 0.25rem;
+}
+.rvt-snap-reorder-hint[aria-live="polite"] { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rvt-snap-card.rvt-dragging, .rvt-snap-card.rvt-drag-over { border: none; }
+}

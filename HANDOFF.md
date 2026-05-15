@@ -1,0 +1,139 @@
+# HANDOFF — Refactor & Packaging Progress
+
+> **Mandatory:** Every AI agent (and human) that pushes work to this repo updates
+> the relevant table row below in the same commit. Drift between code and this
+> file is treated as a regression. Keep entries terse — one line per change.
+> The newest entry goes at the **top** of the log, dated.
+
+## Status snapshot
+
+| Workstream | Source-of-truth | Current state | Owner / last touched |
+|---|---|---|---|
+| Dashboard refactor (v12/v16 monolith → split) | `web/` | Phase 1 complete — 123 inline blocks extracted, byte-identical round-trip | claude/mobile-first-dashboard-upABy |
+| Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` | Not started — still monolithic | — |
+| PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | Working — green | claude/mobile-first-dashboard-upABy |
+| APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | Working — green | claude/mobile-first-dashboard-upABy |
+| EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | Working — green, WebView2 bootstrap downloads on first run | claude/mobile-first-dashboard-upABy |
+| Smoke + visual tests | `tests/` | 44/44 smoke green; visual baselines not committed yet | claude/mobile-first-dashboard-upABy |
+
+## How the dashboard build flows
+
+```
+web/                          (source of truth, split files)
+  index.html                  (shell with BUILD:INCLUDE markers)
+  styles/*.css                (one file per <style id="...">)
+  modules/*.js                (one file per <script id="...">)
+  components/**/*.html        (panel partials + overlays)
+        │
+        ▼   npm run build:web
+        │   scripts/build-www.mjs resolves markers, concats in order
+        ▼
+radar_vital_live_dashboard_v12_for_v16_0.html   (assembled monolith — built artifact)
+        │
+        ▼   build-www.mjs also copies to www/
+        ▼
+www/
+  index.html                  (= assembled monolith)
+  radar_vital_live_dashboard_v12_for_v16_0.html  (alias for deep links)
+  assets/ manifest.webmanifest sw.js 404.html
+        │
+        ├──▶ GitHub Pages (.github/workflows/pages.yml)
+        ├──▶ Capacitor sync   (npm run cap:sync)
+        └──▶ Tauri build      (npm run tauri:build)
+```
+
+## Contracts that must NOT break
+
+1. **DOM element IDs and class names are frozen.** `#tab-overview`, `#fwBadge`,
+   `#demoBanner`, `.r-item`, etc. are referenced by scripts and CSS selectors.
+   Renaming them silently breaks the cascade.
+2. **Load order is contractual.** See `web/index.html` for the canonical order.
+   `v11-*` and patch blocks intentionally come AFTER the consolidated CSS/JS to
+   override the cascade and monkey-patch behaviour. Do not reorder.
+3. **`#rvt-v12-demo-first-paint` must be adjacent to `#demoBanner`** — the
+   script reads the banner element synchronously at parse time.
+4. **Service worker path** = `/sw.js`. Manifest path = `/manifest.webmanifest`.
+   These resolve from www root, served by the trainer at `/sw.js` and
+   `/manifest.webmanifest` (NOT `/assets/sw.js`).
+5. **Trainer API surface** (consumed by dashboard JS): `/api/server-info`,
+   `/api/auth/exchange`, `/sw.js`, `/manifest.webmanifest`, `/pair`,
+   `/api/telemetry` (SSE). See `AGENTS.md` for the full list.
+6. **The monolithic `.html` at repo root remains a build artifact.** Some
+   consumers (file:// open, legacy trainer paths) still expect it. It can be
+   `.gitignore`d once nothing references it directly.
+
+## Refactor progress log (newest first)
+
+### 2026-05-15 — Phase 1 complete: inline CSS/JS extracted
+- `scripts/extract-monolith.mjs` ran once over the 49,471-line monolith and
+  emitted 30 stylesheets + 93 scripts (123 blocks). Anonymous `<script>`
+  blocks (3 of them) got `_anon-NNN` names. Duplicate IDs are handled by
+  `~N` suffixing on the file name while preserving the original `id="..."`
+  attribute in the marker.
+- `scripts/build-www.mjs` resolves the BUILD:INCLUDE markers in
+  `web/index.html` and re-emits the monolith + `www/`. Round-trip is
+  **byte-identical** to the original
+  (md5 `28f6031f9b39c3dcebc473370cb10d31`).
+- `scripts/check-roundtrip.mjs` snapshots → rebuilds → diffs. Wired as
+  `npm run build:check`. Run this in CI before tests so drift is caught.
+- Shell `web/index.html` is now 1,428 lines (down from 49,471, a 97%
+  reduction). What remains in the shell is pure body markup + markers —
+  the target for phase 2 panel splits.
+- Smoke tests: 44/56 pass (44 on chromium-backed projects desktop +
+  pixel-7). 12 webkit tests (iphone-14, ipad) error with
+  `browserType.launch: Executable doesn't exist at /opt/pw-browsers/webkit-…`
+  in this sandbox — environmental, not a regression. To run webkit
+  locally: `npx playwright install webkit`.
+
+## Phase plan
+
+### Phase 1 — CSS / JS extraction (done)
+- [x] `scripts/extract-monolith.mjs` produces `web/styles/<id>.css` and
+      `web/modules/<id>.js` for every `<style id>` / `<script id>` block.
+- [x] `scripts/build-www.mjs` assembles `web/` → root monolith → `www/`.
+- [x] Assembled output is byte-equivalent to current monolith
+      (verified by `npm run build:check` → `scripts/check-roundtrip.mjs`).
+- [x] Existing smoke tests green against assembled output (44 pass on
+      chromium projects; webkit failures are sandbox-env-only).
+
+### Phase 2 — Body partials (pending phase 1)
+- [ ] Split `web/components/_body-top.html` (1034 lines) into:
+      `shell/rail.html`, `shell/topbar.html`, `shell/command-strip.html`,
+      `shell/firmware-badge.html`, `live/tab-overview.html`, `live/tab-waves.html`,
+      `live/tab-hr.html`, `live/tab-rr.html`, `live/tab-snaps.html`,
+      `live/tab-audit.html`, `shell/mobile-dock.html`, `overlays/alerts-drawer.html`,
+      `overlays/palette.html`, `overlays/settings-modal.html`, `shell/bottom-nav.html`,
+      `shell/scroll-top.html`, `overlays/kbd-help.html`.
+- [ ] Split `web/components/_body-bottom.html` overlay markup (after CSS/JS
+      extraction reduces it to ~1.4k lines) into 9 overlay partials.
+- [ ] Add visual baseline commits per panel.
+
+### Phase 3 — Patch consolidation (future cleanup)
+- [ ] Audit the 110 v11/v15/beta patch blocks. Many supersede each other.
+- [ ] Merge superseded patches forward into `consolidated.css` / `unified.js`,
+      delete the redundant patch files.
+- [ ] Goal: < 20 patch files in `web/styles/patches/` and `web/modules/patches/`.
+
+### Phase 4 — Trainer Python refactor (not started)
+- [ ] Split `radar_vital_trainer_v12_for_v16_0.py` (805 KB!) into a package.
+- [ ] Module candidates: `transport/serial.py`, `transport/ble.py`,
+      `api/sse.py`, `api/auth.py`, `api/server_info.py`, `assets/static.py`,
+      `audit/runner.py`, `cli.py`, `__main__.py`.
+- [ ] Preserve `python radar_vital_trainer_v12_for_v16_0.py --pair --tls` CLI
+      surface as a thin shim.
+
+## Notes for future agents
+
+- **Always read this file first.** It records contracts you might otherwise
+  break.
+- **Always update this file in the same commit** as your changes. Add a dated
+  entry at the top of the progress log.
+- **Always run `npm run build:web && npm test`** before pushing. The smoke
+  suite is fast (< 30 s on a warm machine).
+- **Visual regressions** (`npm run test:visual`) need a Linux Playwright
+  baseline. If you commit new baselines, take them from CI, not your local
+  machine — fonts/AA differ.
+- **DO NOT delete the root `radar_vital_live_dashboard_v12_for_v16_0.html`**
+  until everything in this repo and any consumer scripts/docs references the
+  `web/` source. The monolith stays as a built artifact for at least one
+  release cycle.

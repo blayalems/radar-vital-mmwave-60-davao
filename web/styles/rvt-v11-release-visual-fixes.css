@@ -1,0 +1,188 @@
+    @media (max-width: 1199px) {
+      #railResizeHandle,
+      .rail-resize-handle {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+
+      button:not(.rail-resize-handle),
+      a[role="button"],
+      [role="button"]:not(.rail-resize-handle),
+      [role="tab"],
+      input,
+      select,
+      textarea,
+      summary,
+      .chip-btn,
+      .quick-action,
+      .settings-tab,
+      .ml-filter-btn,
+      .p-i,
+      .p-pin-btn,
+      .dv-mini-btn,
+      .wave-stepper button,
+      .reset-action,
+      .shortcut-pill,
+      .fw-chip[tabindex] {
+        min-height: 36px !important;
+      }
+
+      .p-pin-btn,
+      .dv-mini-btn,
+      .ca-btn,
+      .rail-collapse-btn,
+      .sess-tag-add,
+      .help-sidebar-collapse,
+      .chart-annotation-del,
+      .kbd-help-head .ic-btn,
+      .set-h .ic-btn,
+      .dv-h .ic-btn {
+        width: 36px !important;
+        min-width: 36px !important;
+        height: 36px !important;
+        min-height: 36px !important;
+      }
+
+      #view-help button,
+      #view-help a[role="button"],
+      #view-help [role="button"],
+      #view-settings button,
+      #view-settings a[role="button"],
+      #view-settings [role="button"],
+      .settings-page .seg button,
+      .settings-page .settings-tab,
+      .help-quick .chip-btn {
+        min-height: 40px !important;
+      }
+
+      .p-i {
+        padding-block: 8px !important;
+      }
+
+      .p-pin-btn .material-symbols-rounded,
+      .dv-mini-btn .material-symbols-rounded {
+        font-size: 18px !important;
+      }
+    }
+
+    .p-ov[aria-hidden="true"],
+    .palette-ov[aria-hidden="true"],
+    .set-ov[aria-hidden="true"],
+    .kbd-help-ov[aria-hidden="true"],
+    .dv[aria-hidden="true"],
+    .dv-ov[aria-hidden="true"] {
+      pointer-events: none !important;
+    }
+
+    .p-ov.open,
+    .palette-ov.open,
+    .set-ov.open,
+    .kbd-help-ov.open,
+    .dv-ov.open {
+      pointer-events: auto;
+    }
+
+    body.rvt-modal-open,
+    html.rvt-modal-open {
+      overscroll-behavior: contain;
+    }
+
+    body.rvt-modal-open .bottom-nav,
+    body.rvt-modal-open #mobileLiveTabStrip,
+    body.rvt-modal-open .mobile-utility-dock {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: translateY(18px) !important;
+    }
+
+    [data-theme="light"] #rvtCopyStatusBtn > kbd,
+    [data-theme="light"] #rvtFocusLiveBtn > kbd {
+      color: #0f4fb8 !important;
+    }
+
+    [data-theme="light"] .chip.good {
+      color: #116b34 !important;
+    }
+
+    @media (max-width: 760px) {
+      .p-ov.open,
+      .palette-ov.open {
+        align-items: center !important;
+        justify-content: center !important;
+        padding: max(14px, env(safe-area-inset-top, 0px)) 12px max(14px, env(safe-area-inset-bottom, 0px)) !important;
+        background: rgba(10, 15, 28, .68) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        backdrop-filter: blur(12px) !important;
+      }
+
+      .p-ov.open .p,
+      .palette-ov.open .palette {
+        width: min(100%, 420px) !important;
+        max-height: min(76dvh, 640px) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        border-radius: 20px !important;
+      }
+
+      .p-ov.open .p-l,
+      .palette-ov.open .p-l {
+        max-height: calc(min(76dvh, 640px) - 126px) !important;
+      }
+
+      .dv.open {
+        left: 10px !important;
+        right: 10px !important;
+        top: auto !important;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
+        width: auto !important;
+        max-width: none !important;
+        max-height: min(72dvh, 620px) !important;
+        transform: none !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 22px 22px 18px 18px !important;
+        box-shadow: 0 28px 70px -34px rgba(0, 0, 0, .75) !important;
+        overflow: hidden !important;
+        z-index: 620 !important;
+      }
+
+      .dv-ov.open {
+        background: rgba(10, 15, 28, .62) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        backdrop-filter: blur(10px) !important;
+        z-index: 610 !important;
+      }
+
+      .dv-b {
+        max-height: calc(min(72dvh, 620px) - 74px) !important;
+        overscroll-behavior: contain !important;
+      }
+
+      .set-ov.open {
+        align-items: flex-end !important;
+        padding: 12px !important;
+        background: rgba(10, 15, 28, .64) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        backdrop-filter: blur(10px) !important;
+      }
+
+      .set-ov.open .set-md {
+        width: 100% !important;
+        max-height: min(82dvh, 700px) !important;
+        border-radius: 22px 22px 18px 18px !important;
+      }
+
+      body[data-view="settings"] #view-settings {
+        padding-top: 14px !important;
+        padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px)) !important;
+        scroll-padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px)) !important;
+      }
+
+      body[data-view="settings"] #view-settings .settings-page {
+        gap: 16px !important;
+      }
+
+      body[data-view="settings"] #view-settings .settings-page-grid {
+        padding-top: 2px !important;
+      }
+    }

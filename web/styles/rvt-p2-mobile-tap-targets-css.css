@@ -1,0 +1,3 @@
+/* P2 deferred: mobile tap-target height fixes (audit_2026-05-12) */
+.crumb-seg.uiux-home-crumb { min-height: 44px; display: flex; align-items: center; }
+#rvtStillnessCancel, #rvtStillnessStart { min-height: 44px; }

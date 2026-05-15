@@ -1,14 +1,18 @@
-/* radar_vital_v15_0_0.ino
+/* radar_vital_v16_0_0.ino
  *
  * XIAO ESP32-C6 + MR60BHA2 60 GHz FMCW radar + MLX90614 + HD44780 20x4 LCD
  * + Active Buzzer for audio feedback
  *
- * Firmware release: v15.0.0
- * CSV schema release: v15.0.0 / trainer contract v11.0.0
+ * Firmware release: v16.0.0
+ * CSV schema release: v15.0.0 / trainer contract v12.0.0
  *
 * Manuscript-facing calibration / release notes
 * -------------------------------------------
-* + FW_VERSION is v15.0.0.
+* + FW_VERSION is v16.0.0.
+* + v16.0.0 keeps the v15 serial DATA telemetry contract by default and adds
+*   a gated BLE bridge path for the v12 dashboard / native app milestone.
+* + ENABLE_BLE defaults to false; with BLE off, the serial DSP path is
+*   behaviorally identical to v15.0.0.
 * + v15.0.0 expands DATA telemetry to 207 columns for the v11 trainer/dashboard
 *   audit contract while preserving the v14.1 DSP constants.
 * + The raw CSV now exposes both sketch identity and radar-module identity:
@@ -96,7 +100,7 @@
  * =========================================================================
  * + Guard trustedPhaseHR write with a validity gate on the candidate source
  *   (HR_PATH_AUTO or HR_PATH_SPECTRAL).
- * + Widen CSV telemetry payload to 136 columns to explicitly emit 
+ * + Widen CSV telemetry payload to 136 columns to explicitly emit
  *   rr_seed_from_raw_used rather than having the dashboard derive it.
  * + Ensure CSV values for NaN explicitly print as -1.0 using explicit sentinel block.
  *
@@ -178,7 +182,7 @@
  * Legacy changelog history retained below
  * =========================================================================
  */
- 
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <math.h>
@@ -191,8 +195,16 @@
 #include <esp_task_wdt.h>
 #include <Preferences.h>
 
+#ifndef ENABLE_BLE
+#define ENABLE_BLE false
+#endif
+
+#if ENABLE_BLE
+#include <NimBLEDevice.h>
+#endif
+
 #if !defined(ARDUINO_XIAO_ESP32C6)
-#error "radar_vital_v15_0_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
+#error "radar_vital_v16_0_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
 #endif
 
 #ifdef ESP32
@@ -254,10 +266,13 @@ static inline float applyRawHrCorrection(float rawHrValue) {
 // LOGGING & OBSERVABILITY
 // =========================================================================
 #define LOG_MODE 1       // 1 = Enable CSV "DATA,..." logging
-#define FW_VERSION "v15.0.0"
-#define SKETCH_VERSION_MAJOR 15
+#define FW_VERSION "v16.0.0"
+#define SKETCH_VERSION_MAJOR 16
 #define SKETCH_VERSION_SUB 0
 #define SKETCH_VERSION_MOD 0
+#ifndef ENABLE_BLE
+#define ENABLE_BLE false
+#endif
 #define DIAG_PLOTTER 0   // 1 = Enable live Serial Plotter DSP diagnostics, 0 = Off
 #define LOG_INTERVAL_MS 200
 
@@ -691,15 +706,15 @@ static int medWarmup = 0;
 static unsigned long lastAmbientJumpMs = 0;
 static unsigned long lastAmbientVoteMs = 0;
 static int detectWindow_snap = 0;
-static bool skipDSP = false; 
+static bool skipDSP = false;
 static int skipDSP_consecMisses = 0;
-static const int SKIP_DSP_MISS_THRESH = 3; 
+static const int SKIP_DSP_MISS_THRESH = 3;
 
 #define DIST_VAR_WIN 15
 static float distVarBuf[DIST_VAR_WIN] = {0};
 static int distVarIdx = 0;
 static int distVarCount = 0;
-static uint8_t ghostSuspectCounter = 0; 
+static uint8_t ghostSuspectCounter = 0;
 static float currentDistStdDev = 0.0f;
 static float dbEnvLP = 0.0f;
 static bool currentStaticReflector = false;
@@ -1045,9 +1060,9 @@ const float RR_BIAS_CORRECTION_MAX_ABS = 1.5f;      // v12.2: cap correction mag
 const float HR_CONF_THRESHOLD = 0.18f;
 const float HR_CONF_THRESHOLD_FAST = 0.15f;
 const float RR_CONF_THRESHOLD = 0.20f;
-const float PQI_LOCK_THRESHOLD = 0.35f; 
-const float PQI_LOCK_THRESHOLD_MID_RANGE = 0.20f; 
-const float PQI_LOCK_THRESHOLD_NEAR_FIELD = 0.15f; 
+const float PQI_LOCK_THRESHOLD = 0.35f;
+const float PQI_LOCK_THRESHOLD_MID_RANGE = 0.20f;
+const float PQI_LOCK_THRESHOLD_NEAR_FIELD = 0.15f;
 enum HrPathSource : uint8_t {
   HR_PATH_NONE = 0,
   HR_PATH_AUTO = 1,
@@ -1699,7 +1714,7 @@ float parabolicPeak(float v1, float v2, float v3) {
 
 float harmonicSpectrumScore(float* buf, int n, float fs, float bpm) {
   float f=bpm/60.0f, score=0;
-  float maxFreq = fs * 0.45f; 
+  float maxFreq = fs * 0.45f;
   for (int h=1;h<=3;h++) {
     if (f * h > maxFreq) break;
     float mag=sqrtf(goertzel(buf,n,f*h,fs));
@@ -1768,7 +1783,7 @@ bool detectRate(float* buf, int n, float fs,
   // v14.0.0 Q3: expose the chosen RR-band prominence to the CSV so the trainer
   // can confirm the power-law formula is firing as expected per window.
   if (maxRate <= (RR_MAX + 0.5f)) rrProminenceThresholdLogged = prominenceThreshold;
-  if ((best - secondBest) < prominenceThreshold) return false; 
+  if ((best - secondBest) < prominenceThreshold) return false;
 
   int subLag = bestLag * 2;
   if (subLag < maxLag) {
@@ -2005,7 +2020,7 @@ static const uint8_t SESSION_PHASE_LEAVING     = 5;
 // =========================================================================
 // STATE VARIABLES
 // =========================================================================
-float radarGain=1.0f, baselineEnergy=0, rollingEnergy=1e-5f; 
+float radarGain=1.0f, baselineEnergy=0, rollingEnergy=1e-5f;
 bool calibrationDone=false;
 int calibrationCount=0, recalFrames=0;
 unsigned long calibStartMs=0;
@@ -3082,11 +3097,11 @@ void resetVitals() {
   welcomeShown=false; heartAnimFrame=false; animPending=false;
   lastHRAlertMs=(unsigned long)(0UL - HR_ALERT_COOLDOWN); hrAlertActive=false; lastHRLockedBeepMs=0; lastMotionBeepMs=0;
   hrVarIdx=0; hrVarCount=0; memset(hrVarBuf,0,sizeof(hrVarBuf));
-  medWarmup=0;         
-  lastPhaseDataMs=0;   
-  lastAmbientJumpMs=0; 
-  lastAmbientVoteMs=0; 
-  ambientDrift = 0.0f; 
+  medWarmup=0;
+  lastPhaseDataMs=0;
+  lastAmbientJumpMs=0;
+  lastAmbientVoteMs=0;
+  ambientDrift = 0.0f;
   lastLatchedEvidenceMs = 0;
   skipDSP=false;
   lastLoggedHrBandMin = HR_MIN;
@@ -3830,11 +3845,183 @@ void renderIdleScreen(unsigned long now) {
 }
 
 // =========================================================================
+// OPTIONAL BLE BRIDGE (v16.0.0, disabled by default)
+// =========================================================================
+#if ENABLE_BLE
+static const char* RVS_SERVICE_UUID = "8b1d0000-7d4c-4a3f-9a2b-7f2d4c8b1000";
+static const char* RVS_VITALS_UUID = "8b1d0001-7d4c-4a3f-9a2b-7f2d4c8b1000";
+static const char* RVS_PHASE_FRAMES_UUID = "8b1d0002-7d4c-4a3f-9a2b-7f2d4c8b1000";
+static const char* RVS_CONTROL_UUID = "8b1d0003-7d4c-4a3f-9a2b-7f2d4c8b1000";
+
+static NimBLECharacteristic* bleHrsChar = nullptr;
+static NimBLECharacteristic* bleVitalsChar = nullptr;
+static NimBLECharacteristic* blePhaseChar = nullptr;
+static NimBLECharacteristic* bleControlChar = nullptr;
+static bool bleReady = false;
+static bool bleAdvertisingStarted = false;
+static bool bleEnabledForBoot = true;
+static uint32_t bleSuppressUntilMs = 0;
+static uint32_t lastBleVitalsNotifyMs = 0;
+static uint32_t lastBlePhaseNotifyMs = 0;
+static uint8_t blePhaseSeq = 0;
+
+class RvsControlCallbacks : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* chr) override {
+    std::string value = chr->getValue();
+    if (value.empty()) return;
+    uint8_t cmd = (uint8_t)value[0];
+    if (cmd == 0x01) Serial.println("[BLE] RVS_CONTROL start requested");
+    else if (cmd == 0x02) Serial.println("[BLE] RVS_CONTROL stop requested");
+    else if (cmd == 0x03) Serial.println("[BLE] RVS_CONTROL set_thresholds requested");
+    else Serial.printf("[BLE] RVS_CONTROL unknown command 0x%02X\n", cmd);
+  }
+};
+
+static uint8_t bleClampU8(float value, uint8_t lo, uint8_t hi) {
+  if (!isfinite(value)) return 0;
+  long rounded = lroundf(value);
+  if (rounded < lo) rounded = lo;
+  if (rounded > hi) rounded = hi;
+  return (uint8_t)rounded;
+}
+
+static void bleWriteLe16(uint8_t* out, int offset, uint16_t value) {
+  out[offset] = (uint8_t)(value & 0xFF);
+  out[offset + 1] = (uint8_t)((value >> 8) & 0xFF);
+}
+
+static void bleWriteLe32(uint8_t* out, int offset, uint32_t value) {
+  out[offset] = (uint8_t)(value & 0xFF);
+  out[offset + 1] = (uint8_t)((value >> 8) & 0xFF);
+  out[offset + 2] = (uint8_t)((value >> 16) & 0xFF);
+  out[offset + 3] = (uint8_t)((value >> 24) & 0xFF);
+}
+
+static void bleInitMaybe() {
+  if (!bleEnabledForBoot || bleReady) return;
+  NimBLEDevice::init("RadarVital");
+  NimBLEDevice::setPower(ESP_PWR_LVL_N6);
+  NimBLEDevice::setMTU(247);
+  NimBLEDevice::setSecurityAuth(true, true, true);
+
+  NimBLEServer* server = NimBLEDevice::createServer();
+  NimBLEService* hrs = server->createService("180D");
+  bleHrsChar = hrs->createCharacteristic("2A37", NIMBLE_PROPERTY::NOTIFY);
+  hrs->start();
+
+  NimBLEService* dis = server->createService("180A");
+  dis->createCharacteristic("2A29", NIMBLE_PROPERTY::READ)->setValue("Radar Vital");
+  dis->createCharacteristic("2A24", NIMBLE_PROPERTY::READ)->setValue("XIAO ESP32-C6 MR60BHA2");
+  dis->createCharacteristic("2A26", NIMBLE_PROPERTY::READ)->setValue(FW_VERSION);
+  dis->start();
+
+  NimBLEService* rvs = server->createService(RVS_SERVICE_UUID);
+  bleVitalsChar = rvs->createCharacteristic(RVS_VITALS_UUID, NIMBLE_PROPERTY::NOTIFY);
+  blePhaseChar = rvs->createCharacteristic(RVS_PHASE_FRAMES_UUID, NIMBLE_PROPERTY::NOTIFY);
+  bleControlChar = rvs->createCharacteristic(
+    RVS_CONTROL_UUID,
+    NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN
+  );
+  static RvsControlCallbacks controlCallbacks;
+  bleControlChar->setCallbacks(&controlCallbacks);
+  rvs->start();
+
+  NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
+  advertising->addServiceUUID("180D");
+  advertising->addServiceUUID(RVS_SERVICE_UUID);
+
+  if (ESP.getFreeHeap() <= (50 * 1024)) {
+    Serial.println("[BLE] Disabled: free heap below 50 KB after init");
+    bleEnabledForBoot = false;
+    return;
+  }
+  bleReady = true;
+  Serial.println("[BLE] Ready; advertising deferred until first DATA line");
+}
+
+static void bleMaybeStartAdvertising() {
+  if (!bleReady || bleAdvertisingStarted || bleEnabledForBoot == false) return;
+  NimBLEDevice::startAdvertising();
+  bleAdvertisingStarted = true;
+  Serial.println("[BLE] Advertising RadarVital");
+}
+
+static void bleSuppressIfLoopSlow(uint32_t lastIterMs) {
+  if (lastIterMs > 100UL) {
+    bleSuppressUntilMs = millis() + 500UL;
+  }
+}
+
+static void bleNotifyVitals(uint32_t nowMs,
+                            float hrBpm, bool validHr,
+                            float rrBpm, bool validRr,
+                            bool human, bool motion,
+                            float pqiHeartValue, float pqiBreathValue,
+                            float distanceCm, float fpsHz) {
+  if (!bleReady || !bleEnabledForBoot || nowMs < bleSuppressUntilMs) return;
+  if (nowMs - lastBleVitalsNotifyMs < 950UL) return;
+  lastBleVitalsNotifyMs = nowMs;
+  bleMaybeStartAdvertising();
+
+  bool hrsValid = validHr && isfinite(hrBpm) && hrBpm >= 1.0f && hrBpm <= 254.0f;
+  uint8_t hr8 = hrsValid ? bleClampU8(hrBpm, 1, 254) : 0;
+  uint8_t rr8 = (validRr && isfinite(rrBpm) && rrBpm >= 1.0f && rrBpm <= 254.0f) ? bleClampU8(rrBpm, 1, 254) : 0;
+
+  if (hrsValid && bleHrsChar) {
+    uint8_t hrsPayload[2] = {0x00, hr8};
+    bleHrsChar->setValue(hrsPayload, sizeof(hrsPayload));
+    bleHrsChar->notify();
+  }
+
+  if (bleVitalsChar) {
+    uint8_t payload[13] = {0};
+    payload[0] = 1;
+    payload[1] = (validHr ? 0x01 : 0x00) | (validRr ? 0x02 : 0x00) | (human ? 0x04 : 0x00) | (motion ? 0x08 : 0x00);
+    payload[2] = hr8;
+    payload[3] = rr8;
+    payload[4] = bleClampU8(pqiHeartValue * 100.0f, 0, 100);
+    payload[5] = bleClampU8(pqiBreathValue * 100.0f, 0, 100);
+    uint16_t dist = (isfinite(distanceCm) && distanceCm > 0.0f) ? (uint16_t)constrain((long)lroundf(distanceCm), 0L, 65535L) : 0;
+    bleWriteLe16(payload, 6, dist);
+    payload[8] = bleClampU8(fpsHz, 0, 255);
+    bleWriteLe32(payload, 9, nowMs);
+    bleVitalsChar->setValue(payload, sizeof(payload));
+    bleVitalsChar->notify();
+  }
+}
+
+static void bleNotifyPhaseFrame(uint32_t nowMs, float heartPhase, float breathPhase) {
+  if (!bleReady || !bleEnabledForBoot || nowMs < bleSuppressUntilMs || !blePhaseChar) return;
+  if (nowMs - lastBlePhaseNotifyMs < 100UL) return;
+  lastBlePhaseNotifyMs = nowMs;
+  bleMaybeStartAdvertising();
+
+  uint8_t payload[12] = {0};
+  payload[0] = 0x01;
+  payload[1] = 1;
+  payload[2] = blePhaseSeq++;
+  payload[3] = 0;
+  bleWriteLe32(payload, 4, nowMs);
+  int16_t h = (int16_t)constrain((long)lroundf(heartPhase * 1000.0f), -32768L, 32767L);
+  int16_t b = (int16_t)constrain((long)lroundf(breathPhase * 1000.0f), -32768L, 32767L);
+  bleWriteLe16(payload, 8, (uint16_t)h);
+  bleWriteLe16(payload, 10, (uint16_t)b);
+  blePhaseChar->setValue(payload, sizeof(payload));
+  blePhaseChar->notify();
+}
+#else
+static inline void bleInitMaybe() {}
+static inline void bleSuppressIfLoopSlow(uint32_t) {}
+static inline void bleNotifyVitals(uint32_t, float, bool, float, bool, bool, bool, float, float, float, float) {}
+static inline void bleNotifyPhaseFrame(uint32_t, float, float) {}
+#endif
+
+// =========================================================================
 // SETUP
 // =========================================================================
 void setup() {
   Serial.begin(115200); delay(100);
-  Serial.println("\n[BOOT] RVital " FW_VERSION); 
+  Serial.println("\n[BOOT] RVital " FW_VERSION);
 
   buzzerInit();
   buildSinLUT(); i2cRecover();
@@ -3941,7 +4128,7 @@ void setup() {
 
   if (lcdConnected) {
     lcdSmoothTransition(); lcdPtr->clear();
-    lcdPrintCentered(0,"RVital " FW_VERSION);  
+    lcdPrintCentered(0,"RVital " FW_VERSION);
     lcdPrintCentered(1,"Signal + Distance");
     char statusLine[21];
     snprintf(statusLine,sizeof(statusLine),"T:%s L:%s B:%s",mlxReady?"OK":"--",bh1750Ready?"OK":"--",buzzerEnabled?"ON":"--");
@@ -3959,6 +4146,7 @@ void setup() {
       if (err==ESP_OK||err==ESP_ERR_INVALID_ARG) wdtActive=true; }
   }
   calibStartMs=millis(); radarWatchdogStartMs = calibStartMs; lastValidRateMs=0; sessionReset(); presenceState = PRESENCE_ABSENT; presenceStateSinceMs = millis();
+  bleInitMaybe();
   Serial.println("[BOOT] Setup complete");
   Serial.println("=========================================================");
 }
@@ -4128,10 +4316,10 @@ void loop() {
     bool badRadarThisFrame = (!hrOk && !rrOk && !distOk);
     float rawHrCorrectedNow = rawHRValid ? applyRawHrCorrection(rawHR) : 0.0f;
 
-    if (rawHRValid && !wasMotion && motionCooldown == 0) { 
-      rawHRWin[rawHRWinIdx]=rawHrCorrectedNow; 
-      rawHRWinIdx=(rawHRWinIdx+1)%RAW_STAB_WIN; 
-      if (rawHRWinCount<RAW_STAB_WIN) rawHRWinCount++; 
+    if (rawHRValid && !wasMotion && motionCooldown == 0) {
+      rawHRWin[rawHRWinIdx]=rawHrCorrectedNow;
+      rawHRWinIdx=(rawHRWinIdx+1)%RAW_STAB_WIN;
+      if (rawHRWinCount<RAW_STAB_WIN) rawHRWinCount++;
       latchedRawHR=rawHrCorrectedNow; latchedRawHRMs=now;
       if (rawHR_consecutive_valid < 255) rawHR_consecutive_valid++;
       if (directRawHR_consecWindows < 255) directRawHR_consecWindows++;
@@ -4259,7 +4447,7 @@ void loop() {
 
         medBufH[medIdx]=dh; medBufB[medIdx]=db; medIdx=(medIdx+1)%MED_WIN;
         if (medWarmup >= MED_WIN) {
-            dh=medianOf5(medBufH); 
+            dh=medianOf5(medBufH);
             db=medianOf5(medBufB);
         } else {
             medWarmup++;
@@ -4477,7 +4665,7 @@ void loop() {
                   motionCooldown=15;
                   rejectionCount=0; rawHRWinIdx=0; rawHRWinCount=0; memset(rawHRWin,0,sizeof(rawHRWin));
                   ghostSuspect=false; rhcSuspect=false; ghostSuspectCounter=0;
-                  rlsReset(); 
+                  rlsReset();
                   bpResetHeart(); bpResetBreath();
                   memset(sgBufH,0,sizeof(sgBufH)); memset(sgBufB,0,sizeof(sgBufB));
                   sgIdx=0; sgWarmup=0;
@@ -4501,9 +4689,9 @@ void loop() {
                   lastStableHR=0;
                 }
 
-                if (inMotion) { 
+                if (inMotion) {
                     dspTask=0;
-                    pqiHeart *= 0.90f; 
+                    pqiHeart *= 0.90f;
                     pqiBreath *= 0.90f;
                 }
                 else {
@@ -4558,7 +4746,7 @@ void loop() {
                     hrUpdatedThisCycle              = false;
                     hrUpdateSourceThisCycle         = 0;
                     bufCount_snap=bufCount;
-                    fs_snap = (fs > 1.5f && fs < 20.0f) ? fs : lastCalculatedFs; 
+                    fs_snap = (fs > 1.5f && fs < 20.0f) ? fs : lastCalculatedFs;
                     detectWindow_snap = detectWindow;
                     float hrFsGuardMin = fmaxf(3.0f, ((2.0f * fminf(hrMaxAdaptive, 120.0f)) / 60.0f) + 0.10f);
                     diagFsEffective = fs;
@@ -4836,13 +5024,13 @@ void loop() {
                         candidateHRConf = confHR;
                         if (hrGateReason == HR_GATE_OK) hrGateReason = HR_GATE_HARMONIC;
                       }
-                    } else { 
+                    } else {
                         lastAutoValid=false;
-                        ghostSuspect = currentStaticReflector; 
-                        rhcSuspect=false; 
-                        lastConfHR = 0.0f; 
+                        ghostSuspect = currentStaticReflector;
+                        rhcSuspect=false;
+                        lastConfHR = 0.0f;
                         candidateHRConf = 0.0f;
-                        hrConfidence *= 0.90f; 
+                        hrConfidence *= 0.90f;
                     }
 
                     #if (DIAG_PLOTTER > 0)
@@ -5501,7 +5689,7 @@ void loop() {
                   motionCooldown--;
                 }
               }
-            } 
+            }
           }
         }
       }
@@ -5534,7 +5722,7 @@ void loop() {
             candidateHRConf = fmaxf(hrConfidence, 0.30f);
             lastCandidateHRMs = now;
             hrFinalPublishCandidate = finalHR;
-            if ((presenceState == PRESENCE_PRESENT || presenceState == PRESENCE_SILENT_HOLD || presenceState == PRESENCE_LEAVING) && hrState<1) hrState=1; 
+            if ((presenceState == PRESENCE_PRESENT || presenceState == PRESENCE_SILENT_HOLD || presenceState == PRESENCE_LEAVING) && hrState<1) hrState=1;
             hrConfidence=fmaxf(hrConfidence,0.3f);
           }
         }
@@ -5549,7 +5737,7 @@ void loop() {
             smoothRR=safe_float(kalmanRR(constrain(finalRR,RR_MIN,RR_MAX)));
             rrPostKalman = smoothRR;
             rrFinalPublishCandidate = smoothRR;
-            lastRRUpdateMs=now; 
+            lastRRUpdateMs=now;
             lastAcceptedRRSource = RR_SOURCE_RAW_FALLBACK;
             candidateRR = constrain(finalRR, RR_MIN, RR_MAX);
             candidateRRConf = fmaxf(lastConfRR, 0.25f);
@@ -5557,7 +5745,7 @@ void loop() {
           }
         }
       }
-  } 
+  }
 
   unsigned long radarLastSeenMs = (lastRadarPacketMs > 0) ? lastRadarPacketMs : radarWatchdogStartMs;
   bool silenceArmed = safeElapsedMs(now, radarWatchdogStartMs) > RADAR_RECOVERY_GRACE_MS;
@@ -5904,7 +6092,7 @@ void loop() {
     }
   }
 
-  float rawReflectorDist = freshDistanceSampleThisFrame ? radarDistance : 0.0f; 
+  float rawReflectorDist = freshDistanceSampleThisFrame ? radarDistance : 0.0f;
 
   if (!humanDetected) {
       if (noHumanClearStartMs == 0) noHumanClearStartMs = now;
@@ -6400,7 +6588,7 @@ void loop() {
       case DISP_CALIB_RESULT: break;
       case DISP_WELCOME: renderWelcomeScreen(); break;
 
-      case DISP_VITALS: 
+      case DISP_VITALS:
           {
               bool showHRFresh = allowDisplayVitals && isHRFresh() && hrState > 0 && smoothHR >= HR_MIN;
               bool showHRGrace = !showHRFresh &&
@@ -6495,8 +6683,9 @@ void loop() {
   if (lcdConnected&&dispState==DISP_VITALS) { updateHeartAnimation(); flushAnimPending(); }
 
   updateLED(inMotion);
+  bleNotifyPhaseFrame(now, prevStableHeartPhase, prevStableBreathPhase);
 
-  // Logging 
+  // Logging
 #if (LOG_MODE > 0)
   static unsigned long lastLogMs=0;
   static bool logHeaderPrinted=false;
@@ -6651,6 +6840,8 @@ void loop() {
         if (entrySawStrongEvidence) fsmDbg |= 0x40;
         presenceFsmDebugLogged = fsmDbg;
       }
+      bleNotifyVitals(now, loggedHR, loggedHRValid, loggedRR, loggedRRValid, humanDetected, inMotion,
+                      pqiHeart, pqiBreath, loggedDist, diagFsEffective);
       Serial.print("DATA,");
       CSVU(now);
       CSVF(prevStableHeartPhase, 5);
@@ -6872,5 +7063,6 @@ Serial.println((unsigned int)correctionParamsHashLogged);  // col 207: correctio
   }
 #endif
 
+  bleSuppressIfLoopSlow((uint32_t)(millis() - now));
   vTaskDelay(1);
 }

@@ -6,6 +6,7 @@
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
 .venv/
 
 # Node / packaging artifacts (Phase 6)
@@ -16,12 +17,19 @@ src-tauri/target/
 src-tauri/Cargo.lock
 dist/
 www/
+packaging/capacitor/www/
+packaging/capacitor/android/
 
 # Playwright artifacts
 test-results/
 playwright-report/
 tests/visual/diff/
 tests/visual/actual/
+
+# Trainer runtime scratch
+control_server.json
+subject_profiles.json
+sessions/
 
 # Editor
 .vscode/

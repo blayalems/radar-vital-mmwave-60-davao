@@ -6,10 +6,11 @@
   "type": "module",
   "scripts": {
     "build:web": "node scripts/build-www.mjs",
-    "test": "playwright test",
+    "test": "playwright test tests/smoke",
+    "test:all": "playwright test",
     "test:smoke": "playwright test tests/smoke",
     "test:visual": "playwright test tests/visual",
-    "test:update": "playwright test --update-snapshots",
+    "test:visual:update": "playwright test tests/visual --update-snapshots",
     "cap:sync": "npm run build:web && cap sync android",
     "cap:open:android": "cap open android",
     "tauri:dev": "npm run build:web && tauri dev",

@@ -1,4 +1,4 @@
-"""radar_vital_trainer_v11_for_v15_0.py — v11.0.0
+"""radar_vital_trainer_v12_for_v16_0.py - v12.0.0
 =====================================================
 Leakage-aware offline trainer + full session pipeline for the
 XIAO ESP32-C6 + MR60BHA2 system.
@@ -51,6 +51,8 @@ import re
 import secrets
 import signal
 import shutil
+import socket
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -76,20 +78,20 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 import warnings
 warnings.filterwarnings("ignore")
 
-VERSION = "12.0.0-alpha.1"
-DASHBOARD_VERSION = "12.0.0-alpha.1"
+VERSION = "12.0.0"
+DASHBOARD_VERSION = "12.0.0"
 FIRMWARE_VERSION_EXPECTED = "v16.0.0"
 DEFAULT_RADAR_PORT = "COM10"
 DEFAULT_BLE_ADDRESS = "10:22:33:9E:8F:63"
 FEATURE_ENGINEERING_VERSION = "v11.0-physio-2026"
 FEATURE_SCHEMA_VERSION = "v11.0-feature-categories-2026"
-CONTROL_API_SCHEMA_VERSION = "rvt-control-api-v11.0"
-SESSION_NOTES_SCHEMA_VERSION = "rvt-session-notes-v11.0"
-TRAINING_PROGRESS_SCHEMA_VERSION = "rvt-training-progress-v11.0"
-LIVE_EVENT_SCHEMA_VERSION = "rvt-live-events-v11.0"
-SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v11.0"
-SESSION_MANIFEST_VERSION = "v11-session-manifest-2026-04-28"
-CHART_ANNOTATIONS_SCHEMA_VERSION = "rvt-chart-annotations-v11.0"
+CONTROL_API_SCHEMA_VERSION = "rvt-control-api-v12.0"
+SESSION_NOTES_SCHEMA_VERSION = "rvt-session-notes-v12.0"
+TRAINING_PROGRESS_SCHEMA_VERSION = "rvt-training-progress-v12.0"
+LIVE_EVENT_SCHEMA_VERSION = "rvt-live-events-v12.0"
+SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v12.0"
+SESSION_MANIFEST_VERSION = "v12-session-manifest-2026-05-15"
+CHART_ANNOTATIONS_SCHEMA_VERSION = "rvt-chart-annotations-v12.0"
 FEATURE_FLAGS = {
     "enable_sse": True,
     "enable_auto_analyse": True,
@@ -107,7 +109,7 @@ FIRMWARE_RR_PUBLISH_RANGE = (8.0, 35.0)
 HR_RANGE = REFERENCE_PHYSIO_HR_RANGE
 RR_RANGE = REFERENCE_PHYSIO_RR_RANGE
 BLE_PI_QUALITY_THRESHOLD = 1.0
-SUBJECT_PROFILE_SCHEMA_VERSION = "rvt-subject-profiles-v11.0"
+SUBJECT_PROFILE_SCHEMA_VERSION = "rvt-subject-profiles-v12.0"
 DEFAULT_SUBJECT_PROFILES = {
     "adult_default": {
         "label": "Adult Default",
@@ -4138,7 +4140,7 @@ class _SilentDashboardHandler(SimpleHTTPRequestHandler):
 
 
 class _DashboardServer:
-    def __init__(self, session_dir: str, port: int = 0):
+    def __init__(self, session_dir: str, port: int = 8765):
         self.session_dir = os.path.abspath(session_dir)
         handler = partial(_SilentDashboardHandler, directory=self.session_dir)
         self.httpd = ThreadingHTTPServer(("127.0.0.1", int(port)), handler)
@@ -5302,6 +5304,9 @@ _ANALYSIS_JOBS: Dict[str, Dict[str, object]] = {}
 _TRAINER_LOG: Deque[str] = deque(maxlen=200)
 _RATE_LIMIT: Dict[str, Tuple[float, float]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
+_RATE_LIMIT_MAX = 1024
+_PIN_TTL_S = 300
+_PIN_MAX = 8
 
 
 def _schema_wrap(payload: Dict[str, object], schema_version: str = CONTROL_API_SCHEMA_VERSION) -> Dict[str, object]:
@@ -5393,163 +5398,454 @@ def _sanitize_user_string(value, max_len: int = 1000) -> str:
 
 
 
-def _build_legacy_sw_tombstone_js() -> str:
-    """Tombstone served at the legacy /rvt-sw.js route.
-
-    Existing operator installs registered /rvt-sw.js. The new /sw.js cache
-    namespace ('rvt-shell-v12.*') will never reach those clients because the
-    old SW intercepts /sw.js first. This tombstone unregisters itself and
-    reloads every open client so the new /sw.js can take over on next nav.
-
-    Remove this route in v12.1.
-    """
-    return (
-        "self.addEventListener('install',function(){self.skipWaiting();});\n"
-        "self.addEventListener('activate',function(e){\n"
-        "  e.waitUntil((async function(){\n"
-        "    try{var keys=await caches.keys();await Promise.all(keys.map(function(k){return caches.delete(k);}));}catch(_){}\n"
-        "    try{await self.registration.unregister();}catch(_){}\n"
-        "    try{var cs=await self.clients.matchAll();cs.forEach(function(c){try{c.navigate(c.url);}catch(_){}})}catch(_){}\n"
-        "  })());\n"
-        "});\n"
-    )
-
-
 def _build_service_worker_js() -> str:
-    """Back-compat alias kept for any external callers."""
-    return _build_legacy_sw_tombstone_js()
+    return """self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (e) => {
+  e.waitUntil(self.registration.unregister().then(() =>
+    self.clients.matchAll().then(cs => cs.forEach(c => c.navigate(c.url)))));
+});
+"""
 
 
-# ============================================================================
-# v12 PWA support — new /sw.js, /manifest.webmanifest, /api/server-info, auth
-# ============================================================================
-
-_PWA_ASSETS_ROOT = Path(__file__).resolve().parent / "assets"
+def _assets_root() -> Path:
+    return Path(os.path.dirname(os.path.abspath(__file__))) / "assets"
 
 
-def _read_static_asset(rel: str) -> Optional[bytes]:
-    """Read a file under assets/ with a path-traversal guard.
+def _server_scheme(server) -> str:
+    return "https" if bool(getattr(server, "tls_enabled", False)) else "http"
 
-    Denies any path that contains '..' or escapes the assets root. Returns
-    None if the asset does not exist.
-    """
-    if ".." in rel or rel.startswith("/"):
-        return None
-    target = (_PWA_ASSETS_ROOT / rel).resolve()
+
+def _guess_lan_ip() -> str:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        target.relative_to(_PWA_ASSETS_ROOT.resolve())
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except Exception:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return "127.0.0.1"
+    finally:
+        try:
+            sock.close()
+        except Exception:
+            pass
+
+
+def _advertised_host(server) -> str:
+    host = str(getattr(server, "advertised_host", "") or "")
+    if host:
+        return host
+    bound = server.server_address[0] if getattr(server, "server_address", None) else "127.0.0.1"
+    return _guess_lan_ip() if bound in {"", "0.0.0.0", "::"} else bound
+
+
+def _advertised_origin(server) -> str:
+    return f"{_server_scheme(server)}://{_advertised_host(server)}:{int(server.server_port)}"
+
+
+def _manifest_payload(server) -> Dict[str, object]:
+    return {
+        "id": "/",
+        "name": "Radar Vital Trainer",
+        "short_name": "Radar Vital",
+        "start_url": "./live_dashboard.html",
+        "scope": "./",
+        "display": "standalone",
+        "background_color": "#f4f6fb",
+        "theme_color": "#3b82f6",
+        "orientation": "any",
+        "categories": ["health", "medical"],
+        "icons": [
+            {"src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+            {"src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+        ],
+        "shortcuts": [
+            {"name": "Start session", "url": "./live_dashboard.html#start"},
+            {"name": "Open last report", "url": "./live_dashboard.html#report"},
+        ],
+    }
+
+
+def _support_matrix_rows() -> List[Tuple[str, str, str, str, str]]:
+    return [
+        ("Desktop browser -> http://127.0.0.1:8765", "yes", "yes", "yes, Chromium", "yes"),
+        ("Phone browser -> http://<lan-ip>:8765", "no", "no", "no", "yes, read-only without PIN"),
+        ("Phone browser -> https://<lan-ip>:8765 (--tls)", "yes after cert trust", "yes", "yes, Android Chrome", "yes"),
+        ("Capacitor APK", "native", "local cache", "BLE plugin", "native HTTP bridge"),
+        ("Tauri EXE", "native", "local cache", "plugin or trainer HTTP", "yes"),
+    ]
+
+
+def _support_matrix_html(server) -> str:
+    rows = "\n".join(
+        "<tr>" + "".join(f"<td>{html_escape(cell)}</td>" for cell in row) + "</tr>"
+        for row in _support_matrix_rows()
+    )
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Radar Vital Support Matrix</title>
+<style>body{{font-family:system-ui,sans-serif;margin:32px;line-height:1.45;color:#0b1220;background:#f4f6fb}}table{{border-collapse:collapse;width:100%;background:#fff}}th,td{{border:1px solid #dde3ee;padding:10px;text-align:left}}th{{background:#eef2f8}}</style>
+</head><body><h1>Radar Vital v12 Support Matrix</h1><p>Origin: {html_escape(_advertised_origin(server))}</p>
+<table><thead><tr><th>Mode</th><th>PWA install</th><th>Service Worker</th><th>Web Bluetooth</th><th>LAN HTTP API</th></tr></thead><tbody>{rows}</tbody></table>
+</body></html>"""
+
+
+def _pair_page_html(server) -> str:
+    pin = getattr(server, "active_pin", "") or ""
+    origin = _advertised_origin(server)
+    expires_at = float(getattr(server, "active_pin_expires_at", 0.0) or 0.0)
+    ttl = max(0, int(expires_at - time.time())) if pin else 0
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pair Radar Vital</title>
+<style>body{{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#0b1220;color:#e6eefc}}main{{width:min(560px,calc(100vw - 32px));background:#121c31;border:1px solid #26344f;border-radius:18px;padding:24px}}.pin{{font-size:48px;letter-spacing:.18em;font-weight:800}}code{{background:#0b1220;padding:2px 6px;border-radius:6px}}</style>
+</head><body><main><h1>Pair Radar Vital</h1><p>Server URL: <code>{html_escape(origin)}</code></p>
+<p>PIN</p><div class="pin">{html_escape(pin or "local")}</div>
+<p>{'Expires in ' + str(ttl) + ' seconds and is consumed after first use.' if pin else 'LAN pairing is not active in local bind mode.'}</p>
+<p>Scan the trainer QR or open <code>{html_escape(origin)}/?pair={html_escape(pin)}</code> on the phone, then keep the trainer running.</p>
+</main></body></html>"""
+
+
+def _safe_asset_path(url_path: str) -> Optional[Path]:
+    root = _assets_root().resolve()
+    rel = unquote(url_path.lstrip("/")).replace("\\", "/")
+    if not (rel.startswith("icons/") or rel.startswith("lib/") or rel.startswith("fonts/")):
+        return None
+    target = (root / rel).resolve()
+    try:
+        target.relative_to(root)
     except ValueError:
         return None
-    if not target.exists() or not target.is_file():
+    private_root = (Path(os.path.dirname(os.path.abspath(__file__))) / ".rvt_tls").resolve()
+    try:
+        target.relative_to(private_root)
         return None
-    return target.read_bytes()
+    except ValueError:
+        pass
+    return target if target.is_file() else None
 
 
-def _build_pwa_service_worker_js() -> Optional[bytes]:
-    """Return the new /sw.js body from assets/sw.js, or None if missing."""
-    return _read_static_asset("sw.js")
+def _content_type_for_asset(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".js":
+        return "application/javascript; charset=utf-8"
+    if suffix == ".css":
+        return "text/css; charset=utf-8"
+    if suffix == ".woff2":
+        return "font/woff2"
+    if suffix == ".png":
+        return "image/png"
+    return mimetypes.guess_type(str(path))[0] or "application/octet-stream"
 
 
-def _build_pwa_manifest(host: str, port: int, scheme: str = "http") -> Dict[str, object]:
-    """Construct a dynamic, port-aware Web App Manifest.
+def _qr_png_bytes(text: str, scale: int = 8, border: int = 4) -> bytes:
+    """Return a small QR-L PNG for pairing URLs without third-party dependencies."""
+    import binascii
+    import struct
+    import zlib
 
-    Falls back to the static assets/manifest.webmanifest values where present,
-    overriding start_url/scope with relative paths so the manifest is portable
-    across hosting modes (trainer-served, GitHub Pages, Capacitor, Tauri).
-    """
-    static = _read_static_asset("manifest.webmanifest")
-    base: Dict[str, object]
-    if static:
-        try:
-            base = json.loads(static.decode("utf-8"))
-        except Exception:
-            base = {}
-    else:
-        base = {}
-    base.setdefault("id", "/")
-    base.setdefault("name", "Radar Vital Trainer")
-    base.setdefault("short_name", "Radar Vital")
-    base.setdefault("description", "Mobile-first console for mmWave 60 GHz radar vital-sign monitoring sessions.")
-    base["start_url"] = "./"
-    base["scope"] = "./"
-    base.setdefault("display", "standalone")
-    base.setdefault("background_color", "#f4f6fb")
-    base.setdefault("theme_color", "#3b82f6")
-    base.setdefault("orientation", "any")
-    base.setdefault("categories", ["health", "medical", "utilities"])
-    base.setdefault("icons", [
-        {"src": "./assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-        {"src": "./assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
-        {"src": "./assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
-    ])
-    return base
+    data = text.encode("utf-8")
+    specs = {
+        1: (21, 19, 7, []),
+        2: (25, 34, 10, [6, 18]),
+        3: (29, 55, 15, [6, 22]),
+        4: (33, 80, 20, [6, 26]),
+    }
+    version = next((v for v, (_, data_cw, _, _) in specs.items() if len(data) + 3 <= data_cw), 4)
+    size, data_cw, ecc_cw, align_centers = specs[version]
+
+    bits: List[int] = []
+
+    def append_bits(value: int, width: int):
+        for shift in range(width - 1, -1, -1):
+            bits.append((value >> shift) & 1)
+
+    append_bits(0x4, 4)  # byte mode
+    append_bits(len(data), 8)
+    for b in data:
+        append_bits(b, 8)
+    append_bits(0, min(4, data_cw * 8 - len(bits)))
+    while len(bits) % 8:
+        bits.append(0)
+    codewords: List[int] = []
+    for i in range(0, len(bits), 8):
+        value = 0
+        for bit in bits[i:i + 8]:
+            value = (value << 1) | bit
+        codewords.append(value)
+    for pad in (0xEC, 0x11) * data_cw:
+        if len(codewords) >= data_cw:
+            break
+        codewords.append(pad)
+
+    exp = [0] * 512
+    log = [0] * 256
+    x = 1
+    for i in range(255):
+        exp[i] = x
+        log[x] = i
+        x <<= 1
+        if x & 0x100:
+            x ^= 0x11D
+    for i in range(255, 512):
+        exp[i] = exp[i - 255]
+
+    def gf_mul(a: int, b: int) -> int:
+        return 0 if a == 0 or b == 0 else exp[log[a] + log[b]]
+
+    gen = [0] * (ecc_cw - 1) + [1]
+    root = 1
+    for _ in range(ecc_cw):
+        for j in range(ecc_cw):
+            gen[j] = gf_mul(gen[j], root)
+            if j + 1 < ecc_cw:
+                gen[j] ^= gen[j + 1]
+        root = gf_mul(root, 2)
+    rem = [0] * ecc_cw
+    for b in codewords:
+        factor = b ^ rem[0]
+        rem = rem[1:] + [0]
+        for i, coef in enumerate(gen):
+            rem[i] ^= gf_mul(coef, factor)
+    all_cw = codewords + rem
+
+    modules: List[List[Optional[bool]]] = [[None for _ in range(size)] for _ in range(size)]
+    function = [[False for _ in range(size)] for _ in range(size)]
+
+    def set_func(x: int, y: int, dark: bool):
+        if 0 <= x < size and 0 <= y < size:
+            modules[y][x] = dark
+            function[y][x] = True
+
+    def finder(cx: int, cy: int):
+        for dy in range(-1, 8):
+            for dx in range(-1, 8):
+                x0, y0 = cx + dx, cy + dy
+                dark = (
+                    0 <= dx <= 6 and 0 <= dy <= 6
+                    and (dx in (0, 6) or dy in (0, 6) or (2 <= dx <= 4 and 2 <= dy <= 4))
+                )
+                set_func(x0, y0, dark)
+
+    finder(0, 0)
+    finder(size - 7, 0)
+    finder(0, size - 7)
+    for i in range(8, size - 8):
+        set_func(i, 6, i % 2 == 0)
+        set_func(6, i, i % 2 == 0)
+    for c1 in align_centers:
+        for c2 in align_centers:
+            if (c1 <= 8 and c2 <= 8) or (c1 >= size - 9 and c2 <= 8) or (c1 <= 8 and c2 >= size - 9):
+                continue
+            for dy in range(-2, 3):
+                for dx in range(-2, 3):
+                    set_func(c1 + dx, c2 + dy, max(abs(dx), abs(dy)) != 1)
+    set_func(8, size - 8, True)
+    for i in range(9):
+        if i != 6:
+            set_func(8, i, False)
+            set_func(i, 8, False)
+    for i in range(8):
+        set_func(size - 1 - i, 8, False)
+        set_func(8, size - 1 - i, False)
+
+    bitstream = []
+    for b in all_cw:
+        for shift in range(7, -1, -1):
+            bitstream.append(((b >> shift) & 1) == 1)
+    i = 0
+    upward = True
+    x = size - 1
+    while x > 0:
+        if x == 6:
+            x -= 1
+        rows = range(size - 1, -1, -1) if upward else range(size)
+        for y in rows:
+            for dx in (0, 1):
+                xx = x - dx
+                if not function[y][xx]:
+                    modules[y][xx] = bitstream[i] if i < len(bitstream) else False
+                    i += 1
+        upward = not upward
+        x -= 2
+
+    masks = (
+        lambda x, y: (x + y) % 2 == 0,
+        lambda x, y: y % 2 == 0,
+        lambda x, y: x % 3 == 0,
+        lambda x, y: (x + y) % 3 == 0,
+        lambda x, y: (x // 3 + y // 2) % 2 == 0,
+        lambda x, y: ((x * y) % 2 + (x * y) % 3) == 0,
+        lambda x, y: (((x * y) % 2 + (x * y) % 3) % 2) == 0,
+        lambda x, y: (((x + y) % 2 + (x * y) % 3) % 2) == 0,
+    )
+
+    def penalty(mask_id: int) -> int:
+        grid = [[bool(modules[y][x]) ^ (masks[mask_id](x, y) and not function[y][x]) for x in range(size)] for y in range(size)]
+        score = 0
+        for row in grid:
+            run_color = row[0]
+            run_len = 1
+            for cell in row[1:]:
+                if cell == run_color:
+                    run_len += 1
+                else:
+                    if run_len >= 5:
+                        score += 3 + run_len - 5
+                    run_color = cell
+                    run_len = 1
+            if run_len >= 5:
+                score += 3 + run_len - 5
+        for x0 in range(size):
+            run_color = grid[0][x0]
+            run_len = 1
+            for y0 in range(1, size):
+                if grid[y0][x0] == run_color:
+                    run_len += 1
+                else:
+                    if run_len >= 5:
+                        score += 3 + run_len - 5
+                    run_color = grid[y0][x0]
+                    run_len = 1
+            if run_len >= 5:
+                score += 3 + run_len - 5
+        for y0 in range(size - 1):
+            for x0 in range(size - 1):
+                if grid[y0][x0] == grid[y0][x0 + 1] == grid[y0 + 1][x0] == grid[y0 + 1][x0 + 1]:
+                    score += 3
+        dark = sum(1 for row in grid for cell in row if cell)
+        score += abs(dark * 20 - size * size * 10) // (size * size) * 10
+        return score
+
+    mask = min(range(8), key=penalty)
+    for y in range(size):
+        for x in range(size):
+            if not function[y][x] and masks[mask](x, y):
+                modules[y][x] = not bool(modules[y][x])
+
+    # Error correction level L (format bits 01) plus selected mask.
+    fmt = (1 << 3) | mask
+    val = fmt << 10
+    poly = 0x537
+    for shift in range(14, 9, -1):
+        if (val >> shift) & 1:
+            val ^= poly << (shift - 10)
+    fmt_bits = ((fmt << 10) | val) ^ 0x5412
+
+    def fmt_bit(bit: int) -> bool:
+        return ((fmt_bits >> bit) & 1) == 1
+
+    for j in range(6):
+        set_func(8, j, fmt_bit(j))
+    set_func(8, 7, fmt_bit(6))
+    set_func(8, 8, fmt_bit(7))
+    set_func(7, 8, fmt_bit(8))
+    for j in range(9, 15):
+        set_func(14 - j, 8, fmt_bit(j))
+    for j in range(8):
+        set_func(size - 1 - j, 8, fmt_bit(j))
+    for j in range(8, 15):
+        set_func(8, size - 15 + j, fmt_bit(j))
+
+    qr_size = (size + border * 2) * scale
+    raw_rows = []
+    for y in range(qr_size):
+        src_y = y // scale - border
+        row = bytearray([0])
+        for x in range(qr_size):
+            src_x = x // scale - border
+            dark = 0 <= src_x < size and 0 <= src_y < size and bool(modules[src_y][src_x])
+            row.extend((0, 0, 0) if dark else (255, 255, 255))
+        raw_rows.append(bytes(row))
+    raw = b"".join(raw_rows)
+
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", binascii.crc32(kind + payload) & 0xFFFFFFFF)
+
+    ihdr = struct.pack(">IIBBBBB", qr_size, qr_size, 8, 2, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
 
 
-# In-memory pair state. Tokens persist for the lifetime of the trainer process.
-# PIN entries expire after PIN_TTL_S and are single-use (deleted on first successful exchange).
-_PAIR_STATE: Dict[str, object] = {
-    "required": False,
-    "pins": {},          # pin -> created_at_monotonic
-    "tokens": set(),     # set of issued tokens
-}
-PIN_TTL_S = 300
-PIN_LENGTH = 6
-
-
-def _pair_required() -> bool:
-    return bool(_PAIR_STATE.get("required"))
-
-
-def _pair_issue_pin() -> str:
-    """Issue a fresh 6-digit PIN, store it, return it."""
-    import random
-    _pair_evict_expired()
-    pin = "".join(str(random.randint(0, 9)) for _ in range(PIN_LENGTH))
-    _PAIR_STATE["pins"][pin] = time.monotonic()
+def _make_pair_pin(server) -> str:
+    pin = f"{secrets.randbelow(1000000):06d}"
+    now = time.time()
+    pins = getattr(server, "pair_pins", {})
+    expired = [k for k, item in pins.items() if float(item.get("expires_at", 0.0)) <= now]
+    for key in expired:
+        pins.pop(key, None)
+    while len(pins) >= _PIN_MAX:
+        oldest = min(pins, key=lambda k: float(pins[k].get("created_at", 0.0)))
+        pins.pop(oldest, None)
+    pins[pin] = {"created_at": now, "expires_at": now + _PIN_TTL_S}
+    server.pair_pins = pins
+    server.active_pin = pin
+    server.active_pin_expires_at = now + _PIN_TTL_S
     return pin
 
 
-def _pair_evict_expired() -> None:
-    pins = _PAIR_STATE["pins"]
-    now = time.monotonic()
-    for k in list(pins.keys()):
-        if now - pins[k] > PIN_TTL_S:
-            del pins[k]
-
-
-def _pair_exchange(pin: str) -> Optional[str]:
-    """Validate the PIN, mint a token, invalidate the PIN. Returns token or None."""
-    if not pin:
-        return None
-    _pair_evict_expired()
-    pins = _PAIR_STATE["pins"]
-    if pin not in pins:
-        return None
-    del pins[pin]
+def _exchange_pair_pin(server, pin: str) -> Tuple[int, Dict[str, object]]:
+    now = time.time()
+    pins = getattr(server, "pair_pins", {})
+    item = pins.get(str(pin or ""))
+    if not item:
+        return 410, {"ok": False, "error": {"code": "PIN_EXPIRED_OR_USED", "message": "pairing PIN expired or was already used"}}
+    if float(item.get("expires_at", 0.0)) <= now:
+        pins.pop(str(pin), None)
+        return 410, {"ok": False, "error": {"code": "PIN_EXPIRED", "message": "pairing PIN expired"}}
+    pins.pop(str(pin), None)
+    if getattr(server, "active_pin", "") == str(pin):
+        server.active_pin = ""
+        server.active_pin_expires_at = 0.0
     token = secrets.token_urlsafe(24)
-    _PAIR_STATE["tokens"].add(token)
-    return token
+    server.auth_tokens.add(token)
+    return 200, {"ok": True, "token": token, "token_type": "RVT-Token", "expires": "process"}
 
 
-def _pair_token_valid(token: Optional[str]) -> bool:
-    if not token:
-        return False
-    return token in _PAIR_STATE["tokens"]
-
-
-def _is_control_endpoint(method: str, path: str) -> bool:
-    """Return True if this endpoint mutates trainer state and requires auth when --pair is on."""
-    if method.upper() != "POST":
-        return False
-    if path.startswith("/api/preflight/"):
-        return True
-    return path in {
-        "/api/session/start",
-        "/api/session/stop",
-        "/api/defaults",
-        "/api/preferences",
-        "/api/sessions/delete",
-    }
+def _ensure_self_signed_cert(cert_path: str, key_path: str, host: str):
+    cert = Path(cert_path)
+    key = Path(key_path)
+    if cert.exists() and key.exists():
+        return
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.x509.oid import NameOID
+        import datetime
+        import ipaddress
+    except Exception as exc:
+        raise RuntimeError("--tls auto-generation requires the cryptography package") from exc
+    cert.parent.mkdir(parents=True, exist_ok=True)
+    key.parent.mkdir(parents=True, exist_ok=True)
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name([
+        x509.NameAttribute(NameOID.COUNTRY_NAME, "PH"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Radar Vital Local"),
+        x509.NameAttribute(NameOID.COMMON_NAME, host or "localhost"),
+    ])
+    alt_names = [x509.DNSName("localhost")]
+    for candidate in {host, "127.0.0.1", _guess_lan_ip()}:
+        try:
+            alt_names.append(x509.IPAddress(ipaddress.ip_address(candidate)))
+        except Exception:
+            if candidate:
+                alt_names.append(x509.DNSName(candidate))
+    now = datetime.datetime.utcnow()
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(private_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(minutes=1))
+        .not_valid_after(now + datetime.timedelta(days=365))
+        .add_extension(x509.SubjectAlternativeName(alt_names), critical=False)
+        .sign(private_key, hashes.SHA256())
+    )
+    key.write_bytes(private_key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))
+    cert.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
 
 
 def _session_annotations_path(session_dir: Path) -> Path:
@@ -6144,15 +6440,28 @@ def _effective_defaults(sessions_root: str) -> Dict[str, object]:
 
 class _ControlHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
-        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-        self.send_header("Pragma", "no-cache")
-        self.send_header("Expires", "0")
+        cache_control = getattr(self, "_cache_control_override", None) or "no-store, no-cache, must-revalidate, max-age=0"
+        self.send_header("Cache-Control", cache_control)
+        if "no-cache" in cache_control or "no-store" in cache_control:
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
         self.send_header("Access-Control-Allow-Origin", getattr(self.server, "cors_origin", "*"))
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Radar-Vital-Token, X-RVT-Token")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Radar-Vital-Token, X-RVT-Token, X-RVT-Auth")
+        csp = getattr(self.server, "content_security_policy", "")
+        if csp:
+            self.send_header("Content-Security-Policy", csp)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "same-origin")
+        if bool(getattr(self.server, "tls_trusted", False)):
+            self.send_header("Strict-Transport-Security", "max-age=31536000")
         super().end_headers()
+        if hasattr(self, "_cache_control_override"):
+            try:
+                delattr(self, "_cache_control_override")
+            except Exception:
+                pass
 
     def log_message(self, format, *args):
         _append_trainer_log("[HTTP] " + (format % args if args else format))
@@ -6162,6 +6471,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         return host in {"127.0.0.1", "::1", "localhost"} or host.startswith("127.")
 
     def _reject_untrusted(self) -> bool:
+        if getattr(self.server, "bind_mode", "local") == "lan":
+            return self._rate_limited()
         if self._trusted_local_request():
             return self._rate_limited()
         self._send_json(403, {"ok": False, "error": {"code": "LOCAL_ONLY", "message": "control API accepts loopback requests only"}})
@@ -6171,6 +6482,11 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         ip = (self.client_address[0] if self.client_address else "") or "unknown"
         now = time.monotonic()
         with _RATE_LIMIT_LOCK:
+            if len(_RATE_LIMIT) > _RATE_LIMIT_MAX:
+                stale_cutoff = now - 120.0
+                for key, (_, last_seen) in list(_RATE_LIMIT.items()):
+                    if last_seen < stale_cutoff or len(_RATE_LIMIT) > _RATE_LIMIT_MAX:
+                        _RATE_LIMIT.pop(key, None)
             tokens, last = _RATE_LIMIT.get(ip, (30.0, now))
             tokens = min(30.0, tokens + (now - last) * 30.0)
             if tokens < 1.0:
@@ -6178,6 +6494,21 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(429, {"ok": False, "error": {"code": "RATE_LIMITED", "message": "too many requests"}})
                 return True
             _RATE_LIMIT[ip] = (tokens - 1.0, now)
+        return False
+
+    def _require_control_auth(self) -> bool:
+        if getattr(self.server, "bind_mode", "local") != "lan":
+            return True
+        token = (self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "").strip()
+        if token and token in getattr(self.server, "auth_tokens", set()):
+            return True
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'RVT-Token realm="Radar Vital"')
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        data = _json_safe_response(_schema_wrap({"ok": False, "error": {"code": "AUTH_REQUIRED", "message": "pairing token required for control endpoints"}}))
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
         return False
 
     def do_OPTIONS(self):
@@ -6251,16 +6582,20 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             return
 
-    def _send_json(self, status: int, obj):
+    def _send_json(self, status: int, obj, cache_control: Optional[str] = None, content_type: str = "application/json; charset=utf-8"):
         data = _json_safe_response(_schema_wrap(obj) if isinstance(obj, dict) else obj)
         self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
+        if cache_control:
+            self._cache_control_override = cache_control
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
 
-    def _send_bytes(self, status: int, data: bytes, content_type: str):
+    def _send_bytes(self, status: int, data: bytes, content_type: str, cache_control: Optional[str] = None):
         self.send_response(status)
+        if cache_control:
+            self._cache_control_override = cache_control
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
@@ -6279,53 +6614,31 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/rvt-sw.js":
-            # Legacy SW route — serves the unregister tombstone for one release so existing
-            # operator installs migrate to /sw.js on next navigation. Remove in v12.1.
-            self._send_bytes(200, _build_legacy_sw_tombstone_js().encode("utf-8"), "application/javascript; charset=utf-8")
+            self._send_bytes(200, _build_service_worker_js().encode("utf-8"), "application/javascript; charset=utf-8", cache_control="no-cache")
             return
         if path == "/sw.js":
-            body = _build_pwa_service_worker_js()
-            if body is None:
-                self._send_json(503, {"ok": False, "error": {"code": "SW_NOT_PROVISIONED", "message": "assets/sw.js missing"}})
-                return
-            self.send_response(200)
-            self.send_header("Content-Type", "application/javascript; charset=utf-8")
-            self.send_header("Cache-Control", "no-cache, must-revalidate")
-            self.send_header("Service-Worker-Allowed", "/")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            sw_path = _assets_root() / "sw.js"
+            if sw_path.exists():
+                self._send_bytes(200, sw_path.read_bytes(), "application/javascript; charset=utf-8", cache_control="no-cache")
+            else:
+                self._send_json(404, {"ok": False, "error": {"code": "SW_NOT_FOUND", "message": "assets/sw.js is missing"}})
             return
         if path == "/manifest.webmanifest":
-            host = self.headers.get("Host") or f"{self.server.server_address[0]}:{self.server.server_port}"
-            scheme = "https" if getattr(self.server, "tls", False) else "http"
-            data = json.dumps(_build_pwa_manifest(host, self.server.server_port, scheme=scheme), separators=(",", ":")).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/manifest+json; charset=utf-8")
-            self.send_header("Cache-Control", "no-cache, must-revalidate")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
+            data = json.dumps(_manifest_payload(self.server), separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+            self._send_bytes(200, data, "application/manifest+json; charset=utf-8", cache_control="no-cache")
             return
-        if path == "/api/server-info":
-            self._send_json(200, {
-                "ok": True,
-                "host": str(self.server.server_address[0]),
-                "port": int(self.server.server_port),
-                "scheme": "https" if getattr(self.server, "tls", False) else "http",
-                "trainer_version": VERSION,
-                "dashboard_version": DASHBOARD_VERSION,
-                "firmware_expected": FIRMWARE_VERSION_EXPECTED,
-                "pair_required": _pair_required(),
-                "started_at": self.server.started_at,
-            })
+        if path == "/about":
+            self._send_bytes(200, _support_matrix_html(self.server).encode("utf-8"), "text/html; charset=utf-8", cache_control="no-store")
             return
-        if path == "/api/auth/status":
-            self._send_json(200, {
-                "ok": True,
-                "pair_required": _pair_required(),
-                "authenticated": not _pair_required() or _pair_token_valid(self.headers.get("X-RVT-Auth")),
-            })
+        if path == "/pair":
+            self._send_bytes(200, _pair_page_html(self.server).encode("utf-8"), "text/html; charset=utf-8", cache_control="no-store")
+            return
+        if path.startswith("/icons/") or path.startswith("/lib/") or path.startswith("/fonts/"):
+            target = _safe_asset_path(path)
+            if not target:
+                self._send_json(404, {"ok": False, "error": {"code": "ASSET_NOT_FOUND", "message": "asset not found"}})
+                return
+            self._send_bytes(200, target.read_bytes(), _content_type_for_asset(target), cache_control="public, max-age=31536000, immutable")
             return
         if path == "/api/health":
             t0 = time.perf_counter()
@@ -6346,7 +6659,25 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if path == "/api/subject-profiles":
             self._send_json(200, _load_subject_profiles(self.server.sessions_root))
             return
-        if path == "/api/session/events":
+        if path == "/api/server-info":
+            payload = {
+                "ok": True,
+                "origin": _advertised_origin(self.server),
+                "scheme": _server_scheme(self.server),
+                "bind_mode": getattr(self.server, "bind_mode", "local"),
+                "trainer_version": VERSION,
+                "dashboard_version": DASHBOARD_VERSION,
+                "firmware_expected": FIRMWARE_VERSION_EXPECTED,
+                "pair_required": getattr(self.server, "bind_mode", "local") == "lan",
+                "active_pin_expires_at": getattr(self.server, "active_pin_expires_at", 0.0),
+            }
+            if parse_qs(parsed.query).get("format", [""])[-1] == "qr":
+                pair_url = _advertised_origin(self.server) + ("/?pair=" + getattr(self.server, "active_pin", "") if getattr(self.server, "active_pin", "") else "/pair")
+                self._send_bytes(200, _qr_png_bytes(pair_url), "image/png", cache_control="no-store")
+            else:
+                self._send_json(200, payload, cache_control="no-store")
+            return
+        if path == "/api/session/events" or path == "/api/events/subscribe":
             self._send_sse()
             return
         if path.startswith("/api/sessions/") and path.endswith("/events"):
@@ -6554,6 +6885,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if path in ("/", "/index.html", "/dashboard"):
             self.path = f"/{_DASHBOARD_HTML_NAME}"
             path = f"/{_DASHBOARD_HTML_NAME}"
+        if path == "/live_dashboard.html":
+            self.path = f"/{_DASHBOARD_HTML_NAME}"
+            path = f"/{_DASHBOARD_HTML_NAME}"
         if path in dashboard_routes:
             template_path = _dashboard_html_template_path()
             if template_path is None:
@@ -6568,37 +6902,12 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         path = urlparse(self.path).path
         body = self._read_body()
-        # PIN exchange — unauthenticated by design (the PIN itself is the credential).
         if path == "/api/auth/exchange":
-            if not _pair_required():
-                self._send_json(403, {"ok": False, "error": {"code": "PAIRING_DISABLED", "message": "trainer is not in --pair mode"}})
-                return
-            pin = str((body or {}).get("pin") or "").strip()
-            token = _pair_exchange(pin)
-            if not token:
-                # 401 for unknown/expired PIN; matches WWW-Authenticate semantics.
-                self.send_response(401)
-                self.send_header("WWW-Authenticate", 'RVT-Token realm="Radar Vital"')
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                payload = json.dumps({"ok": False, "error": {"code": "INVALID_PIN", "message": "PIN is unknown, expired, or already used"}}).encode("utf-8")
-                self.send_header("Content-Length", str(len(payload)))
-                self.end_headers()
-                self.wfile.write(payload)
-                return
-            self._send_json(200, {"ok": True, "token": token, "expires_at": None})
+            status, payload = _exchange_pair_pin(self.server, str(body.get("pin") or ""))
+            self._send_json(status, payload, cache_control="no-store")
             return
-        # Auth gate — only when --pair is on. Read endpoints stay open; control endpoints require X-RVT-Auth.
-        if _pair_required() and _is_control_endpoint("POST", path):
-            tok = self.headers.get("X-RVT-Auth")
-            if not _pair_token_valid(tok):
-                self.send_response(401)
-                self.send_header("WWW-Authenticate", 'RVT-Token realm="Radar Vital"')
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                payload = json.dumps({"ok": False, "error": {"code": "UNAUTHENTICATED", "message": "missing or invalid X-RVT-Auth token"}}).encode("utf-8")
-                self.send_header("Content-Length", str(len(payload)))
-                self.end_headers()
-                self.wfile.write(payload)
-                return
+        if path.startswith("/api/") and not self._require_control_auth():
+            return
         if path == "/api/defaults":
             current = _effective_defaults(self.server.sessions_root)
             current.update({k: v for k, v in body.items() if k in current})
@@ -6704,6 +7013,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
     def do_PUT(self):
         if self._reject_untrusted():
             return
+        if not self._require_control_auth():
+            return
         path = urlparse(self.path).path
         body = self._read_body()
         if path.startswith("/api/sessions/") and path.endswith("/tags"):
@@ -6730,6 +7041,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
 
     def do_DELETE(self):
         if self._reject_untrusted():
+            return
+        if not self._require_control_auth():
             return
         path = urlparse(self.path).path
         if path.startswith("/api/sessions/"):
@@ -6761,20 +7074,57 @@ class _ControlHandler(SimpleHTTPRequestHandler):
 
 
 class _ControlServer:
-    def __init__(self, host: str, port: int, sessions_root: str, cors_origin: str = "*", mock: bool = False):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        sessions_root: str,
+        cors_origin: str = "*",
+        mock: bool = False,
+        bind_mode: str = "local",
+        tls_cert: Optional[str] = None,
+        tls_key: Optional[str] = None,
+        tls_trusted: bool = False,
+    ):
         self.sessions_root = os.path.abspath(sessions_root)
         os.makedirs(self.sessions_root, exist_ok=True)
         _cleanup_json_temp_files(self.sessions_root)
         handler = partial(_ControlHandler, directory=os.path.dirname(os.path.abspath(__file__)))
         self.httpd = ThreadingHTTPServer((host, int(port)), handler)
+        if tls_cert and tls_key:
+            _ensure_self_signed_cert(tls_cert, tls_key, host if host not in {"0.0.0.0", "::"} else _guess_lan_ip())
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(tls_cert, tls_key)
+            self.httpd.socket = ctx.wrap_socket(self.httpd.socket, server_side=True)
         self.httpd.sessions_root = self.sessions_root
         self.httpd.supervisor = _SessionSupervisor(self.sessions_root)
         self.httpd.started_at = _iso_now()
         self.httpd.cors_origin = cors_origin
         self.httpd.mock = bool(mock)
+        self.httpd.bind_mode = bind_mode
+        self.httpd.tls_enabled = bool(tls_cert and tls_key)
+        self.httpd.tls_trusted = bool(tls_trusted)
+        self.httpd.advertised_host = _guess_lan_ip() if bind_mode == "lan" else "127.0.0.1"
+        self.httpd.auth_tokens = set()
+        self.httpd.pair_pins = {}
+        self.httpd.active_pin = ""
+        self.httpd.active_pin_expires_at = 0.0
+        if bind_mode == "lan":
+            _make_pair_pin(self.httpd)
+        origin = _advertised_origin(self.httpd)
+        connect_src = "'self'" if bind_mode == "local" else f"'self' {origin}"
+        self.httpd.content_security_policy = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            f"connect-src {connect_src}; "
+            "font-src 'self'; worker-src 'self'; manifest-src 'self'; "
+            "frame-ancestors 'none'; base-uri 'self'"
+        )
         self.supervisor = self.httpd.supervisor
         self.sentinel = Path(self.sessions_root).parent / "control_server.json"
-        save_json({"pid": os.getpid(), "port": self.httpd.server_port, "started_at": self.httpd.started_at}, str(self.sentinel))
+        save_json({"pid": os.getpid(), "port": self.httpd.server_port, "origin": origin, "started_at": self.httpd.started_at}, str(self.sentinel))
         _append_trainer_log(f"[CONTROL] server started on {host}:{self.httpd.server_port}")
         self._serving = False
         original_serve_forever = self.httpd.serve_forever
@@ -6819,43 +7169,50 @@ def _start_control_server(args):
             sentinel.unlink()
         except Exception:
             pass
-    host = str(getattr(args, "host", "127.0.0.1"))
-    start_port = int(getattr(args, "control_port", 8787))
+    bind_mode = str(getattr(args, "bind", "local") or "local")
+    requested_host = str(getattr(args, "host", "") or "")
+    host = requested_host or ("0.0.0.0" if bind_mode == "lan" else "127.0.0.1")
+    port_arg = getattr(args, "control_port", 8765)
+    start_port = int(8765 if port_arg is None else port_arg)
     cors_origin = str(getattr(args, "cors_origin", "*") or "*")
     mock = bool(getattr(args, "mock", False))
+    tls_arg = getattr(args, "tls", None)
+    tls_cert = None
+    tls_key = None
+    if tls_arg is not None:
+        if isinstance(tls_arg, list) and len(tls_arg) >= 2:
+            tls_cert, tls_key = tls_arg[0], tls_arg[1]
+        else:
+            tls_dir = Path(os.path.dirname(os.path.abspath(__file__))) / ".rvt_tls"
+            tls_cert, tls_key = str(tls_dir / "cert.pem"), str(tls_dir / "key.pem")
+    tls_trusted = bool(getattr(args, "tls_trusted", False))
     last_error = None
-    ports = [start_port] if start_port == 0 else list(range(start_port, start_port + 11))
+    ports = [0] if start_port == 0 else [start_port]
     for port in ports:
         try:
-            return _ControlServer(host, port, sessions_root, cors_origin=cors_origin, mock=mock)
+            return _ControlServer(host, port, sessions_root, cors_origin=cors_origin, mock=mock, bind_mode=bind_mode, tls_cert=tls_cert, tls_key=tls_key, tls_trusted=tls_trusted)
         except OSError as e:
             last_error = e
             if start_port == 0:
                 break
-    raise RuntimeError(f"could not bind control server starting at port {start_port}: {last_error}")
+    if start_port != 0:
+        raise RuntimeError(f"Port {start_port} in use. Stop the other instance or pass --port <N>.")
+    raise RuntimeError(f"could not bind control server on an automatic port: {last_error}")
 
 
 def cmd_serve(args):
-    # Pairing mode — generates a single-use PIN before the server starts so the
-    # operator can pair a phone immediately. Tokens persist for the trainer's
-    # lifetime; PINs expire in 5 minutes and are single-use.
-    if bool(getattr(args, "pair", False)):
-        _PAIR_STATE["required"] = True
-        pin = _pair_issue_pin()
-        print("[PAIR] PIN-paired LAN access is enabled.")
-        print(f"[PAIR]   PIN: {pin}    (5-minute TTL, single-use)")
-        print(f"[PAIR]   Pair URL: http://{getattr(args, 'host', '127.0.0.1')}:{int(getattr(args, 'control_port', 8787))}/?pair={pin}")
-        print("[PAIR]   Control endpoints (POST) now require X-RVT-Auth tokens.")
-    if bool(getattr(args, "tls", False)):
-        print("[TLS] --tls requested but TLS termination is not yet implemented in v12.0.")
-        print("[TLS] Falling back to HTTP. Use a reverse proxy (caddy, nginx) for HTTPS until v12.1.")
-
-    server = _start_control_server(args)
-    scheme = "http"
-    bind_host = str(getattr(args, "host", "127.0.0.1"))
-    advertised_host = "127.0.0.1" if bind_host == "127.0.0.1" else bind_host
-    url = f"{scheme}://{advertised_host}:{server.httpd.server_port}/?v={int(time.time())}"
+    try:
+        server = _start_control_server(args)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2)
+    url = f"{_advertised_origin(server.httpd)}/?v={int(time.time())}"
     print(f"[CONTROL] {url}")
+    print(f"[CONTROL] support matrix: {_advertised_origin(server.httpd)}/about")
+    if getattr(server.httpd, "bind_mode", "local") == "lan":
+        pin = getattr(server.httpd, "active_pin", "")
+        print(f"[PAIR] open {_advertised_origin(server.httpd)}/pair")
+        print(f"[PAIR] one-time PIN: {pin} (expires in 5 minutes; consumed after first exchange)")
     if not getattr(args, "no_browser", False):
         try:
             import webbrowser
@@ -7501,9 +7858,15 @@ def _write_live_dashboard_html(session_dir: str):
     template_path = _dashboard_html_template_path()
     target = Path(_dashboard_html_path(session_dir))
     if template_path is not None:
-        target.write_bytes(template_path.read_bytes())
+        text = template_path.read_text(encoding="utf-8", errors="ignore")
+        text = re.sub(r"(<html\b(?![^>]*data-rvt-archive)[^>]*)>", r'\1 data-rvt-archive="1">', text, count=1)
+        text = re.sub(r"\s*<link\s+rel=\"manifest\"\s+href=\"/manifest\.webmanifest\">\s*", "\n", text, count=1)
+        target.write_text(text, encoding="utf-8")
         return
-    target.write_text(_load_dashboard_template_text(), encoding="utf-8")
+    text = _load_dashboard_template_text()
+    text = re.sub(r"(<html\b(?![^>]*data-rvt-archive)[^>]*)>", r'\1 data-rvt-archive="1">', text, count=1)
+    text = re.sub(r"\s*<link\s+rel=\"manifest\"\s+href=\"/manifest\.webmanifest\">\s*", "\n", text, count=1)
+    target.write_text(text, encoding="utf-8")
 
 
 def _write_live_dashboard_json(session_dir: str, status: str, elapsed: float, remain: Optional[float],
@@ -7863,7 +8226,7 @@ def _render_live_dashboard(session_dir: str, start_t: float, duration_s: Optiona
         warn(f"Dashboard update failed: {e}")
 
 
-def _start_dashboard_server(session_dir: str, port: int = 0) -> _DashboardServer:
+def _start_dashboard_server(session_dir: str, port: int = 8765) -> _DashboardServer:
     server = _DashboardServer(session_dir, port=port)
     server.start()
     return server
@@ -8139,7 +8502,7 @@ def cmd_session(args):
             _write_live_dashboard_html(session_dir)
             _write_live_dashboard_json(session_dir, "starting", 0.0, args.duration_s, radar_tracker, ref_tracker, raw_tracker, ["[INFO] Session starting"], analysis_summary=_dashboard_analysis_payload(session_dir))
             try:
-                dashboard_server = _start_dashboard_server(session_dir, port=int(getattr(args, "dashboard_port", 0) or 0))
+                dashboard_server = _start_dashboard_server(session_dir, port=int(getattr(args, "dashboard_port", 8765) or 0))
                 print(_green(f"[DASHBOARD] {dashboard_server.url}"))
                 if getattr(args, "open_dashboard", True):
                     try:
@@ -8148,6 +8511,10 @@ def cmd_session(args):
                     except Exception as e:
                         warn(f"Could not open dashboard in browser: {e}")
             except Exception as e:
+                port = int(getattr(args, "dashboard_port", 8765) or 0)
+                if port != 0:
+                    print(f"Port {port} in use. Stop the other instance or pass --dashboard-port <N>.", file=sys.stderr)
+                    raise SystemExit(2)
                 dashboard_enabled = False
                 warn(f"Could not start dashboard server: {e}")
     except Exception:
@@ -8322,7 +8689,7 @@ def cmd_dashboard(args):
     _write_live_dashboard_html(session_dir)
     dashboard_server = None
     try:
-        dashboard_server = _start_dashboard_server(session_dir, port=int(getattr(args, "dashboard_port", 0) or 0))
+        dashboard_server = _start_dashboard_server(session_dir, port=int(getattr(args, "dashboard_port", 8765) or 0))
         print(_green(f"[DASHBOARD] {dashboard_server.url}"))
         if getattr(args, "open_dashboard", True):
             try:
@@ -8331,6 +8698,10 @@ def cmd_dashboard(args):
             except Exception as e:
                 warn(f"Could not open dashboard in browser: {e}")
     except Exception as e:
+        port = int(getattr(args, "dashboard_port", 8765) or 0)
+        if port != 0:
+            print(f"Port {port} in use. Stop the other instance or pass --dashboard-port <N>.", file=sys.stderr)
+            raise SystemExit(2)
         warn(f"Could not start dashboard server: {e}")
     start_t = time.time()
     try:
@@ -13374,8 +13745,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_ss.add_argument("--golden-hr-r-tol", type=float, default=0.03)
     p_ss.add_argument("--dashboard-refresh-s", type=float, default=1.0,
                       help="live dashboard refresh period in seconds (default: 1.0)")
-    p_ss.add_argument("--dashboard-port", type=int, default=0,
-                      help="dashboard localhost port (default: auto)")
+    p_ss.add_argument("--dashboard-port", type=int, default=8765,
+                      help="dashboard localhost port (default: 8765; use 0 for auto)")
     p_ss.add_argument("--live-dashboard", dest="live_dashboard", action="store_true", default=True,
                       help="show live clean dashboard during session (default: enabled)")
     p_ss.add_argument("--no-dashboard", dest="live_dashboard", action="store_false",
@@ -13389,10 +13760,18 @@ def build_parser() -> argparse.ArgumentParser:
     # ── serve ────────────────────────────────────────────────────────────────
     p_srv = sub.add_parser("serve",
         help="localhost dashboard control server")
-    p_srv.add_argument("--host", default="127.0.0.1",
-                       help="control server bind host (default: 127.0.0.1)")
-    p_srv.add_argument("--control-port", type=int, default=8787,
-                       help="control server localhost port (default: 8787)")
+    p_srv.add_argument("--host", default=None,
+                       help="control server bind host (default: 127.0.0.1 local, 0.0.0.0 lan)")
+    p_srv.add_argument("--port", dest="control_port", type=int, default=8765,
+                       help="control server port (default: 8765; use 0 for auto)")
+    p_srv.add_argument("--control-port", dest="control_port", type=int,
+                       help="deprecated alias for --port")
+    p_srv.add_argument("--bind", choices=["local", "lan"], default="local",
+                       help="bind mode: local loopback or LAN with pairing token controls (default: local)")
+    p_srv.add_argument("--tls", nargs="*", default=None,
+                       help="serve HTTPS; omit paths to auto-generate .rvt_tls/cert.pem and key.pem")
+    p_srv.add_argument("--tls-trusted", action="store_true",
+                       help="send HSTS only when --tls uses a CA-trusted certificate")
     p_srv.add_argument("--sessions-root", default="sessions",
                        help="sessions root served by the control server (default: sessions)")
     p_srv.add_argument("--cors-origin", default="*",
@@ -13401,10 +13780,6 @@ def build_parser() -> argparse.ArgumentParser:
                        help="serve an integrated virtual radar stream over the live APIs and SSE")
     p_srv.add_argument("--no-browser", action="store_true",
                        help="do not open the dashboard browser tab")
-    p_srv.add_argument("--pair", action="store_true",
-                       help="enable PIN-paired LAN access — generates a 6-digit PIN at startup, gates POST control endpoints behind X-RVT-Auth tokens")
-    p_srv.add_argument("--tls", action="store_true",
-                       help="serve over HTTPS using a self-signed cert under .rvt_tls/ (not yet implemented in v12.0; falls back to HTTP)")
     p_srv.set_defaults(func=cmd_serve)
 
     # -- dashboard --------------------------------------------------------------
@@ -13415,8 +13790,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_db.add_argument("--duration-s", type=float, default=None,
                       help="optional auto-stop duration")
     p_db.add_argument("--dashboard-refresh-s", type=float, default=1.0)
-    p_db.add_argument("--dashboard-port", type=int, default=0,
-                      help="dashboard localhost port (default: auto)")
+    p_db.add_argument("--dashboard-port", type=int, default=8765,
+                      help="dashboard localhost port (default: 8765; use 0 for auto)")
     p_db.add_argument("--open-dashboard", dest="open_dashboard", action="store_true", default=True,
                       help="open the live dashboard automatically in your default browser (default: enabled)")
     p_db.add_argument("--no-open-dashboard", dest="open_dashboard", action="store_false",
@@ -13600,7 +13975,7 @@ def _run_self_tests() -> int:
     tmp = tempfile.mkdtemp(prefix="rvt-selftest-")
     server = None
     try:
-        args = argparse.Namespace(host="127.0.0.1", control_port=0, sessions_root=tmp, no_browser=True, cors_origin="*", mock=True)
+        args = argparse.Namespace(host="127.0.0.1", control_port=0, sessions_root=tmp, no_browser=True, cors_origin="*", mock=True, bind="local", tls=None, tls_trusted=False)
         server = _start_control_server(args)
         server.start()
         base = f"http://127.0.0.1:{server.httpd.server_port}"

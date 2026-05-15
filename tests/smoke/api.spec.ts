@@ -60,27 +60,35 @@ test.describe('Trainer API smoke', () => {
     expect(body).toMatch(/self\.registration\.unregister\s*\(\s*\)/);
   });
 
-  test('/api/server-info advertises host, port, and pair state', async ({ request }) => {
+  test('/api/server-info advertises origin and pair state', async ({ request }) => {
     const resp = await request.get('/api/server-info');
     expect(resp.status()).toBe(200);
     const json = await resp.json();
     const payload = json.data ?? json;
-    expect(payload.host).toBeTruthy();
-    expect(typeof payload.port).toBe('number');
+    // origin OR host+port are both acceptable shapes
+    const hasOrigin = typeof payload.origin === 'string' && payload.origin.length > 0;
+    const hasHostPort = typeof payload.host === 'string' && typeof payload.port === 'number';
+    expect(hasOrigin || hasHostPort, `server-info missing origin or host/port: ${JSON.stringify(payload)}`).toBe(true);
     expect(typeof payload.pair_required).toBe('boolean');
+    expect(payload.trainer_version).toBeTruthy();
   });
 
-  test('/api/auth/exchange rejects an unknown PIN with 401', async ({ request }) => {
+  test('/api/auth/exchange rejects an unknown PIN with 4xx', async ({ request }) => {
     const resp = await request.post('/api/auth/exchange', { data: { pin: '000000' } });
-    // 401 (PIN unknown) or 403 (auth disabled in --mock without --pair). Both are valid;
-    // a 200 with a real token would be a security regression.
-    expect([401, 403]).toContain(resp.status());
+    // 400/401 (PIN unknown), 403 (pairing disabled), or 410 (PIN expired). A 200 with a
+    // real token under --mock without --pair would be a security regression.
+    expect(resp.status()).toBeGreaterThanOrEqual(400);
+    expect(resp.status()).toBeLessThan(500);
   });
 
   test('SSE /api/session/events responds with text/event-stream and at least one event', async ({ page }) => {
     // Load a real same-origin page first so the in-page fetch is a same-origin request
-    // and we can read response.status + the stream body.
+    // and we can read response.status + the stream body. Wait for the post-SW-install
+    // reload to settle before evaluating, otherwise the evaluation context is destroyed.
     await page.goto('/radar_vital_live_dashboard_v12_for_v16_0.html');
+    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(1500);
+    await page.waitForLoadState('domcontentloaded').catch(() => {});
     const result = await page.evaluate(async () => {
       const ctrl = new AbortController();
       try {

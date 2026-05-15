@@ -1,0 +1,81 @@
+    :root {
+      --radius: 18px;
+      --radius-sm: 12px;
+      --radius-pill: 999px;
+      --tap: 44px;
+      --surface-glass: rgba(255,255,255,0.72);
+      --surface-glass-blur: 20px;
+      --sat: env(safe-area-inset-top, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+      --sal: env(safe-area-inset-left, 0px);
+      --sar: env(safe-area-inset-right, 0px);
+      --rail-w: 240px;
+      --rail-w-collapsed: 64px;
+      --topbar-h: 56px;
+      --bn-h: 64px;
+      --keyboard-h: 0px;
+    }
+    [data-theme="dark"], [data-theme="night"] {
+      --surface-glass: rgba(12,18,32,0.78);
+    }
+    [data-theme="hc"] {
+      --surface-glass: var(--surface-1);
+      --surface-glass-blur: 0px;
+    }
+    #demoBanner,
+    .demo-banner-clone {
+      align-items: center;
+      background: #b45309;
+      color: #fff;
+      display: flex;
+      font: 800 13px/1.25 system-ui, sans-serif;
+      gap: 10px;
+      letter-spacing: .02em;
+      min-height: 44px;
+      padding: 10px max(16px, var(--sar)) 10px max(16px, var(--sal));
+    }
+    #demoBanner {
+      box-shadow: 0 8px 24px rgba(15,23,42,.2);
+      left: 0;
+      position: fixed;
+      right: 0;
+      top: 0;
+      z-index: 10000;
+    }
+    #demoBanner[hidden] { display: none; }
+    html[data-sandbox="1"] body { padding-top: calc(44px + var(--sat)); }
+    html[data-sandbox="1"] #demoBanner { display: flex; }
+    .topbar {
+      min-height: calc(var(--topbar-h) + var(--sat));
+      padding-top: var(--sat) !important;
+      padding-left: max(var(--gap, 16px), var(--sal)) !important;
+      padding-right: max(var(--gap, 16px), var(--sar)) !important;
+    }
+    @supports (backdrop-filter: blur(1px)) {
+      @media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+        .topbar { background: var(--surface-glass) !important; backdrop-filter: blur(var(--surface-glass-blur)) saturate(180%); }
+      }
+      .bottom-nav { background: var(--surface-glass) !important; backdrop-filter: blur(var(--surface-glass-blur)) saturate(180%); }
+      dialog.sheet[open], .sheet.open { backdrop-filter: blur(var(--surface-glass-blur)) saturate(180%); }
+    }
+    [data-low-end] .topbar,
+    [data-low-end] .bottom-nav,
+    [data-low-end] dialog.sheet,
+    [data-low-end] .sheet.open {
+      backdrop-filter: none !important;
+      background: var(--surface-1, var(--surface)) !important;
+    }
+    .bottom-nav {
+      min-height: calc(var(--bn-h) + var(--sab));
+      padding-bottom: var(--sab) !important;
+    }
+    .fab {
+      bottom: calc(var(--bn-h) + var(--sab) + 16px) !important;
+    }
+    @media (min-width: 1024px) {
+      .bottom-nav { display: none !important; }
+      .rail { width: var(--rail-w-collapsed) !important; }
+    }
+    @media (min-width: 1280px) {
+      .rail { width: var(--rail-w) !important; }
+    }

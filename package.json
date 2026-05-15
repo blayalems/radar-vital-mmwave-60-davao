@@ -5,7 +5,9 @@
   "description": "Mobile-first PWA shell for the Radar Vital mmWave 60 GHz trainer. Capacitor APK + Tauri EXE + GitHub Pages.",
   "type": "module",
   "scripts": {
+    "extract:monolith": "node scripts/extract-monolith.mjs",
     "build:web": "node scripts/build-www.mjs",
+    "build:check": "node scripts/check-roundtrip.mjs",
     "test": "playwright test tests/smoke",
     "test:all": "playwright test",
     "test:smoke": "playwright test tests/smoke",

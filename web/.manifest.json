@@ -1,0 +1,743 @@
+{
+  "generatedFrom": "radar_vital_live_dashboard_v12_for_v16_0.html",
+  "blocks": [
+    {
+      "rel": "styles/rvt-loader-critical.css",
+      "as": "style",
+      "id": "rvt-loader-critical",
+      "lines": 14
+    },
+    {
+      "rel": "styles/rvt-consolidated-css.css",
+      "as": "style",
+      "id": "rvt-consolidated-css",
+      "lines": 27300
+    },
+    {
+      "rel": "styles/rvt-v12-mobile-pwa-css.css",
+      "as": "style",
+      "id": "rvt-v12-mobile-pwa-css",
+      "lines": 81
+    },
+    {
+      "rel": "modules/rvt-v12-boot.js",
+      "as": "script",
+      "id": "rvt-v12-boot",
+      "lines": 11
+    },
+    {
+      "rel": "modules/rvt-v12-demo-first-paint.js",
+      "as": "script",
+      "id": "rvt-v12-demo-first-paint",
+      "lines": 6
+    },
+    {
+      "rel": "modules/rvt-unified-js.js",
+      "as": "script",
+      "id": "rvt-unified-js",
+      "lines": 692
+    },
+    {
+      "rel": "styles/rvt-v11-polish-qol-css.css",
+      "as": "style",
+      "id": "rvt-v11-polish-qol-css",
+      "lines": 526
+    },
+    {
+      "rel": "modules/rvt-v11-consolidated-fixes-js.js",
+      "as": "script",
+      "id": "rvt-v11-consolidated-fixes-js",
+      "lines": 993
+    },
+    {
+      "rel": "styles/rvt-v11-release-visual-fixes.css",
+      "as": "style",
+      "id": "rvt-v11-release-visual-fixes",
+      "lines": 188
+    },
+    {
+      "rel": "styles/rvt-v11-pdf-bugfixes.css",
+      "as": "style",
+      "id": "rvt-v11-pdf-bugfixes",
+      "lines": 639
+    },
+    {
+      "rel": "styles/rvt-v11-consistency-fixes-css.css",
+      "as": "style",
+      "id": "rvt-v11-consistency-fixes-css",
+      "lines": 139
+    },
+    {
+      "rel": "styles/rvt-v11-uiux-consistency-bugfixes.css",
+      "as": "style",
+      "id": "rvt-v11-uiux-consistency-bugfixes",
+      "lines": 454
+    },
+    {
+      "rel": "modules/rvt-v11-uiux-consistency-bugfixes-js.js",
+      "as": "script",
+      "id": "rvt-v11-uiux-consistency-bugfixes-js",
+      "lines": 343
+    },
+    {
+      "rel": "styles/rvt-v15-enhancements-css.css",
+      "as": "style",
+      "id": "rvt-v15-enhancements-css",
+      "lines": 244
+    },
+    {
+      "rel": "modules/_anon-001.js",
+      "as": "script",
+      "id": null,
+      "lines": 1040
+    },
+    {
+      "rel": "styles/rvt-v15-1-css.css",
+      "as": "style",
+      "id": "rvt-v15-1-css",
+      "lines": 471
+    },
+    {
+      "rel": "modules/_anon-002.js",
+      "as": "script",
+      "id": null,
+      "lines": 845
+    },
+    {
+      "rel": "styles/rvt-v15-2-css.css",
+      "as": "style",
+      "id": "rvt-v15-2-css",
+      "lines": 550
+    },
+    {
+      "rel": "modules/_anon-003.js",
+      "as": "script",
+      "id": null,
+      "lines": 1125
+    },
+    {
+      "rel": "styles/rvt-phase-alpha-foundation-fixes-css.css",
+      "as": "style",
+      "id": "rvt-phase-alpha-foundation-fixes-css",
+      "lines": 132
+    },
+    {
+      "rel": "modules/rvt-phase-alpha-foundation-fixes-js.js",
+      "as": "script",
+      "id": "rvt-phase-alpha-foundation-fixes-js",
+      "lines": 965
+    },
+    {
+      "rel": "styles/rvt-beta-current-operator-console-css.css",
+      "as": "style",
+      "id": "rvt-beta-current-operator-console-css",
+      "lines": 213
+    },
+    {
+      "rel": "modules/rvt-beta-current-operator-console-js.js",
+      "as": "script",
+      "id": "rvt-beta-current-operator-console-js",
+      "lines": 521
+    },
+    {
+      "rel": "styles/rvt-waves-funnels-beta-css.css",
+      "as": "style",
+      "id": "rvt-waves-funnels-beta-css",
+      "lines": 316
+    },
+    {
+      "rel": "modules/rvt-waves-funnels-beta-js.js",
+      "as": "script",
+      "id": "rvt-waves-funnels-beta-js",
+      "lines": 670
+    },
+    {
+      "rel": "styles/rvt-beta-slice-operator-console-css.css",
+      "as": "style",
+      "id": "rvt-beta-slice-operator-console-css",
+      "lines": 403
+    },
+    {
+      "rel": "modules/rvt-beta-slice-operator-console-js.js",
+      "as": "script",
+      "id": "rvt-beta-slice-operator-console-js",
+      "lines": 1043
+    },
+    {
+      "rel": "styles/rvt-worker3-beta-css.css",
+      "as": "style",
+      "id": "rvt-worker3-beta-css",
+      "lines": 430
+    },
+    {
+      "rel": "modules/rvt-worker3-beta-js.js",
+      "as": "script",
+      "id": "rvt-worker3-beta-js",
+      "lines": 1137
+    },
+    {
+      "rel": "styles/rvt-sec02-a11y03-qol05-css.css",
+      "as": "style",
+      "id": "rvt-sec02-a11y03-qol05-css",
+      "lines": 127
+    },
+    {
+      "rel": "modules/rvt-sec02-autolock-js.js",
+      "as": "script",
+      "id": "rvt-sec02-autolock-js",
+      "lines": 173
+    },
+    {
+      "rel": "modules/rvt-a11y03-canvas-tables-js.js",
+      "as": "script",
+      "id": "rvt-a11y03-canvas-tables-js",
+      "lines": 97
+    },
+    {
+      "rel": "modules/rvt-qol05-destructive-modals-js.js",
+      "as": "script",
+      "id": "rvt-qol05-destructive-modals-js",
+      "lines": 201
+    },
+    {
+      "rel": "styles/rvt-snap01-gallery-grid-css.css",
+      "as": "style",
+      "id": "rvt-snap01-gallery-grid-css",
+      "lines": 45
+    },
+    {
+      "rel": "modules/rvt-snap01-gallery-grid-js.js",
+      "as": "script",
+      "id": "rvt-snap01-gallery-grid-js",
+      "lines": 179
+    },
+    {
+      "rel": "styles/rvt-snap03-reorder-labels-css.css",
+      "as": "style",
+      "id": "rvt-snap03-reorder-labels-css",
+      "lines": 29
+    },
+    {
+      "rel": "modules/rvt-snap03-reorder-labels-js.js",
+      "as": "script",
+      "id": "rvt-snap03-reorder-labels-js",
+      "lines": 237
+    },
+    {
+      "rel": "styles/rvt-snap02-compare-css.css",
+      "as": "style",
+      "id": "rvt-snap02-compare-css",
+      "lines": 69
+    },
+    {
+      "rel": "modules/rvt-snap02-compare-js.js",
+      "as": "script",
+      "id": "rvt-snap02-compare-js",
+      "lines": 239
+    },
+    {
+      "rel": "styles/rvt-gamma-batch2a-css.css",
+      "as": "style",
+      "id": "rvt-gamma-batch2a-css",
+      "lines": 36
+    },
+    {
+      "rel": "modules/rvt-audit01-sections-js.js",
+      "as": "script",
+      "id": "rvt-audit01-sections-js",
+      "lines": 36
+    },
+    {
+      "rel": "modules/rvt-audit02-filter-js.js",
+      "as": "script",
+      "id": "rvt-audit02-filter-js",
+      "lines": 18
+    },
+    {
+      "rel": "modules/rvt-audit03-reasons-js.js",
+      "as": "script",
+      "id": "rvt-audit03-reasons-js",
+      "lines": 12
+    },
+    {
+      "rel": "modules/rvt-audit05-export-js.js",
+      "as": "script",
+      "id": "rvt-audit05-export-js",
+      "lines": 13
+    },
+    {
+      "rel": "modules/rvt-nav01-rail-collapse-js.js",
+      "as": "script",
+      "id": "rvt-nav01-rail-collapse-js",
+      "lines": 11
+    },
+    {
+      "rel": "modules/rvt-dedupe-help-runtime-fix-js.js",
+      "as": "script",
+      "id": "rvt-dedupe-help-runtime-fix-js",
+      "lines": 74
+    },
+    {
+      "rel": "modules/rvt-nav04-conn-diag-js.js",
+      "as": "script",
+      "id": "rvt-nav04-conn-diag-js",
+      "lines": 14
+    },
+    {
+      "rel": "modules/rvt-bug06-speech-debounce-js.js",
+      "as": "script",
+      "id": "rvt-bug06-speech-debounce-js",
+      "lines": 14
+    },
+    {
+      "rel": "modules/rvt-set06-settings-io-js.js",
+      "as": "script",
+      "id": "rvt-set06-settings-io-js",
+      "lines": 18
+    },
+    {
+      "rel": "modules/rvt-set08-reset-defaults-js.js",
+      "as": "script",
+      "id": "rvt-set08-reset-defaults-js",
+      "lines": 13
+    },
+    {
+      "rel": "styles/rvt-gamma-batch2b-css.css",
+      "as": "style",
+      "id": "rvt-gamma-batch2b-css",
+      "lines": 41
+    },
+    {
+      "rel": "modules/rvt-rpt01-sticky-verdict-js.js",
+      "as": "script",
+      "id": "rvt-rpt01-sticky-verdict-js",
+      "lines": 65
+    },
+    {
+      "rel": "modules/rvt-rpt06-report-export-js.js",
+      "as": "script",
+      "id": "rvt-rpt06-report-export-js",
+      "lines": 19
+    },
+    {
+      "rel": "modules/rvt-alert02-severity-badge-js.js",
+      "as": "script",
+      "id": "rvt-alert02-severity-badge-js",
+      "lines": 32
+    },
+    {
+      "rel": "modules/rvt-alert04-auto-dismiss-js.js",
+      "as": "script",
+      "id": "rvt-alert04-auto-dismiss-js",
+      "lines": 38
+    },
+    {
+      "rel": "modules/rvt-alert06-waveform-jump-js.js",
+      "as": "script",
+      "id": "rvt-alert06-waveform-jump-js",
+      "lines": 42
+    },
+    {
+      "rel": "modules/rvt-alert08-sound-toggle-js.js",
+      "as": "script",
+      "id": "rvt-alert08-sound-toggle-js",
+      "lines": 34
+    },
+    {
+      "rel": "modules/rvt-live04-kpi-tooltip-js.js",
+      "as": "script",
+      "id": "rvt-live04-kpi-tooltip-js",
+      "lines": 50
+    },
+    {
+      "rel": "modules/rvt-live05-mode-shortcuts-js.js",
+      "as": "script",
+      "id": "rvt-live05-mode-shortcuts-js",
+      "lines": 21
+    },
+    {
+      "rel": "modules/rvt-live06-snap-enhance-js.js",
+      "as": "script",
+      "id": "rvt-live06-snap-enhance-js",
+      "lines": 30
+    },
+    {
+      "rel": "modules/rvt-live07-kpi-anim-pause-js.js",
+      "as": "script",
+      "id": "rvt-live07-kpi-anim-pause-js",
+      "lines": 30
+    },
+    {
+      "rel": "styles/rvt-gamma-batch2b-css~2.css",
+      "as": "style",
+      "id": "rvt-gamma-batch2b-css",
+      "lines": 363
+    },
+    {
+      "rel": "modules/rvt-rpt01-verdict-hero-js.js",
+      "as": "script",
+      "id": "rvt-rpt01-verdict-hero-js",
+      "lines": 112
+    },
+    {
+      "rel": "modules/rvt-rpt06-signoff-js.js",
+      "as": "script",
+      "id": "rvt-rpt06-signoff-js",
+      "lines": 54
+    },
+    {
+      "rel": "modules/rvt-alert02-clusters-js.js",
+      "as": "script",
+      "id": "rvt-alert02-clusters-js",
+      "lines": 49
+    },
+    {
+      "rel": "modules/rvt-alert04-snooze-js.js",
+      "as": "script",
+      "id": "rvt-alert04-snooze-js",
+      "lines": 37
+    },
+    {
+      "rel": "modules/rvt-alert06-wave-link-js.js",
+      "as": "script",
+      "id": "rvt-alert06-wave-link-js",
+      "lines": 22
+    },
+    {
+      "rel": "modules/rvt-alert08-badge-js.js",
+      "as": "script",
+      "id": "rvt-alert08-badge-js",
+      "lines": 23
+    },
+    {
+      "rel": "modules/rvt-live04-kpi-lineage-js.js",
+      "as": "script",
+      "id": "rvt-live04-kpi-lineage-js",
+      "lines": 20
+    },
+    {
+      "rel": "modules/rvt-live05-quick-tag-js.js",
+      "as": "script",
+      "id": "rvt-live05-quick-tag-js",
+      "lines": 11
+    },
+    {
+      "rel": "modules/rvt-live06-snapshot-fab-js.js",
+      "as": "script",
+      "id": "rvt-live06-snapshot-fab-js",
+      "lines": 43
+    },
+    {
+      "rel": "modules/rvt-live07-pulse-confidence-js.js",
+      "as": "script",
+      "id": "rvt-live07-pulse-confidence-js",
+      "lines": 15
+    },
+    {
+      "rel": "styles/rvt-gamma-delta-batch-css.css",
+      "as": "style",
+      "id": "rvt-gamma-delta-batch-css",
+      "lines": 48
+    },
+    {
+      "rel": "modules/rvt-setup01-js.js",
+      "as": "script",
+      "id": "rvt-setup01-js",
+      "lines": 60
+    },
+    {
+      "rel": "modules/rvt-work01-js.js",
+      "as": "script",
+      "id": "rvt-work01-js",
+      "lines": 15
+    },
+    {
+      "rel": "modules/rvt-work02-js.js",
+      "as": "script",
+      "id": "rvt-work02-js",
+      "lines": 9
+    },
+    {
+      "rel": "modules/rvt-obs02-js.js",
+      "as": "script",
+      "id": "rvt-obs02-js",
+      "lines": 15
+    },
+    {
+      "rel": "modules/rvt-rpt05-js.js",
+      "as": "script",
+      "id": "rvt-rpt05-js",
+      "lines": 12
+    },
+    {
+      "rel": "modules/rvt-snap04-js.js",
+      "as": "script",
+      "id": "rvt-snap04-js",
+      "lines": 12
+    },
+    {
+      "rel": "modules/rvt-home03-js.js",
+      "as": "script",
+      "id": "rvt-home03-js",
+      "lines": 7
+    },
+    {
+      "rel": "modules/rvt-home04-js.js",
+      "as": "script",
+      "id": "rvt-home04-js",
+      "lines": 10
+    },
+    {
+      "rel": "modules/rvt-home05-js.js",
+      "as": "script",
+      "id": "rvt-home05-js",
+      "lines": 9
+    },
+    {
+      "rel": "modules/rvt-wave04-js.js",
+      "as": "script",
+      "id": "rvt-wave04-js",
+      "lines": 9
+    },
+    {
+      "rel": "modules/rvt-funnel03-js.js",
+      "as": "script",
+      "id": "rvt-funnel03-js",
+      "lines": 9
+    },
+    {
+      "rel": "modules/rvt-sec03-js.js",
+      "as": "script",
+      "id": "rvt-sec03-js",
+      "lines": 11
+    },
+    {
+      "rel": "modules/rvt-obs01-js.js",
+      "as": "script",
+      "id": "rvt-obs01-js",
+      "lines": 12
+    },
+    {
+      "rel": "modules/rvt-audio01-js.js",
+      "as": "script",
+      "id": "rvt-audio01-js",
+      "lines": 9
+    },
+    {
+      "rel": "modules/rvt-audio02-js.js",
+      "as": "script",
+      "id": "rvt-audio02-js",
+      "lines": 8
+    },
+    {
+      "rel": "modules/rvt-cmd01-js.js",
+      "as": "script",
+      "id": "rvt-cmd01-js",
+      "lines": 7
+    },
+    {
+      "rel": "modules/rvt-cmd02-js.js",
+      "as": "script",
+      "id": "rvt-cmd02-js",
+      "lines": 5
+    },
+    {
+      "rel": "modules/rvt-nav02-js.js",
+      "as": "script",
+      "id": "rvt-nav02-js",
+      "lines": 8
+    },
+    {
+      "rel": "modules/rvt-home06-js.js",
+      "as": "script",
+      "id": "rvt-home06-js",
+      "lines": 5
+    },
+    {
+      "rel": "modules/rvt-live08-js.js",
+      "as": "script",
+      "id": "rvt-live08-js",
+      "lines": 5
+    },
+    {
+      "rel": "modules/rvt-wave06-js.js",
+      "as": "script",
+      "id": "rvt-wave06-js",
+      "lines": 6
+    },
+    {
+      "rel": "modules/rvt-snap05-js.js",
+      "as": "script",
+      "id": "rvt-snap05-js",
+      "lines": 6
+    },
+    {
+      "rel": "modules/rvt-audit04-js.js",
+      "as": "script",
+      "id": "rvt-audit04-js",
+      "lines": 5
+    },
+    {
+      "rel": "modules/rvt-rpt07-js.js",
+      "as": "script",
+      "id": "rvt-rpt07-js",
+      "lines": 6
+    },
+    {
+      "rel": "modules/rvt-help04-js.js",
+      "as": "script",
+      "id": "rvt-help04-js",
+      "lines": 7
+    },
+    {
+      "rel": "modules/rvt-set02-js.js",
+      "as": "script",
+      "id": "rvt-set02-js",
+      "lines": 4
+    },
+    {
+      "rel": "modules/rvt-set07-js.js",
+      "as": "script",
+      "id": "rvt-set07-js",
+      "lines": 6
+    },
+    {
+      "rel": "modules/rvt-alert05-js.js",
+      "as": "script",
+      "id": "rvt-alert05-js",
+      "lines": 8
+    },
+    {
+      "rel": "modules/rvt-nav03-js.js",
+      "as": "script",
+      "id": "rvt-nav03-js",
+      "lines": 9
+    },
+    {
+      "rel": "modules/rvt-qol02-js.js",
+      "as": "script",
+      "id": "rvt-qol02-js",
+      "lines": 6
+    },
+    {
+      "rel": "modules/rvt-qol06-js.js",
+      "as": "script",
+      "id": "rvt-qol06-js",
+      "lines": 7
+    },
+    {
+      "rel": "modules/rvt-mob02-js.js",
+      "as": "script",
+      "id": "rvt-mob02-js",
+      "lines": 7
+    },
+    {
+      "rel": "modules/rvt-mob04-js.js",
+      "as": "script",
+      "id": "rvt-mob04-js",
+      "lines": 5
+    },
+    {
+      "rel": "modules/rvt-live02-js.js",
+      "as": "script",
+      "id": "rvt-live02-js",
+      "lines": 9
+    },
+    {
+      "rel": "modules/rvt-setup04-js.js",
+      "as": "script",
+      "id": "rvt-setup04-js",
+      "lines": 5
+    },
+    {
+      "rel": "modules/rvt-cmd04-js.js",
+      "as": "script",
+      "id": "rvt-cmd04-js",
+      "lines": 6
+    },
+    {
+      "rel": "modules/rvt-i18n02-js.js",
+      "as": "script",
+      "id": "rvt-i18n02-js",
+      "lines": 5
+    },
+    {
+      "rel": "styles/rvt-sec01-css.css",
+      "as": "style",
+      "id": "rvt-sec01-css",
+      "lines": 4
+    },
+    {
+      "rel": "modules/rvt-sec01-js.js",
+      "as": "script",
+      "id": "rvt-sec01-js",
+      "lines": 404
+    },
+    {
+      "rel": "styles/rvt-bugfix-gui-perf-css.css",
+      "as": "style",
+      "id": "rvt-bugfix-gui-perf-css",
+      "lines": 8
+    },
+    {
+      "rel": "modules/rvt-bugfix-script-gui-perf-js.js",
+      "as": "script",
+      "id": "rvt-bugfix-script-gui-perf-js",
+      "lines": 66
+    },
+    {
+      "rel": "styles/rvt-visual-runtime-audit-fixes-css.css",
+      "as": "style",
+      "id": "rvt-visual-runtime-audit-fixes-css",
+      "lines": 531
+    },
+    {
+      "rel": "modules/rvt-visual-runtime-audit-fixes-js.js",
+      "as": "script",
+      "id": "rvt-visual-runtime-audit-fixes-js",
+      "lines": 572
+    },
+    {
+      "rel": "modules/rvt-bug06-speech-utterance-preservation-js.js",
+      "as": "script",
+      "id": "rvt-bug06-speech-utterance-preservation-js",
+      "lines": 81
+    },
+    {
+      "rel": "styles/rvt-live-rail-help-minimap-fixes-css.css",
+      "as": "style",
+      "id": "rvt-live-rail-help-minimap-fixes-css",
+      "lines": 138
+    },
+    {
+      "rel": "modules/rvt-live-rail-help-minimap-fixes-js.js",
+      "as": "script",
+      "id": "rvt-live-rail-help-minimap-fixes-js",
+      "lines": 276
+    },
+    {
+      "rel": "styles/rvt-bug-report1-layout-contract-css.css",
+      "as": "style",
+      "id": "rvt-bug-report1-layout-contract-css",
+      "lines": 223
+    },
+    {
+      "rel": "modules/rvt-bug-report1-contract-fixes-js.js",
+      "as": "script",
+      "id": "rvt-bug-report1-contract-fixes-js",
+      "lines": 452
+    },
+    {
+      "rel": "styles/rvt-p2-mobile-tap-targets-css.css",
+      "as": "style",
+      "id": "rvt-p2-mobile-tap-targets-css",
+      "lines": 3
+    },
+    {
+      "rel": "modules/rvt-v12-pwa-runtime.js",
+      "as": "script",
+      "id": "rvt-v12-pwa-runtime",
+      "lines": 474
+    }
+  ]
+}

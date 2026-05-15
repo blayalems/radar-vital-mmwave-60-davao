@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - claude/mobile-first-dashboard-upABy
   pull_request:
   workflow_dispatch:
 
@@ -24,26 +23,34 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+          cache-dependency-path: requirements-v12.txt
 
       - name: Install npm deps
-        run: npm install
+        run: npm ci
 
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy scipy pyserial cryptography || true
-          # Trainer can run with --mock and tolerates missing optional deps.
+          pip install -r requirements-v12.txt
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Verify trainer package imports
+        # Catches breakage in rvt_trainer/ package boundary that would otherwise
+        # surface as a fast Playwright webServer-start failure with no diagnostic.
+        run: |
+          python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer
+          python radar_vital_trainer_v12_for_v16_0.py --help > /dev/null
+          python -m rvt_trainer --help > /dev/null
 
       - name: Verify web/ ↔ monolith round-trip
         run: npm run build:check
 
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
       - name: Run Playwright smoke + API tests
         run: npx playwright test tests/smoke --project=desktop
         env:
-          PYTHON: python
+          PYTHON: python3
           RVT_TEST_PORT: 8989
 
       - name: Upload Playwright report on failure

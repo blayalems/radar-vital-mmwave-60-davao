@@ -4,12 +4,22 @@ on:
   push:
     branches:
       - main
-      - claude/mobile-first-dashboard-upABy
     paths:
       - 'radar_vital_live_dashboard_v12_for_v16_0.html'
+      - 'web/**'
       - 'assets/**'
       - 'capacitor.config.ts'
       - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
+      - '.github/workflows/build-apk.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'assets/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
       - 'scripts/**'
       - '.github/workflows/build-apk.yml'
   workflow_dispatch:
@@ -32,10 +42,18 @@ jobs:
           java-version: '21'
 
       - name: Install npm deps
-        run: npm install
+        run: npm ci
 
       - name: Build www/
         run: npm run build:web
+
+      - name: Diagnostic preflight
+        run: |
+          node --version
+          npm --version
+          java -version
+          npx cap --version
+          ls -la www/ | head -20
 
       - name: Add Capacitor Android platform
         run: |

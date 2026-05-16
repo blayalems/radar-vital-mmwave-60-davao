@@ -4,12 +4,22 @@ on:
   push:
     branches:
       - main
-      - claude/mobile-first-dashboard-upABy
     paths:
       - 'radar_vital_live_dashboard_v12_for_v16_0.html'
+      - 'web/**'
       - 'assets/**'
       - 'src-tauri/**'
       - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
+      - '.github/workflows/build-exe.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'assets/**'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'package-lock.json'
       - 'scripts/**'
       - '.github/workflows/build-exe.yml'
   workflow_dispatch:
@@ -33,19 +43,64 @@ jobs:
           workspaces: 'src-tauri -> target'
 
       - name: Install npm deps
-        run: npm install
+        run: npm ci
 
       - name: Build www/
         run: npm run build:web
 
+      - name: Diagnostic preflight
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          rustc --version
+          cargo --version
+          Get-ChildItem www | Select-Object -First 10
+
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version '^2.0' --locked
 
-      - name: Build MSI + NSIS installers
-        run: cargo tauri build --bundles msi nsis
+      - name: Print Tauri CLI version
+        run: cargo tauri --version
+
+      - name: Compile-only (no bundling)
+        # Surfaces Rust/Tauri compile errors separately from WiX/NSIS bundling
+        # errors. The 14-min PR #5 failure could've been at compile time, link
+        # time, or bundle time — splitting these out tells us which.
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml --verbose
         env:
-          # downloadBootstrapper minimizes installer size; the bootstrapper fetches WebView2 at install time on Win10.
+          RUST_BACKTRACE: '1'
+
+      - name: Build MSI installer
+        # First bundle target. WiX 3 is auto-downloaded by Tauri on first run;
+        # if that fetch is blocked we'll see it here, not in a 14-min mystery.
+        run: cargo tauri build --verbose --bundles msi
+        env:
+          RUST_BACKTRACE: '1'
           TAURI_BUNDLE__WEBVIEW_FIXED_RUNTIME_PATH: ''
+        continue-on-error: true
+
+      - name: Build NSIS installer
+        # Second bundle target. NSIS is also auto-downloaded by Tauri.
+        run: cargo tauri build --verbose --bundles nsis
+        env:
+          RUST_BACKTRACE: '1'
+          TAURI_BUNDLE__WEBVIEW_FIXED_RUNTIME_PATH: ''
+        continue-on-error: true
+
+      - name: List bundled installers
+        # Surfaces what was produced even if one bundle failed.
+        shell: pwsh
+        run: |
+          $msiDir = "src-tauri/target/release/bundle/msi"
+          $nsisDir = "src-tauri/target/release/bundle/nsis"
+          if (Test-Path $msiDir)  { Get-ChildItem $msiDir }  else { Write-Host "no msi/"  }
+          if (Test-Path $nsisDir) { Get-ChildItem $nsisDir } else { Write-Host "no nsis/" }
+          # Fail the job if BOTH bundles are empty.
+          if (-not (Test-Path $msiDir) -and -not (Test-Path $nsisDir)) { exit 1 }
+          $msiCount  = if (Test-Path $msiDir)  { (Get-ChildItem $msiDir  -ErrorAction SilentlyContinue).Count } else { 0 }
+          $nsisCount = if (Test-Path $nsisDir) { (Get-ChildItem $nsisDir -ErrorAction SilentlyContinue).Count } else { 0 }
+          if ($msiCount -eq 0 -and $nsisCount -eq 0) { exit 1 }
 
       - name: Upload installers
         uses: actions/upload-artifact@v4

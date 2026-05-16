@@ -11,10 +11,10 @@
 |---|---|---|---|
 | Dashboard refactor (v12/v16 monolith → split) | `web/` | Phase 3 complete — body partials split; legacy patch tail bundled into 2 patch files | codex/complete-handoff-phases |
 | Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` owns the real manifest/origin/support-matrix/pair-page builders (PR 5). `api/auth.py`/`assets/static.py` will own real code on PR 3/4 merge. `api/sse.py` stays a facade — the `ControlHandler` dispatcher is too coupled to move without a Phase 5 refactor. | claude/trainer-extract-sse-and-info |
-| PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | **Red on PR #5 head** (`deploy` failed in 4 s). Untriggered on PR #6 (no path-filter match). | unstable |
-| APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | **Red on PR #5 head** (`apk` failed in 16 s). Untriggered on PR #6. | unstable |
-| EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | **Red on PR #5 head** (`windows` ran 14 min then failed — real Tauri MSI error). Untriggered on PR #6. | unstable |
-| Smoke + visual tests | `tests/` | Locally 14/14 desktop green, 44/56 with WebKit projects (sandbox lacks webkit). **CI `test` job red on both PR #5 and PR #6** in 6–9 s — under investigation in `claude/ci-roundtrip-fix`. | claude/ci-roundtrip-fix |
+| PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | Build green on PR #8. Deploy gated to push-to-main; needs Settings→Pages source = "GitHub Actions" (one-time manual). | claude/ci-workflow-paths-and-fixes |
+| APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | Green on PR #8 (2:07) after adding `typescript` devDep so cap reads `capacitor.config.ts`. | claude/ci-workflow-paths-and-fixes |
+| EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | Green on PR #8 (14:44) after split MSI/NSIS + verbose diagnostics. | claude/ci-workflow-paths-and-fixes |
+| Smoke + visual tests | `tests/` | Green on every PR after #7's workflow hardening. 14/14 desktop in ~1:32 in CI. | main |
 
 ## How the dashboard build flows
 
@@ -64,7 +64,24 @@ www/
 
 ## Refactor progress log (newest first)
 
-### 2026-05-16 — Trainer Phase 4: real server_info extraction (PR 5 of CI batch)
+### 2026-05-16 — CI: harden apk + windows + pages workflows (PR 2 of CI batch)
+- All three packaging workflows had `claude/mobile-first-dashboard-upABy` in
+  their push triggers (stale) and were missing `web/**` from path filters, so
+  Codex's PR #6 didn't trigger any of them. Replaced with main-only push +
+  PR triggers covering `web/**`, `assets/**`, and the workflow file itself.
+- `apk`, `windows`, and `pages` workflows now use `npm ci` (strict lockfile)
+  instead of `npm install`. Removed `|| npm install` fallback in pages.yml
+  which silently masked real lockfile drift.
+- `build-exe.yml`: added `--verbose` to `cargo tauri build`; the 14-min CI
+  failure on PR #5 ran to MSI bundling without any diagnostic. Comma-separated
+  `--bundles msi,nsis` per Tauri v2 CLI.
+- `pages.yml`: deploy job is now gated to `push` + `workflow_dispatch` only —
+  PRs no longer attempt to deploy (which would fail on environment auth).
+  Added comment documenting the **one-time manual setup**: repo Settings →
+  Pages → Source must be "GitHub Actions" or the deploy job fails in ~4 s
+  with no usable diagnostic.
+
+### 2026-05-16 — Trainer Phase 4: real server_info extraction (PR 5 of CI batch, merged #11)
 - `rvt_trainer/api/server_info.py` is now the real implementation:
   - `advertised_host(server)` — explicit override → bound → LAN-guess.
   - `advertised_origin(server)` — `scheme://host:port`.
@@ -76,19 +93,21 @@ www/
 - Circular import to `_guess_lan_ip` resolved via deferred import inside
   `advertised_host`. `_server_scheme` (one liner) duplicated into
   `server_info.py` to avoid another deferred import.
-- Same preventive `api/__init__.py` stub as PR 3 (this branch was off main
-  before PR 3 merged; the fix applies cleanly).
-- New unit tests `tests/test_trainer_server_info.py` (8 tests):
-  - explicit `advertised_host` override, bound fallback, 0.0.0.0→LAN guess
-  - origin format http vs https
-  - manifest PWA contract (id, display, start_url, scope, 192/512 icons,
-    maskable purpose, Start/Open-last-report shortcuts)
-  - support matrix lists all 5 modes
-  - pair page shows PIN + "Expires in" + "consumed after first use"
-  - pair page without active PIN shows the local-bind notice instead
+- Preventive `api/__init__.py` stub.
+- New unit tests `tests/test_trainer_server_info.py` (8 tests).
 - `api/sse.py` stays a facade — `_ControlHandler` is 1000s of lines tightly
   coupled to `BaseHTTPRequestHandler`; safe extraction needs a Phase 5
   dispatcher refactor (tracked separately).
+
+### 2026-05-15 — CI: harden Playwright workflow (PR 1 of CI batch, merged #7)
+- `npm ci` instead of `npm install` (strict lockfile, fails fast and loud).
+- `pip install -r requirements-v12.txt` instead of a hand-typed package list
+  with `|| true` swallowing real errors.
+- `cache-dependency-path: requirements-v12.txt` so pip cache restores from
+  a deterministic file.
+- New "Verify trainer package imports" step.
+- `PYTHON: python3` (Ubuntu standard).
+- Drop the stale `claude/mobile-first-dashboard-upABy` push trigger.
 
 ### 2026-05-15 — CI audit: most jobs are red; Phase 4 was facade-only
 - Audit of CI on PR #5 (mine) and PR #6 (Codex's): both self-merged in seconds
@@ -102,8 +121,8 @@ www/
 - Locally `npm run build:check` is clean and `npx playwright test --project=desktop`
   is 14/14 green. CI red is environmental, not a source regression.
 - Plan: 5 small PRs branched from `main`:
-  1. `claude/ci-roundtrip-fix` — diagnose + harden the `test` workflow (this PR).
-  2. `claude/ci-workflow-paths-and-fixes` — fix `apk`, `windows`, `deploy/pages`.
+  1. `claude/ci-roundtrip-fix` — harden the `test` workflow (merged → #7).
+  2. `claude/ci-workflow-paths-and-fixes` — fix `apk`, `windows`, `deploy/pages` (this PR).
   3. `claude/trainer-extract-auth` — real PIN/token code in `rvt_trainer/api/auth.py`.
   4. `claude/trainer-extract-static` — real `/sw.js`, `/manifest`, `/icons`, `/lib`, `/fonts`, `/pair` handlers in `rvt_trainer/assets/static.py`.
   5. `claude/trainer-extract-sse-and-info` — real SSE + `/api/server-info` in `rvt_trainer/api/{sse,server_info}.py`.

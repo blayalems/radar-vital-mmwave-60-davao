@@ -10,11 +10,11 @@
 | Workstream | Source-of-truth | Current state | Owner / last touched |
 |---|---|---|---|
 | Dashboard refactor (v12/v16 monolith → split) | `web/` | Phase 3 complete — body partials split; legacy patch tail bundled into 2 patch files | codex/complete-handoff-phases |
-| Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 complete — CLI shim preserved; package facades added; legacy implementation isolated in `rvt_trainer/monolith.py` | codex/complete-handoff-phases |
-| PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | Working — green | claude/mobile-first-dashboard-upABy |
-| APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | Working — green | claude/mobile-first-dashboard-upABy |
-| EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | Working — green, WebView2 bootstrap downloads on first run | claude/mobile-first-dashboard-upABy |
-| Smoke + visual tests | `tests/` | 56/56 smoke green locally; visual baseline policy remains CI-owned | codex/complete-handoff-phases |
+| Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **facade only** — `rvt_trainer/*` modules are 5–15 line re-export shims; implementation still 14,026 lines in `rvt_trainer/monolith.py`. Real extraction tracked in PRs 3–5 of the next batch. | codex/complete-handoff-phases |
+| PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | **Red on PR #5 head** (`deploy` failed in 4 s). Untriggered on PR #6 (no path-filter match). | unstable |
+| APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | **Red on PR #5 head** (`apk` failed in 16 s). Untriggered on PR #6. | unstable |
+| EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | **Red on PR #5 head** (`windows` ran 14 min then failed — real Tauri MSI error). Untriggered on PR #6. | unstable |
+| Smoke + visual tests | `tests/` | Locally 14/14 desktop green, 44/56 with WebKit projects (sandbox lacks webkit). **CI `test` job red on both PR #5 and PR #6** in 6–9 s — under investigation in `claude/ci-roundtrip-fix`. | claude/ci-roundtrip-fix |
 
 ## How the dashboard build flows
 
@@ -63,6 +63,24 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-15 — CI audit: most jobs are red; Phase 4 was facade-only
+- Audit of CI on PR #5 (mine) and PR #6 (Codex's): both self-merged in seconds
+  with red CI. PR #5 had `build` green, `test`/`apk`/`deploy`/`windows` red.
+  PR #6 only triggered `test` (other workflows' path filters missed `web/**`
+  and `rvt_trainer/**`), and `test` red in 9 s.
+- Audit of `rvt_trainer/`: every `api/*.py`, `assets/*.py`, `audit/*.py`,
+  `transport/*.py` is a 5–15 line `from ..monolith import ... as ...` re-export.
+  The implementation is fully in `rvt_trainer/monolith.py` (14,026 lines).
+  Phase 4 is scaffolding, not extraction.
+- Locally `npm run build:check` is clean and `npx playwright test --project=desktop`
+  is 14/14 green. CI red is environmental, not a source regression.
+- Plan: 5 small PRs branched from `main`:
+  1. `claude/ci-roundtrip-fix` — diagnose + harden the `test` workflow (this PR).
+  2. `claude/ci-workflow-paths-and-fixes` — fix `apk`, `windows`, `deploy/pages`.
+  3. `claude/trainer-extract-auth` — real PIN/token code in `rvt_trainer/api/auth.py`.
+  4. `claude/trainer-extract-static` — real `/sw.js`, `/manifest`, `/icons`, `/lib`, `/fonts`, `/pair` handlers in `rvt_trainer/assets/static.py`.
+  5. `claude/trainer-extract-sse-and-info` — real SSE + `/api/server-info` in `rvt_trainer/api/{sse,server_info}.py`.
 
 ### 2026-05-16 — Phase 2-4 complete: source split, patch bundles, trainer package
 - `web/index.html` now keeps only build markers plus shell includes; 20 body

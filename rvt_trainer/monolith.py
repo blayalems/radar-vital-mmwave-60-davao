@@ -5418,8 +5418,14 @@ self.addEventListener('activate', (e) => {
 """
 
 
-def _assets_root() -> Path:
-    return _REPO_ROOT / "assets"
+# Static-asset path resolution + content-type lives in
+# rvt_trainer.assets.static; we re-export under the existing underscored
+# names so call sites in this file stay unchanged.
+from rvt_trainer.assets.static import (  # noqa: E402
+    assets_root as _assets_root,
+    content_type_for_asset as _content_type_for_asset,
+    safe_asset_path as _safe_asset_path,
+)
 
 
 def _server_scheme(server) -> str:
@@ -5453,38 +5459,6 @@ from rvt_trainer.api.server_info import (  # noqa: E402
     pair_page_html as _pair_page_html,
     support_matrix_html as _support_matrix_html,
 )
-
-
-def _safe_asset_path(url_path: str) -> Optional[Path]:
-    root = _assets_root().resolve()
-    rel = unquote(url_path.lstrip("/")).replace("\\", "/")
-    if not (rel.startswith("icons/") or rel.startswith("lib/") or rel.startswith("fonts/")):
-        return None
-    target = (root / rel).resolve()
-    try:
-        target.relative_to(root)
-    except ValueError:
-        return None
-    private_root = (_REPO_ROOT / ".rvt_tls").resolve()
-    try:
-        target.relative_to(private_root)
-        return None
-    except ValueError:
-        pass
-    return target if target.is_file() else None
-
-
-def _content_type_for_asset(path: Path) -> str:
-    suffix = path.suffix.lower()
-    if suffix == ".js":
-        return "application/javascript; charset=utf-8"
-    if suffix == ".css":
-        return "text/css; charset=utf-8"
-    if suffix == ".woff2":
-        return "font/woff2"
-    if suffix == ".png":
-        return "image/png"
-    return mimetypes.guess_type(str(path))[0] or "application/octet-stream"
 
 
 def _qr_png_bytes(text: str, scale: int = 8, border: int = 4) -> bytes:

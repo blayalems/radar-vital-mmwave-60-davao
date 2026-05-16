@@ -4,12 +4,22 @@ on:
   push:
     branches:
       - main
-      - claude/mobile-first-dashboard-upABy
     paths:
       - 'radar_vital_live_dashboard_v12_for_v16_0.html'
+      - 'web/**'
       - 'assets/**'
       - 'src-tauri/**'
       - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
+      - '.github/workflows/build-exe.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'assets/**'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'package-lock.json'
       - 'scripts/**'
       - '.github/workflows/build-exe.yml'
   workflow_dispatch:
@@ -33,16 +43,28 @@ jobs:
           workspaces: 'src-tauri -> target'
 
       - name: Install npm deps
-        run: npm install
+        run: npm ci
 
       - name: Build www/
         run: npm run build:web
+
+      - name: Diagnostic preflight
+        shell: pwsh
+        run: |
+          node --version
+          npm --version
+          rustc --version
+          cargo --version
+          Get-ChildItem www | Select-Object -First 10
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version '^2.0' --locked
 
       - name: Build MSI + NSIS installers
-        run: cargo tauri build --bundles msi nsis
+        # --verbose surfaces real bundle errors; the 14-min failure on PR #5
+        # head ran to MSI bundling without any diagnostic. Bundle list is
+        # comma-separated per Tauri v2 CLI.
+        run: cargo tauri build --verbose --bundles msi,nsis
         env:
           # downloadBootstrapper minimizes installer size; the bootstrapper fetches WebView2 at install time on Win10.
           TAURI_BUNDLE__WEBVIEW_FIXED_RUNTIME_PATH: ''

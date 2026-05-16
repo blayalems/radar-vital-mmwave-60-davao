@@ -10,7 +10,7 @@
 | Workstream | Source-of-truth | Current state | Owner / last touched |
 |---|---|---|---|
 | Dashboard refactor (v12/v16 monolith → split) | `web/` | Phase 3 complete — body partials split; legacy patch tail bundled into 2 patch files | codex/complete-handoff-phases |
-| Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **facade only** — `rvt_trainer/*` modules are 5–15 line re-export shims; implementation still 14,026 lines in `rvt_trainer/monolith.py`. Real extraction tracked in PRs 3–5 of the next batch. | codex/complete-handoff-phases |
+| Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` owns the real manifest/origin/support-matrix/pair-page builders (PR 5). `api/auth.py`/`assets/static.py` will own real code on PR 3/4 merge. `api/sse.py` stays a facade — the `ControlHandler` dispatcher is too coupled to move without a Phase 5 refactor. | claude/trainer-extract-sse-and-info |
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | **Red on PR #5 head** (`deploy` failed in 4 s). Untriggered on PR #6 (no path-filter match). | unstable |
 | APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | **Red on PR #5 head** (`apk` failed in 16 s). Untriggered on PR #6. | unstable |
 | EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | **Red on PR #5 head** (`windows` ran 14 min then failed — real Tauri MSI error). Untriggered on PR #6. | unstable |
@@ -63,6 +63,32 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-16 — Trainer Phase 4: real server_info extraction (PR 5 of CI batch)
+- `rvt_trainer/api/server_info.py` is now the real implementation:
+  - `advertised_host(server)` — explicit override → bound → LAN-guess.
+  - `advertised_origin(server)` — `scheme://host:port`.
+  - `manifest_payload(server)` — the dynamic `manifest.webmanifest` body.
+  - `support_matrix_html(server)` — operator-facing per-mode support page.
+  - `pair_page_html(server)` — operator-facing `/pair` page with TTL.
+- ~90 lines extracted from `rvt_trainer/monolith.py` lines 5438–5511.
+  `monolith.py` re-exports under the underscored names.
+- Circular import to `_guess_lan_ip` resolved via deferred import inside
+  `advertised_host`. `_server_scheme` (one liner) duplicated into
+  `server_info.py` to avoid another deferred import.
+- Same preventive `api/__init__.py` stub as PR 3 (this branch was off main
+  before PR 3 merged; the fix applies cleanly).
+- New unit tests `tests/test_trainer_server_info.py` (8 tests):
+  - explicit `advertised_host` override, bound fallback, 0.0.0.0→LAN guess
+  - origin format http vs https
+  - manifest PWA contract (id, display, start_url, scope, 192/512 icons,
+    maskable purpose, Start/Open-last-report shortcuts)
+  - support matrix lists all 5 modes
+  - pair page shows PIN + "Expires in" + "consumed after first use"
+  - pair page without active PIN shows the local-bind notice instead
+- `api/sse.py` stays a facade — `_ControlHandler` is 1000s of lines tightly
+  coupled to `BaseHTTPRequestHandler`; safe extraction needs a Phase 5
+  dispatcher refactor (tracked separately).
 
 ### 2026-05-15 — CI audit: most jobs are red; Phase 4 was facade-only
 - Audit of CI on PR #5 (mine) and PR #6 (Codex's): both self-merged in seconds

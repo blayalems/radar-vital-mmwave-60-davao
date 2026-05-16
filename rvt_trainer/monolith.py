@@ -5308,8 +5308,16 @@ _TRAINER_LOG: Deque[str] = deque(maxlen=200)
 _RATE_LIMIT: Dict[str, Tuple[float, float]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
 _RATE_LIMIT_MAX = 1024
-_PIN_TTL_S = 300
-_PIN_MAX = 8
+
+# Pairing PIN/token implementation lives in rvt_trainer.api.auth so the
+# package boundary owns it; we re-export under the underscored names that
+# existing call sites in this file already use.
+from rvt_trainer.api.auth import (  # noqa: E402
+    _PIN_MAX,
+    _PIN_TTL_S,
+    exchange_pair_pin as _exchange_pair_pin,
+    make_pair_pin as _make_pair_pin,
+)
 
 
 def _schema_wrap(payload: Dict[str, object], schema_version: str = CONTROL_API_SCHEMA_VERSION) -> Dict[str, object]:
@@ -5705,41 +5713,6 @@ def _qr_png_bytes(text: str, scale: int = 8, border: int = 4) -> bytes:
 
     ihdr = struct.pack(">IIBBBBB", qr_size, qr_size, 8, 2, 0, 0, 0)
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
-
-
-def _make_pair_pin(server) -> str:
-    pin = f"{secrets.randbelow(1000000):06d}"
-    now = time.time()
-    pins = getattr(server, "pair_pins", {})
-    expired = [k for k, item in pins.items() if float(item.get("expires_at", 0.0)) <= now]
-    for key in expired:
-        pins.pop(key, None)
-    while len(pins) >= _PIN_MAX:
-        oldest = min(pins, key=lambda k: float(pins[k].get("created_at", 0.0)))
-        pins.pop(oldest, None)
-    pins[pin] = {"created_at": now, "expires_at": now + _PIN_TTL_S}
-    server.pair_pins = pins
-    server.active_pin = pin
-    server.active_pin_expires_at = now + _PIN_TTL_S
-    return pin
-
-
-def _exchange_pair_pin(server, pin: str) -> Tuple[int, Dict[str, object]]:
-    now = time.time()
-    pins = getattr(server, "pair_pins", {})
-    item = pins.get(str(pin or ""))
-    if not item:
-        return 410, {"ok": False, "error": {"code": "PIN_EXPIRED_OR_USED", "message": "pairing PIN expired or was already used"}}
-    if float(item.get("expires_at", 0.0)) <= now:
-        pins.pop(str(pin), None)
-        return 410, {"ok": False, "error": {"code": "PIN_EXPIRED", "message": "pairing PIN expired"}}
-    pins.pop(str(pin), None)
-    if getattr(server, "active_pin", "") == str(pin):
-        server.active_pin = ""
-        server.active_pin_expires_at = 0.0
-    token = secrets.token_urlsafe(24)
-    server.auth_tokens.add(token)
-    return 200, {"ok": True, "token": token, "token_type": "RVT-Token", "expires": "process"}
 
 
 def _ensure_self_signed_cert(cert_path: str, key_path: str, host: str):

@@ -10,11 +10,11 @@
 | Workstream | Source-of-truth | Current state | Owner / last touched |
 |---|---|---|---|
 | Dashboard refactor (v12/v16 monolith → split) | `web/` | Phase 3 complete — body partials split; legacy patch tail bundled into 2 patch files | codex/complete-handoff-phases |
-| Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` owns the real manifest/origin/support-matrix/pair-page builders (PR 5). `api/auth.py`/`assets/static.py` will own real code on PR 3/4 merge. `api/sse.py` stays a facade — the `ControlHandler` dispatcher is too coupled to move without a Phase 5 refactor. | claude/trainer-extract-sse-and-info |
-| PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | Build green on PR #8. Deploy gated to push-to-main; needs Settings→Pages source = "GitHub Actions" (one-time manual). | claude/ci-workflow-paths-and-fixes |
-| APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | Green on PR #8 (2:07) after adding `typescript` devDep so cap reads `capacitor.config.ts`. | claude/ci-workflow-paths-and-fixes |
-| EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | Green on PR #8 (14:44) after split MSI/NSIS + verbose diagnostics. | claude/ci-workflow-paths-and-fixes |
-| Smoke + visual tests | `tests/` | Green on every PR after #7's workflow hardening. 14/14 desktop in ~1:32 in CI. | main |
+| Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` (#11) and `api/auth.py` (this PR) own real code. `assets/static.py` real on PR #10 merge. `api/sse.py` still a facade. | claude/trainer-extract-auth |
+| PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | Build green on PR #8 (merged). Deploy gated to push-to-main; needs Settings→Pages source = "GitHub Actions" (one-time manual). | main |
+| APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | Green on PR #8 (merged) — `typescript` devDep added. | main |
+| EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | Green on PR #8 (merged) — split MSI/NSIS + verbose diagnostics. | main |
+| Smoke + visual tests | `tests/` | Green on every PR after #7. 14/14 desktop in ~1:32 in CI. | main |
 
 ## How the dashboard build flows
 
@@ -64,7 +64,7 @@ www/
 
 ## Refactor progress log (newest first)
 
-### 2026-05-16 — CI: harden apk + windows + pages workflows (PR 2 of CI batch)
+### 2026-05-16 — CI: harden apk + windows + pages workflows (PR 2 of CI batch, merged #8)
 - All three packaging workflows had `claude/mobile-first-dashboard-upABy` in
   their push triggers (stale) and were missing `web/**` from path filters, so
   Codex's PR #6 didn't trigger any of them. Replaced with main-only push +
@@ -98,6 +98,15 @@ www/
 - `api/sse.py` stays a facade — `_ControlHandler` is 1000s of lines tightly
   coupled to `BaseHTTPRequestHandler`; safe extraction needs a Phase 5
   dispatcher refactor (tracked separately).
+
+### 2026-05-16 — Trainer Phase 4: real PIN/auth extraction (PR 3 of CI batch)
+- `rvt_trainer/api/auth.py` is now the real implementation: `make_pair_pin()`,
+  `exchange_pair_pin()`, `_PIN_TTL_S = 300`, `_PIN_MAX = 8`. ~70 lines extracted
+  from `rvt_trainer/monolith.py` lines 5774–5806.
+- `monolith.py` keeps its existing internal call sites by re-exporting under
+  the underscored names (`_make_pair_pin`, `_exchange_pair_pin`,
+  `_PIN_TTL_S`, `_PIN_MAX`) — net zero behavioural change.
+- New unit tests in `tests/test_trainer_auth.py` (8 tests, 1.5 s).
 
 ### 2026-05-15 — CI: harden Playwright workflow (PR 1 of CI batch, merged #7)
 - `npm ci` instead of `npm install` (strict lockfile, fails fast and loud).

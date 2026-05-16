@@ -41,6 +41,11 @@ jobs:
           python radar_vital_trainer_v12_for_v16_0.py --help > /dev/null
           python -m rvt_trainer --help > /dev/null
 
+      - name: Run Python unit tests (rvt_trainer/)
+        # Glob picks up every tests/test_trainer_*.py file so future PRs can
+        # add modules (auth, static, sse, server_info, …) without touching CI.
+        run: python -m pytest tests/test_trainer_*.py -v
+
       - name: Verify web/ ↔ monolith round-trip
         run: npm run build:check
 

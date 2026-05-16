@@ -5435,80 +5435,16 @@ def _guess_lan_ip() -> str:
             pass
 
 
-def _advertised_host(server) -> str:
-    host = str(getattr(server, "advertised_host", "") or "")
-    if host:
-        return host
-    bound = server.server_address[0] if getattr(server, "server_address", None) else "127.0.0.1"
-    return _guess_lan_ip() if bound in {"", "0.0.0.0", "::"} else bound
-
-
-def _advertised_origin(server) -> str:
-    return f"{_server_scheme(server)}://{_advertised_host(server)}:{int(server.server_port)}"
-
-
-def _manifest_payload(server) -> Dict[str, object]:
-    return {
-        "id": "/",
-        "name": "Radar Vital Trainer",
-        "short_name": "Radar Vital",
-        "start_url": "./live_dashboard.html",
-        "scope": "./",
-        "display": "standalone",
-        "background_color": "#f4f6fb",
-        "theme_color": "#3b82f6",
-        "orientation": "any",
-        "categories": ["health", "medical"],
-        "icons": [
-            {"src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
-            {"src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
-            {"src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
-        ],
-        "shortcuts": [
-            {"name": "Start session", "url": "./live_dashboard.html#start"},
-            {"name": "Open last report", "url": "./live_dashboard.html#report"},
-        ],
-    }
-
-
-def _support_matrix_rows() -> List[Tuple[str, str, str, str, str]]:
-    return [
-        ("Desktop browser -> http://127.0.0.1:8765", "yes", "yes", "yes, Chromium", "yes"),
-        ("Phone browser -> http://<lan-ip>:8765", "no", "no", "no", "yes, read-only without PIN"),
-        ("Phone browser -> https://<lan-ip>:8765 (--tls)", "yes after cert trust", "yes", "yes, Android Chrome", "yes"),
-        ("Capacitor APK", "native", "local cache", "BLE plugin", "native HTTP bridge"),
-        ("Tauri EXE", "native", "local cache", "plugin or trainer HTTP", "yes"),
-    ]
-
-
-def _support_matrix_html(server) -> str:
-    rows = "\n".join(
-        "<tr>" + "".join(f"<td>{html_escape(cell)}</td>" for cell in row) + "</tr>"
-        for row in _support_matrix_rows()
-    )
-    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Radar Vital Support Matrix</title>
-<style>body{{font-family:system-ui,sans-serif;margin:32px;line-height:1.45;color:#0b1220;background:#f4f6fb}}table{{border-collapse:collapse;width:100%;background:#fff}}th,td{{border:1px solid #dde3ee;padding:10px;text-align:left}}th{{background:#eef2f8}}</style>
-</head><body><h1>Radar Vital v12 Support Matrix</h1><p>Origin: {html_escape(_advertised_origin(server))}</p>
-<table><thead><tr><th>Mode</th><th>PWA install</th><th>Service Worker</th><th>Web Bluetooth</th><th>LAN HTTP API</th></tr></thead><tbody>{rows}</tbody></table>
-</body></html>"""
-
-
-def _pair_page_html(server) -> str:
-    pin = getattr(server, "active_pin", "") or ""
-    origin = _advertised_origin(server)
-    expires_at = float(getattr(server, "active_pin_expires_at", 0.0) or 0.0)
-    ttl = max(0, int(expires_at - time.time())) if pin else 0
-    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Pair Radar Vital</title>
-<style>body{{font-family:system-ui,sans-serif;margin:0;min-height:100vh;display:grid;place-items:center;background:#0b1220;color:#e6eefc}}main{{width:min(560px,calc(100vw - 32px));background:#121c31;border:1px solid #26344f;border-radius:18px;padding:24px}}.pin{{font-size:48px;letter-spacing:.18em;font-weight:800}}code{{background:#0b1220;padding:2px 6px;border-radius:6px}}</style>
-</head><body><main><h1>Pair Radar Vital</h1><p>Server URL: <code>{html_escape(origin)}</code></p>
-<p>PIN</p><div class="pin">{html_escape(pin or "local")}</div>
-<p>{'Expires in ' + str(ttl) + ' seconds and is consumed after first use.' if pin else 'LAN pairing is not active in local bind mode.'}</p>
-<p>Scan the trainer QR or open <code>{html_escape(origin)}/?pair={html_escape(pin)}</code> on the phone, then keep the trainer running.</p>
-</main></body></html>"""
+# Advertised host/origin + dashboard manifest + /pair + /support-matrix
+# response builders live in rvt_trainer.api.server_info. We re-export under
+# the existing underscored names so internal call sites stay unchanged.
+from rvt_trainer.api.server_info import (  # noqa: E402
+    advertised_host as _advertised_host,
+    advertised_origin as _advertised_origin,
+    manifest_payload as _manifest_payload,
+    pair_page_html as _pair_page_html,
+    support_matrix_html as _support_matrix_html,
+)
 
 
 def _safe_asset_path(url_path: str) -> Optional[Path]:

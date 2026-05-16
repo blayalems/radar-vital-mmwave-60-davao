@@ -1,15 +1,10 @@
-"""HTTP API helpers for the Radar Vital trainer."""
+"""HTTP API helpers for the Radar Vital trainer.
 
-from .auth import exchange_pair_pin, make_pair_pin
-from .server_info import manifest_payload, pair_page_html, support_matrix_html
-from .sse import ControlHandler, SessionSupervisor
+Submodules are not pre-imported here: that would force every submodule to
+load before any one of them is usable, which creates circular imports with
+:mod:`rvt_trainer.monolith` while the legacy implementation still lives
+there. Import the specific submodule you need:
 
-__all__ = [
-    "ControlHandler",
-    "SessionSupervisor",
-    "exchange_pair_pin",
-    "make_pair_pin",
-    "manifest_payload",
-    "pair_page_html",
-    "support_matrix_html",
-]
+    from rvt_trainer.api import server_info
+    from rvt_trainer.api.server_info import manifest_payload
+"""

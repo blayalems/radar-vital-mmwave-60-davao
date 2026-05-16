@@ -10,7 +10,7 @@
 | Workstream | Source-of-truth | Current state | Owner / last touched |
 |---|---|---|---|
 | Dashboard refactor (v12/v16 monolith → split) | `web/` | Phase 3 complete — body partials split; legacy patch tail bundled into 2 patch files | codex/complete-handoff-phases |
-| Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` (#11) and `api/auth.py` (this PR) own real code. `assets/static.py` real on PR #10 merge. `api/sse.py` still a facade. | claude/trainer-extract-auth |
+| Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` (#11) + `api/auth.py` (#9) + `assets/static.py` (this PR) own real code. `api/sse.py` still a facade. | claude/trainer-extract-static |
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | Build green on PR #8 (merged). Deploy gated to push-to-main; needs Settings→Pages source = "GitHub Actions" (one-time manual). | main |
 | APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | Green on PR #8 (merged) — `typescript` devDep added. | main |
 | EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | Green on PR #8 (merged) — split MSI/NSIS + verbose diagnostics. | main |
@@ -63,6 +63,18 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-16 — Trainer Phase 4: real static-asset extraction (PR 4 of CI batch)
+- `rvt_trainer/assets/static.py` now owns the real `assets_root()`,
+  `safe_asset_path()`, `content_type_for_asset()` (~60 lines moved from
+  `rvt_trainer/monolith.py` lines 5413–5543).
+- `monolith.py` re-exports under the underscored names (`_assets_root`,
+  `_safe_asset_path`, `_content_type_for_asset`) — net zero behavioural
+  change at the HTTP dispatcher.
+- Preventive: `rvt_trainer/assets/__init__.py` no longer pre-imports
+  submodules (same circular-import fix applied to `api/__init__.py` in #11).
+- New unit tests `tests/test_trainer_static.py` (8 tests): whitelist,
+  traversal block, `.rvt_tls/` deny, content-type mapping.
 
 ### 2026-05-16 — CI: harden apk + windows + pages workflows (PR 2 of CI batch, merged #8)
 - All three packaging workflows had `claude/mobile-first-dashboard-upABy` in

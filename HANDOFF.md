@@ -12,8 +12,8 @@
 | Dashboard refactor (v12/v16 monolith → split) | `web/` | Phase 3 complete — body partials split; legacy patch tail bundled into 2 patch files | codex/complete-handoff-phases |
 | Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` (#11) + `api/auth.py` (#9) + `assets/static.py` (this PR) own real code. `api/sse.py` still a facade. | claude/trainer-extract-static |
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | Build green on PR #8 (merged). Deploy gated to push-to-main; needs Settings→Pages source = "GitHub Actions" (one-time manual). | main |
-| APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | Green on PR #8 (merged) — `typescript` devDep added. | main |
-| EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | Green on PR #8 (merged) — split MSI/NSIS + verbose diagnostics. | main |
+| APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | Green on PR #8 (merged); every PR targeting `main` now builds a fresh APK artifact. | codex/apk-exe-packaging |
+| EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | Green on PR #8 (merged); every PR targeting `main` now builds a required NSIS `.exe` artifact. | codex/apk-exe-packaging |
 | Smoke + visual tests | `tests/` | Green on every PR after #7. 14/14 desktop in ~1:32 in CI. | main |
 
 ## How the dashboard build flows
@@ -63,6 +63,20 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-20 — Packaging branch artifact gates tightened
+- `build-apk.yml` and `build-exe.yml` now run on `codex/**` push events so
+  packaging branches can produce GitHub-hosted artifacts without merging first.
+- Both workflows run on every PR targeting `main`; PR artifact production is no
+  longer path-filtered to packaging-only files.
+- APK and EXE artifacts retain for 30 days; workflows opt into Node 24 action
+  runtime ahead of the June 2026 GitHub Actions default switch.
+- Windows packaging now fails unless the NSIS bundle produces a real `.exe`
+  installer; MSI is no longer accepted as a substitute in the EXE gate.
+- `build-www.mjs` normalizes assembled HTML newlines to LF so Windows checkouts
+  do not create monolith drift during packaging validation.
+- `check-roundtrip.mjs` compares newline-normalized HTML so the source-vs-build
+  contract remains strict on content without failing on CRLF-only checkout bytes.
 
 ### 2026-05-16 — Trainer Phase 4: real static-asset extraction (PR 4 of CI batch)
 - `rvt_trainer/assets/static.py` now owns the real `assets_root()`,

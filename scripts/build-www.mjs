@@ -20,6 +20,10 @@ const DASHBOARD = path.join(ROOT, 'radar_vital_live_dashboard_v12_for_v16_0.html
 const SRC_ASSETS = path.join(ROOT, 'assets');
 const OUT = path.join(ROOT, 'www');
 
+function normalizeNewlines(text) {
+  return text.replace(/\r\n?/g, '\n');
+}
+
 // Marker capture grabs (1) the leading indent on the marker line so we can
 // re-apply it to the closing </style>/</script> tag in the rebuilt monolith.
 const INCLUDE_RE = /([ \t]*)<!--\s*BUILD:INCLUDE\s+([^>]*?)-->/g;
@@ -31,7 +35,7 @@ function parseAttrs(s) {
 }
 
 async function assemble() {
-  const shell = await fs.readFile(SHELL, 'utf8');
+  const shell = normalizeNewlines(await fs.readFile(SHELL, 'utf8'));
   const includes = [];
   for (const m of shell.matchAll(INCLUDE_RE)) {
     includes.push({ raw: m[0], indent: m[1] || '', attrs: parseAttrs(m[2]), index: m.index });
@@ -42,7 +46,7 @@ async function assemble() {
     const src = inc.attrs.src;
     if (!src) throw new Error(`BUILD:INCLUDE missing src= : ${inc.raw}`);
     const filePath = path.join(WEB, src);
-    const body = await fs.readFile(filePath, 'utf8');
+    const body = normalizeNewlines(await fs.readFile(filePath, 'utf8'));
     const trimmed = body.endsWith('\n') ? body.slice(0, -1) : body;
     if (inc.attrs.as === 'html') {
       return trimmed;

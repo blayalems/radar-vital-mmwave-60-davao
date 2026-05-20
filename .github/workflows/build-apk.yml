@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - 'codex/**'
     paths:
       - 'radar_vital_live_dashboard_v12_for_v16_0.html'
       - 'web/**'
@@ -14,15 +15,12 @@ on:
       - 'scripts/**'
       - '.github/workflows/build-apk.yml'
   pull_request:
-    paths:
-      - 'web/**'
-      - 'assets/**'
-      - 'capacitor.config.ts'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'scripts/**'
-      - '.github/workflows/build-apk.yml'
+    branches:
+      - main
   workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   apk:
@@ -72,4 +70,4 @@ jobs:
           name: radar-vital-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30

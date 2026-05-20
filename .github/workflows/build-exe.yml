@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - 'codex/**'
     paths:
       - 'radar_vital_live_dashboard_v12_for_v16_0.html'
       - 'web/**'
@@ -14,15 +15,12 @@ on:
       - 'scripts/**'
       - '.github/workflows/build-exe.yml'
   pull_request:
-    paths:
-      - 'web/**'
-      - 'assets/**'
-      - 'src-tauri/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'scripts/**'
-      - '.github/workflows/build-exe.yml'
+    branches:
+      - main
   workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   windows:
@@ -71,43 +69,26 @@ jobs:
         env:
           RUST_BACKTRACE: '1'
 
-      - name: Build MSI installer
-        # First bundle target. WiX 3 is auto-downloaded by Tauri on first run;
-        # if that fetch is blocked we'll see it here, not in a 14-min mystery.
-        run: cargo tauri build --verbose --bundles msi
-        env:
-          RUST_BACKTRACE: '1'
-          TAURI_BUNDLE__WEBVIEW_FIXED_RUNTIME_PATH: ''
-        continue-on-error: true
-
-      - name: Build NSIS installer
-        # Second bundle target. NSIS is also auto-downloaded by Tauri.
+      - name: Build NSIS EXE installer
+        # This workflow is the EXE release gate. Do not continue on error:
+        # a green run must produce a Windows .exe installer.
         run: cargo tauri build --verbose --bundles nsis
         env:
           RUST_BACKTRACE: '1'
           TAURI_BUNDLE__WEBVIEW_FIXED_RUNTIME_PATH: ''
-        continue-on-error: true
 
-      - name: List bundled installers
-        # Surfaces what was produced even if one bundle failed.
+      - name: List bundled EXE
         shell: pwsh
         run: |
-          $msiDir = "src-tauri/target/release/bundle/msi"
           $nsisDir = "src-tauri/target/release/bundle/nsis"
-          if (Test-Path $msiDir)  { Get-ChildItem $msiDir }  else { Write-Host "no msi/"  }
           if (Test-Path $nsisDir) { Get-ChildItem $nsisDir } else { Write-Host "no nsis/" }
-          # Fail the job if BOTH bundles are empty.
-          if (-not (Test-Path $msiDir) -and -not (Test-Path $nsisDir)) { exit 1 }
-          $msiCount  = if (Test-Path $msiDir)  { (Get-ChildItem $msiDir  -ErrorAction SilentlyContinue).Count } else { 0 }
-          $nsisCount = if (Test-Path $nsisDir) { (Get-ChildItem $nsisDir -ErrorAction SilentlyContinue).Count } else { 0 }
-          if ($msiCount -eq 0 -and $nsisCount -eq 0) { exit 1 }
+          $exeCount = if (Test-Path $nsisDir) { (Get-ChildItem $nsisDir -Filter *.exe -ErrorAction SilentlyContinue).Count } else { 0 }
+          if ($exeCount -eq 0) { exit 1 }
 
-      - name: Upload installers
+      - name: Upload EXE installer
         uses: actions/upload-artifact@v4
         with:
-          name: radar-vital-windows-installers
-          path: |
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
+          name: radar-vital-windows-exe
+          path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30

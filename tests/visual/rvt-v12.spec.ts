@@ -7,6 +7,10 @@ test.describe('v12 dashboard visual baseline', () => {
   for (const theme of themes) {
     for (const view of views) {
       test(`${theme} ${view}`, async ({ page }) => {
+        // Block external font loading to prevent screenshot hanging in offline/sandboxed environments
+        await page.route('**/*.{woff,woff2}', route => route.abort());
+        await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
+
         await page.goto('/live_dashboard.html', { waitUntil: 'domcontentloaded' });
         // Allow up to one post-install reload to complete.
         await page.waitForTimeout(1500);
@@ -26,7 +30,7 @@ test.describe('v12 dashboard visual baseline', () => {
             await page.waitForTimeout(750);
           }
         }
-        await expect(page).toHaveScreenshot(`v12-${theme}-${view}.png`, { fullPage: true });
+        await expect(page).toHaveScreenshot(`v12-${theme}-${view}.png`, { fullPage: true, timeout: 30000 });
       });
     }
   }

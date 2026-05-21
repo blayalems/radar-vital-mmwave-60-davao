@@ -44,7 +44,8 @@ for (const theme of THEMES) {
     await page.screenshot({
       path: testInfo.outputPath(`dashboard-${theme}-${testInfo.project.name}.png`),
       fullPage: false,
-      animations: 'disabled'
+      animations: 'disabled',
+      timeout: 30000
     });
   });
 }

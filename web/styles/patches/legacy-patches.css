@@ -1471,6 +1471,8 @@
     font-size: var(--uiux-header-title) !important;
     line-height: 1.08 !important;
     letter-spacing: 0 !important;
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
   }
 
   .crumb-eyebrow,
@@ -1511,16 +1513,18 @@
     line-height: 1 !important;
   }
 
-  .topbar-status,
-  .topbar-actions {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 8px !important;
-    padding: 6px !important;
-    border: 1px solid var(--line) !important;
-    border-radius: 16px !important;
-    background: color-mix(in oklab, var(--surface-1) 94%, transparent) !important;
-    box-shadow: var(--shadow-1) !important;
+  @media (min-width: 761px) {
+    .topbar-status,
+    .topbar-actions {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      padding: 6px !important;
+      border: 1px solid var(--line) !important;
+      border-radius: 16px !important;
+      background: color-mix(in oklab, var(--surface-1) 94%, transparent) !important;
+      box-shadow: var(--shadow-1) !important;
+    }
   }
 
   @media (min-width: 761px) {
@@ -1534,13 +1538,15 @@
     }
   }
 
-  [data-theme="dark"] .topbar-status,
-  [data-theme="dark"] .topbar-actions,
-  [data-theme="night"] .topbar-status,
-  [data-theme="night"] .topbar-actions {
-    border-color: var(--uiux-dark-card-border) !important;
-    background: color-mix(in oklab, var(--surface-1) 90%, #000) !important;
-    box-shadow: 0 16px 30px rgba(0, 0, 0, .26) !important;
+  @media (min-width: 761px) {
+    [data-theme="dark"] .topbar-status,
+    [data-theme="dark"] .topbar-actions,
+    [data-theme="night"] .topbar-status,
+    [data-theme="night"] .topbar-actions {
+      border-color: var(--uiux-dark-card-border) !important;
+      background: color-mix(in oklab, var(--surface-1) 90%, #000) !important;
+      box-shadow: 0 16px 30px rgba(0, 0, 0, .26) !important;
+    }
   }
 
   .status-pill {
@@ -1555,22 +1561,25 @@
   }
 
   .status-sub {
-    min-height: 24px !important;
-    padding: 0 9px !important;
-    border: 1px solid color-mix(in oklab, var(--ink-300) 35%, var(--line)) !important;
-    border-radius: 999px !important;
-    background: color-mix(in oklab, var(--surface-2) 78%, #fff) !important;
-    color: var(--ink-700) !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: var(--md-sys-color-on-surface-variant, var(--ink-500, #625b71)) !important;
     font-family: Inter, system-ui, sans-serif !important;
-    font-weight: 800 !important;
+    font-weight: 500 !important;
+    font-size: 11px !important;
     letter-spacing: 0 !important;
+    margin-left: 6px !important;
+    opacity: 0.8 !important;
   }
 
   [data-theme="dark"] .status-sub,
   [data-theme="night"] .status-sub {
-    border-color: rgba(255, 255, 255, .20) !important;
-    background: rgba(255, 255, 255, .08) !important;
-    color: #eaf2ff !important;
+    border-color: transparent !important;
+    background: transparent !important;
+    color: var(--md-sys-color-on-surface-variant, rgba(255, 255, 255, 0.7)) !important;
   }
 
   .topbar-actions > .tb-export,
@@ -6317,6 +6326,8 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
       text-overflow: clip !important;
       line-height: 1.08 !important;
       font-size: clamp(20px, 6vw, 28px) !important;
+      overflow-wrap: break-word !important;
+      word-break: normal !important;
     }
   }
 

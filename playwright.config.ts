@@ -11,10 +11,10 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   timeout: 60_000,
-  expect: { timeout: 5000, toHaveScreenshot: { maxDiffPixels: 200 } },
+  expect: { timeout: 15000, toHaveScreenshot: { maxDiffPixels: 200 } },
   use: {
     baseURL: BASE_URL,
-    actionTimeout: 5000,
+    actionTimeout: 15000,
     navigationTimeout: 15_000,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

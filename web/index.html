@@ -38,17 +38,24 @@
 
   <!-- BUILD:INCLUDE src="components/shell/topbar.html" as="html" -->
 
-  <!-- BUILD:INCLUDE src="components/shell/command-strip.html" as="html" -->
+  <section id="view-home" class="view-panel"></section>
 
-  <!-- BUILD:INCLUDE src="components/shell/firmware-badge.html" as="html" -->
+  <section id="view-live" class="view-panel">
+    <!-- BUILD:INCLUDE src="components/shell/command-strip.html" as="html" -->
+    <!-- BUILD:INCLUDE src="components/shell/firmware-badge.html" as="html" -->
+    <!-- BUILD:INCLUDE src="components/live/tab-overview.html" as="html" -->
+    <!-- BUILD:INCLUDE src="components/live/tab-waves.html" as="html" -->
+    <!-- BUILD:INCLUDE src="components/live/tab-hr.html" as="html" -->
+    <!-- BUILD:INCLUDE src="components/live/tab-rr.html" as="html" -->
+    <!-- BUILD:INCLUDE src="components/live/tab-snaps.html" as="html" -->
+    <!-- BUILD:INCLUDE src="components/live/tab-audit.html" as="html" -->
+  </section>
 
+  <section id="view-report" class="view-panel"></section>
 
-  <!-- BUILD:INCLUDE src="components/live/tab-overview.html" as="html" -->
-  <!-- BUILD:INCLUDE src="components/live/tab-waves.html" as="html" -->
-  <!-- BUILD:INCLUDE src="components/live/tab-hr.html" as="html" -->
-  <!-- BUILD:INCLUDE src="components/live/tab-rr.html" as="html" -->
-  <!-- BUILD:INCLUDE src="components/live/tab-snaps.html" as="html" -->
-  <!-- BUILD:INCLUDE src="components/live/tab-audit.html" as="html" -->
+  <section id="view-help" class="view-panel"></section>
+
+  <section id="view-settings" class="view-panel"></section>
 
   <!-- BUILD:INCLUDE src="components/shell/mobile-dock.html" as="html" -->
     </main>

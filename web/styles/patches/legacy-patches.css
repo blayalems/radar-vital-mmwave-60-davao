@@ -445,79 +445,6 @@
       }
     }
 
-    /* Final compact rail alignment override: this is intentionally in the last style block. */
-    @media (min-width: 761px) {
-      .app[data-rail-state="icons"] .rail .r-item,
-      .app[data-rail-state="icons"] .rail .r-item.sub,
-      .app[data-rail-state="icons"] .rail .r-item.nav-ctl,
-      .app[data-rail-state="icons"] .rail .r-item.rail-action,
-      .app[data-rail-state="icons"] .rail .operator,
-      [data-rail-collapsed="1"] .rail .r-item,
-      [data-rail-collapsed="1"] .rail .r-item.sub,
-      [data-rail-collapsed="1"] .rail .r-item.nav-ctl,
-      [data-rail-collapsed="1"] .rail .r-item.rail-action,
-      [data-rail-collapsed="1"] .rail .operator {
-        width: 44px !important;
-        min-width: 44px !important;
-        max-width: 44px !important;
-        height: 44px !important;
-        min-height: 44px !important;
-        padding: 0 !important;
-        display: grid !important;
-        grid-template-columns: 44px !important;
-        place-items: center !important;
-        justify-content: center !important;
-        align-content: center !important;
-        line-height: 1 !important;
-        overflow: visible !important;
-      }
-
-      .app[data-rail-state="icons"] .rail .r-item .r-ic,
-      .app[data-rail-state="icons"] .rail .r-item.rail-action .r-ic,
-      [data-rail-collapsed="1"] .rail .r-item .r-ic,
-      [data-rail-collapsed="1"] .rail .r-item.rail-action .r-ic {
-        display: grid !important;
-        place-items: center !important;
-        width: 44px !important;
-        min-width: 44px !important;
-        height: 44px !important;
-        min-height: 44px !important;
-        margin: 0 !important;
-        transform: none !important;
-      }
-
-      .app[data-rail-state="icons"] .rail .r-item .material-symbols-rounded,
-      .app[data-rail-state="icons"] .rail .r-item.rail-action .material-symbols-rounded,
-      [data-rail-collapsed="1"] .rail .r-item .material-symbols-rounded,
-      [data-rail-collapsed="1"] .rail .r-item.rail-action .material-symbols-rounded {
-        display: block !important;
-        width: 22px !important;
-        height: 22px !important;
-        font-size: 22px !important;
-        line-height: 22px !important;
-        margin: 0 !important;
-        text-align: center !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-      }
-
-      .app[data-rail-state="icons"] .rail .r-item.rail-action,
-      [data-rail-collapsed="1"] .rail .r-item.rail-action {
-        color: var(--ink-700) !important;
-        background: transparent !important;
-        border-color: transparent !important;
-      }
-
-      .app[data-rail-state="icons"] .rail .r-item.active,
-      .app[data-rail-state="icons"] .rail .r-item.sub.active,
-      [data-rail-collapsed="1"] .rail .r-item.active,
-      [data-rail-collapsed="1"] .rail .r-item.sub.active {
-        color: var(--brand-600) !important;
-        background: var(--brand-100) !important;
-        border: 1px solid color-mix(in oklab, var(--brand-500) 38%, var(--line)) !important;
-      }
-    }
-
     @media (prefers-reduced-motion: reduce) {
       .card,
       .kpi,
@@ -1544,6 +1471,8 @@
     font-size: var(--uiux-header-title) !important;
     line-height: 1.08 !important;
     letter-spacing: 0 !important;
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
   }
 
   .crumb-eyebrow,
@@ -1584,16 +1513,18 @@
     line-height: 1 !important;
   }
 
-  .topbar-status,
-  .topbar-actions {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 8px !important;
-    padding: 6px !important;
-    border: 1px solid var(--line) !important;
-    border-radius: 16px !important;
-    background: color-mix(in oklab, var(--surface-1) 94%, transparent) !important;
-    box-shadow: var(--shadow-1) !important;
+  @media (min-width: 761px) {
+    .topbar-status,
+    .topbar-actions {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      padding: 6px !important;
+      border: 1px solid var(--line) !important;
+      border-radius: 16px !important;
+      background: color-mix(in oklab, var(--surface-1) 94%, transparent) !important;
+      box-shadow: var(--shadow-1) !important;
+    }
   }
 
   @media (min-width: 761px) {
@@ -1607,13 +1538,15 @@
     }
   }
 
-  [data-theme="dark"] .topbar-status,
-  [data-theme="dark"] .topbar-actions,
-  [data-theme="night"] .topbar-status,
-  [data-theme="night"] .topbar-actions {
-    border-color: var(--uiux-dark-card-border) !important;
-    background: color-mix(in oklab, var(--surface-1) 90%, #000) !important;
-    box-shadow: 0 16px 30px rgba(0, 0, 0, .26) !important;
+  @media (min-width: 761px) {
+    [data-theme="dark"] .topbar-status,
+    [data-theme="dark"] .topbar-actions,
+    [data-theme="night"] .topbar-status,
+    [data-theme="night"] .topbar-actions {
+      border-color: var(--uiux-dark-card-border) !important;
+      background: color-mix(in oklab, var(--surface-1) 90%, #000) !important;
+      box-shadow: 0 16px 30px rgba(0, 0, 0, .26) !important;
+    }
   }
 
   .status-pill {
@@ -1628,22 +1561,25 @@
   }
 
   .status-sub {
-    min-height: 24px !important;
-    padding: 0 9px !important;
-    border: 1px solid color-mix(in oklab, var(--ink-300) 35%, var(--line)) !important;
-    border-radius: 999px !important;
-    background: color-mix(in oklab, var(--surface-2) 78%, #fff) !important;
-    color: var(--ink-700) !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: var(--md-sys-color-on-surface-variant, var(--ink-500, #625b71)) !important;
     font-family: Inter, system-ui, sans-serif !important;
-    font-weight: 800 !important;
+    font-weight: 500 !important;
+    font-size: 11px !important;
     letter-spacing: 0 !important;
+    margin-left: 6px !important;
+    opacity: 0.8 !important;
   }
 
   [data-theme="dark"] .status-sub,
   [data-theme="night"] .status-sub {
-    border-color: rgba(255, 255, 255, .20) !important;
-    background: rgba(255, 255, 255, .08) !important;
-    color: #eaf2ff !important;
+    border-color: transparent !important;
+    background: transparent !important;
+    color: var(--md-sys-color-on-surface-variant, rgba(255, 255, 255, 0.7)) !important;
   }
 
   .topbar-actions > .tb-export,
@@ -1913,21 +1849,6 @@
   [data-theme="night"] .kpi-card .fav.active {
     color: var(--brand-400) !important;
     fill: var(--brand-400) !important;
-  }
-
-  @media (min-width: 761px) {
-    [data-rail-collapsed="1"] .rail .r-item.active,
-    [data-rail-collapsed="1"] .rail [aria-current="page"],
-    .app[data-rail-state="icons"] .rail .r-item.active,
-    .app[data-rail-state="icons"] .rail [aria-current="page"] {
-      width: 44px !important;
-      height: 44px !important;
-      min-width: 44px !important;
-      min-height: 44px !important;
-      padding: 4px !important;
-      background: transparent !important;
-      border-color: transparent !important;
-    }
   }
 
   @media (max-width: 760px) {
@@ -6405,6 +6326,8 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
       text-overflow: clip !important;
       line-height: 1.08 !important;
       font-size: clamp(20px, 6vw, 28px) !important;
+      overflow-wrap: break-word !important;
+      word-break: normal !important;
     }
   }
 
@@ -6446,3 +6369,107 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
 .crumb-seg.uiux-home-crumb { min-height: 44px; display: flex; align-items: center; }
 #rvtStillnessCancel, #rvtStillnessStart { min-height: 44px; }
 /* END styles/rvt-p2-mobile-tap-targets-css.css */
+
+/* BEGIN styles/rvt-view-switch-topbar-fix-css.css */
+
+/* ============================================================
+   VIEW PANEL SWITCHING — override data-ctl gate
+   The consolidated CSS gates view panels on data-ctl="on",
+   which breaks offline/disconnected navigation. These rules
+   switch views based purely on the data-view attribute.
+   ============================================================ */
+.view-panel {
+  display: none !important;
+}
+body[data-view="home"] #view-home,
+body[data-view="live"] #view-live,
+body[data-view="report"] #view-report,
+body[data-view="help"] #view-help,
+body[data-view="settings"] #view-settings {
+  display: block !important;
+}
+
+/* Hide live-only elements on non-live views (no data-ctl gate) */
+body[data-view="home"] .tab,
+body[data-view="report"] .tab,
+body[data-view="help"] .tab,
+body[data-view="settings"] .tab,
+body[data-view="home"] #fwBadge,
+body[data-view="report"] #fwBadge,
+body[data-view="help"] #fwBadge,
+body[data-view="settings"] #fwBadge,
+body[data-view="home"] .command-strip,
+body[data-view="report"] .command-strip,
+body[data-view="help"] .command-strip,
+body[data-view="settings"] .command-strip {
+  display: none !important;
+}
+
+/* ============================================================
+   DESKTOP TOPBAR — clean 3-column grid
+   Wins over syncNativeTopbar() inline styles via !important.
+   ============================================================ */
+@media (min-width: 761px) {
+  .topbar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 720 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    grid-template-areas: "crumbs status actions" !important;
+    align-items: center !important;
+    gap: 14px !important;
+    width: calc(100% + 64px) !important;
+    max-width: none !important;
+    min-height: 64px !important;
+    height: auto !important;
+    margin: -28px -32px 18px !important;
+    padding: 12px 24px !important;
+    overflow: visible !important;
+    background: var(--surface-glass, var(--bg, #f4f7fb)) !important;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant, rgba(202, 213, 226, .95)) !important;
+    backdrop-filter: blur(var(--surface-glass-blur, 20px)) saturate(180%) !important;
+  }
+  .topbar .crumbs {
+    grid-area: crumbs !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+  .topbar-status {
+    grid-area: status !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    min-width: 0 !important;
+  }
+  .topbar-status .status-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    white-space: nowrap !important;
+    max-width: 220px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .topbar-status .status-pill .status-sub {
+    display: inline !important;
+  }
+  .topbar-actions {
+    grid-area: actions !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+/* ============================================================
+   MOBILE STATUS BAR — theme-aware color
+   ============================================================ */
+@media (max-width: 760px) {
+  body::before {
+    background: var(--md-sys-color-surface-container, #172033) !important;
+  }
+}
+
+/* END styles/rvt-view-switch-topbar-fix-css.css */

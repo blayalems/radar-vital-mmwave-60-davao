@@ -64,6 +64,14 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-22 — Material 3 Expressive UI/UX Refinement & Offline Settings Fix
+- Constrained desktop topbar flex wrappers, borders, shadows, and grid templates to `@media (min-width: 761px)` to resolve desktop topbar media-wrapping, preventing squeezing and wrapping issues on small desktop and tablet viewports.
+- Decoupled panel visibility from the controller-active `data-ctl="on"` gate, enabling reliable offline/disconnected navigation across all views (Home, Live, Report, Help, Settings).
+- Standardized status pill indicators by flattening `.status-sub` (no nested borders, transparent/flat background, clean HSL muted color, 11px font size) for zero visual clutter.
+- Standardized crumb titles to prevent mid-syllable word-clipping under narrow viewports using `overflow-wrap: break-word !important` and `word-break: normal !important`.
+- Restructured topbar layout grid to a clean 3-column format (`crumbs status actions`) on desktop viewports and updated theme-aware backgrounds on mobile status bar (`body::before`).
+- Validated build consistency round-trip via `npm run build:web` / `npm run build:check`, verified 56/56 smoke tests pass completely across all platforms, and updated visual regression snapshots.
+
 ### 2026-05-20 — Permanent release and signing scaffold
 - Added `release-artifacts.yml` to publish GitHub Release APK/EXE assets from
   `v*` tags or manual dispatch.

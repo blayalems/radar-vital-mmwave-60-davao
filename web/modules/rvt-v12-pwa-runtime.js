@@ -8,6 +8,9 @@
   let replayingHistory = false;
 
   function qs(){ try { return new URLSearchParams(location.search || ''); } catch (_) { return new URLSearchParams(); } }
+  function isTauriNative(){
+    return !!window.__TAURI_INTERNALS__ || location.hostname === 'tauri.localhost';
+  }
   function normalizeApiBase(value){
     const raw = String(value || '').trim().replace(/\/+$/, '');
     if (!raw) return '';
@@ -377,6 +380,13 @@
   function installServiceWorker(){
     if (document.documentElement.dataset.rvtArchive === '1') return;
     if (!('serviceWorker' in navigator)) return;
+    if (isTauriNative()) {
+      navigator.serviceWorker.getRegistrations?.().then(regs => regs.forEach(reg => reg.unregister())).catch(() => {});
+      if (window.caches?.keys) {
+        caches.keys().then(keys => keys.forEach(key => caches.delete(key))).catch(() => {});
+      }
+      return;
+    }
     navigator.serviceWorker.register('/sw.js').then(reg => {
       reg.addEventListener('updatefound', () => {
         const w = reg.installing;

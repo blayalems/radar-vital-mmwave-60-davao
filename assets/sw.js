@@ -1,7 +1,8 @@
-const CACHE = 'rvt-shell-v12.0.0';
-const DASHBOARD = '/live_dashboard.html';
+const CACHE = 'rvt-shell-v12.0.1';
+const DASHBOARD = '/';
 const PRECACHE = [
   DASHBOARD,
+  '/radar_vital_live_dashboard_v12_for_v16_0.html',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -11,11 +12,10 @@ const PRECACHE = [
   '/lib/chartjs-plugin-zoom.min.js',
   '/lib/hammer.min.js',
   '/lib/jsqr.min.js',
-  '/fonts/rvt-fonts.css',
-  '/fonts/inter-5.woff2',
-  '/fonts/inter-6.woff2',
-  '/fonts/jetbrains-mono-5.woff2',
-  '/fonts/material-symbols-rounded.woff2'
+  '/assets/fonts/rvt-fonts.css',
+  '/assets/fonts/inter-6.woff2',
+  '/assets/fonts/jetbrains-mono-5.woff2',
+  '/assets/fonts/material-symbols-rounded.woff2'
 ];
 
 self.addEventListener('install', event => {
@@ -78,7 +78,7 @@ self.addEventListener('fetch', event => {
   if (url.pathname.startsWith('/api/')) {
     return;
   }
-  if (url.pathname === '/' || url.pathname.endsWith('/live_dashboard.html') || url.pathname.endsWith('/radar_vital_live_dashboard_v12_for_v16_0.html')) {
+  if (url.pathname === '/' || url.pathname.endsWith('/radar_vital_live_dashboard_v12_for_v16_0.html')) {
     event.respondWith(networkFirst(request, 2000));
     return;
   }
@@ -86,7 +86,7 @@ self.addEventListener('fetch', event => {
     event.respondWith(networkFirst(request, 2000));
     return;
   }
-  if (url.pathname.startsWith('/icons/') || url.pathname.startsWith('/lib/') || url.pathname.startsWith('/fonts/')) {
+  if (url.pathname.startsWith('/icons/') || url.pathname.startsWith('/lib/') || url.pathname.startsWith('/assets/fonts/')) {
     event.respondWith(cacheFirst(request));
   }
 });

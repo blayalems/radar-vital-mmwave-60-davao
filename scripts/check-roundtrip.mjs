@@ -18,6 +18,7 @@ import { spawnSync } from 'node:child_process';
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const DASHBOARD = path.join(ROOT, 'radar_vital_live_dashboard_v12_for_v16_0.html');
+const OUT = path.join(ROOT, 'www');
 
 function normalizeHtmlBytes(buf) {
   return Buffer.from(buf.toString('utf8').replace(/\r\n?/g, '\n'), 'utf8');
@@ -40,5 +41,20 @@ Either someone edited the monolith directly (bad — edit web/ instead) or
 the splits in web/ were modified but the monolith was not re-committed
 (run \`npm run build:web\` and commit the result).`);
   process.exit(1);
+}
+
+const requiredWwwAssets = [
+  'fonts/rvt-fonts.css',
+  'fonts/material-symbols-rounded.woff2',
+  'icons/apple-touch-icon-180.png',
+  'lib/chart.umd.min.js',
+];
+for (const asset of requiredWwwAssets) {
+  try {
+    await fs.access(path.join(OUT, asset));
+  } catch (_) {
+    console.error(`ERROR: missing packaged www asset: ${asset}`);
+    process.exit(1);
+  }
 }
 console.log('OK: web/ ↔ monolith round-trip is clean.');

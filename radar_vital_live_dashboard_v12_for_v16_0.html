@@ -27343,87 +27343,513 @@
   </style>
 
   <style id="rvt-v12-mobile-pwa-css">
-    :root {
-      --radius: 18px;
-      --radius-sm: 12px;
-      --radius-pill: 999px;
-      --tap: 44px;
-      --surface-glass: rgba(255,255,255,0.72);
-      --surface-glass-blur: 20px;
-      --sat: env(safe-area-inset-top, 0px);
-      --sab: env(safe-area-inset-bottom, 0px);
-      --sal: env(safe-area-inset-left, 0px);
-      --sar: env(safe-area-inset-right, 0px);
-      --rail-w: 240px;
-      --rail-w-collapsed: 64px;
-      --topbar-h: 56px;
-      --bn-h: 64px;
-      --keyboard-h: 0px;
-    }
-    [data-theme="dark"], [data-theme="night"] {
-      --surface-glass: rgba(12,18,32,0.78);
-    }
-    [data-theme="hc"] {
-      --surface-glass: var(--surface-1);
-      --surface-glass-blur: 0px;
-    }
-    #demoBanner,
-    .demo-banner-clone {
-      align-items: center;
-      background: #b45309;
-      color: #fff;
-      display: flex;
-      font: 800 13px/1.25 system-ui, sans-serif;
-      gap: 10px;
-      letter-spacing: .02em;
-      min-height: 44px;
-      padding: 10px max(16px, var(--sar)) 10px max(16px, var(--sal));
-    }
-    #demoBanner {
-      box-shadow: 0 8px 24px rgba(15,23,42,.2);
-      left: 0;
-      position: fixed;
-      right: 0;
-      top: 0;
-      z-index: 10000;
-    }
-    #demoBanner[hidden] { display: none; }
-    html[data-sandbox="1"] body { padding-top: calc(44px + var(--sat)); }
-    html[data-sandbox="1"] #demoBanner { display: flex; }
-    .topbar {
-      min-height: calc(var(--topbar-h) + var(--sat));
-      padding-top: var(--sat) !important;
-      padding-left: max(var(--gap, 16px), var(--sal)) !important;
-      padding-right: max(var(--gap, 16px), var(--sar)) !important;
-    }
-    @supports (backdrop-filter: blur(1px)) {
-      @media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
-        .topbar { background: var(--surface-glass) !important; backdrop-filter: blur(var(--surface-glass-blur)) saturate(180%); }
-      }
-      .bottom-nav { background: var(--surface-glass) !important; backdrop-filter: blur(var(--surface-glass-blur)) saturate(180%); }
-      dialog.sheet[open], .sheet.open { backdrop-filter: blur(var(--surface-glass-blur)) saturate(180%); }
-    }
-    [data-low-end] .topbar,
-    [data-low-end] .bottom-nav,
-    [data-low-end] dialog.sheet,
-    [data-low-end] .sheet.open {
-      backdrop-filter: none !important;
-      background: var(--surface-1, var(--surface)) !important;
-    }
-    .bottom-nav {
-      min-height: calc(var(--bn-h) + var(--sab));
-      padding-bottom: var(--sab) !important;
-    }
-    .fab {
-      bottom: calc(var(--bn-h) + var(--sab) + 16px) !important;
-    }
-    @media (min-width: 1024px) {
-      .bottom-nav { display: none !important; }
-      .rail { width: var(--rail-w-collapsed) !important; }
-    }
-    @media (min-width: 1280px) {
-      .rail { width: var(--rail-w) !important; }
-    }
+/* ==========================================
+   MATERIAL 3 EXPRESSIVE CORE TOKENS
+   ========================================== */
+:root {
+  /* Safe area variables */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+
+  /* Layout sizing standard */
+  --rail-w: 240px;
+  --rail-w-collapsed: 64px;
+  --topbar-h: 56px;
+  --bn-h: 64px;
+  --keyboard-h: 0px;
+
+  /* Shape scale - M3 Expressive */
+  --radius-lg: 28px;
+  --radius-md: 16px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+  --radius: var(--radius-md);
+
+  /* Touch & spacing */
+  --tap: 48px;
+  --gap: 16px;
+  --card-padding: 24px;
+  --nav-item-padding: 12px 16px;
+
+  /* Glassmorphism & surface */
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --surface-glass-blur: 20px;
+
+  /* Easing */
+  --transition-expressive: all 0.25s cubic-bezier(0.2, 0, 0, 1);
+  --transition-standard: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==========================================
+   DYNAMIC DENSITY MODES
+   ========================================== */
+html[data-density="comfortable"] {
+  --gap: 16px;
+  --card-padding: 24px;
+  --nav-item-padding: 12px 16px;
+}
+html[data-density="compact"] {
+  --gap: 8px;
+  --card-padding: 12px;
+  --nav-item-padding: 8px 12px;
+}
+
+/* ==========================================
+   COLOR SYSTEM (M3 PALETTE & SURFACE STATES)
+   ========================================== */
+/* LIGHT THEME */
+html,
+html[data-theme="light"] {
+  --md-sys-color-surface: #f8f9ff;
+  --md-sys-color-surface-container-low: #f0f3fa;
+  --md-sys-color-surface-container: #e9eef6;
+  --md-sys-color-surface-container-high: #e1e8f0;
+  --md-sys-color-on-surface: #1a1c1e;
+  --md-sys-color-on-surface-variant: #43474e;
+
+  --md-sys-color-primary: #0061a4;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #d1e4ff;
+  --md-sys-color-on-primary-container: #001d36;
+
+  --md-sys-color-outline: #73777f;
+  --md-sys-color-outline-variant: #c3c7d0;
+
+  /* Legacy mappings */
+  --bg: var(--md-sys-color-surface) !important;
+  --surface: var(--md-sys-color-surface-container) !important;
+  --surface-1: var(--md-sys-color-surface-container-low) !important;
+  --surface-2: var(--md-sys-color-surface-container) !important;
+  --surface-3: var(--md-sys-color-surface-container-high) !important;
+
+  --ink: var(--md-sys-color-on-surface) !important;
+  --ink-800: var(--md-sys-color-on-surface) !important;
+  --ink-400: var(--md-sys-color-on-surface-variant) !important;
+
+  --brand-500: var(--md-sys-color-primary) !important;
+  --brand-100: var(--md-sys-color-primary-container) !important;
+
+  --surface-glass: rgba(255, 255, 255, 0.72);
+}
+
+/* DARK THEME */
+html[data-theme="dark"] {
+  --md-sys-color-surface: #0f1318;
+  --md-sys-color-surface-container-low: #1c2024;
+  --md-sys-color-surface-container: #22262a;
+  --md-sys-color-surface-container-high: #2e3237;
+  --md-sys-color-on-surface: #e2e2e6;
+  --md-sys-color-on-surface-variant: #c3c7d0;
+
+  --md-sys-color-primary: #a0c9ff;
+  --md-sys-color-on-primary: #003258;
+  --md-sys-color-primary-container: #00497d;
+  --md-sys-color-on-primary-container: #d1e4ff;
+
+  --md-sys-color-outline: #8d9199;
+  --md-sys-color-outline-variant: #43474e;
+
+  /* Legacy mappings */
+  --bg: var(--md-sys-color-surface) !important;
+  --surface: var(--md-sys-color-surface-container) !important;
+  --surface-1: var(--md-sys-color-surface-container-low) !important;
+  --surface-2: var(--md-sys-color-surface-container) !important;
+  --surface-3: var(--md-sys-color-surface-container-high) !important;
+
+  --ink: var(--md-sys-color-on-surface) !important;
+  --ink-800: var(--md-sys-color-on-surface) !important;
+  --ink-400: var(--md-sys-color-on-surface-variant) !important;
+
+  --brand-500: var(--md-sys-color-primary) !important;
+  --brand-100: var(--md-sys-color-primary-container) !important;
+
+  --surface-glass: rgba(12, 18, 32, 0.78);
+}
+
+/* NIGHT RED THEME */
+html[data-theme="night"] {
+  --md-sys-color-surface: #0f0808;
+  --md-sys-color-surface-container-low: #1c0d0d;
+  --md-sys-color-surface-container: #251212;
+  --md-sys-color-surface-container-high: #331a1a;
+  --md-sys-color-on-surface: #ffdad6;
+  --md-sys-color-on-surface-variant: #f5c2bc;
+
+  --md-sys-color-primary: #ffb4ab;
+  --md-sys-color-on-primary: #690005;
+  --md-sys-color-primary-container: #93000a;
+  --md-sys-color-on-primary-container: #ffdad6;
+
+  --md-sys-color-outline: #a08c8a;
+  --md-sys-color-outline-variant: #534341;
+
+  /* Legacy mappings */
+  --bg: var(--md-sys-color-surface) !important;
+  --surface: var(--md-sys-color-surface-container) !important;
+  --surface-1: var(--md-sys-color-surface-container-low) !important;
+  --surface-2: var(--md-sys-color-surface-container) !important;
+  --surface-3: var(--md-sys-color-surface-container-high) !important;
+
+  --ink: var(--md-sys-color-on-surface) !important;
+  --ink-800: var(--md-sys-color-on-surface) !important;
+  --ink-400: var(--md-sys-color-on-surface-variant) !important;
+
+  --brand-500: var(--md-sys-color-primary) !important;
+  --brand-100: var(--md-sys-color-primary-container) !important;
+
+  --surface-glass: rgba(15, 8, 8, 0.82);
+}
+
+/* HIGH CONTRAST THEME */
+html[data-theme="hc"] {
+  --md-sys-color-surface: #000000;
+  --md-sys-color-surface-container-low: #000000;
+  --md-sys-color-surface-container: #000000;
+  --md-sys-color-surface-container-high: #000000;
+  --md-sys-color-on-surface: #ffffff;
+  --md-sys-color-on-surface-variant: #ffffff;
+
+  --md-sys-color-primary: #ffffff;
+  --md-sys-color-on-primary: #000000;
+  --md-sys-color-primary-container: #000000;
+  --md-sys-color-on-primary-container: #ffffff;
+
+  --md-sys-color-outline: #ffffff;
+  --md-sys-color-outline-variant: #ffffff;
+
+  /* Legacy mappings */
+  --bg: var(--md-sys-color-surface) !important;
+  --surface: var(--md-sys-color-surface-container) !important;
+  --surface-1: var(--md-sys-color-surface-container-low) !important;
+  --surface-2: var(--md-sys-color-surface-container) !important;
+  --surface-3: var(--md-sys-color-surface-container-high) !important;
+
+  --ink: var(--md-sys-color-on-surface) !important;
+  --ink-800: var(--md-sys-color-on-surface) !important;
+  --ink-400: var(--md-sys-color-on-surface-variant) !important;
+
+  --brand-500: var(--md-sys-color-primary) !important;
+  --brand-100: var(--md-sys-color-primary-container) !important;
+
+  --surface-glass: var(--surface-1) !important;
+  --surface-glass-blur: 0px !important;
+}
+
+/* ==========================================
+   TYPOGRAPHY SCALE OVERRIDES
+   ========================================== */
+body {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  background-color: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden !important;
+}
+
+/* Display / Headline values (telemetry readouts) */
+.k-val, .v.rr, .v, #kpiHr, #kpiRr {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.03em !important;
+  line-height: 1.1 !important;
+}
+
+/* Title Large / Medium (card headers and section titles) */
+.ct, .brand-label, h2, h3, .topbar h1 {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* Body Large / Medium (labels, notes, tables) */
+.cs, .op-meta, td, th, p, textarea, .m-l {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-weight: 500 !important;
+}
+
+/* Label Large / Medium (button texts and micro-telemetry) */
+.r-item, .bn-item, .ca-btn, button, .status-txt, .nav-kbd {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-weight: 600 !important;
+}
+
+/* ==========================================
+   SHAPE & ELEVATION (EXPRESSIVE SCALE)
+   ========================================== */
+.card, .kpi, dialog, .sheet {
+  border-radius: var(--radius-lg) !important;
+  background: var(--md-sys-color-surface-container-low) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+  padding: var(--card-padding) !important;
+  transition: var(--transition-expressive) !important;
+}
+.card:hover, .kpi:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+  border-color: var(--md-sys-color-outline) !important;
+}
+button, .ca-btn, .ghost-btn, .ic-btn {
+  border-radius: var(--radius-md) !important;
+  min-height: var(--tap) !important;
+  transition: var(--transition-standard) !important;
+}
+input, textarea, select {
+  border-radius: var(--radius-sm) !important;
+  border: 1.5px solid var(--md-sys-color-outline-variant) !important;
+  background: var(--md-sys-color-surface) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  padding: 8px 12px !important;
+  transition: var(--transition-standard) !important;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--md-sys-color-primary) !important;
+  outline: none !important;
+}
+
+/* ==========================================
+   RESPONSIVE BREAKPOINT GRID & NAVIGATION
+   ========================================== */
+
+/* DESKTOP VIEWPORTS (>= 1024px) */
+@media (min-width: 1024px) {
+  .app {
+    display: grid !important;
+    grid-template-columns: auto 1fr !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+    background: var(--md-sys-color-surface) !important;
+  }
+  .rail {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100vh !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 999 !important;
+    background: var(--md-sys-color-surface-container-low) !important;
+    border-right: 1px solid var(--md-sys-color-outline-variant) !important;
+    padding: 24px 12px !important;
+    box-sizing: border-box !important;
+    transition: width 0.3s cubic-bezier(0.2, 0, 0, 1) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+  body[data-rail-collapsed="1"] .rail {
+    width: var(--rail-w-collapsed) !important;
+  }
+  body[data-rail-collapsed="0"] .rail {
+    width: var(--rail-w) !important;
+  }
+  .main {
+    padding: var(--gap) !important;
+    display: block !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+  .bottom-nav {
+    display: none !important;
+  }
+
+  /* Left sidebar active indicator pills */
+  .r-item {
+    border-radius: 28px !important;
+    padding: var(--nav-item-padding) !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    gap: 12px !important;
+    background: transparent !important;
+    color: var(--md-sys-color-on-surface-variant) !important;
+    transition: var(--transition-standard) !important;
+    border: none !important;
+    cursor: pointer !important;
+  }
+  .r-item:hover {
+    background: var(--md-sys-color-surface-container-high) !important;
+    color: var(--md-sys-color-on-surface) !important;
+  }
+  .r-item.active {
+    background: var(--md-sys-color-primary-container) !important;
+    color: var(--md-sys-color-on-primary-container) !important;
+    font-weight: 700 !important;
+  }
+
+  /* Collapsed sidebar transitions and font-size: 0 override */
+  body[data-rail-collapsed="1"] .r-item {
+    font-size: 0 !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    width: 56px !important;
+    height: 56px !important;
+    margin: 0 auto 8px !important;
+  }
+  body[data-rail-collapsed="1"] .r-item .r-ic {
+    margin: 0 !important;
+  }
+  body[data-rail-collapsed="1"] .r-item span:not(.r-ic):not(.material-symbols-rounded) {
+    display: none !important;
+  }
+  body[data-rail-collapsed="1"] .r-item .nav-kbd {
+    display: none !important;
+  }
+  body[data-rail-collapsed="1"] .brand-label {
+    display: none !important;
+  }
+  body[data-rail-collapsed="1"] .rail-collapse-btn {
+    position: static !important;
+    margin-inline: auto !important;
+  }
+}
+
+/* MOBILE VIEWPORTS (< 1024px) */
+@media (max-width: 1023px) {
+  .app {
+    display: block !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    background: var(--md-sys-color-surface) !important;
+  }
+  .rail {
+    display: none !important;
+  }
+  #mobileRailToggle {
+    display: none !important;
+  }
+  .bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 1000 !important;
+    background: var(--md-sys-color-surface-container) !important;
+    border-top: 1px solid var(--md-sys-color-outline-variant) !important;
+    padding-bottom: var(--sab) !important;
+    height: calc(var(--bn-h) + var(--sab)) !important;
+    align-items: center !important;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06) !important;
+  }
+  .bottom-nav-inner {
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+  }
+  .bn-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: transparent !important;
+    border: none !important;
+    color: var(--md-sys-color-on-surface-variant) !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    gap: 2px !important;
+    height: 100% !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+    transition: var(--transition-standard) !important;
+  }
+  .bn-item span.material-symbols-rounded {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 56px !important;
+    height: 28px !important;
+    border-radius: 14px !important;
+    transition: var(--transition-standard) !important;
+  }
+  .bn-item.active {
+    color: var(--md-sys-color-primary) !important;
+    font-weight: 700 !important;
+  }
+  .bn-item.active span.material-symbols-rounded {
+    background: var(--md-sys-color-primary-container) !important;
+    color: var(--md-sys-color-on-primary-container) !important;
+  }
+
+  .main {
+    display: block !important;
+    width: 100% !important;
+    padding: var(--gap) !important;
+    padding-bottom: calc(var(--bn-h) + var(--sab) + var(--gap)) !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Single vertical column cards layout */
+  .kpi-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .grid.c2, .grid.c4 {
+    grid-template-columns: 1fr !important;
+  }
+  .rad {
+    grid-template-columns: 1fr !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: var(--gap) !important;
+  }
+  .rad .side {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: var(--gap) !important;
+  }
+}
+
+/* ==========================================
+   LEGACY OVERRIDES & RECOVERY PREVENTATIVE
+   ========================================== */
+#demoBanner, .demo-banner-clone {
+  align-items: center !important;
+  background: #b45309 !important;
+  color: #fff !important;
+  display: flex !important;
+  font: 800 13px/1.25 system-ui, sans-serif !important;
+  gap: 10px !important;
+  letter-spacing: .02em !important;
+  min-height: 44px !important;
+  padding: 10px max(16px, var(--sar)) 10px max(16px, var(--sal)) !important;
+}
+#demoBanner {
+  box-shadow: 0 8px 24px rgba(15,23,42,.2) !important;
+  left: 0 !important;
+  position: fixed !important;
+  right: 0 !important;
+  top: 0 !important;
+  z-index: 10000 !important;
+}
+#demoBanner[hidden] { display: none !important; }
+html[data-sandbox="1"] body { padding-top: calc(44px + var(--sat)) !important; }
+html[data-sandbox="1"] #demoBanner { display: flex !important; }
+
+@supports (backdrop-filter: blur(1px)) {
+  @media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+    .topbar { background: var(--surface-glass) !important; backdrop-filter: blur(var(--surface-glass-blur)) saturate(180%) !important; }
+  }
+  .bottom-nav { background: var(--surface-glass) !important; backdrop-filter: blur(var(--surface-glass-blur)) saturate(180%) !important; }
+  dialog.sheet[open], .sheet.open { backdrop-filter: blur(var(--surface-glass-blur)) saturate(180%) !important; }
+}
+[data-low-end] .topbar,
+[data-low-end] .bottom-nav,
+[data-low-end] dialog.sheet,
+[data-low-end] .sheet.open {
+  backdrop-filter: none !important;
+  background: var(--md-sys-color-surface-container) !important;
+}
+.topbar {
+  min-height: calc(var(--topbar-h) + var(--sat)) !important;
+  padding-top: var(--sat) !important;
+  padding-left: max(var(--gap), var(--sal)) !important;
+  padding-right: max(var(--gap), var(--sar)) !important;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant) !important;
+}
   </style>
   <script id="rvt-v12-boot">
     window.RVT_BP = { sm:480, md:768, lg:1024, xl:1280 };
@@ -27611,6 +28037,9 @@
         </div>
       </header>
 
+  <section id="view-home" class="view-panel"></section>
+
+  <section id="view-live" class="view-panel">
       <div class="command-strip" aria-label="Search and quick actions">
         <button class="command-main" type="button" onclick="openPalette()" aria-label="Open command search">
           <span class="material-symbols-rounded" aria-hidden="true">search</span>
@@ -27622,7 +28051,6 @@
         <button class="quick-action" type="button" onclick="exportData()"
           aria-label="Export JSON payload"><kbd>E</kbd><span class="qa-label">Export</span></button>
       </div>
-
       <div class="fw warn" id="fwBadge" data-help="fw_truthfulness" tabindex="0">
         <span class="material-symbols-rounded">gpp_maybe</span>
         <div>
@@ -27639,8 +28067,6 @@
       <section class="live-verdict" id="liveVerdictMount" aria-live="polite"></section>
       <div id="vitalsAnnouncer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
       <div style="height:16px"></div>
-
-
       <div id="tab-overview" class="tab active">
         <div class="profile-chip-row" id="profileChipRow"></div>
         <div class="kpi-grid" style="margin-bottom:var(--gap)" role="region" aria-label="Vital sign readings">
@@ -28192,6 +28618,13 @@
         </div>
         <div class="ft" id="foot"></div>
       </div>
+  </section>
+
+  <section id="view-report" class="view-panel"></section>
+
+  <section id="view-help" class="view-panel"></section>
+
+  <section id="view-settings" class="view-panel"></section>
 
       <div class="mobile-utility-dock" aria-label="Mobile utility actions">
         <button class="dock-btn primary" type="button" onclick="exportData()" aria-label="Export JSON payload">
@@ -29618,79 +30051,6 @@
       }
     }
 
-    /* Final compact rail alignment override: this is intentionally in the last style block. */
-    @media (min-width: 761px) {
-      .app[data-rail-state="icons"] .rail .r-item,
-      .app[data-rail-state="icons"] .rail .r-item.sub,
-      .app[data-rail-state="icons"] .rail .r-item.nav-ctl,
-      .app[data-rail-state="icons"] .rail .r-item.rail-action,
-      .app[data-rail-state="icons"] .rail .operator,
-      [data-rail-collapsed="1"] .rail .r-item,
-      [data-rail-collapsed="1"] .rail .r-item.sub,
-      [data-rail-collapsed="1"] .rail .r-item.nav-ctl,
-      [data-rail-collapsed="1"] .rail .r-item.rail-action,
-      [data-rail-collapsed="1"] .rail .operator {
-        width: 44px !important;
-        min-width: 44px !important;
-        max-width: 44px !important;
-        height: 44px !important;
-        min-height: 44px !important;
-        padding: 0 !important;
-        display: grid !important;
-        grid-template-columns: 44px !important;
-        place-items: center !important;
-        justify-content: center !important;
-        align-content: center !important;
-        line-height: 1 !important;
-        overflow: visible !important;
-      }
-
-      .app[data-rail-state="icons"] .rail .r-item .r-ic,
-      .app[data-rail-state="icons"] .rail .r-item.rail-action .r-ic,
-      [data-rail-collapsed="1"] .rail .r-item .r-ic,
-      [data-rail-collapsed="1"] .rail .r-item.rail-action .r-ic {
-        display: grid !important;
-        place-items: center !important;
-        width: 44px !important;
-        min-width: 44px !important;
-        height: 44px !important;
-        min-height: 44px !important;
-        margin: 0 !important;
-        transform: none !important;
-      }
-
-      .app[data-rail-state="icons"] .rail .r-item .material-symbols-rounded,
-      .app[data-rail-state="icons"] .rail .r-item.rail-action .material-symbols-rounded,
-      [data-rail-collapsed="1"] .rail .r-item .material-symbols-rounded,
-      [data-rail-collapsed="1"] .rail .r-item.rail-action .material-symbols-rounded {
-        display: block !important;
-        width: 22px !important;
-        height: 22px !important;
-        font-size: 22px !important;
-        line-height: 22px !important;
-        margin: 0 !important;
-        text-align: center !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-      }
-
-      .app[data-rail-state="icons"] .rail .r-item.rail-action,
-      [data-rail-collapsed="1"] .rail .r-item.rail-action {
-        color: var(--ink-700) !important;
-        background: transparent !important;
-        border-color: transparent !important;
-      }
-
-      .app[data-rail-state="icons"] .rail .r-item.active,
-      .app[data-rail-state="icons"] .rail .r-item.sub.active,
-      [data-rail-collapsed="1"] .rail .r-item.active,
-      [data-rail-collapsed="1"] .rail .r-item.sub.active {
-        color: var(--brand-600) !important;
-        background: var(--brand-100) !important;
-        border: 1px solid color-mix(in oklab, var(--brand-500) 38%, var(--line)) !important;
-      }
-    }
-
     @media (prefers-reduced-motion: reduce) {
       .card,
       .kpi,
@@ -31086,21 +31446,6 @@
   [data-theme="night"] .kpi-card .fav.active {
     color: var(--brand-400) !important;
     fill: var(--brand-400) !important;
-  }
-
-  @media (min-width: 761px) {
-    [data-rail-collapsed="1"] .rail .r-item.active,
-    [data-rail-collapsed="1"] .rail [aria-current="page"],
-    .app[data-rail-state="icons"] .rail .r-item.active,
-    .app[data-rail-state="icons"] .rail [aria-current="page"] {
-      width: 44px !important;
-      height: 44px !important;
-      min-width: 44px !important;
-      min-height: 44px !important;
-      padding: 4px !important;
-      background: transparent !important;
-      border-color: transparent !important;
-    }
   }
 
   @media (max-width: 760px) {
@@ -35619,6 +35964,110 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
 .crumb-seg.uiux-home-crumb { min-height: 44px; display: flex; align-items: center; }
 #rvtStillnessCancel, #rvtStillnessStart { min-height: 44px; }
 /* END styles/rvt-p2-mobile-tap-targets-css.css */
+
+/* BEGIN styles/rvt-view-switch-topbar-fix-css.css */
+
+/* ============================================================
+   VIEW PANEL SWITCHING — override data-ctl gate
+   The consolidated CSS gates view panels on data-ctl="on",
+   which breaks offline/disconnected navigation. These rules
+   switch views based purely on the data-view attribute.
+   ============================================================ */
+.view-panel {
+  display: none !important;
+}
+body[data-view="home"] #view-home,
+body[data-view="live"] #view-live,
+body[data-view="report"] #view-report,
+body[data-view="help"] #view-help,
+body[data-view="settings"] #view-settings {
+  display: block !important;
+}
+
+/* Hide live-only elements on non-live views (no data-ctl gate) */
+body[data-view="home"] .tab,
+body[data-view="report"] .tab,
+body[data-view="help"] .tab,
+body[data-view="settings"] .tab,
+body[data-view="home"] #fwBadge,
+body[data-view="report"] #fwBadge,
+body[data-view="help"] #fwBadge,
+body[data-view="settings"] #fwBadge,
+body[data-view="home"] .command-strip,
+body[data-view="report"] .command-strip,
+body[data-view="help"] .command-strip,
+body[data-view="settings"] .command-strip {
+  display: none !important;
+}
+
+/* ============================================================
+   DESKTOP TOPBAR — clean 3-column grid
+   Wins over syncNativeTopbar() inline styles via !important.
+   ============================================================ */
+@media (min-width: 761px) {
+  .topbar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 720 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    grid-template-areas: "crumbs status actions" !important;
+    align-items: center !important;
+    gap: 14px !important;
+    width: calc(100% + 64px) !important;
+    max-width: none !important;
+    min-height: 64px !important;
+    height: auto !important;
+    margin: -28px -32px 18px !important;
+    padding: 12px 24px !important;
+    overflow: visible !important;
+    background: var(--surface-glass, var(--bg, #f4f7fb)) !important;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant, rgba(202, 213, 226, .95)) !important;
+    backdrop-filter: blur(var(--surface-glass-blur, 20px)) saturate(180%) !important;
+  }
+  .topbar .crumbs {
+    grid-area: crumbs !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+  .topbar-status {
+    grid-area: status !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    min-width: 0 !important;
+  }
+  .topbar-status .status-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    white-space: nowrap !important;
+    max-width: 220px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .topbar-status .status-pill .status-sub {
+    display: inline !important;
+  }
+  .topbar-actions {
+    grid-area: actions !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+/* ============================================================
+   MOBILE STATUS BAR — theme-aware color
+   ============================================================ */
+@media (max-width: 760px) {
+  body::before {
+    background: var(--md-sys-color-surface-container, #172033) !important;
+  }
+}
+
+/* END styles/rvt-view-switch-topbar-fix-css.css */
   </style>
   <script id="rvt-legacy-patches-js">
 /* Consolidated legacy patch JS. Source order is preserved from web/index.html. */
@@ -36696,17 +37145,25 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
     const btn = document.querySelector('.topbar-actions > .tb-export');
     if(!btn) return;
     const mobile = window.matchMedia && window.matchMedia('(max-width: 760px)').matches;
+    const utility = document.body && (document.body.dataset.view === 'help' || document.body.dataset.view === 'settings');
+    const nativeDesktop = window.innerWidth > 760 && (window.__TAURI_INTERNALS__ || location.hostname === 'tauri.localhost');
     const set = function(name, value){ btn.style.setProperty(name, value, 'important'); };
-    if(mobile){
-      set('width', '44px');
-      set('min-width', '44px');
-      set('max-width', '44px');
-      set('height', '44px');
-      set('min-height', '44px');
+    if(mobile || utility || nativeDesktop){
+      const size = !mobile ? '52px' : '44px';
+      set('display', 'grid');
+      set('place-items', 'center');
+      set('position', 'static');
+      set('grid-column', 'auto');
+      set('grid-row', 'auto');
+      set('width', size);
+      set('min-width', size);
+      set('max-width', size);
+      set('height', size);
+      set('min-height', size);
       set('padding', '0');
       set('font-size', '0');
       set('gap', '0');
-      set('flex', '0 0 44px');
+      set('flex', '0 0 ' + size);
       set('overflow', 'hidden');
     } else {
       set('width', 'auto');
@@ -43993,9 +44450,9 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
         '<span class="material-symbols-rounded" aria-hidden="true">manage_search</span>' +
         '<input type="search" autocomplete="off" placeholder="Search settings..." aria-label="Search settings">' +
         '<span class="rvt-settings-search-count" aria-live="polite"></span>';
-      var header = host.querySelector('.set-h');
-      if (header && header.nextSibling) host.insertBefore(bar, header.nextSibling);
-      else host.insertBefore(bar, host.firstChild);
+      var header = host.querySelector(':scope > .set-h');
+      var anchor = header && header.parentNode === host ? header.nextSibling : host.firstChild;
+      host.insertBefore(bar, anchor || null);
       var input = bar.querySelector('input');
       input.value = getScalar(KEYS.settingsQuery, '');
       input.addEventListener('input', function() {
@@ -44113,8 +44570,8 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
       '<button type="button" class="rvt-settings-profile-btn" data-profile-save><span class="material-symbols-rounded" aria-hidden="true">save</span>Save</button>' +
       '</div>' +
       '<div class="rvt-profile-list" data-profile-list></div>';
-    var actions = host.querySelector('.set-actions');
-    if (actions) host.insertBefore(card, actions);
+    var actions = host.querySelector(':scope > .set-actions');
+    if (actions && actions.parentNode === host) host.insertBefore(card, actions);
     else host.appendChild(card);
     card.querySelector('[data-profile-save]').addEventListener('click', function(ev) {
       if (ev) ev.__rvtWorker3ProfileHandled = true;
@@ -45747,7 +46204,7 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
   function applyImport(diff){var prior={};diff.forEach(function(item){if(!item.changed||item.skipped)return;prior[item.key]=localStorage.getItem(item.key);localStorage.setItem(item.key,String(item.imported));});U.toast(U.t('gamma.settings.import.applied'),U.t('gamma.settings.import.undo'),function(){Object.keys(prior).forEach(function(k){if(prior[k]==null)localStorage.removeItem(k);else localStorage.setItem(k,prior[k]);});});return diff;}
   function triggerExport(){var payload=buildExportPayload();var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='rvt_settings_'+new Date().toISOString().slice(0,10)+'.json';a.setAttribute('data-rvt-settings-download','true');document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(url);a.remove();},0);}
   function importFile(file){if(file&&typeof file==='object'&&!file.text&&file.settings)return Promise.resolve(showDiffModal(diffPreview(file,buildExportPayload())));return Promise.resolve(file&&typeof file.text==='function'?file.text():String(file||'')).then(function(text){var parsed=typeof text==='string'?JSON.parse(text):text;return showDiffModal(diffPreview(parsed,buildExportPayload()));});}
-  function renderSettingsUi(){if(document.getElementById('rvtA16Settings'))return;var settings=document.getElementById('view-settings')||document.getElementById('settingsView')||document.querySelector('[data-view="settings"]');if(!settings||document.getElementById('rvtSettingsPortability'))return;var section=document.createElement('section');section.id='rvtSettingsPortability';section.className='set-panel rvt-settings-portability';section.innerHTML='<h3>'+U.escapeHtml(U.t('gamma.settings.portability.title'))+'</h3><p class="muted">'+U.escapeHtml(U.t('gamma.settings.portability.desc'))+'</p><div class="rvt-settings-io-actions"><button type="button" class="rvt-settings-io-btn" id="rvtSettingsExportBtn">'+U.escapeHtml(U.t('gamma.settings.export'))+'</button><button type="button" class="rvt-settings-io-btn" id="rvtSettingsImportBtn">'+U.escapeHtml(U.t('gamma.settings.import'))+'</button><input id="rvtSettingsImportFile" type="file" accept=".json,application/json" hidden></div>';var anchor=settings.querySelector('.set-actions')||settings.lastElementChild;settings.insertBefore(section,anchor||null);document.getElementById('rvtSettingsExportBtn').addEventListener('click',triggerExport);document.getElementById('rvtSettingsImportBtn').addEventListener('click',function(){document.getElementById('rvtSettingsImportFile').click();});document.getElementById('rvtSettingsImportFile').addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];if(f)importFile(f).catch(function(err){U.toast(err.message||U.t('gamma.settings.import.invalid'));});e.target.value='';});}
+  function renderSettingsUi(){if(document.getElementById('rvtA16Settings'))return;var settings=document.getElementById('view-settings')||document.getElementById('settingsView')||document.querySelector('[data-view="settings"]');if(!settings||document.getElementById('rvtSettingsPortability'))return;var section=document.createElement('section');section.id='rvtSettingsPortability';section.className='set-panel rvt-settings-portability';section.innerHTML='<h3>'+U.escapeHtml(U.t('gamma.settings.portability.title'))+'</h3><p class="muted">'+U.escapeHtml(U.t('gamma.settings.portability.desc'))+'</p><div class="rvt-settings-io-actions"><button type="button" class="rvt-settings-io-btn" id="rvtSettingsExportBtn">'+U.escapeHtml(U.t('gamma.settings.export'))+'</button><button type="button" class="rvt-settings-io-btn" id="rvtSettingsImportBtn">'+U.escapeHtml(U.t('gamma.settings.import'))+'</button><input id="rvtSettingsImportFile" type="file" accept=".json,application/json" hidden></div>';var anchor=settings.querySelector(':scope > .set-actions')||settings.lastElementChild;settings.insertBefore(section,(anchor&&anchor.parentNode===settings)?anchor:null);document.getElementById('rvtSettingsExportBtn').addEventListener('click',triggerExport);document.getElementById('rvtSettingsImportBtn').addEventListener('click',function(){document.getElementById('rvtSettingsImportFile').click();});document.getElementById('rvtSettingsImportFile').addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];if(f)importFile(f).catch(function(err){U.toast(err.message||U.t('gamma.settings.import.invalid'));});e.target.value='';});}
   window.rvtSettingsIO={export:triggerExport,import:importFile,diffPreview:diffPreview,applyImport:applyImport,buildExportPayload:buildExportPayload};
   U.bootSoon(renderSettingsUi);
 })();
@@ -48975,10 +49432,6 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
   text-indent: 0 !important;
 }
 
-body[data-view="settings"] #view-settings.rvt-a16-mounted > :not(.rvt-a16-settings) {
-  display: none !important;
-}
-
 body[data-view="help"] #view-help > .rvt-help-search,
 body[data-view="help"] #view-help > #rvtHelpSearchBar,
 body[data-view="help"] #view-help > #rvtHelpDeepLinks,
@@ -48989,596 +49442,6 @@ body[data-view="help"] #view-help > #rvtHelpOfflineStatus {
 
 body[data-view="help"] #view-help > .help-page {
   margin-top: 0 !important;
-}
-
-body[data-view="settings"] #view-settings.rvt-a16-mounted {
-  width: min(100%, 1220px) !important;
-  max-width: 1220px !important;
-  margin-inline: auto !important;
-}
-
-.rvt-a16-settings {
-  --a16-bg: #fff3f8;
-  --a16-surface: rgba(255, 255, 255, .78);
-  --a16-surface-strong: rgba(255, 255, 255, .94);
-  --a16-line: rgba(112, 72, 91, .14);
-  --a16-ink: #22141d;
-  --a16-muted: #67525d;
-  --a16-accent: #ba2f71;
-  --a16-accent-soft: #ffe0ee;
-  --a16-blue: #2563eb;
-  display: grid;
-  gap: 18px;
-  color: var(--a16-ink);
-}
-
-.rvt-a16-top {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 16px;
-}
-
-.rvt-a16-title {
-  margin: 0;
-  font: 900 32px/1.08 "Inter Tight", "Inter", system-ui, sans-serif;
-  letter-spacing: 0;
-}
-
-.rvt-a16-subtitle {
-  margin-top: 5px;
-  color: var(--a16-muted);
-  font: 750 13px/1.35 "Inter", system-ui, sans-serif;
-}
-
-.rvt-a16-search {
-  min-height: 58px;
-  border: 1px solid var(--a16-line);
-  border-radius: 24px;
-  background: var(--a16-surface-strong);
-  box-shadow: 0 14px 34px rgba(92, 45, 68, .08);
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-  padding: 0 18px;
-}
-
-.rvt-a16-search .material-symbols-rounded {
-  color: var(--a16-muted);
-  font-size: 22px;
-}
-
-.rvt-a16-search input {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--a16-ink);
-  font: 760 16px/1.2 "Inter", system-ui, sans-serif;
-}
-
-.rvt-a16-search input::placeholder {
-  color: color-mix(in oklab, var(--a16-muted) 78%, transparent);
-}
-
-.rvt-a16-layout {
-  display: grid;
-  grid-template-columns: minmax(340px, .9fr) minmax(0, 1.45fr);
-  gap: 18px;
-  align-items: start;
-}
-
-.rvt-a16-stack {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
-
-.rvt-a16-card {
-  border: 1px solid var(--a16-line);
-  border-radius: 26px;
-  background: var(--a16-surface);
-  box-shadow: 0 18px 42px rgba(92, 45, 68, .075);
-  overflow: hidden;
-}
-
-.rvt-a16-profile {
-  display: grid;
-  grid-template-columns: 46px minmax(0, 1fr) auto;
-  gap: 14px;
-  align-items: center;
-  padding: 16px;
-}
-
-.rvt-a16-avatar,
-.rvt-a16-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  background: var(--a16-accent-soft);
-  color: var(--a16-accent);
-  overflow: hidden;
-}
-
-.rvt-a16-avatar {
-  border-radius: 50%;
-  background: linear-gradient(135deg, #fbb6ce, #fed7aa);
-  color: #6d173b;
-  font: 950 14px/1 "Inter", system-ui, sans-serif;
-}
-
-.rvt-a16-row {
-  width: 100%;
-  min-height: 72px;
-  border: 0;
-  border-top: 1px solid transparent;
-  background: transparent;
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  gap: 14px;
-  align-items: center;
-  padding: 14px 16px;
-  color: inherit;
-  text-align: left;
-}
-
-.rvt-a16-row + .rvt-a16-row {
-  border-top-color: var(--a16-line);
-}
-
-.rvt-a16-row:where(button) {
-  cursor: pointer;
-}
-
-.rvt-a16-row:where(button):active {
-  transform: translateY(1px);
-}
-
-.rvt-a16-copy {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.rvt-a16-copy strong {
-  color: var(--a16-ink);
-  font: 860 15px/1.22 "Inter", system-ui, sans-serif;
-  letter-spacing: 0;
-}
-
-.rvt-a16-copy span {
-  color: var(--a16-muted);
-  font: 650 12.5px/1.35 "Inter", system-ui, sans-serif;
-}
-
-.rvt-a16-chevron {
-  color: color-mix(in oklab, var(--a16-muted) 70%, transparent);
-  font-size: 23px !important;
-}
-
-.rvt-a16-section-label {
-  margin: 12px 10px 2px;
-  color: var(--a16-accent);
-  font: 820 12px/1 "Inter", system-ui, sans-serif;
-}
-
-.rvt-a16-switch {
-  width: 56px;
-  height: 34px;
-  border: 0;
-  border-radius: 999px;
-  background: #d9dfe8;
-  position: relative;
-  cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgba(36, 45, 64, .08);
-}
-
-.rvt-a16-switch::after {
-  content: "";
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 3px 10px rgba(24, 33, 52, .18);
-  transition: transform .18s ease;
-}
-
-.rvt-a16-switch[aria-pressed="true"] {
-  background: var(--a16-accent);
-}
-
-.rvt-a16-switch[aria-pressed="true"]::after {
-  transform: translateX(22px);
-}
-
-.rvt-a16-segment {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 14px 16px 16px;
-}
-
-.rvt-a16-chip {
-  min-height: 40px;
-  border: 1px solid var(--a16-line);
-  border-radius: 999px;
-  background: var(--a16-surface-strong);
-  color: var(--a16-muted);
-  padding: 0 14px;
-  font: 850 13px/1 "Inter", system-ui, sans-serif;
-  cursor: pointer;
-}
-
-.rvt-a16-chip[aria-pressed="true"],
-.rvt-a16-chip.active {
-  background: var(--a16-accent);
-  border-color: var(--a16-accent);
-  color: #fff;
-}
-
-.rvt-a16-panel {
-  min-height: 360px;
-  padding: 22px;
-  display: grid;
-  gap: 16px;
-  align-content: start;
-}
-
-.rvt-a16-panel-head {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  gap: 16px;
-  align-items: center;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--a16-line);
-}
-
-.rvt-a16-panel-head .rvt-a16-icon {
-  width: 58px;
-  height: 58px;
-  border-radius: 20px;
-}
-
-.rvt-a16-panel h3 {
-  margin: 0;
-  color: var(--a16-ink);
-  font: 900 26px/1.1 "Inter Tight", "Inter", system-ui, sans-serif;
-  letter-spacing: 0;
-}
-
-.rvt-a16-panel p {
-  margin: 5px 0 0;
-  color: var(--a16-muted);
-  font: 650 14px/1.45 "Inter", system-ui, sans-serif;
-}
-
-.rvt-a16-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.rvt-a16-action {
-  min-height: 54px;
-  border: 1px solid var(--a16-line);
-  border-radius: 18px;
-  background: var(--a16-surface-strong);
-  color: var(--a16-ink);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  padding: 0 16px;
-  font: 850 14px/1 "Inter", system-ui, sans-serif;
-  cursor: pointer;
-}
-
-.rvt-a16-action.primary {
-  background: var(--a16-blue);
-  border-color: var(--a16-blue);
-  color: #fff;
-}
-
-.rvt-a16-action.danger {
-  color: #be123c;
-  border-color: rgba(190, 18, 60, .28);
-}
-
-.rvt-a16-about {
-  display: grid;
-  gap: 8px;
-}
-
-.rvt-a16-kv {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: baseline;
-  padding: 11px 0;
-  border-top: 1px solid var(--a16-line);
-  color: var(--a16-muted);
-  font: 760 13px/1.2 "Inter", system-ui, sans-serif;
-}
-
-.rvt-a16-kv strong {
-  color: var(--a16-ink);
-  font-weight: 900;
-}
-
-@media (min-width: 981px) {
-  body[data-view="settings"] {
-    background: #f3f8ff !important;
-  }
-
-  body[data-view="settings"] #view-settings.rvt-a16-mounted {
-    width: min(100%, 1260px) !important;
-    max-width: 1260px !important;
-    margin-inline: auto !important;
-    padding: 0 8px 48px !important;
-  }
-
-  .rvt-a16-settings {
-    --a16-bg: #f3f8ff;
-    --a16-surface: rgba(255, 255, 255, .72);
-    --a16-surface-strong: rgba(255, 255, 255, .88);
-    --a16-line: rgba(42, 57, 76, .13);
-    --a16-ink: #1b1f23;
-    --a16-muted: #5f6773;
-    --a16-accent: #0078d4;
-    --a16-accent-soft: #e5f2ff;
-    --a16-blue: #0078d4;
-    gap: 20px;
-  }
-
-  .rvt-a16-top {
-    grid-template-columns: 270px minmax(420px, 520px) minmax(0, 1fr);
-    align-items: start;
-  }
-
-  .rvt-a16-top > div:first-child {
-    grid-column: 2 / -1;
-    grid-row: 2;
-    padding-top: 8px;
-  }
-
-  .rvt-a16-search {
-    grid-column: 2;
-    grid-row: 1;
-    min-height: 36px;
-    border-radius: 999px;
-    padding: 0 14px;
-    box-shadow: none;
-    background: rgba(255, 255, 255, .92);
-  }
-
-  .rvt-a16-search input {
-    font-size: 13.5px;
-    font-weight: 520;
-  }
-
-  .rvt-a16-title {
-    font: 700 30px/1.15 "Inter", "Segoe UI", system-ui, sans-serif;
-  }
-
-  .rvt-a16-subtitle {
-    font-size: 13px;
-    font-weight: 520;
-  }
-
-  .rvt-a16-layout {
-    grid-template-columns: 270px minmax(0, 1fr);
-    gap: 28px;
-    align-items: start;
-  }
-
-  .rvt-a16-stack {
-    position: sticky;
-    top: 132px;
-    gap: 4px;
-  }
-
-  .rvt-a16-card {
-    border-radius: 7px;
-    background: transparent;
-    border-color: transparent;
-    box-shadow: none;
-    overflow: visible;
-  }
-
-  .rvt-a16-profile {
-    grid-template-columns: 52px minmax(0, 1fr);
-    min-height: 78px;
-    margin-bottom: 14px;
-    padding: 10px 8px;
-  }
-
-  .rvt-a16-profile .rvt-a16-chevron {
-    display: none;
-  }
-
-  .rvt-a16-avatar {
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #dbeafe, #e0f2fe);
-    color: #0f4e84;
-  }
-
-  .rvt-a16-section-label {
-    display: none;
-  }
-
-  .rvt-a16-stack > .rvt-a16-card:not(.rvt-a16-profile) {
-    display: contents;
-  }
-
-  .rvt-a16-row {
-    min-height: 39px;
-    grid-template-columns: 28px minmax(0, 1fr) 18px;
-    gap: 14px;
-    padding: 0 10px;
-    border: 0;
-    border-left: 3px solid transparent;
-    border-radius: 4px;
-  }
-
-  .rvt-a16-row + .rvt-a16-row {
-    border-top: 0;
-  }
-
-  .rvt-a16-row:hover {
-    background: rgba(255, 255, 255, .62);
-  }
-
-  .rvt-a16-row:focus-visible,
-  .rvt-a16-row[aria-current="page"] {
-    background: rgba(255, 255, 255, .82);
-    border-left-color: var(--a16-accent);
-    outline: 0;
-  }
-
-  .rvt-a16-icon {
-    width: 26px;
-    height: 26px;
-    border-radius: 6px;
-    background: transparent;
-    color: #243142;
-  }
-
-  .rvt-a16-row .rvt-a16-icon .material-symbols-rounded {
-    font-size: 22px;
-  }
-
-  .rvt-a16-copy strong {
-    font: 520 14px/1.2 "Inter", "Segoe UI", system-ui, sans-serif;
-  }
-
-  .rvt-a16-row .rvt-a16-copy span {
-    display: none;
-  }
-
-  .rvt-a16-chevron {
-    font-size: 18px !important;
-    color: #20252b;
-  }
-
-  .rvt-a16-switch,
-  .rvt-a16-segment {
-    display: none;
-  }
-
-  .rvt-a16-panel {
-    min-height: 640px;
-    padding: 0;
-    gap: 10px;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-  }
-
-  .rvt-a16-panel-head {
-    grid-template-columns: 118px minmax(0, 1fr) repeat(3, minmax(120px, 150px));
-    gap: 16px;
-    align-items: center;
-    padding: 4px 0 22px;
-    border-bottom: 0;
-  }
-
-  .rvt-a16-panel-head .rvt-a16-icon {
-    width: 118px;
-    height: 68px;
-    border-radius: 5px;
-    background: #101820;
-    color: #64b5ff;
-    border: 4px solid #101820;
-    box-shadow: inset 0 0 0 2px #93c5fd;
-  }
-
-  .rvt-a16-panel-head .rvt-a16-icon .material-symbols-rounded {
-    font-size: 34px;
-  }
-
-  .rvt-a16-panel h3 {
-    font: 650 20px/1.22 "Inter", "Segoe UI", system-ui, sans-serif;
-  }
-
-  .rvt-a16-panel p {
-    font-size: 13px;
-    font-weight: 480;
-  }
-
-  .rvt-a16-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-
-  .rvt-a16-action {
-    min-height: 68px;
-    width: 100%;
-    justify-content: flex-start;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, .78);
-    border-color: var(--a16-line);
-    box-shadow: none;
-    color: var(--a16-ink);
-    font: 500 14px/1.2 "Inter", "Segoe UI", system-ui, sans-serif;
-    padding: 0 18px;
-    position: relative;
-  }
-
-  .rvt-a16-action::after {
-    content: "chevron_right";
-    margin-left: auto;
-    font-family: "Material Symbols Rounded";
-    font-size: 20px;
-    line-height: 1;
-  }
-
-  .rvt-a16-action.primary {
-    background: rgba(255, 255, 255, .78);
-    border-color: var(--a16-line);
-    color: var(--a16-ink);
-  }
-
-  .rvt-a16-action.danger {
-    color: #b42318;
-  }
-
-  .rvt-a16-about {
-    margin-top: 4px;
-    overflow: hidden;
-    border: 1px solid var(--a16-line);
-    border-radius: 4px;
-    background: rgba(255, 255, 255, .78);
-  }
-
-  .rvt-a16-kv {
-    min-height: 66px;
-    padding: 0 18px;
-    border-top-color: var(--a16-line);
-    font-weight: 480;
-  }
-
-  .rvt-a16-kv:first-child {
-    border-top: 0;
-  }
-}
-
-@media (max-width: 980px) {
-  .rvt-a16-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .rvt-a16-panel {
-    min-height: 0;
-  }
 }
 
 @media (max-width: 760px) {
@@ -49594,49 +49457,6 @@ body[data-view="settings"] #view-settings.rvt-a16-mounted {
 
   body .main {
     padding-top: 36px !important;
-  }
-
-  body[data-view="settings"] #view-settings.rvt-a16-mounted {
-    width: 100% !important;
-    max-width: none !important;
-    margin: 0 !important;
-    padding: 0 8px 110px !important;
-  }
-
-  .rvt-a16-settings {
-    gap: 14px !important;
-  }
-
-  .rvt-a16-top {
-    grid-template-columns: 1fr !important;
-    gap: 12px !important;
-  }
-
-  .rvt-a16-title {
-    font-size: 28px !important;
-  }
-
-  .rvt-a16-search {
-    min-height: 56px !important;
-    border-radius: 26px !important;
-  }
-
-  .rvt-a16-card {
-    border-radius: 24px !important;
-    box-shadow: 0 12px 28px rgba(92, 45, 68, .065) !important;
-  }
-
-  .rvt-a16-profile,
-  .rvt-a16-row {
-    padding: 13px 14px !important;
-  }
-
-  .rvt-a16-panel {
-    display: none !important;
-  }
-
-  .rvt-a16-grid {
-    grid-template-columns: 1fr !important;
   }
 
   #mobileRailToggle {
@@ -49993,22 +49813,244 @@ body[data-view="settings"] #view-settings.rvt-a16-mounted {
   body[data-view="home"] #setupCard.rvt-setup-expanded .rvt-mobile-disclosure-btn::after{content:"expand_less"}
 }`;
 
-  var iconMap = {
-    source: 'sensors',
-    palette: 'palette',
-    notifications: 'notifications',
-    archive: 'inventory_2',
-    portability: 'ios_share',
-    profile: 'account_circle',
-    info: 'info',
-    speed: 'speed',
-    haptics: 'vibration'
-  };
-
   function setImportant(el, name, value) {
     if (!el || !el.style) return;
     if (el.style.getPropertyValue(name) === value && el.style.getPropertyPriority(name) === 'important') return;
     el.style.setProperty(name, value, 'important');
+  }
+
+  function clearUtilityTopbarStyles(el) {
+    if (!el || !el.style || el.dataset.rvtUtilityTopbar !== '1') return;
+    delete el.dataset.rvtUtilityTopbar;
+    [
+      'display', 'grid-template-columns', 'gap', 'width', 'min-width', 'max-width', 'height', 'min-height',
+      'padding', 'margin', 'border', 'background', 'box-shadow', 'overflow', 'place-items', 'position',
+      'grid-column', 'grid-row', 'grid-area', 'border-radius', 'font-size', 'line-height', 'flex'
+    ].forEach(function (name) { el.style.removeProperty(name); });
+  }
+
+  function markUtilityTopbar(el) {
+    if (el && el.dataset) el.dataset.rvtUtilityTopbar = '1';
+  }
+
+  function ensureSettingsRoutePage() {
+    var view = document.getElementById('view-settings');
+    var modal = document.querySelector('#settingsOv .set-md');
+    if (!view || !modal) return;
+
+    var page = document.getElementById('rvtSettingsRoutePage');
+    if (!page) {
+      page = document.createElement('section');
+      page.id = 'rvtSettingsRoutePage';
+      page.className = 'settings-page';
+      page.innerHTML =
+        '<div class="ch settings-page-head">' +
+          '<div class="tw">' +
+            '<span class="material-symbols-rounded" aria-hidden="true">tune</span>' +
+            '<div><div class="ct">Dashboard settings</div>' +
+            '<div class="cs">Session source, appearance, alert thresholds, audio, and live rendering.</div></div>' +
+          '</div>' +
+          '<div class="ca"><button class="chip-btn" type="button" id="rvtSettingsSyncBtn">' +
+            '<span class="material-symbols-rounded" aria-hidden="true">sync</span>Sync</button></div>' +
+        '</div>' +
+        '<div class="settings-page-toolbar">' +
+          '<button class="settings-tab is-active" type="button" data-settings-jump="source">Source</button>' +
+          '<button class="settings-tab" type="button" data-settings-jump="appearance">Appearance</button>' +
+          '<button class="settings-tab" type="button" data-settings-jump="alerts">Alerts</button>' +
+          '<button class="settings-tab" type="button" data-settings-jump="rendering">Rendering</button>' +
+        '</div>' +
+        '<div class="settings-page-grid" id="rvtSettingsRouteGrid"></div>';
+      view.insertBefore(page, view.firstChild);
+    } else if (view.firstElementChild !== page) {
+      view.insertBefore(page, view.firstChild);
+    }
+
+    var grid = document.getElementById('rvtSettingsRouteGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    Array.prototype.forEach.call(modal.children, function (child) {
+      if (!child || child.classList.contains('set-h')) return;
+      if (child.classList.contains('set-actions')) {
+        var actions = child.cloneNode(true);
+        Array.prototype.forEach.call(actions.querySelectorAll('button'), function (button) {
+          if (/done/i.test(button.textContent || '')) button.remove();
+        });
+        if (actions.children.length) grid.appendChild(actions);
+        return;
+      }
+      var clone = child.cloneNode(true);
+      clone.dataset.settingsRoute = '1';
+      grid.appendChild(clone);
+    });
+
+    var sync = document.getElementById('rvtSettingsSyncBtn');
+    if (sync && sync.dataset.bound !== '1') {
+      sync.dataset.bound = '1';
+      sync.addEventListener('click', function () {
+        try { window.syncSettingsUi && window.syncSettingsUi(); } catch (_) {}
+        try { window.syncThresholdControls && window.syncThresholdControls(); } catch (_) {}
+      });
+    }
+
+    Array.prototype.forEach.call(page.querySelectorAll('[data-settings-jump]'), function (btn) {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-settings-jump');
+        var target = key === 'source' ? '.set-source' :
+          key === 'appearance' ? '.set-cosmetic' :
+          key === 'alerts' ? '.set-critical, .set-feedback' :
+          '.set-g:last-of-type';
+        var section = page.querySelector(target);
+        if (section) section.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      });
+    });
+
+    try { window.syncSettingsUi && window.syncSettingsUi(); } catch (_) {}
+    try { window.syncThresholdControls && window.syncThresholdControls(); } catch (_) {}
+  }
+
+  function preferSettingsRoute() {
+    if (window.__rvtNativeSettingsRouteInstalled) return;
+    window.__rvtNativeSettingsRouteInstalled = true;
+    var originalOpenSettings = window.openSettings;
+    window.openSettings = function (opts) {
+      if (opts && opts.modal && typeof originalOpenSettings === 'function') {
+        return originalOpenSettings.apply(this, arguments);
+      }
+      ensureSettingsRoutePage();
+      if (typeof window.switchView === 'function') window.switchView('settings');
+      setTimeout(ensureSettingsRoutePage, 80);
+      setTimeout(ensureSettingsRoutePage, 360);
+    };
+  }
+
+  function syncNativeTopbar() {
+    var desktop = window.innerWidth > 760;
+    var topbar = document.querySelector('.topbar');
+    var main = document.querySelector('.main');
+    var status = document.querySelector('.topbar-status');
+    var actions = document.querySelector('.topbar-actions');
+    var command = document.querySelector('.command-strip');
+
+    if (command) setImportant(command, 'display', 'none');
+
+    if (!topbar || !actions || !desktop) {
+      clearUtilityTopbarStyles(actions);
+      if (actions) Array.prototype.forEach.call(actions.children, function (el) {
+        clearUtilityTopbarStyles(el);
+        Array.prototype.forEach.call(el.querySelectorAll('.material-symbols-rounded'), clearUtilityTopbarStyles);
+      });
+      return;
+    }
+
+    setImportant(main, 'padding-top', '0');
+
+    markUtilityTopbar(topbar);
+    setImportant(topbar, 'position', 'sticky');
+    setImportant(topbar, 'top', '0');
+    setImportant(topbar, 'z-index', '720');
+    setImportant(topbar, 'display', 'grid');
+    setImportant(topbar, 'grid-template-columns', 'minmax(0, 1fr) auto auto');
+    setImportant(topbar, 'grid-template-areas', '"crumbs status actions"');
+    setImportant(topbar, 'align-items', 'center');
+    setImportant(topbar, 'gap', '14px');
+    setImportant(topbar, 'width', 'calc(100% + 64px)');
+    setImportant(topbar, 'max-width', 'none');
+    setImportant(topbar, 'min-height', '92px');
+    setImportant(topbar, 'height', '92px');
+    setImportant(topbar, 'margin', '0 -32px 18px');
+    setImportant(topbar, 'padding', '14px 24px');
+    setImportant(topbar, 'overflow', 'visible');
+    setImportant(topbar, 'background', 'var(--bg, #f4f7fb)');
+    setImportant(topbar, 'border-bottom', '1px solid rgba(202, 213, 226, .95)');
+    setImportant(topbar, 'box-shadow', '0 18px 34px rgba(15, 23, 42, .08)');
+    setImportant(topbar, 'backdrop-filter', 'none');
+
+    var crumbs = topbar.querySelector('.crumbs');
+    markUtilityTopbar(crumbs);
+    setImportant(crumbs, 'grid-area', 'crumbs');
+    setImportant(crumbs, 'min-width', '0');
+    setImportant(crumbs, 'overflow', 'hidden');
+
+    if (status) {
+      markUtilityTopbar(status);
+      setImportant(status, 'grid-area', 'status');
+      setImportant(status, 'display', 'flex');
+      setImportant(status, 'align-items', 'center');
+      setImportant(status, 'gap', '8px');
+      setImportant(status, 'width', 'auto');
+      setImportant(status, 'min-width', '0');
+      Array.prototype.forEach.call(status.children, function (el) {
+        var keep = el.id === 'modeBadge';
+        markUtilityTopbar(el);
+        setImportant(el, 'display', keep ? 'inline-flex' : 'none');
+        if (keep) {
+          setImportant(el, 'height', '46px');
+          setImportant(el, 'min-height', '46px');
+          setImportant(el, 'max-width', '220px');
+          setImportant(el, 'padding', '0 12px');
+          setImportant(el, 'border-radius', '18px');
+        }
+      });
+    }
+
+    markUtilityTopbar(actions);
+    setImportant(actions, 'display', 'grid');
+    setImportant(actions, 'grid-area', 'actions');
+    setImportant(actions, 'grid-template-columns', '52px 52px 52px 52px');
+    setImportant(actions, 'gap', '8px');
+    setImportant(actions, 'width', '232px');
+    setImportant(actions, 'min-width', '232px');
+    setImportant(actions, 'max-width', '232px');
+    setImportant(actions, 'height', '52px');
+    setImportant(actions, 'min-height', '52px');
+    setImportant(actions, 'padding', '0');
+    setImportant(actions, 'margin', '0');
+    setImportant(actions, 'border', '0');
+    setImportant(actions, 'background', 'transparent');
+    setImportant(actions, 'box-shadow', 'none');
+    setImportant(actions, 'overflow', 'visible');
+    Array.prototype.forEach.call(actions.children, function (el) {
+      var keep = el.classList.contains('tb-search') ||
+        el.classList.contains('tb-alerts') ||
+        el.classList.contains('tb-overflow') ||
+        el.classList.contains('tb-export') ||
+        el.classList.contains('tb-overflow-menu');
+      markUtilityTopbar(el);
+      if (!keep) {
+        setImportant(el, 'display', 'none');
+        return;
+      }
+      if (el.classList.contains('tb-overflow-menu')) return;
+      setImportant(el, 'display', 'grid');
+      setImportant(el, 'place-items', 'center');
+      setImportant(el, 'position', 'static');
+      setImportant(el, 'grid-column', 'auto');
+      setImportant(el, 'grid-row', 'auto');
+      setImportant(el, 'width', '52px');
+      setImportant(el, 'min-width', '52px');
+      setImportant(el, 'max-width', '52px');
+      setImportant(el, 'height', '52px');
+      setImportant(el, 'min-height', '52px');
+      setImportant(el, 'padding', '0');
+      setImportant(el, 'margin', '0');
+      setImportant(el, 'flex', '0 0 52px');
+      setImportant(el, 'overflow', 'hidden');
+      setImportant(el, 'border-radius', '16px');
+      setImportant(el, 'font-size', '0');
+      setImportant(el, 'line-height', '0');
+      setImportant(el, 'gap', '0');
+      Array.prototype.forEach.call(el.querySelectorAll('.material-symbols-rounded'), function (icon) {
+        markUtilityTopbar(icon);
+        setImportant(icon, 'width', '24px');
+        setImportant(icon, 'height', '24px');
+        setImportant(icon, 'margin', '0');
+        setImportant(icon, 'font-size', '24px');
+        setImportant(icon, 'line-height', '1');
+      });
+    });
   }
 
   function install() {
@@ -50051,189 +50093,17 @@ body[data-view="settings"] #view-settings.rvt-a16-mounted {
     setImportant(setupDisclosure, 'margin', '14px 16px 16px');
     setImportant(setupDisclosure, 'font-size', '14px');
 
-    installAndroidSettings();
-    syncAndroidSettings();
+    syncNativeTopbar();
+    ensureSettingsRoutePage();
+    preferSettingsRoute();
   }
 
-  function call(name, args) {
-    try {
-      if (typeof window[name] === 'function') return window[name].apply(window, args || []);
-    } catch (_) {}
-    return null;
-  }
-
-  function isOn(id) {
-    var el = document.getElementById(id);
-    return !!(el && (el.getAttribute('aria-pressed') === 'true' || el.classList.contains('on')));
-  }
-
-  function currentTheme() {
-    try {
-      return document.documentElement.getAttribute('data-theme') || localStorage.getItem('rvt_theme_mode') || 'light';
-    } catch (_) {
-      return document.documentElement.getAttribute('data-theme') || 'light';
-    }
-  }
-
-  function currentDensity() {
-    return document.documentElement.getAttribute('data-density') || 'comfortable';
-  }
-
-  function rowHtml(key, title, sub, action) {
-    var right = action || '<span class="material-symbols-rounded rvt-a16-chevron" aria-hidden="true">chevron_right</span>';
-    var tagOpen = action ? '<div class="rvt-a16-row" data-a16-row="' + key + '">' : '<button type="button" class="rvt-a16-row" data-a16-row="' + key + '">';
-    var tagClose = action ? '</div>' : '</button>';
-    return tagOpen +
-      '<span class="rvt-a16-icon"><span class="material-symbols-rounded" aria-hidden="true">' + (iconMap[key] || 'settings') + '</span></span>' +
-      '<span class="rvt-a16-copy"><strong>' + title + '</strong><span>' + sub + '</span></span>' +
-      right +
-      tagClose;
-  }
-
-  function switchHtml(id, pressed) {
-    return '<button type="button" class="rvt-a16-switch" id="' + id + '" aria-pressed="' + (pressed ? 'true' : 'false') + '"></button>';
-  }
-
-  function installAndroidSettings() {
-    var view = document.getElementById('view-settings');
-    if (!view || document.getElementById('rvtA16Settings')) return;
-    view.classList.add('rvt-a16-mounted');
-    var shell = document.createElement('section');
-    shell.id = 'rvtA16Settings';
-    shell.className = 'rvt-a16-settings';
-    shell.innerHTML =
-      '<div class="rvt-a16-top">' +
-        '<div><h2 class="rvt-a16-title">Settings</h2><div class="rvt-a16-subtitle">Radar Vital console preferences</div></div>' +
-        '<label class="rvt-a16-search"><span class="material-symbols-rounded" aria-hidden="true">search</span><input id="rvtA16Search" type="search" placeholder="Search Settings" autocomplete="off"></label>' +
-      '</div>' +
-      '<div class="rvt-a16-layout">' +
-        '<div class="rvt-a16-stack">' +
-          '<section class="rvt-a16-card rvt-a16-profile"><span class="rvt-a16-avatar">RV</span><span class="rvt-a16-copy"><strong>Radar Vital Trainer</strong><span>Local station preferences and session behavior</span></span><span class="material-symbols-rounded rvt-a16-chevron" aria-hidden="true">chevron_right</span></section>' +
-          '<div class="rvt-a16-section-label">Connection and live data</div>' +
-          '<section class="rvt-a16-card">' +
-            rowHtml('source', 'Demo mode', 'Use generated sample telemetry for demos only.', switchHtml('rvtA16DemoSwitch', false)) +
-            rowHtml('speed', 'Auto demo on disconnect', 'Switch to demo after repeated live polling failures.', switchHtml('rvtA16AutoDemoSwitch', false)) +
-            rowHtml('archive', 'Freeze stale live data', 'Keep the last real payload visible and mark it stale.', switchHtml('rvtA16FreezeSwitch', true)) +
-          '</section>' +
-          '<div class="rvt-a16-section-label">Appearance</div>' +
-          '<section class="rvt-a16-card">' +
-            rowHtml('palette', 'Theme', 'System, light, dark, night red, or high contrast.') +
-            '<div class="rvt-a16-segment" data-a16-theme><button class="rvt-a16-chip" data-theme-mode="system">System</button><button class="rvt-a16-chip" data-theme-mode="light">Light</button><button class="rvt-a16-chip" data-theme-mode="dark">Dark</button><button class="rvt-a16-chip" data-theme-mode="night">Night red</button><button class="rvt-a16-chip" data-theme-mode="hc">High contrast</button></div>' +
-            rowHtml('speed', 'Density', 'Choose comfortable spacing or compact telemetry density.') +
-            '<div class="rvt-a16-segment" data-a16-density><button class="rvt-a16-chip" data-density="comfortable">Comfortable</button><button class="rvt-a16-chip" data-density="compact">Compact</button></div>' +
-          '</section>' +
-          '<div class="rvt-a16-section-label">Alerts and feedback</div>' +
-          '<section class="rvt-a16-card">' +
-            rowHtml('notifications', 'Audio alerts', 'Play a short alert tone for threshold and connection events.', switchHtml('rvtA16AudioSwitch', false)) +
-            rowHtml('profile', 'Voice announcements', 'Speak eyes-busy alert callouts when supported.', switchHtml('rvtA16VoiceSwitch', false)) +
-            rowHtml('haptics', 'Haptic feedback', 'Vibrate on session start, export, copy, and confirmations.') +
-          '</section>' +
-          '<div class="rvt-a16-section-label">Storage and maintenance</div>' +
-          '<section class="rvt-a16-card">' +
-            rowHtml('archive', 'Session archive and purge', 'Review local retention, archived rows, and purge actions.') +
-            rowHtml('portability', 'Import or export settings', 'Move this console configuration between stations.') +
-            rowHtml('profile', 'Settings profiles', 'Save and load named settings snapshots.') +
-            rowHtml('info', 'About', 'Dashboard, trainer, firmware, and storage schema versions.') +
-          '</section>' +
-        '</div>' +
-        '<aside class="rvt-a16-card rvt-a16-panel" id="rvtA16Panel">' +
-          '<div class="rvt-a16-panel-head"><span class="rvt-a16-icon"><span class="material-symbols-rounded" aria-hidden="true">settings</span></span><div><h3>Settings hierarchy</h3><p>Select a category on the left, or use search to narrow preferences.</p></div></div>' +
-          '<div class="rvt-a16-grid">' +
-            '<button type="button" class="rvt-a16-action primary" data-a16-action="export"><span class="material-symbols-rounded" aria-hidden="true">download</span>Export settings</button>' +
-            '<button type="button" class="rvt-a16-action" data-a16-action="import"><span class="material-symbols-rounded" aria-hidden="true">upload</span>Import settings</button>' +
-            '<button type="button" class="rvt-a16-action" data-a16-action="test-sound"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span>Test sound</button>' +
-            '<button type="button" class="rvt-a16-action danger" data-a16-action="reset"><span class="material-symbols-rounded" aria-hidden="true">restart_alt</span>Reset defaults</button>' +
-          '</div>' +
-          '<div class="rvt-a16-about"><div class="rvt-a16-kv"><span>Dashboard</span><strong id="rvtA16DashboardVersion">11.0.0</strong></div><div class="rvt-a16-kv"><span>Trainer</span><strong id="rvtA16TrainerVersion">11.0.0</strong></div><div class="rvt-a16-kv"><span>Firmware</span><strong id="rvtA16FirmwareVersion">v15.0.0</strong></div><div class="rvt-a16-kv"><span>Storage schema</span><strong>Local</strong></div></div>' +
-          '<input id="rvtA16ImportFile" type="file" accept=".json,application/json" hidden>' +
-        '</aside>' +
-      '</div>';
-    view.insertBefore(shell, view.firstChild);
-
-    shell.addEventListener('click', function (e) {
-      var target = e.target;
-      var demo = target.closest('#rvtA16DemoSwitch');
-      var autoDemo = target.closest('#rvtA16AutoDemoSwitch');
-      var freeze = target.closest('#rvtA16FreezeSwitch');
-      var audio = target.closest('#rvtA16AudioSwitch');
-      var voice = target.closest('#rvtA16VoiceSwitch');
-      var theme = target.closest('[data-theme-mode]');
-      var density = target.closest('[data-density]');
-      var action = target.closest('[data-a16-action]');
-      if (demo) call('toggleDemoMode');
-      else if (autoDemo) call('toggleAutoDemo');
-      else if (freeze) call('toggleFreezeOnStale');
-      else if (audio) call('setAudioAlerts', [!isOn('audioAlertSwitch')]);
-      else if (voice) call('setVoiceAlerts', [!isOn('voiceAlertSwitch')]);
-      else if (theme) call('setThemeMode', [theme.dataset.themeMode]);
-      else if (density) call('setDensity', [density.dataset.density]);
-      else if (action) {
-        var name = action.dataset.a16Action;
-        if (name === 'export') {
-          if (window.rvtSettingsIO && typeof window.rvtSettingsIO.export === 'function') window.rvtSettingsIO.export();
-          else {
-            var btn = document.getElementById('rvtSettingsExportBtn');
-            if (btn) btn.click(); else call('exportSettings');
-          }
-        } else if (name === 'import') {
-          var file = document.getElementById('rvtA16ImportFile') || document.getElementById('rvtSettingsImportFile');
-          if (file) file.click();
-        } else if (name === 'test-sound') {
-          call('testAudioAlert');
-        } else if (name === 'reset') {
-          call('confirmResetDashboardDefaults');
-        }
-      }
-      setTimeout(syncAndroidSettings, 80);
-      setTimeout(syncAndroidSettings, 500);
-    });
-
-    var search = document.getElementById('rvtA16Search');
-    if (search) {
-      search.addEventListener('input', function () {
-        var q = search.value.trim().toLowerCase();
-        Array.prototype.forEach.call(shell.querySelectorAll('.rvt-a16-row'), function (row) {
-          row.style.display = !q || row.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
-        });
-      });
-    }
-    var importFile = document.getElementById('rvtA16ImportFile');
-    if (importFile) {
-      importFile.addEventListener('change', function (e) {
-        var f = e.target.files && e.target.files[0];
-        if (f && window.rvtSettingsIO && typeof window.rvtSettingsIO.import === 'function') window.rvtSettingsIO.import(f);
-        e.target.value = '';
-      });
-    }
-  }
-
-  function syncAndroidSettings() {
-    var shell = document.getElementById('rvtA16Settings');
-    if (!shell) return;
-    var pairs = [
-      ['rvtA16DemoSwitch', 'demoModeSwitch'],
-      ['rvtA16AutoDemoSwitch', 'autoDemoSwitch'],
-      ['rvtA16FreezeSwitch', 'freezeOnStaleSwitch'],
-      ['rvtA16AudioSwitch', 'audioAlertSwitch'],
-      ['rvtA16VoiceSwitch', 'voiceAlertSwitch']
-    ];
-    pairs.forEach(function (pair) {
-      var mine = document.getElementById(pair[0]);
-      if (mine) mine.setAttribute('aria-pressed', isOn(pair[1]) ? 'true' : 'false');
-    });
-    Array.prototype.forEach.call(shell.querySelectorAll('[data-theme-mode]'), function (btn) {
-      btn.setAttribute('aria-pressed', btn.dataset.themeMode === currentTheme() ? 'true' : 'false');
-    });
-    Array.prototype.forEach.call(shell.querySelectorAll('[data-density]'), function (btn) {
-      btn.setAttribute('aria-pressed', btn.dataset.density === currentDensity() ? 'true' : 'false');
-    });
-    var root = window.RVT_VERSION || window.VERSION || {};
-    var dash = document.getElementById('rvtA16DashboardVersion');
-    var trainer = document.getElementById('rvtA16TrainerVersion');
-    var firmware = document.getElementById('rvtA16FirmwareVersion');
-    if (dash && (root.dashboard || window.DASHBOARD_VERSION)) dash.textContent = root.dashboard || window.DASHBOARD_VERSION;
-    if (trainer && (root.trainer || window.TRAINER_VERSION)) trainer.textContent = root.trainer || window.TRAINER_VERSION;
-    if (firmware && (root.firmware || window.FIRMWARE_VERSION)) firmware.textContent = root.firmware || window.FIRMWARE_VERSION;
+  function scheduleUtilityTopbarSyncs() {
+    syncNativeTopbar();
+    setTimeout(syncNativeTopbar, 90);
+    setTimeout(syncNativeTopbar, 320);
+    setTimeout(syncNativeTopbar, 900);
+    setTimeout(syncNativeTopbar, 1700);
   }
 
   install();
@@ -50252,6 +50122,7 @@ body[data-view="settings"] #view-settings.rvt-a16-mounted {
             scheduled = requestAnimationFrame(function () {
               scheduled = 0;
               install();
+              scheduleUtilityTopbarSyncs();
             });
           }
           break;
@@ -50267,6 +50138,7 @@ body[data-view="settings"] #view-settings.rvt-a16-mounted {
       if (window.rvtTrackMutationObserver) window.rvtTrackMutationObserver(observer);
     }
   } catch (_) {}
+  setInterval(syncNativeTopbar, 1500);
 })();
   </script>
 <script id="rvt-v12-pwa-runtime">
@@ -50280,6 +50152,9 @@ body[data-view="settings"] #view-settings.rvt-a16-mounted {
   let replayingHistory = false;
 
   function qs(){ try { return new URLSearchParams(location.search || ''); } catch (_) { return new URLSearchParams(); } }
+  function isTauriNative(){
+    return !!window.__TAURI_INTERNALS__ || location.hostname === 'tauri.localhost';
+  }
   function normalizeApiBase(value){
     const raw = String(value || '').trim().replace(/\/+$/, '');
     if (!raw) return '';
@@ -50649,6 +50524,13 @@ body[data-view="settings"] #view-settings.rvt-a16-mounted {
   function installServiceWorker(){
     if (document.documentElement.dataset.rvtArchive === '1') return;
     if (!('serviceWorker' in navigator)) return;
+    if (isTauriNative()) {
+      navigator.serviceWorker.getRegistrations?.().then(regs => regs.forEach(reg => reg.unregister())).catch(() => {});
+      if (window.caches?.keys) {
+        caches.keys().then(keys => keys.forEach(key => caches.delete(key))).catch(() => {});
+      }
+      return;
+    }
     navigator.serviceWorker.register('/sw.js').then(reg => {
       reg.addEventListener('updatefound', () => {
         const w = reg.installing;

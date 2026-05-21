@@ -1073,17 +1073,25 @@
     const btn = document.querySelector('.topbar-actions > .tb-export');
     if(!btn) return;
     const mobile = window.matchMedia && window.matchMedia('(max-width: 760px)').matches;
+    const utility = document.body && (document.body.dataset.view === 'help' || document.body.dataset.view === 'settings');
+    const nativeDesktop = window.innerWidth > 760 && (window.__TAURI_INTERNALS__ || location.hostname === 'tauri.localhost');
     const set = function(name, value){ btn.style.setProperty(name, value, 'important'); };
-    if(mobile){
-      set('width', '44px');
-      set('min-width', '44px');
-      set('max-width', '44px');
-      set('height', '44px');
-      set('min-height', '44px');
+    if(mobile || utility || nativeDesktop){
+      const size = !mobile ? '52px' : '44px';
+      set('display', 'grid');
+      set('place-items', 'center');
+      set('position', 'static');
+      set('grid-column', 'auto');
+      set('grid-row', 'auto');
+      set('width', size);
+      set('min-width', size);
+      set('max-width', size);
+      set('height', size);
+      set('min-height', size);
       set('padding', '0');
       set('font-size', '0');
       set('gap', '0');
-      set('flex', '0 0 44px');
+      set('flex', '0 0 ' + size);
       set('overflow', 'hidden');
     } else {
       set('width', 'auto');
@@ -8370,9 +8378,9 @@
         '<span class="material-symbols-rounded" aria-hidden="true">manage_search</span>' +
         '<input type="search" autocomplete="off" placeholder="Search settings..." aria-label="Search settings">' +
         '<span class="rvt-settings-search-count" aria-live="polite"></span>';
-      var header = host.querySelector('.set-h');
-      if (header && header.nextSibling) host.insertBefore(bar, header.nextSibling);
-      else host.insertBefore(bar, host.firstChild);
+      var header = host.querySelector(':scope > .set-h');
+      var anchor = header && header.parentNode === host ? header.nextSibling : host.firstChild;
+      host.insertBefore(bar, anchor || null);
       var input = bar.querySelector('input');
       input.value = getScalar(KEYS.settingsQuery, '');
       input.addEventListener('input', function() {
@@ -8490,8 +8498,8 @@
       '<button type="button" class="rvt-settings-profile-btn" data-profile-save><span class="material-symbols-rounded" aria-hidden="true">save</span>Save</button>' +
       '</div>' +
       '<div class="rvt-profile-list" data-profile-list></div>';
-    var actions = host.querySelector('.set-actions');
-    if (actions) host.insertBefore(card, actions);
+    var actions = host.querySelector(':scope > .set-actions');
+    if (actions && actions.parentNode === host) host.insertBefore(card, actions);
     else host.appendChild(card);
     card.querySelector('[data-profile-save]').addEventListener('click', function(ev) {
       if (ev) ev.__rvtWorker3ProfileHandled = true;
@@ -10124,7 +10132,7 @@
   function applyImport(diff){var prior={};diff.forEach(function(item){if(!item.changed||item.skipped)return;prior[item.key]=localStorage.getItem(item.key);localStorage.setItem(item.key,String(item.imported));});U.toast(U.t('gamma.settings.import.applied'),U.t('gamma.settings.import.undo'),function(){Object.keys(prior).forEach(function(k){if(prior[k]==null)localStorage.removeItem(k);else localStorage.setItem(k,prior[k]);});});return diff;}
   function triggerExport(){var payload=buildExportPayload();var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='rvt_settings_'+new Date().toISOString().slice(0,10)+'.json';a.setAttribute('data-rvt-settings-download','true');document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(url);a.remove();},0);}
   function importFile(file){if(file&&typeof file==='object'&&!file.text&&file.settings)return Promise.resolve(showDiffModal(diffPreview(file,buildExportPayload())));return Promise.resolve(file&&typeof file.text==='function'?file.text():String(file||'')).then(function(text){var parsed=typeof text==='string'?JSON.parse(text):text;return showDiffModal(diffPreview(parsed,buildExportPayload()));});}
-  function renderSettingsUi(){if(document.getElementById('rvtA16Settings'))return;var settings=document.getElementById('view-settings')||document.getElementById('settingsView')||document.querySelector('[data-view="settings"]');if(!settings||document.getElementById('rvtSettingsPortability'))return;var section=document.createElement('section');section.id='rvtSettingsPortability';section.className='set-panel rvt-settings-portability';section.innerHTML='<h3>'+U.escapeHtml(U.t('gamma.settings.portability.title'))+'</h3><p class="muted">'+U.escapeHtml(U.t('gamma.settings.portability.desc'))+'</p><div class="rvt-settings-io-actions"><button type="button" class="rvt-settings-io-btn" id="rvtSettingsExportBtn">'+U.escapeHtml(U.t('gamma.settings.export'))+'</button><button type="button" class="rvt-settings-io-btn" id="rvtSettingsImportBtn">'+U.escapeHtml(U.t('gamma.settings.import'))+'</button><input id="rvtSettingsImportFile" type="file" accept=".json,application/json" hidden></div>';var anchor=settings.querySelector('.set-actions')||settings.lastElementChild;settings.insertBefore(section,anchor||null);document.getElementById('rvtSettingsExportBtn').addEventListener('click',triggerExport);document.getElementById('rvtSettingsImportBtn').addEventListener('click',function(){document.getElementById('rvtSettingsImportFile').click();});document.getElementById('rvtSettingsImportFile').addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];if(f)importFile(f).catch(function(err){U.toast(err.message||U.t('gamma.settings.import.invalid'));});e.target.value='';});}
+  function renderSettingsUi(){if(document.getElementById('rvtA16Settings'))return;var settings=document.getElementById('view-settings')||document.getElementById('settingsView')||document.querySelector('[data-view="settings"]');if(!settings||document.getElementById('rvtSettingsPortability'))return;var section=document.createElement('section');section.id='rvtSettingsPortability';section.className='set-panel rvt-settings-portability';section.innerHTML='<h3>'+U.escapeHtml(U.t('gamma.settings.portability.title'))+'</h3><p class="muted">'+U.escapeHtml(U.t('gamma.settings.portability.desc'))+'</p><div class="rvt-settings-io-actions"><button type="button" class="rvt-settings-io-btn" id="rvtSettingsExportBtn">'+U.escapeHtml(U.t('gamma.settings.export'))+'</button><button type="button" class="rvt-settings-io-btn" id="rvtSettingsImportBtn">'+U.escapeHtml(U.t('gamma.settings.import'))+'</button><input id="rvtSettingsImportFile" type="file" accept=".json,application/json" hidden></div>';var anchor=settings.querySelector(':scope > .set-actions')||settings.lastElementChild;settings.insertBefore(section,(anchor&&anchor.parentNode===settings)?anchor:null);document.getElementById('rvtSettingsExportBtn').addEventListener('click',triggerExport);document.getElementById('rvtSettingsImportBtn').addEventListener('click',function(){document.getElementById('rvtSettingsImportFile').click();});document.getElementById('rvtSettingsImportFile').addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];if(f)importFile(f).catch(function(err){U.toast(err.message||U.t('gamma.settings.import.invalid'));});e.target.value='';});}
   window.rvtSettingsIO={export:triggerExport,import:importFile,diffPreview:diffPreview,applyImport:applyImport,buildExportPayload:buildExportPayload};
   U.bootSoon(renderSettingsUi);
 })();

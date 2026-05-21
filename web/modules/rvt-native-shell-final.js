@@ -29,22 +29,244 @@
   body[data-view="home"] #setupCard.rvt-setup-expanded .rvt-mobile-disclosure-btn::after{content:"expand_less"}
 }`;
 
-  var iconMap = {
-    source: 'sensors',
-    palette: 'palette',
-    notifications: 'notifications',
-    archive: 'inventory_2',
-    portability: 'ios_share',
-    profile: 'account_circle',
-    info: 'info',
-    speed: 'speed',
-    haptics: 'vibration'
-  };
-
   function setImportant(el, name, value) {
     if (!el || !el.style) return;
     if (el.style.getPropertyValue(name) === value && el.style.getPropertyPriority(name) === 'important') return;
     el.style.setProperty(name, value, 'important');
+  }
+
+  function clearUtilityTopbarStyles(el) {
+    if (!el || !el.style || el.dataset.rvtUtilityTopbar !== '1') return;
+    delete el.dataset.rvtUtilityTopbar;
+    [
+      'display', 'grid-template-columns', 'gap', 'width', 'min-width', 'max-width', 'height', 'min-height',
+      'padding', 'margin', 'border', 'background', 'box-shadow', 'overflow', 'place-items', 'position',
+      'grid-column', 'grid-row', 'grid-area', 'border-radius', 'font-size', 'line-height', 'flex'
+    ].forEach(function (name) { el.style.removeProperty(name); });
+  }
+
+  function markUtilityTopbar(el) {
+    if (el && el.dataset) el.dataset.rvtUtilityTopbar = '1';
+  }
+
+  function ensureSettingsRoutePage() {
+    var view = document.getElementById('view-settings');
+    var modal = document.querySelector('#settingsOv .set-md');
+    if (!view || !modal) return;
+
+    var page = document.getElementById('rvtSettingsRoutePage');
+    if (!page) {
+      page = document.createElement('section');
+      page.id = 'rvtSettingsRoutePage';
+      page.className = 'settings-page';
+      page.innerHTML =
+        '<div class="ch settings-page-head">' +
+          '<div class="tw">' +
+            '<span class="material-symbols-rounded" aria-hidden="true">tune</span>' +
+            '<div><div class="ct">Dashboard settings</div>' +
+            '<div class="cs">Session source, appearance, alert thresholds, audio, and live rendering.</div></div>' +
+          '</div>' +
+          '<div class="ca"><button class="chip-btn" type="button" id="rvtSettingsSyncBtn">' +
+            '<span class="material-symbols-rounded" aria-hidden="true">sync</span>Sync</button></div>' +
+        '</div>' +
+        '<div class="settings-page-toolbar">' +
+          '<button class="settings-tab is-active" type="button" data-settings-jump="source">Source</button>' +
+          '<button class="settings-tab" type="button" data-settings-jump="appearance">Appearance</button>' +
+          '<button class="settings-tab" type="button" data-settings-jump="alerts">Alerts</button>' +
+          '<button class="settings-tab" type="button" data-settings-jump="rendering">Rendering</button>' +
+        '</div>' +
+        '<div class="settings-page-grid" id="rvtSettingsRouteGrid"></div>';
+      view.insertBefore(page, view.firstChild);
+    } else if (view.firstElementChild !== page) {
+      view.insertBefore(page, view.firstChild);
+    }
+
+    var grid = document.getElementById('rvtSettingsRouteGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    Array.prototype.forEach.call(modal.children, function (child) {
+      if (!child || child.classList.contains('set-h')) return;
+      if (child.classList.contains('set-actions')) {
+        var actions = child.cloneNode(true);
+        Array.prototype.forEach.call(actions.querySelectorAll('button'), function (button) {
+          if (/done/i.test(button.textContent || '')) button.remove();
+        });
+        if (actions.children.length) grid.appendChild(actions);
+        return;
+      }
+      var clone = child.cloneNode(true);
+      clone.dataset.settingsRoute = '1';
+      grid.appendChild(clone);
+    });
+
+    var sync = document.getElementById('rvtSettingsSyncBtn');
+    if (sync && sync.dataset.bound !== '1') {
+      sync.dataset.bound = '1';
+      sync.addEventListener('click', function () {
+        try { window.syncSettingsUi && window.syncSettingsUi(); } catch (_) {}
+        try { window.syncThresholdControls && window.syncThresholdControls(); } catch (_) {}
+      });
+    }
+
+    Array.prototype.forEach.call(page.querySelectorAll('[data-settings-jump]'), function (btn) {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-settings-jump');
+        var target = key === 'source' ? '.set-source' :
+          key === 'appearance' ? '.set-cosmetic' :
+          key === 'alerts' ? '.set-critical, .set-feedback' :
+          '.set-g:last-of-type';
+        var section = page.querySelector(target);
+        if (section) section.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      });
+    });
+
+    try { window.syncSettingsUi && window.syncSettingsUi(); } catch (_) {}
+    try { window.syncThresholdControls && window.syncThresholdControls(); } catch (_) {}
+  }
+
+  function preferSettingsRoute() {
+    if (window.__rvtNativeSettingsRouteInstalled) return;
+    window.__rvtNativeSettingsRouteInstalled = true;
+    var originalOpenSettings = window.openSettings;
+    window.openSettings = function (opts) {
+      if (opts && opts.modal && typeof originalOpenSettings === 'function') {
+        return originalOpenSettings.apply(this, arguments);
+      }
+      ensureSettingsRoutePage();
+      if (typeof window.switchView === 'function') window.switchView('settings');
+      setTimeout(ensureSettingsRoutePage, 80);
+      setTimeout(ensureSettingsRoutePage, 360);
+    };
+  }
+
+  function syncNativeTopbar() {
+    var desktop = window.innerWidth > 760;
+    var topbar = document.querySelector('.topbar');
+    var main = document.querySelector('.main');
+    var status = document.querySelector('.topbar-status');
+    var actions = document.querySelector('.topbar-actions');
+    var command = document.querySelector('.command-strip');
+
+    if (command) setImportant(command, 'display', 'none');
+
+    if (!topbar || !actions || !desktop) {
+      clearUtilityTopbarStyles(actions);
+      if (actions) Array.prototype.forEach.call(actions.children, function (el) {
+        clearUtilityTopbarStyles(el);
+        Array.prototype.forEach.call(el.querySelectorAll('.material-symbols-rounded'), clearUtilityTopbarStyles);
+      });
+      return;
+    }
+
+    setImportant(main, 'padding-top', '0');
+
+    markUtilityTopbar(topbar);
+    setImportant(topbar, 'position', 'sticky');
+    setImportant(topbar, 'top', '0');
+    setImportant(topbar, 'z-index', '720');
+    setImportant(topbar, 'display', 'grid');
+    setImportant(topbar, 'grid-template-columns', 'minmax(0, 1fr) auto auto');
+    setImportant(topbar, 'grid-template-areas', '"crumbs status actions"');
+    setImportant(topbar, 'align-items', 'center');
+    setImportant(topbar, 'gap', '14px');
+    setImportant(topbar, 'width', 'calc(100% + 64px)');
+    setImportant(topbar, 'max-width', 'none');
+    setImportant(topbar, 'min-height', '92px');
+    setImportant(topbar, 'height', '92px');
+    setImportant(topbar, 'margin', '0 -32px 18px');
+    setImportant(topbar, 'padding', '14px 24px');
+    setImportant(topbar, 'overflow', 'visible');
+    setImportant(topbar, 'background', 'var(--bg, #f4f7fb)');
+    setImportant(topbar, 'border-bottom', '1px solid rgba(202, 213, 226, .95)');
+    setImportant(topbar, 'box-shadow', '0 18px 34px rgba(15, 23, 42, .08)');
+    setImportant(topbar, 'backdrop-filter', 'none');
+
+    var crumbs = topbar.querySelector('.crumbs');
+    markUtilityTopbar(crumbs);
+    setImportant(crumbs, 'grid-area', 'crumbs');
+    setImportant(crumbs, 'min-width', '0');
+    setImportant(crumbs, 'overflow', 'hidden');
+
+    if (status) {
+      markUtilityTopbar(status);
+      setImportant(status, 'grid-area', 'status');
+      setImportant(status, 'display', 'flex');
+      setImportant(status, 'align-items', 'center');
+      setImportant(status, 'gap', '8px');
+      setImportant(status, 'width', 'auto');
+      setImportant(status, 'min-width', '0');
+      Array.prototype.forEach.call(status.children, function (el) {
+        var keep = el.id === 'modeBadge';
+        markUtilityTopbar(el);
+        setImportant(el, 'display', keep ? 'inline-flex' : 'none');
+        if (keep) {
+          setImportant(el, 'height', '46px');
+          setImportant(el, 'min-height', '46px');
+          setImportant(el, 'max-width', '220px');
+          setImportant(el, 'padding', '0 12px');
+          setImportant(el, 'border-radius', '18px');
+        }
+      });
+    }
+
+    markUtilityTopbar(actions);
+    setImportant(actions, 'display', 'grid');
+    setImportant(actions, 'grid-area', 'actions');
+    setImportant(actions, 'grid-template-columns', '52px 52px 52px 52px');
+    setImportant(actions, 'gap', '8px');
+    setImportant(actions, 'width', '232px');
+    setImportant(actions, 'min-width', '232px');
+    setImportant(actions, 'max-width', '232px');
+    setImportant(actions, 'height', '52px');
+    setImportant(actions, 'min-height', '52px');
+    setImportant(actions, 'padding', '0');
+    setImportant(actions, 'margin', '0');
+    setImportant(actions, 'border', '0');
+    setImportant(actions, 'background', 'transparent');
+    setImportant(actions, 'box-shadow', 'none');
+    setImportant(actions, 'overflow', 'visible');
+    Array.prototype.forEach.call(actions.children, function (el) {
+      var keep = el.classList.contains('tb-search') ||
+        el.classList.contains('tb-alerts') ||
+        el.classList.contains('tb-overflow') ||
+        el.classList.contains('tb-export') ||
+        el.classList.contains('tb-overflow-menu');
+      markUtilityTopbar(el);
+      if (!keep) {
+        setImportant(el, 'display', 'none');
+        return;
+      }
+      if (el.classList.contains('tb-overflow-menu')) return;
+      setImportant(el, 'display', 'grid');
+      setImportant(el, 'place-items', 'center');
+      setImportant(el, 'position', 'static');
+      setImportant(el, 'grid-column', 'auto');
+      setImportant(el, 'grid-row', 'auto');
+      setImportant(el, 'width', '52px');
+      setImportant(el, 'min-width', '52px');
+      setImportant(el, 'max-width', '52px');
+      setImportant(el, 'height', '52px');
+      setImportant(el, 'min-height', '52px');
+      setImportant(el, 'padding', '0');
+      setImportant(el, 'margin', '0');
+      setImportant(el, 'flex', '0 0 52px');
+      setImportant(el, 'overflow', 'hidden');
+      setImportant(el, 'border-radius', '16px');
+      setImportant(el, 'font-size', '0');
+      setImportant(el, 'line-height', '0');
+      setImportant(el, 'gap', '0');
+      Array.prototype.forEach.call(el.querySelectorAll('.material-symbols-rounded'), function (icon) {
+        markUtilityTopbar(icon);
+        setImportant(icon, 'width', '24px');
+        setImportant(icon, 'height', '24px');
+        setImportant(icon, 'margin', '0');
+        setImportant(icon, 'font-size', '24px');
+        setImportant(icon, 'line-height', '1');
+      });
+    });
   }
 
   function install() {
@@ -87,189 +309,17 @@
     setImportant(setupDisclosure, 'margin', '14px 16px 16px');
     setImportant(setupDisclosure, 'font-size', '14px');
 
-    installAndroidSettings();
-    syncAndroidSettings();
+    syncNativeTopbar();
+    ensureSettingsRoutePage();
+    preferSettingsRoute();
   }
 
-  function call(name, args) {
-    try {
-      if (typeof window[name] === 'function') return window[name].apply(window, args || []);
-    } catch (_) {}
-    return null;
-  }
-
-  function isOn(id) {
-    var el = document.getElementById(id);
-    return !!(el && (el.getAttribute('aria-pressed') === 'true' || el.classList.contains('on')));
-  }
-
-  function currentTheme() {
-    try {
-      return document.documentElement.getAttribute('data-theme') || localStorage.getItem('rvt_theme_mode') || 'light';
-    } catch (_) {
-      return document.documentElement.getAttribute('data-theme') || 'light';
-    }
-  }
-
-  function currentDensity() {
-    return document.documentElement.getAttribute('data-density') || 'comfortable';
-  }
-
-  function rowHtml(key, title, sub, action) {
-    var right = action || '<span class="material-symbols-rounded rvt-a16-chevron" aria-hidden="true">chevron_right</span>';
-    var tagOpen = action ? '<div class="rvt-a16-row" data-a16-row="' + key + '">' : '<button type="button" class="rvt-a16-row" data-a16-row="' + key + '">';
-    var tagClose = action ? '</div>' : '</button>';
-    return tagOpen +
-      '<span class="rvt-a16-icon"><span class="material-symbols-rounded" aria-hidden="true">' + (iconMap[key] || 'settings') + '</span></span>' +
-      '<span class="rvt-a16-copy"><strong>' + title + '</strong><span>' + sub + '</span></span>' +
-      right +
-      tagClose;
-  }
-
-  function switchHtml(id, pressed) {
-    return '<button type="button" class="rvt-a16-switch" id="' + id + '" aria-pressed="' + (pressed ? 'true' : 'false') + '"></button>';
-  }
-
-  function installAndroidSettings() {
-    var view = document.getElementById('view-settings');
-    if (!view || document.getElementById('rvtA16Settings')) return;
-    view.classList.add('rvt-a16-mounted');
-    var shell = document.createElement('section');
-    shell.id = 'rvtA16Settings';
-    shell.className = 'rvt-a16-settings';
-    shell.innerHTML =
-      '<div class="rvt-a16-top">' +
-        '<div><h2 class="rvt-a16-title">Settings</h2><div class="rvt-a16-subtitle">Radar Vital console preferences</div></div>' +
-        '<label class="rvt-a16-search"><span class="material-symbols-rounded" aria-hidden="true">search</span><input id="rvtA16Search" type="search" placeholder="Search Settings" autocomplete="off"></label>' +
-      '</div>' +
-      '<div class="rvt-a16-layout">' +
-        '<div class="rvt-a16-stack">' +
-          '<section class="rvt-a16-card rvt-a16-profile"><span class="rvt-a16-avatar">RV</span><span class="rvt-a16-copy"><strong>Radar Vital Trainer</strong><span>Local station preferences and session behavior</span></span><span class="material-symbols-rounded rvt-a16-chevron" aria-hidden="true">chevron_right</span></section>' +
-          '<div class="rvt-a16-section-label">Connection and live data</div>' +
-          '<section class="rvt-a16-card">' +
-            rowHtml('source', 'Demo mode', 'Use generated sample telemetry for demos only.', switchHtml('rvtA16DemoSwitch', false)) +
-            rowHtml('speed', 'Auto demo on disconnect', 'Switch to demo after repeated live polling failures.', switchHtml('rvtA16AutoDemoSwitch', false)) +
-            rowHtml('archive', 'Freeze stale live data', 'Keep the last real payload visible and mark it stale.', switchHtml('rvtA16FreezeSwitch', true)) +
-          '</section>' +
-          '<div class="rvt-a16-section-label">Appearance</div>' +
-          '<section class="rvt-a16-card">' +
-            rowHtml('palette', 'Theme', 'System, light, dark, night red, or high contrast.') +
-            '<div class="rvt-a16-segment" data-a16-theme><button class="rvt-a16-chip" data-theme-mode="system">System</button><button class="rvt-a16-chip" data-theme-mode="light">Light</button><button class="rvt-a16-chip" data-theme-mode="dark">Dark</button><button class="rvt-a16-chip" data-theme-mode="night">Night red</button><button class="rvt-a16-chip" data-theme-mode="hc">High contrast</button></div>' +
-            rowHtml('speed', 'Density', 'Choose comfortable spacing or compact telemetry density.') +
-            '<div class="rvt-a16-segment" data-a16-density><button class="rvt-a16-chip" data-density="comfortable">Comfortable</button><button class="rvt-a16-chip" data-density="compact">Compact</button></div>' +
-          '</section>' +
-          '<div class="rvt-a16-section-label">Alerts and feedback</div>' +
-          '<section class="rvt-a16-card">' +
-            rowHtml('notifications', 'Audio alerts', 'Play a short alert tone for threshold and connection events.', switchHtml('rvtA16AudioSwitch', false)) +
-            rowHtml('profile', 'Voice announcements', 'Speak eyes-busy alert callouts when supported.', switchHtml('rvtA16VoiceSwitch', false)) +
-            rowHtml('haptics', 'Haptic feedback', 'Vibrate on session start, export, copy, and confirmations.') +
-          '</section>' +
-          '<div class="rvt-a16-section-label">Storage and maintenance</div>' +
-          '<section class="rvt-a16-card">' +
-            rowHtml('archive', 'Session archive and purge', 'Review local retention, archived rows, and purge actions.') +
-            rowHtml('portability', 'Import or export settings', 'Move this console configuration between stations.') +
-            rowHtml('profile', 'Settings profiles', 'Save and load named settings snapshots.') +
-            rowHtml('info', 'About', 'Dashboard, trainer, firmware, and storage schema versions.') +
-          '</section>' +
-        '</div>' +
-        '<aside class="rvt-a16-card rvt-a16-panel" id="rvtA16Panel">' +
-          '<div class="rvt-a16-panel-head"><span class="rvt-a16-icon"><span class="material-symbols-rounded" aria-hidden="true">settings</span></span><div><h3>Settings hierarchy</h3><p>Select a category on the left, or use search to narrow preferences.</p></div></div>' +
-          '<div class="rvt-a16-grid">' +
-            '<button type="button" class="rvt-a16-action primary" data-a16-action="export"><span class="material-symbols-rounded" aria-hidden="true">download</span>Export settings</button>' +
-            '<button type="button" class="rvt-a16-action" data-a16-action="import"><span class="material-symbols-rounded" aria-hidden="true">upload</span>Import settings</button>' +
-            '<button type="button" class="rvt-a16-action" data-a16-action="test-sound"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span>Test sound</button>' +
-            '<button type="button" class="rvt-a16-action danger" data-a16-action="reset"><span class="material-symbols-rounded" aria-hidden="true">restart_alt</span>Reset defaults</button>' +
-          '</div>' +
-          '<div class="rvt-a16-about"><div class="rvt-a16-kv"><span>Dashboard</span><strong id="rvtA16DashboardVersion">11.0.0</strong></div><div class="rvt-a16-kv"><span>Trainer</span><strong id="rvtA16TrainerVersion">11.0.0</strong></div><div class="rvt-a16-kv"><span>Firmware</span><strong id="rvtA16FirmwareVersion">v15.0.0</strong></div><div class="rvt-a16-kv"><span>Storage schema</span><strong>Local</strong></div></div>' +
-          '<input id="rvtA16ImportFile" type="file" accept=".json,application/json" hidden>' +
-        '</aside>' +
-      '</div>';
-    view.insertBefore(shell, view.firstChild);
-
-    shell.addEventListener('click', function (e) {
-      var target = e.target;
-      var demo = target.closest('#rvtA16DemoSwitch');
-      var autoDemo = target.closest('#rvtA16AutoDemoSwitch');
-      var freeze = target.closest('#rvtA16FreezeSwitch');
-      var audio = target.closest('#rvtA16AudioSwitch');
-      var voice = target.closest('#rvtA16VoiceSwitch');
-      var theme = target.closest('[data-theme-mode]');
-      var density = target.closest('[data-density]');
-      var action = target.closest('[data-a16-action]');
-      if (demo) call('toggleDemoMode');
-      else if (autoDemo) call('toggleAutoDemo');
-      else if (freeze) call('toggleFreezeOnStale');
-      else if (audio) call('setAudioAlerts', [!isOn('audioAlertSwitch')]);
-      else if (voice) call('setVoiceAlerts', [!isOn('voiceAlertSwitch')]);
-      else if (theme) call('setThemeMode', [theme.dataset.themeMode]);
-      else if (density) call('setDensity', [density.dataset.density]);
-      else if (action) {
-        var name = action.dataset.a16Action;
-        if (name === 'export') {
-          if (window.rvtSettingsIO && typeof window.rvtSettingsIO.export === 'function') window.rvtSettingsIO.export();
-          else {
-            var btn = document.getElementById('rvtSettingsExportBtn');
-            if (btn) btn.click(); else call('exportSettings');
-          }
-        } else if (name === 'import') {
-          var file = document.getElementById('rvtA16ImportFile') || document.getElementById('rvtSettingsImportFile');
-          if (file) file.click();
-        } else if (name === 'test-sound') {
-          call('testAudioAlert');
-        } else if (name === 'reset') {
-          call('confirmResetDashboardDefaults');
-        }
-      }
-      setTimeout(syncAndroidSettings, 80);
-      setTimeout(syncAndroidSettings, 500);
-    });
-
-    var search = document.getElementById('rvtA16Search');
-    if (search) {
-      search.addEventListener('input', function () {
-        var q = search.value.trim().toLowerCase();
-        Array.prototype.forEach.call(shell.querySelectorAll('.rvt-a16-row'), function (row) {
-          row.style.display = !q || row.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
-        });
-      });
-    }
-    var importFile = document.getElementById('rvtA16ImportFile');
-    if (importFile) {
-      importFile.addEventListener('change', function (e) {
-        var f = e.target.files && e.target.files[0];
-        if (f && window.rvtSettingsIO && typeof window.rvtSettingsIO.import === 'function') window.rvtSettingsIO.import(f);
-        e.target.value = '';
-      });
-    }
-  }
-
-  function syncAndroidSettings() {
-    var shell = document.getElementById('rvtA16Settings');
-    if (!shell) return;
-    var pairs = [
-      ['rvtA16DemoSwitch', 'demoModeSwitch'],
-      ['rvtA16AutoDemoSwitch', 'autoDemoSwitch'],
-      ['rvtA16FreezeSwitch', 'freezeOnStaleSwitch'],
-      ['rvtA16AudioSwitch', 'audioAlertSwitch'],
-      ['rvtA16VoiceSwitch', 'voiceAlertSwitch']
-    ];
-    pairs.forEach(function (pair) {
-      var mine = document.getElementById(pair[0]);
-      if (mine) mine.setAttribute('aria-pressed', isOn(pair[1]) ? 'true' : 'false');
-    });
-    Array.prototype.forEach.call(shell.querySelectorAll('[data-theme-mode]'), function (btn) {
-      btn.setAttribute('aria-pressed', btn.dataset.themeMode === currentTheme() ? 'true' : 'false');
-    });
-    Array.prototype.forEach.call(shell.querySelectorAll('[data-density]'), function (btn) {
-      btn.setAttribute('aria-pressed', btn.dataset.density === currentDensity() ? 'true' : 'false');
-    });
-    var root = window.RVT_VERSION || window.VERSION || {};
-    var dash = document.getElementById('rvtA16DashboardVersion');
-    var trainer = document.getElementById('rvtA16TrainerVersion');
-    var firmware = document.getElementById('rvtA16FirmwareVersion');
-    if (dash && (root.dashboard || window.DASHBOARD_VERSION)) dash.textContent = root.dashboard || window.DASHBOARD_VERSION;
-    if (trainer && (root.trainer || window.TRAINER_VERSION)) trainer.textContent = root.trainer || window.TRAINER_VERSION;
-    if (firmware && (root.firmware || window.FIRMWARE_VERSION)) firmware.textContent = root.firmware || window.FIRMWARE_VERSION;
+  function scheduleUtilityTopbarSyncs() {
+    syncNativeTopbar();
+    setTimeout(syncNativeTopbar, 90);
+    setTimeout(syncNativeTopbar, 320);
+    setTimeout(syncNativeTopbar, 900);
+    setTimeout(syncNativeTopbar, 1700);
   }
 
   install();
@@ -288,6 +338,7 @@
             scheduled = requestAnimationFrame(function () {
               scheduled = 0;
               install();
+              scheduleUtilityTopbarSyncs();
             });
           }
           break;
@@ -303,4 +354,5 @@
       if (window.rvtTrackMutationObserver) window.rvtTrackMutationObserver(observer);
     }
   } catch (_) {}
+  setInterval(syncNativeTopbar, 1500);
 })();

@@ -162,6 +162,9 @@
     }
 
     setImportant(main, 'padding-top', '0');
+    var mainStyles = getComputedStyle(main);
+    var padLeft = parseFloat(mainStyles.paddingLeft) || 0;
+    var padRight = parseFloat(mainStyles.paddingRight) || padLeft;
 
     markUtilityTopbar(topbar);
     setImportant(topbar, 'position', 'sticky');
@@ -172,11 +175,11 @@
     setImportant(topbar, 'grid-template-areas', '"crumbs status actions"');
     setImportant(topbar, 'align-items', 'center');
     setImportant(topbar, 'gap', '14px');
-    setImportant(topbar, 'width', 'calc(100% + 64px)');
+    setImportant(topbar, 'width', 'calc(100% + ' + (padLeft + padRight) + 'px)');
     setImportant(topbar, 'max-width', 'none');
     setImportant(topbar, 'min-height', '92px');
     setImportant(topbar, 'height', '92px');
-    setImportant(topbar, 'margin', '0 -32px 18px');
+    setImportant(topbar, 'margin', '0 -' + padRight + 'px 18px -' + padLeft + 'px');
     setImportant(topbar, 'padding', '14px 24px');
     setImportant(topbar, 'overflow', 'visible');
     setImportant(topbar, 'background', 'var(--bg, #f4f7fb)');

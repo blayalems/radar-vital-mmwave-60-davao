@@ -17,10 +17,7 @@
 }
 
 body[data-view="help"] #view-help > .rvt-help-search,
-body[data-view="help"] #view-help > #rvtHelpSearchBar,
-body[data-view="help"] #view-help > #rvtHelpDeepLinks,
-body[data-view="help"] #view-help > #rvtRecoveryChecklist,
-body[data-view="help"] #view-help > #rvtHelpOfflineStatus {
+body[data-view="help"] #view-help > #rvtHelpSearchBar + #rvtHelpDeepLinks + #rvtRecoveryChecklist ~ #rvtHelpSearchBar {
   display: none !important;
 }
 

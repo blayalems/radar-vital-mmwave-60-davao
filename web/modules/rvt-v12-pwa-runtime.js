@@ -45,6 +45,19 @@
     root.insertBefore(clone, root.firstChild);
   };
 
+  async function configureNativeStatusBar(){
+    try {
+      const cap = window.Capacitor;
+      if (!cap?.isNativePlatform?.()) return;
+      const statusBar = cap?.Plugins?.StatusBar || window.StatusBar;
+      if (!statusBar) return;
+      await statusBar.setOverlaysWebView?.({ overlay: false });
+      await statusBar.setBackgroundColor?.({ color: '#f4f6fb' });
+      await statusBar.setStyle?.({ style: 'LIGHT' });
+    } catch (_) {}
+  }
+  configureNativeStatusBar();
+
   function openDb(){
     if (!('indexedDB' in window)) return Promise.resolve(null);
     return new Promise((resolve) => {
@@ -76,6 +89,7 @@
     const cap = window.Capacitor;
     const http = cap?.Plugins?.CapacitorHttp || cap?.Plugins?.Http || window.CapacitorHttp || window.Http;
     if (!cap?.isNativePlatform?.() || !http?.request) return null;
+    if (!/^https?:\/\//i.test(String(url || ''))) return null;
     const method = String(init?.method || 'GET').toUpperCase();
     const headers = {};
     new Headers(init?.headers || {}).forEach((v,k) => { headers[k] = v; });

@@ -57,6 +57,7 @@ jobs:
         run: |
           npx cap add android || echo "android platform already exists"
           npx cap sync android
+          node scripts/patch-android-shell.mjs
 
       - name: Build debug APK
         working-directory: android

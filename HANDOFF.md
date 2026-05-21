@@ -12,8 +12,8 @@
 | Dashboard refactor (v12/v16 monolith → split) | `web/` | Phase 3 complete — body partials split; legacy patch tail bundled into 2 patch files | codex/complete-handoff-phases |
 | Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` (#11) + `api/auth.py` (#9) + `assets/static.py` (this PR) own real code. `api/sse.py` still a facade. | claude/trainer-extract-static |
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | Build green on PR #8 (merged). Deploy gated to push-to-main; needs Settings→Pages source = "GitHub Actions" (one-time manual). | main |
-| APK (Capacitor) | `.github/workflows/build-apk.yml` + `capacitor.config.ts` | Green on PR #8 (merged); every PR targeting `main` now builds a fresh APK artifact. | codex/apk-exe-packaging |
-| EXE (Tauri) | `.github/workflows/build-exe.yml` + `src-tauri/` | Green on PR #8 (merged); every PR targeting `main` now builds a required NSIS `.exe` artifact. | codex/apk-exe-packaging |
+| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | Every PR targeting `main` builds a fresh APK artifact; release workflow publishes permanent APK assets with signing when secrets exist. | codex/release-artifact-hardening |
+| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Every PR targeting `main` builds a required NSIS `.exe`; release workflow publishes permanent EXE assets with signing when certificate secrets exist. | codex/release-artifact-hardening |
 | Smoke + visual tests | `tests/` | Green on every PR after #7. 14/14 desktop in ~1:32 in CI. | main |
 
 ## How the dashboard build flows
@@ -63,6 +63,20 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-20 — Permanent release and signing scaffold
+- Added `release-artifacts.yml` to publish GitHub Release APK/EXE assets from
+  `v*` tags or manual dispatch.
+- Release workflow supports Android keystore signing and Windows `.pfx`
+  Authenticode signing through repository secrets; it falls back to unsigned
+  debug/installer artifacts when secrets are absent.
+- Added `scripts/verify-release-artifacts.ps1` for local static verification of
+  downloaded APK/EXE artifact ZIPs.
+- Added `docs/release-and-protection.md` with required signing secrets and the
+  exact `main` branch protection checks to enable in GitHub settings.
+- Fixed native packaging asset aliases: `www/` now includes root `/fonts`,
+  `/icons`, and `/lib` copies so Tauri/Capacitor can load the icon font,
+  manifest icons, and service-worker precache paths.
 
 ### 2026-05-20 — Packaging branch artifact gates tightened
 - `build-apk.yml` and `build-exe.yml` now run on `codex/**` push events so

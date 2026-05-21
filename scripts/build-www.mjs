@@ -4,7 +4,9 @@
 //        still a build artifact so file:// and trainer-served flows keep
 //        working).
 //   2. Copy the assembled monolith and assets/ into www/ (consumed by
-//      Capacitor, Tauri, and GitHub Pages).
+//      Capacitor, Tauri, and GitHub Pages). Also copy root aliases for
+//      /fonts, /icons, and /lib because the dashboard and service worker
+//      intentionally request those absolute paths.
 //
 // Source of truth is web/. Do not edit the root .html or www/* directly.
 
@@ -92,6 +94,9 @@ async function main() {
   await fs.writeFile(path.join(OUT, path.basename(DASHBOARD)), assembled);
 
   await copyDir(SRC_ASSETS, path.join(OUT, 'assets'));
+  await copyDir(path.join(SRC_ASSETS, 'fonts'), path.join(OUT, 'fonts'));
+  await copyDir(path.join(SRC_ASSETS, 'icons'), path.join(OUT, 'icons'));
+  await copyDir(path.join(SRC_ASSETS, 'lib'), path.join(OUT, 'lib'));
   await fs.copyFile(path.join(SRC_ASSETS, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));
   await fs.copyFile(path.join(SRC_ASSETS, 'sw.js'), path.join(OUT, 'sw.js'));
 

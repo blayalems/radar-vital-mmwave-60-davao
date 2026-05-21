@@ -5512,10 +5512,6 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
   body.rvt-field-layout-active .nav-rail,body.rvt-field-layout-active .topbar,body.rvt-field-layout-active .kpi-grid,body.rvt-field-layout-active .waveforms{display:none!important}
   .rvt-field-layout-surface{position:fixed;inset:0;z-index:74;display:grid;grid-template-columns:1fr 1fr;place-items:center;gap:12px;background:var(--bg,#f4f6fb);padding:16px}
   .rvt-field-layout-surface b{font-size:clamp(64px,28vh,190px);line-height:.9;font-family:"JetBrains Mono",monospace}
-  .rvt-swipe-dock{position:fixed;inset-inline:10px;inset-block-end:10px;z-index:73;border-radius:12px;background:var(--surface-1,#fff);border:1px solid var(--outline,#d8deea);box-shadow:0 8px 24px rgba(11,18,32,.14);padding:8px;display:none}
-  .rvt-swipe-dock-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-  .rvt-swipe-dock-extra{display:none;margin-block-start:6px}
-  .rvt-swipe-dock[data-expanded="true"] .rvt-swipe-dock-extra{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
   .rvt-kpi-size-2x{grid-column:span 2}
   .rvt-kpi-resize-handle{position:absolute;inset-block-end:4px;inset-inline-end:4px;width:14px;height:14px;border-radius:3px;border:1px solid currentColor;opacity:0}
   [data-kpi-id]:hover .rvt-kpi-resize-handle,[data-kpi-id]:focus .rvt-kpi-resize-handle{opacity:.7}
@@ -5523,7 +5519,7 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
   html[dir="rtl"] canvas[data-waveform]{direction:rtl}
   [data-theme="hc"] .rvt-diagnostic-card-tinted,[data-theme="hc"] .rvt-alert-severity-slice,[data-theme="hc"] .rvt-compare-heat{background-image:repeating-linear-gradient(45deg,currentColor 0 1px,transparent 1px 5px)!important}
   @media (prefers-reduced-motion:reduce){.rvt-gd-button,.rvt-gd-chip,.rvt-wave04-overlay{transition:none!important;animation:none!important}}
-  @media (max-width:768px){.rvt-swipe-dock{display:block}.rvt-kpi-resize-handle{display:none}.rvt-field-layout-surface{grid-template-columns:1fr}.rvt-field-layout-surface b{font-size:clamp(54px,18vh,120px)}}
+  @media (max-width:768px){.rvt-kpi-resize-handle{display:none}.rvt-field-layout-surface{grid-template-columns:1fr}.rvt-field-layout-surface b{font-size:clamp(54px,18vh,120px)}}
 /* END styles/rvt-gamma-delta-batch-css.css */
 
 /* BEGIN styles/rvt-sec01-css.css */

@@ -1,0 +1,194 @@
+name: Release APK and EXE
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to publish, for example v12.0.0-alpha.1'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark the GitHub Release as prerelease'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Build www/
+        run: npm run build:web
+
+      - name: Add Capacitor Android platform
+        run: |
+          npx cap add android || echo "android platform already exists"
+          npx cap sync android
+          node scripts/patch-android-shell.mjs
+
+      - name: Decode Android signing key
+        id: android_signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release.keystore
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build signed release APK
+        if: steps.android_signing.outputs.enabled == 'true'
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace \
+            -Pandroid.injected.signing.store.file="$PWD/release.keystore" \
+            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+          mkdir -p ../dist
+          cp app/build/outputs/apk/release/*.apk ../dist/radar-vital-release.apk
+
+      - name: Build debug APK fallback
+        if: steps.android_signing.outputs.enabled != 'true'
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          mkdir -p ../dist
+          cp app/build/outputs/apk/debug/*.apk ../dist/radar-vital-debug.apk
+
+      - name: Upload APK release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: radar-vital-apk-release-asset
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  windows:
+    name: Windows EXE
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'src-tauri -> target'
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Build www/
+        run: npm run build:web
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version '^2.0' --locked
+
+      - name: Build NSIS EXE installer
+        run: cargo tauri build --verbose --bundles nsis
+        env:
+          RUST_BACKTRACE: '1'
+          TAURI_BUNDLE__WEBVIEW_FIXED_RUNTIME_PATH: ''
+
+      - name: Sign EXE when certificate is configured
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $exe = Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { throw "No NSIS EXE found to sign." }
+          if (-not $env:WINDOWS_CERTIFICATE_BASE64) {
+            Write-Host "WINDOWS_CERTIFICATE_BASE64 not configured; leaving EXE unsigned."
+            exit 0
+          }
+          [IO.File]::WriteAllBytes("$PWD\windows-signing.pfx", [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found." }
+          & $signtool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f "$PWD\windows-signing.pfx" /p "$env:WINDOWS_CERTIFICATE_PASSWORD" $exe.FullName
+          & $signtool.FullName verify /pa /v $exe.FullName
+
+      - name: Stage EXE release asset
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $exe = Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { throw "No NSIS EXE found." }
+          Copy-Item $exe.FullName "dist\radar-vital-windows-installer.exe"
+
+      - name: Upload EXE release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: radar-vital-exe-release-asset
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - android
+      - windows
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: List release assets
+        run: find release-assets -type f -maxdepth 3 -print
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: Radar Vital ${{ github.event.inputs.tag_name || github.ref_name }}
+          prerelease: ${{ github.event.inputs.prerelease || startsWith(github.ref_name, 'v12.0.0-alpha') }}
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/**/*.apk
+            release-assets/**/*.exe

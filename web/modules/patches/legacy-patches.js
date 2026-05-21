@@ -2067,7 +2067,7 @@
 
     var printHtml = '<!DOCTYPE html><html data-theme="light"><head><meta charset="utf-8">' +
       '<title>RVT Session Report — ' + sessionId + '</title>' +
-      '<link href="/fonts/rvt-fonts.css" rel="stylesheet">' +
+      '<link href="./assets/fonts/rvt-fonts.css" rel="stylesheet">' +
       '<style>' +
       document.getElementById('rvt-consolidated-css').textContent +
       '\n body { background: #fff !important; padding: 32px; max-width: 900px; margin: 0 auto; font-family: Inter, system-ui, sans-serif; }' +
@@ -7311,6 +7311,7 @@
     });
   }
   function injectRetentionSection() {
+    if (document.getElementById('rvtA16Settings')) return;
     var settings = byId('view-settings');
     if (!settings || byId('rvtSessionRetentionSection')) return;
     var section = document.createElement('section');
@@ -8357,6 +8358,7 @@
   }
 
   function ensureSettingsSearch(host, idx) {
+    if (host && host.id === 'view-settings' && document.getElementById('rvtA16Settings')) return;
     if (!host) return;
     var id = 'rvtSettingsSearchBar' + idx;
     var bar = document.getElementById(id);
@@ -8476,6 +8478,7 @@
   }
 
   function ensureSettingsProfiles(host) {
+    if (host && host.id === 'view-settings' && document.getElementById('rvtA16Settings')) return;
     if (!host || host.querySelector('.rvt-settings-profiles-card[data-worker3="1"]')) return;
     var card = document.createElement('section');
     card.className = 'rvt-settings-profiles-card set-g';
@@ -8609,6 +8612,7 @@
   }
 
   function ensureTestAlertPanel(host) {
+    if (host && host.id === 'view-settings' && document.getElementById('rvtA16Settings')) return;
     if (!host || host.querySelector('.rvt-test-alert-panel[data-worker3="1"]')) return;
     var panel = document.createElement('section');
     panel.className = 'rvt-test-alert-panel set-g';
@@ -10120,7 +10124,7 @@
   function applyImport(diff){var prior={};diff.forEach(function(item){if(!item.changed||item.skipped)return;prior[item.key]=localStorage.getItem(item.key);localStorage.setItem(item.key,String(item.imported));});U.toast(U.t('gamma.settings.import.applied'),U.t('gamma.settings.import.undo'),function(){Object.keys(prior).forEach(function(k){if(prior[k]==null)localStorage.removeItem(k);else localStorage.setItem(k,prior[k]);});});return diff;}
   function triggerExport(){var payload=buildExportPayload();var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='rvt_settings_'+new Date().toISOString().slice(0,10)+'.json';a.setAttribute('data-rvt-settings-download','true');document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(url);a.remove();},0);}
   function importFile(file){if(file&&typeof file==='object'&&!file.text&&file.settings)return Promise.resolve(showDiffModal(diffPreview(file,buildExportPayload())));return Promise.resolve(file&&typeof file.text==='function'?file.text():String(file||'')).then(function(text){var parsed=typeof text==='string'?JSON.parse(text):text;return showDiffModal(diffPreview(parsed,buildExportPayload()));});}
-  function renderSettingsUi(){var settings=document.getElementById('view-settings')||document.getElementById('settingsView')||document.querySelector('[data-view="settings"]');if(!settings||document.getElementById('rvtSettingsPortability'))return;var section=document.createElement('section');section.id='rvtSettingsPortability';section.className='set-panel rvt-settings-portability';section.innerHTML='<h3>'+U.escapeHtml(U.t('gamma.settings.portability.title'))+'</h3><p class="muted">'+U.escapeHtml(U.t('gamma.settings.portability.desc'))+'</p><div class="rvt-settings-io-actions"><button type="button" class="rvt-settings-io-btn" id="rvtSettingsExportBtn">'+U.escapeHtml(U.t('gamma.settings.export'))+'</button><button type="button" class="rvt-settings-io-btn" id="rvtSettingsImportBtn">'+U.escapeHtml(U.t('gamma.settings.import'))+'</button><input id="rvtSettingsImportFile" type="file" accept=".json,application/json" hidden></div>';var anchor=settings.querySelector('.set-actions')||settings.lastElementChild;settings.insertBefore(section,anchor||null);document.getElementById('rvtSettingsExportBtn').addEventListener('click',triggerExport);document.getElementById('rvtSettingsImportBtn').addEventListener('click',function(){document.getElementById('rvtSettingsImportFile').click();});document.getElementById('rvtSettingsImportFile').addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];if(f)importFile(f).catch(function(err){U.toast(err.message||U.t('gamma.settings.import.invalid'));});e.target.value='';});}
+  function renderSettingsUi(){if(document.getElementById('rvtA16Settings'))return;var settings=document.getElementById('view-settings')||document.getElementById('settingsView')||document.querySelector('[data-view="settings"]');if(!settings||document.getElementById('rvtSettingsPortability'))return;var section=document.createElement('section');section.id='rvtSettingsPortability';section.className='set-panel rvt-settings-portability';section.innerHTML='<h3>'+U.escapeHtml(U.t('gamma.settings.portability.title'))+'</h3><p class="muted">'+U.escapeHtml(U.t('gamma.settings.portability.desc'))+'</p><div class="rvt-settings-io-actions"><button type="button" class="rvt-settings-io-btn" id="rvtSettingsExportBtn">'+U.escapeHtml(U.t('gamma.settings.export'))+'</button><button type="button" class="rvt-settings-io-btn" id="rvtSettingsImportBtn">'+U.escapeHtml(U.t('gamma.settings.import'))+'</button><input id="rvtSettingsImportFile" type="file" accept=".json,application/json" hidden></div>';var anchor=settings.querySelector('.set-actions')||settings.lastElementChild;settings.insertBefore(section,anchor||null);document.getElementById('rvtSettingsExportBtn').addEventListener('click',triggerExport);document.getElementById('rvtSettingsImportBtn').addEventListener('click',function(){document.getElementById('rvtSettingsImportFile').click();});document.getElementById('rvtSettingsImportFile').addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];if(f)importFile(f).catch(function(err){U.toast(err.message||U.t('gamma.settings.import.invalid'));});e.target.value='';});}
   window.rvtSettingsIO={export:triggerExport,import:importFile,diffPreview:diffPreview,applyImport:applyImport,buildExportPayload:buildExportPayload};
   U.bootSoon(renderSettingsUi);
 })();
@@ -11191,7 +11195,7 @@
   function entries(){return (window.S&&window.S.auditLog)||R.parseJson('rvt-audit-log',[],Array.isArray);}
   async function verify(){var prev='',list=entries();for(var i=0;i<list.length;i++){var e=list[i],expected=await hashEntry(Object.assign({},e,{hash:undefined,prevHash:undefined}),prev);if(e.prevHash&&e.prevHash!==prev)return {ok:false,breakAt:e.timestamp||i};if(e.hash&&e.hash!==expected)return {ok:false,breakAt:e.timestamp||i};prev=e.hash||expected;}return {ok:true,breakAt:null,count:list.length};}
   function getChainHead(){var a=entries();return a.length?(a[a.length-1].hash||a[a.length-1].prevHash||''):'';}
-  function render(){var host=document.querySelector('#settings-data-privacy,[data-settings-section="privacy"],#view-settings')||document.body;var b=R.ensure('rvt-sec03-verify','button',host);b.className='rvt-gd-button';b.textContent=R.t('gd.auditVerify');b.onclick=function(){verify().then(function(r){R.toast(r.ok?R.t('gd.auditPass',{count:r.count||0}):R.t('gd.auditFail',{timestamp:r.breakAt}));});};}
+  function render(){var host=document.querySelector('#settings-data-privacy,[data-settings-section="privacy"]')||document.body;var b=R.ensure('rvt-sec03-verify','button',host);b.className='rvt-gd-button';b.textContent=R.t('gd.auditVerify');b.onclick=function(){verify().then(function(r){R.toast(r.ok?R.t('gd.auditPass',{count:r.count||0}):R.t('gd.auditFail',{timestamp:r.breakAt}));});};}
   window.rvtSec03={hashEntry:hashEntry,verify:verify,getChainHead:getChainHead};window.rvtAuditTamper=window.rvtSec03;R.boot(render);
 })();
 ;
@@ -11412,15 +11416,6 @@
 })();
 ;
 /* END modules/rvt-mob02-js.js */
-
-/* BEGIN modules/rvt-mob04-js.js */
-(function(){'use strict';var R=window.rvtGammaDelta;if(!R)return;var expanded=false;
-  function render(){var d=R.ensure('rvt-swipe-dock','div');d.className='rvt-swipe-dock';d.dataset.expanded=expanded?'true':'false';d.innerHTML='<button class="rvt-gd-button" id="rvt-swipe-dock-handle" aria-expanded="'+expanded+'">Dock</button><div class="rvt-swipe-dock-actions"><button>Live</button><button>Alerts</button><button>Snap</button></div><div class="rvt-swipe-dock-extra"><button>Report</button><button>Notes</button><button>Settings</button><button>Queue</button><button>Replay</button><button>Help</button></div>';d.querySelector('#rvt-swipe-dock-handle').onclick=toggle;d.querySelector('#rvt-swipe-dock-handle').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();toggle();}};}
-  function expand(){expanded=true;render();}function collapse(){expanded=false;render();}function toggle(){expanded?collapse():expand();}
-  window.rvtSwipeDock={expand:expand,collapse:collapse,isExpanded:function(){return expanded;},toggle:toggle};R.boot(render);
-})();
-;
-/* END modules/rvt-mob04-js.js */
 
 /* BEGIN modules/rvt-live02-js.js */
 (function(){'use strict';var R=window.rvtGammaDelta;if(!R)return;
@@ -11810,7 +11805,7 @@
     }, true);
   }
   function renderUtility(){
-    var host = document.querySelector('#settings-data-privacy,[data-settings-section="data-privacy"],[data-settings-section="privacy"],#view-settings') || document.body;
+    var host = document.querySelector('#settings-data-privacy,[data-settings-section="data-privacy"],[data-settings-section="privacy"]') || document.body;
     var wrap = document.getElementById('rvt-sec01-actions');
     if (!wrap) {
       wrap = document.createElement('div');

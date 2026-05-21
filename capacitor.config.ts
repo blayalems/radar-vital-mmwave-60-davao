@@ -23,6 +23,11 @@ const config: CapacitorConfig = {
         availableDevices: 'Available devices',
         noDeviceFound: 'No Radar Vital device found'
       }
+    },
+    StatusBar: {
+      overlaysWebView: false,
+      backgroundColor: '#f4f6fb',
+      style: 'LIGHT'
     }
   },
   android: {

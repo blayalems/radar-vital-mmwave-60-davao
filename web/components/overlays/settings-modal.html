@@ -1,149 +1,173 @@
-  <div class="set-ov" id="settingsOv" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" aria-hidden="true"
-    onclick="if(event.target===this)closeSettings()">
-    <div class="set-md" role="document">
-      <div class="set-h">
-        <div>
-          <h3 class="set-tt" id="settingsTitle">Dashboard settings</h3>
-          <div class="set-st">Keep live mode honest. Demo mode is explicit, not silent.</div>
-        </div>
-        <button class="ic-btn" type="button" onclick="closeSettings()" title="Close settings"><span
-            class="material-symbols-rounded">close</span></button>
+<div class="set-ov" id="settingsOv" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" aria-hidden="true"
+  onclick="if(event.target===this)closeSettings()">
+  <div class="set-md" role="document">
+    <div class="set-h">
+      <div>
+        <h3 class="set-tt" id="settingsTitle">Dashboard settings</h3>
+        <div class="set-st">Keep live mode honest. Demo mode is explicit, not silent.</div>
       </div>
-      <section class="set-g set-source">
-        <h4 class="set-gl">Source mode</h4>
-        <div class="set-r">
-          <div class="set-copy"><strong>Demo mode</strong><span>Use generated sample telemetry instead of the trainer
-              JSON feed. Intended for UI demos only.</span></div><button class="sw" id="demoModeSwitch"
-            onclick="toggleDemoMode()" aria-pressed="false" title="Toggle demo mode"></button>
+      <button class="ic-btn" type="button" onclick="closeSettings()" title="Close settings"><span
+          class="material-symbols-rounded">close</span></button>
+    </div>
+    
+    <section class="set-g set-source m3-card">
+      <h4 class="set-gl"><span class="material-symbols-rounded">sensors</span>Source mode</h4>
+      <div class="set-r">
+        <span class="material-symbols-rounded set-row-ic">science</span>
+        <div class="set-copy">
+          <strong>Demo mode</strong>
+          <span>Use generated sample telemetry instead of the trainer JSON feed. Intended for UI demos only.</span>
         </div>
-        <div class="set-r">
-          <div class="set-copy"><strong>Auto-enable demo on disconnect</strong><span>If live polling fails repeatedly,
-              switch to demo automatically. Default is off.</span></div><button class="sw" id="autoDemoSwitch"
-            onclick="toggleAutoDemo()" aria-pressed="false" title="Toggle auto demo on disconnect"></button>
+        <button class="sw" id="demoModeSwitch" onclick="toggleDemoMode()" aria-pressed="false" title="Toggle demo mode" type="button"></button>
+      </div>
+      <div class="set-r">
+        <span class="material-symbols-rounded set-row-ic">autorenew</span>
+        <div class="set-copy">
+          <strong>Auto-enable demo on disconnect</strong>
+          <span>If live polling fails repeatedly, switch to demo automatically. Default is off.</span>
         </div>
-      </section>
-      <section class="set-g set-feedback">
-        <h4 class="set-gl">Disconnect behavior</h4>
-        <div class="set-r">
-          <div class="set-copy"><strong>Freeze on stale live data</strong><span>When live data disappears, keep the last
-              real payload visible and mark the dashboard stale instead of simulating new activity.</span></div><button
-            class="sw on" id="freezeOnStaleSwitch" onclick="toggleFreezeOnStale()" aria-pressed="true"
-            title="Toggle freeze on stale"></button>
+        <button class="sw" id="autoDemoSwitch" onclick="toggleAutoDemo()" aria-pressed="false" title="Toggle auto demo on disconnect" type="button"></button>
+      </div>
+    </section>
+    
+    <section class="set-g set-feedback m3-card">
+      <h4 class="set-gl"><span class="material-symbols-rounded">wifi_off</span>Disconnect behavior</h4>
+      <div class="set-r">
+        <span class="material-symbols-rounded set-row-ic">ac_unit</span>
+        <div class="set-copy">
+          <strong>Freeze on stale live data</strong>
+          <span>When live data disappears, keep the last real payload visible and mark the dashboard stale instead of simulating new activity.</span>
         </div>
-      </section>
-      <section class="set-g set-cosmetic">
-        <h4 class="set-gl">Appearance</h4>
-        <div class="set-r">
-          <div class="set-copy"><strong>Theme</strong><span>Choose a fixed theme or follow the system setting.</span>
+        <button class="sw on" id="freezeOnStaleSwitch" onclick="toggleFreezeOnStale()" aria-pressed="true" title="Toggle freeze on stale" type="button"></button>
+      </div>
+    </section>
+    
+    <section class="set-g set-cosmetic m3-card">
+      <h4 class="set-gl"><span class="material-symbols-rounded">palette</span>Appearance</h4>
+      <div class="set-r">
+        <span class="material-symbols-rounded set-row-ic">contrast</span>
+        <div class="set-copy">
+          <strong>Theme</strong>
+          <span>Choose a fixed theme or follow the system setting.</span>
+        </div>
+        <div class="seg" role="radiogroup" aria-label="Theme mode">
+          <button type="button" role="radio" aria-checked="false" data-theme-mode="system" onclick="setThemeMode('system')">System</button>
+          <button type="button" role="radio" aria-checked="false" data-theme-mode="light" onclick="setThemeMode('light')">Light</button>
+          <button type="button" role="radio" aria-checked="false" data-theme-mode="dark" onclick="setThemeMode('dark')">Dark</button>
+          <button type="button" role="radio" aria-checked="false" data-theme-mode="night" onclick="setThemeMode('night')">Night red</button>
+          <button type="button" role="radio" aria-checked="false" data-theme-mode="hc" onclick="setThemeMode('hc')">High contrast</button>
+        </div>
+      </div>
+      <div class="set-r">
+        <span class="material-symbols-rounded set-row-ic">density_medium</span>
+        <div class="set-copy">
+          <strong>Density</strong>
+          <span>Comfortable leaves more breathing room; compact fits more telemetry on screen.</span>
+        </div>
+        <div class="seg" role="radiogroup" aria-label="Display density">
+          <button type="button" role="radio" aria-checked="true" data-density="comfortable" onclick="setDensity('comfortable')">Comfort</button>
+          <button type="button" role="radio" aria-checked="false" data-density="compact" onclick="setDensity('compact')">Compact</button>
+        </div>
+      </div>
+    </section>
+    
+    <section class="set-g set-feedback m3-card" id="hxSection">
+      <h4 class="set-gl"><span class="material-symbols-rounded">vibration</span>Haptic feedback</h4>
+      <div class="set-r">
+        <span class="material-symbols-rounded set-row-ic">touch_app</span>
+        <div class="set-copy">
+          <strong>Haptics mode</strong>
+          <span>Subtle vibration on session start, stop, export, copy, and destructive confirmations. Visual feedback remains the primary signal.</span>
+        </div>
+        <div class="seg" role="radiogroup" aria-label="Haptics mode">
+          <button type="button" role="radio" aria-checked="false" data-hx-mode="off" onclick="setHxMode('off')">Off</button>
+          <button type="button" role="radio" aria-checked="true" data-hx-mode="auto" onclick="setHxMode('auto')">Auto</button>
+          <button type="button" role="radio" aria-checked="false" data-hx-mode="on" onclick="setHxMode('on')">On</button>
+        </div>
+      </div>
+    </section>
+    
+    <section class="set-g set-critical m3-card">
+      <h4 class="set-gl"><span class="material-symbols-rounded">warning</span>KPI alert thresholds</h4>
+      <div class="threshold-grid" role="group" aria-label="KPI alert thresholds">
+        <label class="threshold-field" for="thrHrLowModal"><span class="threshold-label">HR low (bpm)</span>
+          <div class="threshold-field-row">
+            <input class="threshold-slider" data-threshold-key="hrLow" type="range" min="20" max="80" step="1" oninput="setThresholdValue('hrLow', this.value)">
+            <input class="threshold-input" id="thrHrLowModal" data-threshold-key="hrLow" type="number" min="20" max="80" step="1" inputmode="numeric" oninput="setThresholdValue('hrLow', this.value)">
           </div>
-          <div class="seg" role="radiogroup" aria-label="Theme mode">
-            <button type="button" role="radio" aria-checked="false" data-theme-mode="system"
-              onclick="setThemeMode('system')">System</button>
-            <button type="button" role="radio" aria-checked="false" data-theme-mode="light"
-              onclick="setThemeMode('light')">Light</button>
-            <button type="button" role="radio" aria-checked="false" data-theme-mode="dark"
-              onclick="setThemeMode('dark')">Dark</button>
-            <button type="button" role="radio" aria-checked="false" data-theme-mode="night"
-              onclick="setThemeMode('night')">Night red</button>
-            <button type="button" role="radio" aria-checked="false" data-theme-mode="hc"
-              onclick="setThemeMode('hc')">High contrast</button>
+        </label>
+        <label class="threshold-field" for="thrHrHighModal"><span class="threshold-label">HR high (bpm)</span>
+          <div class="threshold-field-row">
+            <input class="threshold-slider" data-threshold-key="hrHigh" type="range" min="60" max="220" step="1" oninput="setThresholdValue('hrHigh', this.value)">
+            <input class="threshold-input" id="thrHrHighModal" data-threshold-key="hrHigh" type="number" min="60" max="220" step="1" inputmode="numeric" oninput="setThresholdValue('hrHigh', this.value)">
           </div>
-        </div>
-        <div class="set-r">
-          <div class="set-copy"><strong>Density</strong><span>Comfortable leaves more breathing room; compact fits more
-              telemetry on screen.</span></div>
-          <div class="seg" role="radiogroup" aria-label="Display density">
-            <button type="button" role="radio" aria-checked="true" data-density="comfortable"
-              onclick="setDensity('comfortable')">Comfort</button>
-            <button type="button" role="radio" aria-checked="false" data-density="compact"
-              onclick="setDensity('compact')">Compact</button>
+        </label>
+        <label class="threshold-field" for="thrRrLowModal"><span class="threshold-label">RR low (br/min)</span>
+          <div class="threshold-field-row">
+            <input class="threshold-slider" data-threshold-key="rrLow" type="range" min="2" max="20" step="1" oninput="setThresholdValue('rrLow', this.value)">
+            <input class="threshold-input" id="thrRrLowModal" data-threshold-key="rrLow" type="number" min="2" max="20" step="1" inputmode="numeric" oninput="setThresholdValue('rrLow', this.value)">
           </div>
-        </div>
-      </section>
-      <section class="set-g set-feedback" id="hxSection">
-        <h4 class="set-gl">Haptic feedback</h4>
-        <div class="set-r">
-          <div class="set-copy">
-            <strong>Haptics mode</strong>
-            <span>Subtle vibration on session start, stop, export, copy, and destructive confirmations. Visual feedback
-              remains the primary signal.</span>
+        </label>
+        <label class="threshold-field" for="thrRrHighModal"><span class="threshold-label">RR high (br/min)</span>
+          <div class="threshold-field-row">
+            <input class="threshold-slider" data-threshold-key="rrHigh" type="range" min="10" max="60" step="1" oninput="setThresholdValue('rrHigh', this.value)">
+            <input class="threshold-input" id="thrRrHighModal" data-threshold-key="rrHigh" type="number" min="10" max="60" step="1" inputmode="numeric" oninput="setThresholdValue('rrHigh', this.value)">
           </div>
-          <div class="seg" role="radiogroup" aria-label="Haptics mode">
-            <button type="button" role="radio" aria-checked="false" data-hx-mode="off"
-              onclick="setHxMode('off')">Off</button>
-            <button type="button" role="radio" aria-checked="true" data-hx-mode="auto"
-              onclick="setHxMode('auto')">Auto</button>
-            <button type="button" role="radio" aria-checked="false" data-hx-mode="on"
-              onclick="setHxMode('on')">On</button>
-          </div>
+        </label>
+      </div>
+      <div class="threshold-preview" data-threshold-preview></div>
+      <div class="settings-help">Changes apply immediately to live KPI alerts and persist across sessions.</div>
+      <div class="threshold-actions">
+        <button class="ghost-btn danger-btn" type="button" onclick="confirmResetThresholds()">Reset thresholds</button>
+      </div>
+    </section>
+    
+    <section class="set-g set-feedback m3-card">
+      <h4 class="set-gl"><span class="material-symbols-rounded">volume_up</span>Audio alerts</h4>
+      <div class="set-r">
+        <span class="material-symbols-rounded set-row-ic">notifications_active</span>
+        <div class="set-copy">
+          <strong>Enable audio alerts</strong>
+          <span>Play a brief tone when HR or RR crosses a KPI threshold, or when the connection drops.</span>
         </div>
-      </section>
-      <section class="set-g set-critical">
-        <h4 class="set-gl">KPI alert thresholds</h4>
-        <div class="threshold-grid" role="group" aria-label="KPI alert thresholds">
-          <label class="threshold-field" for="thrHrLowModal"><span class="threshold-label">HR low (bpm)</span>
-            <div class="threshold-field-row"><input class="threshold-slider" data-threshold-key="hrLow" type="range"
-                min="20" max="80" step="1" oninput="setThresholdValue('hrLow', this.value)"><input
-                class="threshold-input" id="thrHrLowModal" data-threshold-key="hrLow" type="number" min="20" max="80"
-                step="1" inputmode="numeric" oninput="setThresholdValue('hrLow', this.value)"></div>
-          </label>
-          <label class="threshold-field" for="thrHrHighModal"><span class="threshold-label">HR high (bpm)</span>
-            <div class="threshold-field-row"><input class="threshold-slider" data-threshold-key="hrHigh" type="range"
-                min="60" max="220" step="1" oninput="setThresholdValue('hrHigh', this.value)"><input
-                class="threshold-input" id="thrHrHighModal" data-threshold-key="hrHigh" type="number" min="60" max="220"
-                step="1" inputmode="numeric" oninput="setThresholdValue('hrHigh', this.value)"></div>
-          </label>
-          <label class="threshold-field" for="thrRrLowModal"><span class="threshold-label">RR low (br/min)</span>
-            <div class="threshold-field-row"><input class="threshold-slider" data-threshold-key="rrLow" type="range"
-                min="2" max="20" step="1" oninput="setThresholdValue('rrLow', this.value)"><input
-                class="threshold-input" id="thrRrLowModal" data-threshold-key="rrLow" type="number" min="2" max="20"
-                step="1" inputmode="numeric" oninput="setThresholdValue('rrLow', this.value)"></div>
-          </label>
-          <label class="threshold-field" for="thrRrHighModal"><span class="threshold-label">RR high (br/min)</span>
-            <div class="threshold-field-row"><input class="threshold-slider" data-threshold-key="rrHigh" type="range"
-                min="10" max="60" step="1" oninput="setThresholdValue('rrHigh', this.value)"><input
-                class="threshold-input" id="thrRrHighModal" data-threshold-key="rrHigh" type="number" min="10" max="60"
-                step="1" inputmode="numeric" oninput="setThresholdValue('rrHigh', this.value)"></div>
-          </label>
+        <button class="sw" id="audioAlertSwitch" onclick="setAudioAlerts(!S.audioAlertsEnabled)" aria-pressed="false" title="Toggle audio alerts" type="button"></button>
+      </div>
+      <div class="set-r">
+        <span class="material-symbols-rounded set-row-ic">record_voice_over</span>
+        <div class="set-copy">
+          <strong>Voice announcements</strong>
+          <span>Use browser speech synthesis for eyes-busy alert callouts.</span>
         </div>
-        <div class="threshold-preview" data-threshold-preview></div>
-        <div class="settings-help">Changes apply immediately to live KPI alerts and persist across sessions.</div>
-        <div class="threshold-actions"><button class="ghost-btn danger-btn" type="button"
-            onclick="confirmResetThresholds()">Reset thresholds</button></div>
-      </section>
-      <section class="set-g set-feedback">
-        <h4 class="set-gl">Audio alerts</h4>
-        <div class="set-r">
-          <div class="set-copy"><strong>Enable audio alerts</strong><span>Play a brief tone when HR or RR crosses a KPI
-              threshold, or when the connection drops.</span></div><button class="sw" id="audioAlertSwitch"
-            onclick="setAudioAlerts(!S.audioAlertsEnabled)" aria-pressed="false" title="Toggle audio alerts"></button>
+        <button class="sw" id="voiceAlertSwitch" onclick="setVoiceAlerts(!S.voiceAlertsEnabled)" aria-pressed="false" title="Toggle voice announcements" type="button"></button>
+      </div>
+      <div class="audio-control-row">
+        <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant, #49454F);font-size:20px;">volume_down</span>
+        <input type="range" min="0" max="100" step="1" value="70" data-audio-volume oninput="setAudioVolume(this.value)" aria-label="Audio alert volume">
+        <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant, #49454F);font-size:20px;">volume_up</span>
+        <div class="audio-meter" aria-label="Tone level preview" title="Tone level preview"></div>
+      </div>
+      <div class="audio-actions">
+        <button class="ghost-btn" type="button" onclick="testAudioAlert()"><span class="material-symbols-rounded">volume_up</span>Test sound</button>
+        <span class="settings-help" data-audio-volume-label>Volume 70%</span>
+      </div>
+    </section>
+    
+    <section class="set-g m3-card">
+      <h4 class="set-gl"><span class="material-symbols-rounded">insights</span>Live rendering</h4>
+      <div class="set-r">
+        <span class="material-symbols-rounded set-row-ic">history</span>
+        <div class="set-copy">
+          <strong>Waveform window</strong>
+          <span>Cap live chart history to prevent long-session redraw stalls.</span>
         </div>
-        <div class="set-r">
-          <div class="set-copy"><strong>Voice announcements</strong><span>Use browser speech synthesis for eyes-busy
-              alert callouts.</span></div><button class="sw" id="voiceAlertSwitch"
-            onclick="setVoiceAlerts(!S.voiceAlertsEnabled)" aria-pressed="false"
-            title="Toggle voice announcements"></button>
-        </div>
-        <div class="audio-control-row"><input type="range" min="0" max="100" step="1" value="70" data-audio-volume
-            oninput="setAudioVolume(this.value)" aria-label="Audio alert volume">
-          <div class="audio-meter" aria-label="Tone level preview" title="Tone level preview"></div>
-        </div>
-        <div class="audio-actions"><button class="ghost-btn" type="button" onclick="testAudioAlert()"><span
-              class="material-symbols-rounded">volume_up</span>Test sound</button><span class="settings-help"
-            data-audio-volume-label>Volume 70%</span></div>
-      </section>
-      <section class="set-g">
-        <h4 class="set-gl">Live rendering</h4>
-        <div class="set-r">
-          <div class="set-copy"><strong>Waveform window</strong><span>Cap live chart history to prevent long-session
-              redraw stalls.</span></div><input class="threshold-input" style="max-width:110px" type="number" min="10"
-            max="600" step="10" data-live-buffer-seconds oninput="setLiveBufferSeconds(this.value)"
-            aria-label="Live waveform window seconds">
-        </div>
-        <div class="settings-help" data-live-buffer-label>Live charts keep 60 seconds, capped at 3600 points.</div>
-      </section>
-      <div class="set-actions"><button class="txt-btn danger-btn" type="button"
-          onclick="confirmResetDashboardDefaults()">Reset dashboard defaults</button><button class="txt-btn"
-          type="button" onclick="closeSettings()">Done</button></div>
+        <input class="threshold-input" style="max-width:110px" type="number" min="10" max="600" step="10" data-live-buffer-seconds oninput="setLiveBufferSeconds(this.value)" aria-label="Live waveform window seconds">
+      </div>
+      <div class="settings-help" data-live-buffer-label>Live charts keep 60 seconds, capped at 3600 points.</div>
+    </section>
+    
+    <div class="set-actions">
+      <button class="txt-btn danger-btn" type="button" onclick="confirmResetDashboardDefaults()">Reset dashboard defaults</button>
+      <button class="txt-btn" type="button" onclick="closeSettings()">Done</button>
     </div>
   </div>
+</div>

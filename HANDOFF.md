@@ -64,6 +64,14 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-22 — Material 3 Expressive Settings Page Reorganization
+- Reorganized the cluttered Settings page UI using Material 3 Expressive Principles, dividing controls into high-fidelity card containers (`.set-g.m3-card`).
+- Replaced tight row tables with modern list-row layouts (`.set-r`) incorporating leading Material rounded symbols (`.set-row-ic`) and clean vertical visual hierarchy.
+- Created beautiful M3 haptic toggle switches (`.sw` and `.sw::after`), segmented capsule pills for theme modes (`.seg`), and premium range sliders for threshold adjustments.
+- Purged non-winning competing styles and rigid grid declarations from legacy CSS layers using comprehensive custom override styles at the tail of `web/styles/patches/legacy-patches.css`.
+- Preserved all functional DOM IDs, bindings, local storage state, and Javascript event handlers, achieving perfect backwards-compatibility with dynamic search injections and setting profiles.
+- Validated the round-trip build assembly and confirmed that all 56 multi-viewport Playwright smoke tests pass successfully without layout regressions.
+
 ### 2026-05-22 — View Panel Dynamic Injection & Navigation Fix
 - Fixed completely blank Home, Report, Help, and Settings views in the mobile-first dashboard by removing the statically declared empty placeholder `<section id="view-*">` elements in `web/index.html` which were blocking the injection of dynamic views.
 - Aligned the JavaScript injection logic in `web/modules/rvt-unified-js.js` to look up `#view-live` (with fallback to `#fwBadge` for backwards-compatibility) as the sibling anchor instead of `#fwBadge` (which is nested inside `#view-live` in v12, breaking sibling injection layout structure).

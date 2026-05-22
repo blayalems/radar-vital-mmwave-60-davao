@@ -33,6 +33,11 @@ def test_safe_asset_path_resolves_real_files():
     # at minimum the rvt-fonts.css linker should be there.
     assert safe_asset_path("/fonts/rvt-fonts.css") is not None
 
+    # Test optional /assets/ prefix resolution.
+    assert safe_asset_path("/assets/fonts/rvt-fonts.css") is not None
+    assert safe_asset_path("/assets/icons/icon-192.png") is not None
+    assert safe_asset_path("/assets/lib/jsqr.min.js") is not None
+
 
 def test_safe_asset_path_rejects_paths_outside_whitelist():
     # sw.js, manifest, and root files are NOT served via /assets/<x>;

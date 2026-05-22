@@ -1,21 +1,21 @@
-const CACHE = 'rvt-shell-v12.0.1';
-const DASHBOARD = '/';
+const CACHE = 'rvt-shell-v12.0.0';
+const DASHBOARD = './';
 const PRECACHE = [
   DASHBOARD,
-  '/radar_vital_live_dashboard_v12_for_v16_0.html',
-  '/manifest.webmanifest',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/icon-maskable-512.png',
-  '/icons/apple-touch-icon-180.png',
-  '/lib/chart.umd.min.js',
-  '/lib/chartjs-plugin-zoom.min.js',
-  '/lib/hammer.min.js',
-  '/lib/jsqr.min.js',
-  '/assets/fonts/rvt-fonts.css',
-  '/assets/fonts/inter-6.woff2',
-  '/assets/fonts/jetbrains-mono-5.woff2',
-  '/assets/fonts/material-symbols-rounded.woff2'
+  './radar_vital_live_dashboard_v12_for_v16_0.html',
+  './manifest.webmanifest',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-maskable-512.png',
+  './icons/apple-touch-icon-180.png',
+  './lib/chart.umd.min.js',
+  './lib/chartjs-plugin-zoom.min.js',
+  './lib/hammer.min.js',
+  './lib/jsqr.min.js',
+  './fonts/rvt-fonts.css',
+  './fonts/inter-6.woff2',
+  './fonts/jetbrains-mono-5.woff2',
+  './fonts/material-symbols-rounded.woff2'
 ];
 
 self.addEventListener('install', event => {
@@ -72,21 +72,21 @@ self.addEventListener('fetch', event => {
   }
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
-  if (url.pathname === '/api/session/current/live_dashboard.json') {
+  if (url.pathname.includes('/api/session/current/live_dashboard.json')) {
     return;
   }
-  if (url.pathname.startsWith('/api/')) {
+  if (url.pathname.includes('/api/')) {
     return;
   }
-  if (url.pathname === '/' || url.pathname.endsWith('/radar_vital_live_dashboard_v12_for_v16_0.html')) {
+  if (url.pathname.endsWith('/') || url.pathname.endsWith('/radar_vital_live_dashboard_v12_for_v16_0.html') || url.pathname.endsWith('/index.html')) {
     event.respondWith(networkFirst(request, 2000));
     return;
   }
-  if (url.pathname === '/manifest.webmanifest') {
+  if (url.pathname.endsWith('/manifest.webmanifest')) {
     event.respondWith(networkFirst(request, 2000));
     return;
   }
-  if (url.pathname.startsWith('/icons/') || url.pathname.startsWith('/lib/') || url.pathname.startsWith('/assets/fonts/')) {
+  if (url.pathname.includes('/icons/') || url.pathname.includes('/lib/') || url.pathname.includes('/fonts/')) {
     event.respondWith(cacheFirst(request));
   }
 });

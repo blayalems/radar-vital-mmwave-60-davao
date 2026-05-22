@@ -68,13 +68,13 @@ The hosted shell **cannot read serial** — it's a thin client. The trainer stil
 ### Android APK — Capacitor
 
 ```bash
-npm install                           # installs @capacitor/cli, @capacitor/android, @capacitor/http
+npm install                           # installs @capacitor/cli, @capacitor/android
 npm run build:web                     # copies dashboard + assets/ into www/
 npx cap sync android
 npx cap open android                  # opens Android Studio for signing/release
 ```
 
-LAN HTTP traffic in the APK routes through `@capacitor/http` (native HTTP stack) so the WebView's mixed-content rules never apply. No `network_security_config.xml` cleartext exception is required.
+LAN HTTP traffic in the APK routes through the Capacitor native HTTP stack (via `CapacitorHttp` configuration in `capacitor.config.ts`) so the WebView's mixed-content rules never apply. No `network_security_config.xml` cleartext exception is required.
 
 CI: [`.github/workflows/build-apk.yml`](./.github/workflows/build-apk.yml) produces an unsigned debug APK on every push and attaches it to the workflow artifacts.
 
@@ -84,12 +84,12 @@ CI: [`.github/workflows/build-apk.yml`](./.github/workflows/build-apk.yml) produ
 cargo install tauri-cli --version '^2.0'
 npm install
 npm run build:web
-cargo tauri build                     # produces src-tauri/target/release/*.msi
+cargo tauri build                     # produces src-tauri/target/release/*.exe
 ```
 
-Tauri uses Microsoft Edge WebView2. Windows 11 ships it preinstalled; the bundler configures `downloadBootstrapper` so the installer fetches WebView2 at install time on Windows 10. To embed WebView2 in the MSI for offline installs, switch to `embedBootstrapper` in [`src-tauri/tauri.conf.json`](./src-tauri/tauri.conf.json).
+Tauri uses Microsoft Edge WebView2. Windows 11 ships it preinstalled; the bundler configures `downloadBootstrapper` so the installer fetches WebView2 at install time on Windows 10. To embed WebView2 in the installer for offline installs, switch to `embedBootstrapper` in [`src-tauri/tauri.conf.json`](./src-tauri/tauri.conf.json).
 
-CI: [`.github/workflows/build-exe.yml`](./.github/workflows/build-exe.yml) cross-compiles the MSI on `windows-latest`.
+CI: [`.github/workflows/build-exe.yml`](./.github/workflows/build-exe.yml) cross-compiles the EXE on `windows-latest`.
 
 ---
 

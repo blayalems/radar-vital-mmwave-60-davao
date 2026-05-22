@@ -64,6 +64,16 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-22 — Release Hardening & Artifact Omission Resolution
+- Standardized PWA Service Worker (`assets/sw.js`) and dynamic manifest payload with relative paths (`./`) and robust fetch routing to prevent 404s and offline loading issues across loopback, LAN, and GitHub Pages deployments.
+- Checked in PWA service worker unregister tombstone script physically at `assets/rvt-sw.js` and updated the trainer HTTP dispatcher to dynamically read from it.
+- Corrected Tauri development server configuration in `src-tauri/tauri.conf.json` by removing `devUrl` to let Tauri serve `frontendDist` directly in dev mode, aligned version to `"12.0.0-alpha.1"`, and locked targets to NSIS.
+- Hardened trainer PIN pairing with an import-level mutex `_PIN_LOCK` for complete thread safety, re-rolling generated PINs on collision, and defensively initializing auth tokens to prevent crashes in unit-test fixtures.
+- Conditionalized QR pairing instructions sentence in `/pair` operator UI so it hides when pairing is not active under local bind mode.
+- De-duplicated compiled payload size by removing byte-copies of redundant `assets/` folder duplicates inside `www/assets/` in `scripts/build-www.mjs`, reducing Tauri and Capacitor bundle payloads by ~1MB.
+- Dropped unused `@capacitor-community/http` dependency from `package.json`, set up standard `requirements.txt` redirect, and pinned all Python packages to secure stable ranges in `requirements-v12.txt`.
+- Added `interactive-widget=resizes-content` viewport support, updated visual regression and unit tests to pass cleanly (30/30 post-split), and completed comprehensive verification suite.
+
 ### 2026-05-22 — Material 3 Expressive UI/UX Refinement & Offline Settings Fix
 - Constrained desktop topbar flex wrappers, borders, shadows, and grid templates to `@media (min-width: 761px)` to resolve desktop topbar media-wrapping, preventing squeezing and wrapping issues on small desktop and tablet viewports.
 - Decoupled panel visibility from the controller-active `data-ctl="on"` gate, enabling reliable offline/disconnected navigation across all views (Home, Live, Report, Help, Settings).

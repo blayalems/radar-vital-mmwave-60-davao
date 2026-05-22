@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DASH = ROOT / "radar_vital_live_dashboard_v12_for_v16_0.html"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
+TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
 FW = ROOT / "radar_vital_v16_0_0.ino"
 SW = ROOT / "assets" / "sw.js"
 
@@ -44,8 +45,8 @@ def test_service_worker_contract():
 
 
 def test_trainer_routes_and_security_contract():
-    py = text(TRAINER)
-    compile(py, str(TRAINER), "exec")
+    py = text(TRAINER_MONOLITH)
+    compile(py, str(TRAINER_MONOLITH), "exec")
     for route in [
         "/manifest.webmanifest",
         "/sw.js",
@@ -58,18 +59,25 @@ def test_trainer_routes_and_security_contract():
         assert route in py
     assert "Port {start_port} in use. Stop the other instance or pass --port <N>." in py
     assert "WWW-Authenticate" in py and "RVT-Token" in py
-    assert "_PIN_TTL_S = 300" in py
+    
+    auth_py = text(ROOT / "rvt_trainer" / "api" / "auth.py")
+    assert "_PIN_TTL_S = 300" in auth_py
+    
     assert "Content-Security-Policy" in py
     assert "http: https:" not in py
-    assert ".rvt_tls" in py and "target.relative_to(private_root)" in py
+    
+    static_py = text(ROOT / "rvt_trainer" / "assets" / "static.py")
+    assert ".rvt_tls" in static_py and "target.relative_to(private_root)" in static_py
+    
     assert "_qr_png_bytes" in py
 
 
 def test_manifest_payload_is_plain_manifest():
-    py = text(TRAINER)
-    assert '"id": "/"' in py
-    assert '"start_url": "./live_dashboard.html"' in py
-    assert '"scope": "./"' in py
+    py = text(TRAINER_MONOLITH)
+    server_info_py = text(ROOT / "rvt_trainer" / "api" / "server_info.py")
+    assert '"id": "/"' in server_info_py
+    assert '"start_url": "./"' in server_info_py
+    assert '"scope": "./"' in server_info_py
     assert 'json.dumps(_manifest_payload(self.server)' in py
     assert 'content_type="application/manifest+json' not in py
 

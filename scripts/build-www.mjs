@@ -61,7 +61,7 @@ async function assemble() {
       const idAttr = inc.attrs.id ? ` id="${inc.attrs.id}"` : '';
       return `${inc.indent}<script${idAttr}>\n${trimmed}\n${inc.indent}</script>`;
     }
-    return trimmed;
+    throw new Error(`Unknown as= attribute value: "${inc.attrs.as}" in BUILD:INCLUDE`);
   }));
 
   // Splice from end to start so indices stay valid.
@@ -93,12 +93,12 @@ async function main() {
   await fs.writeFile(path.join(OUT, 'index.html'), assembled);
   await fs.writeFile(path.join(OUT, path.basename(DASHBOARD)), assembled);
 
-  await copyDir(SRC_ASSETS, path.join(OUT, 'assets'));
   await copyDir(path.join(SRC_ASSETS, 'fonts'), path.join(OUT, 'fonts'));
   await copyDir(path.join(SRC_ASSETS, 'icons'), path.join(OUT, 'icons'));
   await copyDir(path.join(SRC_ASSETS, 'lib'), path.join(OUT, 'lib'));
   await fs.copyFile(path.join(SRC_ASSETS, 'manifest.webmanifest'), path.join(OUT, 'manifest.webmanifest'));
   await fs.copyFile(path.join(SRC_ASSETS, 'sw.js'), path.join(OUT, 'sw.js'));
+  await fs.copyFile(path.join(SRC_ASSETS, 'rvt-sw.js'), path.join(OUT, 'rvt-sw.js'));
 
   await fs.writeFile(
     path.join(OUT, '404.html'),

@@ -64,21 +64,35 @@ def manifest_payload(server) -> Dict[str, object]:
         "id": "/",
         "name": "Radar Vital Trainer",
         "short_name": "Radar Vital",
-        "start_url": "./live_dashboard.html",
+        "description": "Mobile-first console for mmWave 60 GHz radar vital-sign monitoring sessions.",
+        "start_url": "./",
         "scope": "./",
         "display": "standalone",
+        "display_override": ["standalone", "minimal-ui", "browser"],
         "background_color": "#f4f6fb",
         "theme_color": "#3b82f6",
         "orientation": "any",
-        "categories": ["health", "medical"],
+        "categories": ["health", "medical", "utilities"],
+        "lang": "en",
+        "dir": "ltr",
         "icons": [
-            {"src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
-            {"src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+            {"src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
             {"src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
         ],
         "shortcuts": [
-            {"name": "Start session", "url": "./live_dashboard.html#start"},
-            {"name": "Open last report", "url": "./live_dashboard.html#report"},
+            {
+                "name": "Start session",
+                "short_name": "Start",
+                "url": "./?action=start",
+                "icons": [{"src": "./icons/icon-192.png", "sizes": "192x192"}],
+            },
+            {
+                "name": "Open last report",
+                "short_name": "Report",
+                "url": "./?action=report",
+                "icons": [{"src": "./icons/icon-192.png", "sizes": "192x192"}],
+            },
         ],
     }
 
@@ -114,6 +128,7 @@ def pair_page_html(server) -> str:
     origin = advertised_origin(server)
     expires_at = float(getattr(server, "active_pin_expires_at", 0.0) or 0.0)
     ttl = max(0, int(expires_at - time.time())) if pin else 0
+    instructions = f"<p>Scan the trainer QR or open <code>{html_escape(origin)}/?pair={html_escape(pin)}</code> on the phone, then keep the trainer running.</p>" if pin else ""
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Pair Radar Vital</title>
@@ -121,7 +136,7 @@ def pair_page_html(server) -> str:
 </head><body><main><h1>Pair Radar Vital</h1><p>Server URL: <code>{html_escape(origin)}</code></p>
 <p>PIN</p><div class="pin">{html_escape(pin or "local")}</div>
 <p>{'Expires in ' + str(ttl) + ' seconds and is consumed after first use.' if pin else 'LAN pairing is not active in local bind mode.'}</p>
-<p>Scan the trainer QR or open <code>{html_escape(origin)}/?pair={html_escape(pin)}</code> on the phone, then keep the trainer running.</p>
+{instructions}
 </main></body></html>"""
 
 

@@ -2075,7 +2075,7 @@
 
     var printHtml = '<!DOCTYPE html><html data-theme="light"><head><meta charset="utf-8">' +
       '<title>RVT Session Report — ' + sessionId + '</title>' +
-      '<link href="./assets/fonts/rvt-fonts.css" rel="stylesheet">' +
+      '<link href="./fonts/rvt-fonts.css" rel="stylesheet">' +
       '<style>' +
       document.getElementById('rvt-consolidated-css').textContent +
       '\n body { background: #fff !important; padding: 32px; max-width: 900px; margin: 0 auto; font-family: Inter, system-ui, sans-serif; }' +

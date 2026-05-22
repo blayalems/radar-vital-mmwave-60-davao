@@ -5410,12 +5410,20 @@ def _sanitize_user_string(value, max_len: int = 1000) -> str:
 
 
 def _build_service_worker_js() -> str:
-    return """self.addEventListener('install', () => self.skipWaiting());
+    fallback = """self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
   e.waitUntil(self.registration.unregister().then(() =>
     self.clients.matchAll().then(cs => cs.forEach(c => c.navigate(c.url)))));
 });
 """
+    try:
+        from rvt_trainer.assets.static import assets_root
+        sw_file = assets_root() / "rvt-sw.js"
+        if sw_file.is_file():
+            return sw_file.read_text(encoding="utf-8")
+    except Exception:
+        pass
+    return fallback
 
 
 # Static-asset path resolution + content-type lives in

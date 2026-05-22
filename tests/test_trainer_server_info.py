@@ -62,7 +62,7 @@ def test_manifest_payload_is_pwa_contract():
     # PWA spec essentials
     assert m["id"] == "/"
     assert m["display"] == "standalone"
-    assert m["start_url"] == "./live_dashboard.html"
+    assert m["start_url"] == "./"
     assert m["scope"] == "./"
     # Required icon sizes for Chrome installability
     sizes = {icon["sizes"] for icon in m["icons"]}

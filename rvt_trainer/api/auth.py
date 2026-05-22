@@ -19,11 +19,13 @@ process; restart-on-restart re-pairing is expected and documented in
 from __future__ import annotations
 
 import secrets
+import threading
 import time
 from typing import Dict, Tuple
 
 _PIN_TTL_S = 300       # 5 minute PIN expiry
 _PIN_MAX = 8           # max concurrent outstanding PINs
+_PIN_LOCK = threading.Lock()
 
 
 def make_pair_pin(server) -> str:
@@ -32,20 +34,27 @@ def make_pair_pin(server) -> str:
     Expired entries are reaped first, then the store is trimmed to
     ``_PIN_MAX`` by evicting the oldest entry.
     """
-    pin = f"{secrets.randbelow(1000000):06d}"
-    now = time.time()
-    pins = getattr(server, "pair_pins", {})
-    expired = [k for k, item in pins.items() if float(item.get("expires_at", 0.0)) <= now]
-    for key in expired:
-        pins.pop(key, None)
-    while len(pins) >= _PIN_MAX:
-        oldest = min(pins, key=lambda k: float(pins[k].get("created_at", 0.0)))
-        pins.pop(oldest, None)
-    pins[pin] = {"created_at": now, "expires_at": now + _PIN_TTL_S}
-    server.pair_pins = pins
-    server.active_pin = pin
-    server.active_pin_expires_at = now + _PIN_TTL_S
-    return pin
+    with _PIN_LOCK:
+        pins = getattr(server, "pair_pins", None)
+        if pins is None:
+            pins = {}
+            server.pair_pins = pins
+
+        pin = f"{secrets.randbelow(1000000):06d}"
+        while pin in pins:
+            pin = f"{secrets.randbelow(1000000):06d}"
+
+        now = time.time()
+        expired = [k for k, item in pins.items() if float(item.get("expires_at", 0.0)) <= now]
+        for key in expired:
+            pins.pop(key, None)
+        while len(pins) >= _PIN_MAX:
+            oldest = min(pins, key=lambda k: float(pins[k].get("created_at", 0.0)))
+            pins.pop(oldest, None)
+        pins[pin] = {"created_at": now, "expires_at": now + _PIN_TTL_S}
+        server.active_pin = pin
+        server.active_pin_expires_at = now + _PIN_TTL_S
+        return pin
 
 
 def exchange_pair_pin(server, pin: str) -> Tuple[int, Dict[str, object]]:
@@ -61,35 +70,46 @@ def exchange_pair_pin(server, pin: str) -> Tuple[int, Dict[str, object]]:
     The token is added to ``server.auth_tokens`` (set) on success and stays
     valid for the trainer process lifetime.
     """
-    now = time.time()
-    pins = getattr(server, "pair_pins", {})
-    item = pins.get(str(pin or ""))
-    if not item:
-        return 410, {
-            "ok": False,
-            "error": {
-                "code": "PIN_EXPIRED_OR_USED",
-                "message": "pairing PIN expired or was already used",
-            },
-        }
-    if float(item.get("expires_at", 0.0)) <= now:
+    with _PIN_LOCK:
+        pins = getattr(server, "pair_pins", None)
+        if pins is None:
+            pins = {}
+            server.pair_pins = pins
+
+        item = pins.get(str(pin or ""))
+        if not item:
+            return 410, {
+                "ok": False,
+                "error": {
+                    "code": "PIN_EXPIRED_OR_USED",
+                    "message": "pairing PIN expired or was already used",
+                },
+            }
+        now = time.time()
+        if float(item.get("expires_at", 0.0)) <= now:
+            pins.pop(str(pin), None)
+            return 410, {
+                "ok": False,
+                "error": {"code": "PIN_EXPIRED", "message": "pairing PIN expired"},
+            }
         pins.pop(str(pin), None)
-        return 410, {
-            "ok": False,
-            "error": {"code": "PIN_EXPIRED", "message": "pairing PIN expired"},
+        if getattr(server, "active_pin", "") == str(pin):
+            server.active_pin = ""
+            server.active_pin_expires_at = 0.0
+        token = secrets.token_urlsafe(24)
+
+        tokens = getattr(server, "auth_tokens", None)
+        if tokens is None:
+            tokens = set()
+            server.auth_tokens = tokens
+        tokens.add(token)
+
+        return 200, {
+            "ok": True,
+            "token": token,
+            "token_type": "RVT-Token",
+            "expires": "process",
         }
-    pins.pop(str(pin), None)
-    if getattr(server, "active_pin", "") == str(pin):
-        server.active_pin = ""
-        server.active_pin_expires_at = 0.0
-    token = secrets.token_urlsafe(24)
-    server.auth_tokens.add(token)
-    return 200, {
-        "ok": True,
-        "token": token,
-        "token_type": "RVT-Token",
-        "expires": "process",
-    }
 
 
 __all__ = ["make_pair_pin", "exchange_pair_pin", "_PIN_TTL_S", "_PIN_MAX"]

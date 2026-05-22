@@ -1,13 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Radar Vital",
-  "version": "12.0.0",
+  "version": "12.0.0-alpha.1",
   "identifier": "app.radarvital.trainer",
   "build": {
     "beforeBuildCommand": "npm run build:web",
     "beforeDevCommand": "npm run build:web",
-    "frontendDist": "../www",
-    "devUrl": "http://127.0.0.1:8787"
+    "frontendDist": "../www"
   },
   "app": {
     "windows": [
@@ -26,15 +25,6 @@
       "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://127.0.0.1:* https://localhost:*; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'"
     }
   },
-  "bundle": {
-    "active": true,
-    "targets": ["msi", "nsis"],
-    "icon": [
-      "icons/icon.ico",
-      "icons/icon-512.png"
-    ],
-    "windows": {
-      "wix": {
         "language": "en-US"
       },
       "webviewInstallMode": {

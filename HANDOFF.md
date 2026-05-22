@@ -64,6 +64,13 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-22 — PWA and Monolith Icon / Font Assets Resolution
+- Fixed broken font and icon loading on the hosted GitHub Pages deployment and monolith environments by reverting styling link href to `./assets/fonts/rvt-fonts.css`.
+- Added build-time path translation in `scripts/build-www.mjs` to automatically replace `./assets/` with `./` when writing the final HTML files (`index.html` and monolith alias) to the `www/` output directory. This maintains absolute compatibility for local Tauri, Capacitor, and PWA packaging without redundant files.
+- Updated the trainer's static asset router `safe_asset_path()` in `rvt_trainer/assets/static.py` to seamlessly handle and resolve optional leading `/assets/` path prefixes to the physical assets directory.
+- Added unit tests in `tests/test_trainer_static.py` to assert correct resolution of static files with the optional `/assets/` prefix.
+- Confirmed that the whole verification protocol is clean, all python tests (30/30) pass, and all Playwright smoke tests (56/56) across all simulated desktop and mobile viewports are fully green.
+
 ### 2026-05-22 — Release Hardening & Artifact Omission Resolution
 - Standardized PWA Service Worker (`assets/sw.js`) and dynamic manifest payload with relative paths (`./`) and robust fetch routing to prevent 404s and offline loading issues across loopback, LAN, and GitHub Pages deployments.
 - Checked in PWA service worker unregister tombstone script physically at `assets/rvt-sw.js` and updated the trainer HTTP dispatcher to dynamically read from it.

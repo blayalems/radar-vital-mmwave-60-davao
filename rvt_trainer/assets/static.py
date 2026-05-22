@@ -42,6 +42,8 @@ def safe_asset_path(url_path: str) -> Optional[Path]:
     """
     root = assets_root().resolve()
     rel = unquote(url_path.lstrip("/")).replace("\\", "/")
+    if rel.startswith("assets/"):
+        rel = rel[7:]
     if not (rel.startswith("icons/") or rel.startswith("lib/") or rel.startswith("fonts/")):
         return None
     target = (root / rel).resolve()

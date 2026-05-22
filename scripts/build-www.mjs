@@ -90,8 +90,9 @@ async function main() {
 
   await fs.rm(OUT, { recursive: true, force: true });
   await fs.mkdir(OUT, { recursive: true });
-  await fs.writeFile(path.join(OUT, 'index.html'), assembled);
-  await fs.writeFile(path.join(OUT, path.basename(DASHBOARD)), assembled);
+  const assembledForWww = assembled.replaceAll('./assets/', './');
+  await fs.writeFile(path.join(OUT, 'index.html'), assembledForWww);
+  await fs.writeFile(path.join(OUT, path.basename(DASHBOARD)), assembledForWww);
 
   await copyDir(path.join(SRC_ASSETS, 'fonts'), path.join(OUT, 'fonts'));
   await copyDir(path.join(SRC_ASSETS, 'icons'), path.join(OUT, 'icons'));

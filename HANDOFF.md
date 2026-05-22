@@ -64,6 +64,12 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-22 — View Panel Dynamic Injection & Navigation Fix
+- Fixed completely blank Home, Report, Help, and Settings views in the mobile-first dashboard by removing the statically declared empty placeholder `<section id="view-*">` elements in `web/index.html` which were blocking the injection of dynamic views.
+- Aligned the JavaScript injection logic in `web/modules/rvt-unified-js.js` to look up `#view-live` (with fallback to `#fwBadge` for backwards-compatibility) as the sibling anchor instead of `#fwBadge` (which is nested inside `#view-live` in v12, breaking sibling injection layout structure).
+- Appended `class="view-panel"` to the dynamically injected sections in `web/modules/rvt-unified-js.js` for perfect visual layout, styling, and navigation consistency with the rest of the layout hierarchy.
+- Confirmed that the whole verification protocol is clean, the round-trip check passes with 0 drift, and all Playwright smoke tests pass successfully.
+
 ### 2026-05-22 — PWA and Monolith Icon / Font Assets Resolution
 - Fixed broken font and icon loading on the hosted GitHub Pages deployment and monolith environments by reverting styling link href to `./assets/fonts/rvt-fonts.css`.
 - Added build-time path translation in `scripts/build-www.mjs` to automatically replace `./assets/` with `./` when writing the final HTML files (`index.html` and monolith alias) to the `www/` output directory. This maintains absolute compatibility for local Tauri, Capacitor, and PWA packaging without redundant files.

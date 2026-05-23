@@ -1,0 +1,29 @@
+/* Simple grid layout integration */
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.main-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  position: relative;
+}
+
+.main-content-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+  position: relative;
+}
+
+@media (max-width: 760px) {
+  .main-content-scroll {
+    padding: 12px 12px 80px; /* Space for bottom nav */
+  }
+}

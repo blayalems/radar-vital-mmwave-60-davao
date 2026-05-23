@@ -64,6 +64,12 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-23 — Static Angular Router Refactor & Monolith Routing Fallbacks
+- Reconfigured the Angular routing `app.routes.ts` to statically import all navigation components (`Home`, `Live`, `Report`, `Help`, `Settings`), bundling the entire application codebase into a single robust JS block and eliminating dynamic lazy chunks (`chunk-*.js`) that were triggering 404 errors.
+- Added explicit client-side SPA routing fallbacks (`/live`, `/home`, `/settings`, `/report`, `/help`) to the trainer static-routing handler in `rvt_trainer/monolith.py` to correctly serve the monolith and resolve browser reload and service worker `controllerchange` refreshes.
+- Rebuilt the self-contained monolithic dashboard (`npm run build:web`) and confirmed perfect compilation under the standard custom Webpack budgets.
+- Achieved a 100% test success rate (56/56 passing) across all viewport devices and browser engines, validating complete visual, functional, and offline PWA compliance.
+
 ### 2026-05-22 — Material 3 Expressive Settings Page Reorganization
 - Reorganized the cluttered Settings page UI using Material 3 Expressive Principles, dividing controls into high-fidelity card containers (`.set-g.m3-card`).
 - Replaced tight row tables with modern list-row layouts (`.set-r`) incorporating leading Material rounded symbols (`.set-row-ic`) and clean vertical visual hierarchy.

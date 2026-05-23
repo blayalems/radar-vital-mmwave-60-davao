@@ -1,0 +1,245 @@
+<div class="settings-container">
+  <div class="settings-header">
+    <div>
+      <h2 class="settings-title">Dashboard Settings</h2>
+      <p class="settings-subtitle">Keep live mode honest. Demo mode is explicit, not silent.</p>
+    </div>
+    <button mat-icon-button (click)="close()" title="Close settings" aria-label="Close settings" class="close-btn">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div class="settings-grid">
+    <!-- Source Mode -->
+    <mat-card class="settings-card premium-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">sensors</mat-icon>
+        <mat-card-title>Source Mode</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="settings-row">
+          <div class="settings-copy">
+            <span class="row-title">Demo Mode</span>
+            <span class="row-description">Use generated sample telemetry instead of the trainer JSON feed. Intended for UI demos only.</span>
+          </div>
+          <mat-slide-toggle [checked]="state.demoMode()" (change)="state.demoMode.set($event.checked)"></mat-slide-toggle>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-copy">
+            <span class="row-title">Auto-enable Demo on Disconnect</span>
+            <span class="row-description">If live polling fails repeatedly, switch to demo automatically. Default is off.</span>
+          </div>
+          <mat-slide-toggle [checked]="state.autoDemoOnDisconnect()" (change)="state.autoDemoOnDisconnect.set($event.checked)"></mat-slide-toggle>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Disconnect Behavior -->
+    <mat-card class="settings-card premium-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">wifi_off</mat-icon>
+        <mat-card-title>Disconnect Behavior</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="settings-row">
+          <div class="settings-copy">
+            <span class="row-title">Freeze on Stale Live Data</span>
+            <span class="row-description">When live data disappears, keep the last real payload visible and mark the dashboard stale instead of simulating new activity.</span>
+          </div>
+          <mat-slide-toggle [checked]="state.freezeOnStale()" (change)="state.freezeOnStale.set($event.checked)"></mat-slide-toggle>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Appearance -->
+    <mat-card class="settings-card premium-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">palette</mat-icon>
+        <mat-card-title>Appearance</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="settings-row block-row">
+          <div class="settings-copy">
+            <span class="row-title">Theme</span>
+            <span class="row-description">Choose a fixed theme or follow system settings.</span>
+          </div>
+          <mat-button-toggle-group [value]="state.theme()" (change)="state.theme.set($event.value)" aria-label="Theme mode" class="theme-toggle-group">
+            <mat-button-toggle value="light">Light</mat-button-toggle>
+            <mat-button-toggle value="dark">Dark</mat-button-toggle>
+            <mat-button-toggle value="night">Night Red</mat-button-toggle>
+            <mat-button-toggle value="hc">HC</mat-button-toggle>
+          </mat-button-toggle-group>
+        </div>
+
+        <div class="settings-row block-row">
+          <div class="settings-copy">
+            <span class="row-title">Density</span>
+            <span class="row-description">Comfortable leaves more breathing room; compact fits more telemetry.</span>
+          </div>
+          <mat-button-toggle-group [value]="state.density()" (change)="state.density.set($event.value)" aria-label="Display density" class="density-toggle-group">
+            <mat-button-toggle value="comfortable">Comfort</mat-button-toggle>
+            <mat-button-toggle value="compact">Compact</mat-button-toggle>
+          </mat-button-toggle-group>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Haptic Feedback -->
+    <mat-card class="settings-card premium-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">vibration</mat-icon>
+        <mat-card-title>Haptic Feedback</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="settings-row block-row">
+          <div class="settings-copy">
+            <span class="row-title">Haptics Mode</span>
+            <span class="row-description">Subtle vibration on session start, stop, export, copy, and destructive confirmations.</span>
+          </div>
+          <mat-button-toggle-group [value]="state.hxMode()" (change)="state.hxMode.set($event.value)" aria-label="Haptics mode" class="haptics-toggle-group">
+            <mat-button-toggle value="off">Off</mat-button-toggle>
+            <mat-button-toggle value="auto">Auto</mat-button-toggle>
+            <mat-button-toggle value="on">On</mat-button-toggle>
+          </mat-button-toggle-group>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- KPI Alert Thresholds -->
+    <mat-card class="settings-card premium-card thresholds-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">warning</mat-icon>
+        <mat-card-title>KPI Alert Thresholds</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="thresholds-grid">
+          <!-- Heart Rate Low -->
+          <div class="threshold-field">
+            <div class="threshold-header">
+              <span class="threshold-label">HR Low (bpm)</span>
+              <span class="threshold-value">{{ state.kpiThresholds().hrLow }}</span>
+            </div>
+            <div class="threshold-row">
+              <mat-slider min="20" max="80" step="1" discrete class="slider-field">
+                <input matSliderThumb [value]="state.kpiThresholds().hrLow" (valueChange)="onThresholdSliderChange('hrLow', $event)">
+              </mat-slider>
+              <input type="number" min="20" max="80" [ngModel]="state.kpiThresholds().hrLow" (ngModelChange)="onThresholdSliderChange('hrLow', $event)" class="num-input">
+            </div>
+          </div>
+
+          <!-- Heart Rate High -->
+          <div class="threshold-field">
+            <div class="threshold-header">
+              <span class="threshold-label">HR High (bpm)</span>
+              <span class="threshold-value">{{ state.kpiThresholds().hrHigh }}</span>
+            </div>
+            <div class="threshold-row">
+              <mat-slider min="60" max="220" step="1" discrete class="slider-field">
+                <input matSliderThumb [value]="state.kpiThresholds().hrHigh" (valueChange)="onThresholdSliderChange('hrHigh', $event)">
+              </mat-slider>
+              <input type="number" min="60" max="220" [ngModel]="state.kpiThresholds().hrHigh" (ngModelChange)="onThresholdSliderChange('hrHigh', $event)" class="num-input">
+            </div>
+          </div>
+
+          <!-- Respiration Rate Low -->
+          <div class="threshold-field">
+            <div class="threshold-header">
+              <span class="threshold-label">RR Low (br/min)</span>
+              <span class="threshold-value">{{ state.kpiThresholds().rrLow }}</span>
+            </div>
+            <div class="threshold-row">
+              <mat-slider min="2" max="20" step="1" discrete class="slider-field">
+                <input matSliderThumb [value]="state.kpiThresholds().rrLow" (valueChange)="onThresholdSliderChange('rrLow', $event)">
+              </mat-slider>
+              <input type="number" min="2" max="20" [ngModel]="state.kpiThresholds().rrLow" (ngModelChange)="onThresholdSliderChange('rrLow', $event)" class="num-input">
+            </div>
+          </div>
+
+          <!-- Respiration Rate High -->
+          <div class="threshold-field">
+            <div class="threshold-header">
+              <span class="threshold-label">RR High (br/min)</span>
+              <span class="threshold-value">{{ state.kpiThresholds().rrHigh }}</span>
+            </div>
+            <div class="threshold-row">
+              <mat-slider min="10" max="60" step="1" discrete class="slider-field">
+                <input matSliderThumb [value]="state.kpiThresholds().rrHigh" (valueChange)="onThresholdSliderChange('rrHigh', $event)">
+              </mat-slider>
+              <input type="number" min="10" max="60" [ngModel]="state.kpiThresholds().rrHigh" (ngModelChange)="onThresholdSliderChange('rrHigh', $event)" class="num-input">
+            </div>
+          </div>
+        </div>
+
+        <p class="settings-help-text">Changes apply immediately to live KPI alerts and persist across monitoring sessions.</p>
+        
+        <div class="threshold-actions">
+          <button mat-stroked-button color="warn" (click)="resetThresholds()">Reset Thresholds</button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Audio & Voice Alerts -->
+    <mat-card class="settings-card premium-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">volume_up</mat-icon>
+        <mat-card-title>Audio Alerts</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="settings-row">
+          <div class="settings-copy">
+            <span class="row-title">Enable Audio Alerts</span>
+            <span class="row-description">Play a brief tone when HR/RR crosses thresholds or connection drops.</span>
+          </div>
+          <mat-slide-toggle [checked]="state.audioAlertsEnabled()" (change)="state.audioAlertsEnabled.set($event.checked)"></mat-slide-toggle>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-copy">
+            <span class="row-title">Voice Announcements</span>
+            <span class="row-description">Use browser speech synthesis for eyes-busy alert callouts.</span>
+          </div>
+          <mat-slide-toggle [checked]="state.voiceAlertsEnabled()" (change)="state.voiceAlertsEnabled.set($event.checked)"></mat-slide-toggle>
+        </div>
+
+        <div class="audio-control-row">
+          <mat-icon class="audio-volume-icon">volume_down</mat-icon>
+          <mat-slider min="0" max="1" step="0.05" class="audio-slider">
+            <input matSliderThumb [value]="state.audioVolume()" (valueChange)="state.audioVolume.set($event)">
+          </mat-slider>
+          <mat-icon class="audio-volume-icon">volume_up</mat-icon>
+          <span class="audio-label">Volume: {{ Math.round(state.audioVolume() * 100) }}%</span>
+        </div>
+
+        <div class="audio-actions">
+          <button mat-flat-button (click)="testSound()" class="test-btn">
+            <mat-icon>volume_up</mat-icon> Test Sound
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Live Rendering -->
+    <mat-card class="settings-card premium-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">insights</mat-icon>
+        <mat-card-title>Live Rendering</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="settings-row">
+          <div class="settings-copy">
+            <span class="row-title">Waveform Window (Seconds)</span>
+            <span class="row-description">Cap live chart history to prevent long-session redraw stalls.</span>
+          </div>
+          <input type="number" min="10" max="600" step="10" [ngModel]="state.liveBufferSeconds()" (ngModelChange)="onLiveBufferChange($event)" class="num-input waveform-input">
+        </div>
+        <p class="settings-help-text">Live charts keep {{ state.liveBufferSeconds() }} seconds, currently capped at {{ state.maxChartPoints() }} data points.</p>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <div class="settings-footer">
+    <button mat-button color="warn" (click)="resetAllDefaults()" class="reset-all-btn">Reset Dashboard Defaults</button>
+    <button mat-raised-button color="primary" (click)="close()" class="done-btn">Done</button>
+  </div>
+</div>

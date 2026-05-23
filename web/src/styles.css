@@ -1,0 +1,6 @@
+/* You can add global styles to this file, and also import other style files */
+@import './styles/rvt-loader-critical.css';
+@import './styles/rvt-consolidated-css.css';
+@import './styles/rvt-v12-mobile-pwa-css.css';
+@import './styles/patches/legacy-patches.css';
+@import './styles/rvt-native-shell-final.css';

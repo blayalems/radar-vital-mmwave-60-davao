@@ -1,0 +1,145 @@
+<!-- TELEMETRY REVIEW & REPORT PANEL -->
+<div class="report-container">
+
+  <!-- SESSION SELECTOR CARD -->
+  <mat-card class="selector-card">
+    <div class="selector-row">
+      <div class="selector-label-group">
+        <mat-icon>assignment</mat-icon>
+        <div>
+          <strong>Review Telemetry Report</strong>
+          <small>Select a past recording to review session verdicts and sensor survivals.</small>
+        </div>
+      </div>
+
+      <mat-form-field appearance="outline" class="session-dropdown-field">
+        <mat-label>Choose Session</mat-label>
+        <mat-select [(ngModel)]="selectedSessionId" (selectionChange)="onSessionChange()">
+          <mat-option *ngFor="let s of sessions" [value]="s.session_id">
+            {{ s.started_at | date:'short' }} - ({{ s.subject || 'Sandbox' }})
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+  </mat-card>
+
+  <!-- REPORT BODY CONTENT -->
+  <div class="report-body-layout" *ngIf="selectedSession; else emptyState">
+    
+    <!-- CENTRAL QUALITY VERDICT CARD -->
+    <mat-card class="verdict-hero-card" [attr.data-verdict]="selectedSession.verdict">
+      <div class="verdict-banner-inner">
+        <div class="verdict-meta">
+          <span class="eyebrow">Diagnostic Verdict Outcome</span>
+          <h2>
+            {{ selectedSession.verdict === 'ready' || selectedSession.verdict === 'pass'
+              ? 'PASS - Physiology Confirmed Ready'
+              : selectedSession.verdict === 'conditional' || selectedSession.verdict === 'warn'
+              ? 'CONDITIONAL - Requires Clinical Review'
+              : 'FAIL - Telemetry Quality Unready'
+            }}
+          </h2>
+          <p>
+            {{ selectedSession.verdict === 'ready' || selectedSession.verdict === 'pass'
+              ? 'Excellent signal quality. Subject is resting calmly. No heart or breath anomalies observed during the recording.'
+              : selectedSession.verdict === 'conditional' || selectedSession.verdict === 'warn'
+              ? 'Moderate signal quality detected. Periodic motion volatility observed. Verify subject placement.'
+              : 'Severe drift or sensor disconnected. Heart rate and breathing metrics fell outside valid ranges.'
+            }}
+          </p>
+        </div>
+
+        <div class="verdict-badge-box">
+          <mat-icon class="verdict-badge-icon">
+            {{ selectedSession.verdict === 'ready' || selectedSession.verdict === 'pass' ? 'check_circle' : 'warning' }}
+          </mat-icon>
+          <strong>{{ (selectedSession.verdict || 'ready') | uppercase }}</strong>
+        </div>
+      </div>
+    </mat-card>
+
+    <div class="report-two-column">
+      <!-- SESSION PROPERTY ATTRIBUTES -->
+      <mat-card class="attributes-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="header-avatar-ic">info</mat-icon>
+          <mat-card-title>Telemetry Attributes</mat-card-title>
+        </mat-card-header>
+        <mat-card-content class="attributes-table-wrap">
+          <table class="attributes-table">
+            <tbody>
+              <tr><td>Session ID</td><td><strong>{{ selectedSession.session_id }}</strong></td></tr>
+              <tr><td>Date / Time</td><td><strong>{{ selectedSession.started_at | date:'medium' }}</strong></td></tr>
+              <tr><td>Duration</td><td><strong>{{ selectedSession.duration_s }} seconds</strong></td></tr>
+              <tr><td>Subject ID</td><td><strong>{{ selectedSession.subject || 'demo-subject' }}</strong></td></tr>
+              <tr><td>Operator</td><td><strong>{{ selectedSession.operator || 'Operator A' }}</strong></td></tr>
+              <tr><td>Station</td><td><strong>{{ selectedSession.station || 'Lab · Station 3' }}</strong></td></tr>
+            </tbody>
+          </table>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- REPORT NOTES -->
+      <mat-card class="notes-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="header-avatar-ic">edit_note</mat-icon>
+          <mat-card-title>Operator Review Summary</mat-card-title>
+        </mat-card-header>
+        <mat-card-content class="notes-content-wrap">
+          <textarea class="report-textarea" [(ngModel)]="sessionNotesInput" placeholder="Add operator remarks or notes for this report..."></textarea>
+          
+          <div class="notes-action-row">
+            <button mat-stroked-button color="primary" (click)="downloadCsv()">
+              <mat-icon>download</mat-icon>
+              Download Telemetry CSV
+            </button>
+            <button mat-flat-button color="primary" (click)="saveReportNotes()">
+              <mat-icon>save</mat-icon>
+              Save Report Notes
+            </button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- DYNAMIC REPORT SPARKLINE GRAPH PLOTS -->
+    <mat-card class="report-trends-card">
+      <mat-card-header>
+        <mat-card-title>Historical Telemetry Trend Plot</mat-card-title>
+        <mat-card-subtitle>Chronological heart rate and respiratory rate profiles saved during the active run.</mat-card-subtitle>
+      </mat-card-header>
+
+      <mat-card-content class="report-trends-content">
+        <div class="report-trend-chart">
+          <div class="chart-header">
+            <strong>Heart Rate Trend (bpm)</strong>
+            <span class="legend-dot hr"></span>
+          </div>
+          <div class="canvas-plot-wrap">
+            <canvas #hrReportCanvas class="report-sparkline-canvas"></canvas>
+          </div>
+        </div>
+
+        <div class="report-trend-chart">
+          <div class="chart-header">
+            <strong>Respiration Trend (br/min)</strong>
+            <span class="legend-dot rr"></span>
+          </div>
+          <div class="canvas-plot-wrap">
+            <canvas #rrReportCanvas class="report-sparkline-canvas"></canvas>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+  </div>
+
+  <ng-template #emptyState>
+    <div class="report-empty-state">
+      <mat-icon class="empty-icon animate-pulse">history_toggle_off</mat-icon>
+      <h3>No Telemetry Sessions Found</h3>
+      <p>Please complete a live recording session or enable sandbox simulation in Settings to populate the report history.</p>
+    </div>
+  </ng-template>
+
+</div>

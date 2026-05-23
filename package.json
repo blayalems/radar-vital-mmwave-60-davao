@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "extract:monolith": "node scripts/extract-monolith.mjs",
-    "build:web": "node scripts/build-angular.mjs",
+    "build:web": "node scripts/build-www.mjs",
     "build:check": "node scripts/check-roundtrip.mjs",
     "test": "playwright test tests/smoke",
     "test:all": "playwright test",

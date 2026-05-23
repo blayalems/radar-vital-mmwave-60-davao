@@ -25,7 +25,7 @@ function normalizeHtmlBytes(buf) {
 }
 
 const before = await fs.readFile(DASHBOARD);
-const result = spawnSync('node', [path.join(__dirname, 'build-angular.mjs')], {
+const result = spawnSync('node', [path.join(__dirname, 'build-www.mjs')], {
   cwd: ROOT,
   stdio: 'inherit',
 });
@@ -34,19 +34,20 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 const after = await fs.readFile(DASHBOARD);
 if (Buffer.compare(normalizeHtmlBytes(before), normalizeHtmlBytes(after)) !== 0) {
   console.error(`ERROR: monolith drift detected.
-The assembled output from Angular build does not match the committed
+The assembled output from web/ does not match the committed
 radar_vital_live_dashboard_v12_for_v16_0.html.
 
-Either the Angular web project has modifications but the monolith was not re-committed
+Either someone edited the monolith directly (bad — edit web/ instead) or
+the splits in web/ were modified but the monolith was not re-committed
 (run \`npm run build:web\` and commit the result).`);
   process.exit(1);
 }
 
 const requiredWwwAssets = [
-  'assets/fonts/rvt-fonts.css',
-  'assets/fonts/material-symbols-rounded.woff2',
-  'assets/icons/apple-touch-icon-180.png',
-  'assets/lib/chart.umd.min.js',
+  'fonts/rvt-fonts.css',
+  'fonts/material-symbols-rounded.woff2',
+  'icons/apple-touch-icon-180.png',
+  'lib/chart.umd.min.js',
 ];
 for (const asset of requiredWwwAssets) {
   try {

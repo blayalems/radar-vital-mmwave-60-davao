@@ -6782,7 +6782,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self._send_json(404, {"ok": False, "error": "not_found"})
             return
         dashboard_routes = {f"/{str(name)}" for name in _DASHBOARD_HTML_FALLBACK_NAMES}
-        if path in ("/", "/index.html", "/dashboard", "/live", "/home", "/settings", "/report", "/help"):
+        if path in ("/", "/index.html", "/dashboard"):
             self.path = f"/{_DASHBOARD_HTML_NAME}"
             path = f"/{_DASHBOARD_HTML_NAME}"
         if path == "/live_dashboard.html":

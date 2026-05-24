@@ -186,6 +186,57 @@ test.describe('Dashboard smoke', () => {
     await expect(page.getByText('Context Labels')).toBeVisible();
   });
 
+  test('keeps the Material playbook and recovery tools functional without a trainer help schema', async ({ page }) => {
+    await page.route('**/api/help/schema', async (route) => {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"schema unavailable"}' });
+    });
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('link', { name: /Help/ }).first().click();
+
+    for (const topic of ['Getting started', 'Hardware', 'Recovery', 'Reports', 'Firmware']) {
+      await expect(page.getByRole('button', { name: new RegExp(topic, 'i') }).first()).toBeVisible();
+    }
+
+    await page.getByRole('button', { name: /Firmware/ }).first().click();
+    await expect(page.getByText(/Firmware, trainer and dashboard contracts/)).toBeVisible();
+    await page.getByRole('switch', { name: /Advanced detail/ }).click();
+    await expect(page.getByText(/serial DATA header is a fixed contract/)).toBeVisible();
+
+    await page.getByRole('checkbox', { name: /Confirm source mode/ }).check();
+    await page.getByRole('checkbox', { name: /Check sensor links/ }).check();
+    await expect(page.getByText('2 / 5 complete')).toBeVisible();
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByText('2 / 5 complete')).toBeVisible();
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await expect(page.getByText('0 / 5 complete')).toBeVisible();
+
+    await page.getByRole('button', { name: /Copy support summary/ }).click();
+    await expect(page.locator('simple-snack-bar').last()).toContainText(/Support summary copied|Clipboard unavailable/);
+
+    const helpContained = await page.evaluate(() => {
+      const content = document.querySelector('.help-container')?.getBoundingClientRect();
+      if (!content) return false;
+      return ['.help-header-card', '.help-search-card', '.recovery-card', '.checklist-card']
+        .map((selector) => document.querySelector(selector)?.getBoundingClientRect())
+        .every((card) => !!card && card.left >= content.left - 1 && card.right <= content.right + 1);
+    });
+    expect(helpContained).toBe(true);
+
+    const responsiveLayout = await page.evaluate(() => {
+      const viewportWidth = window.innerWidth;
+      const help = document.querySelector('.help-container')?.getBoundingClientRect();
+      const main = document.querySelector('.help-accordion-content')?.getBoundingClientRect();
+      const support = document.querySelector('.support-column')?.getBoundingClientRect();
+      const search = document.querySelector('.search-field')?.getBoundingClientRect();
+      if (!help || !main || !support || !search) return false;
+      if (viewportWidth <= 600) return search.width >= help.width * 0.8;
+      if (viewportWidth >= 1024) return main.width > support.width * 1.5;
+      return true;
+    });
+    expect(responsiveLayout).toBe(true);
+  });
+
   test('imports all portable Material settings with bounded values', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: /Settings/ }).first().click();

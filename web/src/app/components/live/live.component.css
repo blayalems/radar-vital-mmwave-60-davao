@@ -500,6 +500,12 @@
   overflow-y: auto;
 }
 
+.audit-card-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
 .console-logs-list {
   display: flex;
   flex-direction: column;

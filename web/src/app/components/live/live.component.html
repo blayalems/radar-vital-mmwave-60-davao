@@ -28,13 +28,13 @@
         </button>
 
         <!-- PIN SNAPSHOT -->
-        <button mat-stroked-button (click)="captureSnapshot()" class="cmd-btn">
+        <button mat-stroked-button (click)="captureSnapshot()" [disabled]="!state.lastPayload()" class="cmd-btn">
           <mat-icon>bookmark_add</mat-icon>
           Pin Snapshot
         </button>
 
         <!-- STOP RECORDING -->
-        <button mat-flat-button color="warn" (click)="stopSession()" [disabled]="state.ctlStopPending()" class="cmd-btn stop-btn">
+        <button mat-flat-button color="warn" (click)="stopSession()" [disabled]="state.ctlStopPending() || !state.currentSessionId()" class="cmd-btn stop-btn">
           <mat-icon>stop</mat-icon>
           Stop Session
         </button>
@@ -402,7 +402,16 @@
           </mat-card>
 
           <mat-card class="diagnostics-card">
-            <mat-card-header><mat-card-title>Telemetry Event Logs</mat-card-title></mat-card-header>
+            <mat-card-header class="audit-card-header">
+              <mat-card-title>Telemetry Event Logs</mat-card-title>
+              <button mat-stroked-button type="button" [matMenuTriggerFor]="auditExportMenu">
+                <mat-icon>download</mat-icon>Export
+              </button>
+              <mat-menu #auditExportMenu="matMenu">
+                <button mat-menu-item type="button" (click)="exportAuditLog('json')"><mat-icon>data_object</mat-icon>Audit JSON</button>
+                <button mat-menu-item type="button" (click)="exportAuditLog('csv')"><mat-icon>table_view</mat-icon>Audit CSV</button>
+              </mat-menu>
+            </mat-card-header>
             <mat-card-content class="event-logger-console">
               <div class="console-logs-list">
                 @if (state.paused()) {

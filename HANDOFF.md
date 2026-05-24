@@ -9,12 +9,12 @@
 
 | Workstream | Source-of-truth | Current state | Owner / last touched |
 |---|---|---|---|
-| Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material 3 source of truth; Material shell/dialogs, live state, reports, and generated monolith repaired | claude/mobile-first-dashboard-upABy |
+| Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material 3 source of truth; command/help/export parity, overlay blur, and responsive desktop/mobile containment repaired | codex/mobile-first-dashboard-upABy |
 | Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` (#11) + `api/auth.py` (#9) + `assets/static.py` (this PR) own real code. `api/sse.py` still a facade. | claude/trainer-extract-static |
-| PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Workflow now installs the nested Angular lockfile before building; stable `/fonts`, `/icons`, `/lib` aliases are packaged for SW routes | claude/mobile-first-dashboard-upABy |
-| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | Angular dependency installation added to APK/release jobs; local and CI gates pending final verification | claude/mobile-first-dashboard-upABy |
-| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Invalid Tauri v2 JSON repaired and Angular dependency installation added; NSIS gate pending final verification | claude/mobile-first-dashboard-upABy |
-| Smoke + visual tests | `tests/` | Contract tests now read Angular sources; smoke will fail resource console errors and covers theme, palette, demo telemetry, snapshots | claude/mobile-first-dashboard-upABy |
+| PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Stable asset packaging and Angular build pass locally; PR Pages build/deploy preview remains CI-verified | codex/mobile-first-dashboard-upABy |
+| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | Local `assembleDebug` produced `app-debug.apk` on 2026-05-24; CI artifact verification follows in PR | codex/mobile-first-dashboard-upABy |
+| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Local Tauri NSIS build produced the Windows setup EXE on 2026-05-24; CI artifact verification follows in PR | codex/mobile-first-dashboard-upABy |
+| Smoke + visual tests | `tests/` | Material parity and containment smoke coverage restored; 88 smoke and 96 visual cases pass on all four projects | codex/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows
 
@@ -60,6 +60,13 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-24 - Material parity restoration and native packaging verification
+- Restored the v11-style blurred `Ctrl+K` Material dialog backdrop and additional searchable actions for preflight, view printing, alert audio/voice, thresholds, and chart windows; verified restored Help topic search remains reachable.
+- Corrected desktop topbar/content clipping and phone Home form overflow, restored Material alert/audit/report evidence exports, persisted settings import coverage, and active-session/history hydration without fabricated telemetry.
+- Made Home visual snapshots deterministic by fixing the test clock for the canvas sweep, then refreshed intentional theme/viewport baselines; aligned `AGENTS.md` branch ownership to the active `codex/mobile-first-dashboard-upABy` workstream and retained the requested Angular skill pack locally in-repo.
+- Verification: `npm run build:check`, trainer `compileall`/`--help`, and `python -m pytest -q tests\test_v12_static_contract.py` passed; `npm test -- --reporter=list` passed 88 cases; `npx playwright test tests/visual --reporter=list` passed 96 cases.
+- Packaging: `npx cap sync android` plus `android\gradlew.bat assembleDebug` produced `app-debug.apk`; `npm run tauri:build -- --bundles nsis --verbose` produced `Radar Vital_12.0.0-alpha.1_x64-setup.exe`; Pages web output builds locally and deployment remains a PR CI gate.
 
 ### 2026-05-24 - Angular Material migration continuity and release repairs
 - Updated `AGENTS.md` and this handoff so the approved Angular Material 3 frontend under `web/src/` is no longer contradicted by obsolete vanilla-only instructions.

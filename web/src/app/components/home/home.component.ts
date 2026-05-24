@@ -77,6 +77,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.selectedDuration = this.state.setup().duration_s;
     this.refreshDefaults();
     this.loadSubjectProfiles();
+    this.loadSessions();
     this.runPreflight();
   }
 
@@ -126,6 +127,15 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.subjectProfiles = response.profiles || {};
     } catch (_) {
       this.subjectProfiles = {};
+    }
+  }
+
+  async loadSessions(): Promise<void> {
+    try {
+      const response = await this.api.request<{ items?: SessionRecord[] }>('/api/sessions');
+      this.state.sessionItems.set(Array.isArray(response.items) ? response.items : []);
+    } catch (_) {
+      this.state.sessionItems.set([]);
     }
   }
 
@@ -239,19 +249,32 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.state.triggerHaptic('tap');
   }
 
-  getFilteredSessions(): any[] {
+  getFilteredSessions(): SessionRecord[] {
     const list = this.state.sessionItems();
     if (this.sessionFilter === 'all') return list;
     if (this.sessionFilter === 'tagged') {
       return list.filter(s => this.state.sessionNotes()[s.session_id]);
     }
     return list.filter(s => {
-      const verd = String(s.verdict || '').toLowerCase();
+      const verd = this.sessionVerdict(s).toLowerCase();
       if (this.sessionFilter === 'pass') return verd === 'ready' || verd === 'pass';
       if (this.sessionFilter === 'warn') return verd === 'conditional' || verd === 'warn';
       if (this.sessionFilter === 'fail') return verd === 'unready' || verd === 'fail';
       return true;
     });
+  }
+
+  sessionVerdict(session: SessionRecord): string {
+    if (typeof session.verdict === 'string') return session.verdict;
+    if (session.verdict && typeof session.verdict === 'object') {
+      return String(
+        session.verdict['outcome'] ||
+        session.verdict['verdict'] ||
+        session.verdict['status'] ||
+        '--'
+      );
+    }
+    return '--';
   }
 
   async startSession() {
@@ -287,8 +310,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         this.audio.speakAlert('Session started. Please sit still.', 'ok', true);
         this.router.navigate(['/live']);
       }
-    } catch (e: any) {
-      this.snackBar.open(`Could not start session: ${e.message || e}`, 'Dismiss', { duration: 7000 });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.snackBar.open(`Could not start session: ${message}`, 'Dismiss', { duration: 7000 });
       this.state.triggerHaptic('reject');
     }
   }

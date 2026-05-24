@@ -323,8 +323,8 @@
           <strong>{{ session.started_at | date:'short' }}</strong>
           <span>{{ session.duration_s }} seconds</span>
           <span>{{ session.subject || '--' }}</span>
-          <span class="session-verdict-badge" [attr.data-verdict]="session.verdict">
-            {{ session.verdict | uppercase }}
+          <span class="session-verdict-badge" [attr.data-verdict]="sessionVerdict(session)">
+            {{ sessionVerdict(session) | uppercase }}
           </span>
           <span class="session-summary-col">
             {{ state.sessionNotes()[session.session_id] || session.summary || 'No operator summary recorded.' }}

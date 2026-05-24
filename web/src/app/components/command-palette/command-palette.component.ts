@@ -10,9 +10,9 @@ import { MatListModule } from '@angular/material/list';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 
-import { SnapshotRecord, ThemeId } from '../../models/rvt.models';
+import { PreflightCheck, SnapshotRecord, ThemeId } from '../../models/rvt.models';
 import { ApiService } from '../../services/api.service';
-import { StateService } from '../../services/state.service';
+import { DEFAULT_KPI_THRESHOLDS, StateService } from '../../services/state.service';
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 
@@ -77,6 +77,15 @@ export class CommandPaletteComponent {
       action: () => this.captureSnapshot()
     },
     {
+      id: 'preflight',
+      label: 'Run hardware preflight',
+      description: 'Check radar serial, BLE reference and session storage readiness',
+      keywords: 'check verify serial bluetooth ble readiness setup',
+      group: 'Live Session',
+      icon: 'fact_check',
+      action: () => this.runPreflight()
+    },
+    {
       id: 'pause',
       label: 'Pause or resume live stream',
       description: 'Freeze or resume dashboard stream updates',
@@ -112,6 +121,15 @@ export class CommandPaletteComponent {
       group: 'Export',
       icon: 'content_copy',
       action: () => this.copyOperatorBrief()
+    },
+    {
+      id: 'print',
+      label: 'Print current view',
+      description: 'Open browser print output for the visible report or dashboard view',
+      keywords: 'pdf report hardcopy export',
+      group: 'Export',
+      icon: 'print',
+      action: () => window.print()
     },
     {
       id: 'export-payload',
@@ -171,7 +189,37 @@ export class CommandPaletteComponent {
       group: 'Appearance',
       icon: 'visibility',
       action: () => this.state.zenMode.update(enabled => !enabled)
-    }
+    },
+    {
+      id: 'audio-toggle',
+      label: 'Toggle audio alerts',
+      description: 'Enable or mute threshold and connection tones',
+      keywords: 'sound beep alarm notification',
+      group: 'Appearance',
+      icon: 'volume_up',
+      action: () => this.state.audioAlertsEnabled.update(enabled => !enabled)
+    },
+    {
+      id: 'voice-toggle',
+      label: 'Toggle voice announcements',
+      description: 'Enable or mute browser speech alert callouts',
+      keywords: 'speech announcement accessibility eyes busy',
+      group: 'Appearance',
+      icon: 'record_voice_over',
+      action: () => this.state.voiceAlertsEnabled.update(enabled => !enabled)
+    },
+    {
+      id: 'threshold-reset',
+      label: 'Reset KPI alert thresholds',
+      description: 'Restore the default HR and RR warning limits',
+      keywords: 'limits bpm respiration reset settings',
+      group: 'Appearance',
+      icon: 'restart_alt',
+      action: () => this.state.kpiThresholds.set({ ...DEFAULT_KPI_THRESHOLDS })
+    },
+    this.rangeCommand(30),
+    this.rangeCommand(60),
+    this.rangeCommand(120)
   ];
 
   protected readonly filteredCommands = computed(() => {
@@ -230,6 +278,21 @@ export class CommandPaletteComponent {
       group: 'Appearance',
       icon: theme === 'hc' ? 'contrast' : 'palette',
       action: () => this.state.theme.set(theme)
+    };
+  }
+
+  private rangeCommand(seconds: number): PaletteCommand {
+    return {
+      id: `window-${seconds}`,
+      label: `${seconds}-second chart window`,
+      description: `Keep the latest ${seconds} seconds visible in live trend charts`,
+      keywords: `range buffer history trend ${seconds}`,
+      group: 'Appearance',
+      icon: 'timeline',
+      action: () => {
+        this.state.liveBufferSeconds.set(seconds);
+        this.state.maxChartPoints.set(seconds * 60);
+      }
     };
   }
 
@@ -331,5 +394,29 @@ export class CommandPaletteComponent {
     const enabled = !this.state.demoMode();
     this.state.demoMode.set(enabled);
     if (!enabled) await this.reconnectTrainer();
+  }
+
+  private async runPreflight(): Promise<void> {
+    const setup = this.state.setup();
+    const query = new URLSearchParams({ port: setup.radar_port, address: setup.ble_address });
+    await this.router.navigate(['/home']);
+    try {
+      const response = await this.api.request<{ checks?: PreflightCheck[] }>(`/api/preflight?${query.toString()}`);
+      const checks = response.checks || [];
+      const failed = checks.filter(check => ['bad', 'fail', 'error'].includes(check.status.toLowerCase())).length;
+      this.snackBar.open(
+        failed
+          ? `Preflight complete: ${failed} blocking check${failed === 1 ? '' : 's'} require attention.`
+          : 'Preflight complete: no blocking failures.',
+        'Dismiss',
+        { duration: 5500 }
+      );
+    } catch (error: unknown) {
+      this.snackBar.open(
+        error instanceof Error ? error.message : 'Preflight could not be completed.',
+        'Dismiss',
+        { duration: 6000 }
+      );
+    }
   }
 }

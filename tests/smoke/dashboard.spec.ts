@@ -118,8 +118,168 @@ test.describe('Dashboard smoke', () => {
 
     await page.keyboard.press('Control+K');
     await expect(page.getByRole('dialog')).toContainText('Command Palette');
-    await page.getByRole('button', { name: /Help Open operator guidance/ }).click();
+    await page.getByRole('button', { name: /Operator playbook/ }).click();
     await expect(page).toHaveURL(/\/help$/);
+  });
+
+  test('restores Material icons and the blurred command palette backdrop', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(500);
+
+    const iconFont = await page.locator('mat-icon').first().evaluate((element) =>
+      getComputedStyle(element).fontFamily
+    );
+    expect(iconFont).toContain('Material Symbols Rounded');
+
+    await page.keyboard.press('Control+K');
+    const backdrop = page.locator('.rvt-palette-backdrop');
+    await expect(backdrop).toBeVisible();
+    const backdropFilter = await backdrop.evaluate((element) => {
+      const style = getComputedStyle(element) as CSSStyleDeclaration & { webkitBackdropFilter?: string };
+      return style.backdropFilter || style.webkitBackdropFilter || '';
+    });
+    expect(backdropFilter).toContain('blur');
+    await expect(page.getByRole('button', { name: /Audit log/ })).toBeVisible();
+    await page.getByLabel('Search commands').fill('preflight');
+    await expect(page.getByRole('button', { name: /Run hardware preflight/ })).toBeVisible();
+  });
+
+  test('keeps Angular home cards and desktop topbar inside the visible content area', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('link', { name: /Home/ }).first().click();
+    await expect(page.getByText('Session Setup').first()).toBeVisible();
+
+    const cardsContained = await page.evaluate(() => {
+      const content = document.querySelector('.home-container')?.getBoundingClientRect();
+      if (!content) return false;
+      return ['.setup-config-card', '.radar-scope-card', '.preflight-card-stack', '.sessions-history-card']
+        .map((selector) => document.querySelector(selector)?.getBoundingClientRect())
+        .every((card) => !!card && card.left >= content.left - 1 && card.right <= content.right + 1);
+    });
+    expect(cardsContained).toBe(true);
+
+    if ((page.viewportSize()?.width || 0) >= 1024) {
+      await page.getByRole('link', { name: /Live/ }).first().click();
+      const headerContained = await page.evaluate(() => {
+        const main = document.querySelector('.main-wrapper')?.getBoundingClientRect();
+        const title = document.querySelector('.crumb-title')?.getBoundingClientRect();
+        const actions = document.querySelector('.topbar-actions')?.getBoundingClientRect();
+        return !!main && !!title && !!actions &&
+          title.left >= main.left - 1 && actions.right <= main.right + 1;
+      });
+      expect(headerContained).toBe(true);
+    }
+  });
+
+  test('restores searchable help topics from the trainer schema', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('link', { name: /Help/ }).first().click();
+    await expect(page.getByText('Operator Playbook & Field Dictionary')).toBeVisible();
+
+    const reveal = page.getByRole('button', { name: 'Browse all topics' });
+    await expect(reveal).toBeVisible();
+    await reveal.click();
+    expect(await page.locator('.faq-panel').count()).toBeGreaterThan(3);
+
+    await page.getByPlaceholder(/stale, BLE coverage/).fill('BLE');
+    await expect(page.locator('mat-expansion-panel-header').filter({ hasText: 'BLE coverage' })).toBeVisible();
+    await expect(page.getByText('Context Labels')).toBeVisible();
+  });
+
+  test('imports all portable Material settings with bounded values', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('link', { name: /Settings/ }).first().click();
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'preferences.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({
+        theme: 'hc',
+        density: 'compact',
+        fontScale: 1.2,
+        zenMode: true,
+        hxMode: 'off',
+        thresholds: { hrLow: 33, hrHigh: 172, rrLow: 7, rrHigh: 32 },
+        liveBufferSeconds: 120,
+        freezeOnStale: false,
+        audioAlertsEnabled: true,
+        voiceAlertsEnabled: true,
+        audioVolume: 0.45,
+        autoDemoOnDisconnect: true
+      }))
+    });
+
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'hc');
+    const stored = await page.evaluate(() => ({
+      density: localStorage.getItem('rvt-density'),
+      fontScale: localStorage.getItem('rvt-font-scale'),
+      buffer: localStorage.getItem('rvt-live-buffer-seconds'),
+      thresholds: localStorage.getItem('rvt-kpi-thresholds'),
+      audio: localStorage.getItem('rvt-audio-alerts'),
+      voice: localStorage.getItem('rvt-voice-alerts')
+    }));
+    expect(stored.density).toBe('compact');
+    expect(stored.fontScale).toBe('1.2');
+    expect(stored.buffer).toBe('120');
+    expect(JSON.parse(stored.thresholds || '{}')).toEqual({ hrLow: 33, hrHigh: 172, rrLow: 7, rrHigh: 32 });
+    expect(stored.audio).toBe('1');
+    expect(stored.voice).toBe('1');
+  });
+
+  test('hydrates active-session actions and home history from trainer APIs', async ({ page }) => {
+    let active = true;
+    await page.route('**/sw.js', (route) => route.abort());
+    await page.route('**/api/status', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        active_session: active ? { session_id: 'session-active', subject: 'Subject A' } : null
+      })
+    }));
+    await page.route('**/api/sessions', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: [{
+          session_id: 'session-active',
+          started_at: '2026-05-24T00:00:00Z',
+          duration_s: 30,
+          subject: 'Subject A',
+          verdict: { verdict: 'ready' }
+        }]
+      })
+    }));
+
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('button', { name: /Stop Session/ })).toBeEnabled();
+    await page.getByRole('link', { name: /Home/ }).first().click();
+    await expect(page.getByText('Subject A')).toBeVisible();
+    await expect(page.locator('.session-verdict-badge')).toHaveText('READY');
+
+    active = false;
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('button', { name: /Stop Session/ })).toBeDisabled();
+  });
+
+  test('exports alert history and audit evidence through Material actions', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.keyboard.press('Control+K');
+    await page.getByLabel('Search commands').fill('Open alerts');
+    await page.getByRole('button', { name: /Open alerts/ }).click();
+    await page.getByRole('button', { name: 'Test alert' }).click();
+    await page.getByRole('button', { name: 'Export' }).click();
+    const alertsDownloadPromise = page.waitForEvent('download');
+    await page.getByRole('menuitem', { name: /Alert history CSV/ }).click();
+    expect((await alertsDownloadPromise).suggestedFilename()).toBe('radar-vital-alert-history.csv');
+    await page.getByRole('button', { name: 'Done' }).click();
+
+    await page.keyboard.press('Alt+6');
+    await expect(page.getByText('Telemetry Event Logs')).toBeVisible();
+    await page.locator('.audit-card-header').getByRole('button', { name: 'Export' }).click();
+    const auditDownloadPromise = page.waitForEvent('download');
+    await page.getByRole('menuitem', { name: /Audit JSON/ }).click();
+    expect((await auditDownloadPromise).suggestedFilename()).toBe('radar-vital-audit.json');
   });
 
   test('explicit demo mode streams telemetry and preserves snapshot capture', async ({ page }) => {

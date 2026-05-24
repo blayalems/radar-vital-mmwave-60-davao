@@ -102,6 +102,10 @@
               <mat-icon>description</mat-icon>
               {{ selectedSummary?.sandbox ? 'Export Demo Summary' : 'Export Thesis HTML' }}
             </button>
+            <button mat-stroked-button color="primary" (click)="downloadSessionCsv()" [disabled]="sessionDataRows.length === 0">
+              <mat-icon>table_view</mat-icon>
+              Export Recorded CSV
+            </button>
             <button mat-flat-button color="primary" (click)="saveReportNotes()">
               <mat-icon>save</mat-icon>
               Save Report Notes
@@ -161,6 +165,9 @@
       <mat-card-header>
         <mat-card-title>Session Comparison</mat-card-title>
         <mat-card-subtitle>Trainer-produced comparison against the preceding and strongest available session.</mat-card-subtitle>
+        <button mat-stroked-button type="button" (click)="downloadComparisonJson()" [disabled]="!comparison">
+          <mat-icon>download</mat-icon>Export comparison
+        </button>
       </mat-card-header>
       <mat-card-content class="compare-grid">
         @for (entry of [

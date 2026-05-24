@@ -5,13 +5,14 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
+import { MatMenuModule } from '@angular/material/menu';
 
 import { AlertEvent } from '../../models/rvt.models';
 import { StateService } from '../../services/state.service';
 
 @Component({
   selector: 'app-alerts-dialog',
-  imports: [DatePipe, MatButtonModule, MatButtonToggleModule, MatDialogModule, MatIconModule, MatListModule],
+  imports: [DatePipe, MatButtonModule, MatButtonToggleModule, MatDialogModule, MatIconModule, MatListModule, MatMenuModule],
   templateUrl: './alerts-dialog.component.html',
   styleUrl: './alerts-dialog.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
@@ -45,5 +46,44 @@ export class AlertsDialogComponent {
 
   dismiss(alert: AlertEvent): void {
     this.state.dismissAlert(alert.id);
+  }
+
+  acknowledgeVisible(): void {
+    this.alerts().filter(alert => !alert.dismissed).forEach(alert => this.state.dismissAlert(alert.id));
+  }
+
+  exportHistory(format: 'json' | 'csv'): void {
+    const alerts = this.state.alertHistory();
+    const content = format === 'json'
+      ? JSON.stringify(alerts, null, 2)
+      : [
+          'timestamp,severity,message,pinned,dismissed,snoozed_until',
+          ...alerts.map(alert => [
+            new Date(alert.ts).toISOString(),
+            alert.severity,
+            alert.msg,
+            this.state.alertPins().includes(alert.id),
+            !!alert.dismissed,
+            alert.snoozedUntil ? new Date(alert.snoozedUntil).toISOString() : ''
+          ].map(value => this.csvValue(value)).join(','))
+        ].join('\n');
+    this.downloadText(
+      content,
+      `radar-vital-alert-history.${format}`,
+      format === 'json' ? 'application/json' : 'text/csv'
+    );
+  }
+
+  private csvValue(value: unknown): string {
+    return `"${String(value ?? '').replaceAll('"', '""')}"`;
+  }
+
+  private downloadText(content: string, filename: string, type: string): void {
+    const href = URL.createObjectURL(new Blob([content], { type }));
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(href);
   }
 }

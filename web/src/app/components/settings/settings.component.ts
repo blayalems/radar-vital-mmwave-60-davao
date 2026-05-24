@@ -14,7 +14,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { Router } from '@angular/router';
 
-import { StateService, DEFAULT_KPI_THRESHOLDS } from '../../services/state.service';
+import { StateService, DEFAULT_KPI_THRESHOLDS, KPI_THRESHOLD_META, KpiThresholds } from '../../services/state.service';
 import { AudioService } from '../../services/audio.service';
 import { ApiService } from '../../services/api.service';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
@@ -95,11 +95,15 @@ export class SettingsComponent {
       theme: this.state.theme(),
       density: this.state.density(),
       fontScale: this.state.fontScale(),
+      zenMode: this.state.zenMode(),
+      hxMode: this.state.hxMode(),
       thresholds: this.state.kpiThresholds(),
       liveBufferSeconds: this.state.liveBufferSeconds(),
       freezeOnStale: this.state.freezeOnStale(),
       audioAlertsEnabled: this.state.audioAlertsEnabled(),
-      voiceAlertsEnabled: this.state.voiceAlertsEnabled()
+      voiceAlertsEnabled: this.state.voiceAlertsEnabled(),
+      audioVolume: this.state.audioVolume(),
+      autoDemoOnDisconnect: this.state.autoDemoOnDisconnect()
     };
     const href = URL.createObjectURL(new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' }));
     const anchor = document.createElement('a');
@@ -122,6 +126,41 @@ export class SettingsComponent {
       }
       const fontScale = Number(raw['fontScale']);
       if (Number.isFinite(fontScale)) this.state.fontScale.set(Math.max(0.9, Math.min(1.25, fontScale)));
+      if (typeof raw['zenMode'] === 'boolean') this.state.zenMode.set(raw['zenMode']);
+      if (['on', 'off', 'auto'].includes(String(raw['hxMode']))) {
+        this.state.hxMode.set(raw['hxMode'] as 'on' | 'off' | 'auto');
+      }
+      const thresholds = raw['thresholds'];
+      if (thresholds && typeof thresholds === 'object') {
+        const source = thresholds as Partial<Record<keyof KpiThresholds, unknown>>;
+        const current = this.state.kpiThresholds();
+        const clampThreshold = (key: keyof KpiThresholds): number => {
+          const value = Number(source[key]);
+          const limits = KPI_THRESHOLD_META[key];
+          return Number.isFinite(value)
+            ? Math.max(limits.min, Math.min(limits.max, Math.round(value)))
+            : current[key];
+        };
+        this.state.kpiThresholds.set({
+          hrLow: clampThreshold('hrLow'),
+          hrHigh: clampThreshold('hrHigh'),
+          rrLow: clampThreshold('rrLow'),
+          rrHigh: clampThreshold('rrHigh')
+        });
+      }
+      const liveBufferSeconds = Number(raw['liveBufferSeconds']);
+      if (Number.isFinite(liveBufferSeconds)) {
+        const seconds = Math.max(10, Math.min(600, Math.round(liveBufferSeconds)));
+        this.state.liveBufferSeconds.set(seconds);
+        this.state.maxChartPoints.set(seconds * 60);
+      }
+      if (typeof raw['freezeOnStale'] === 'boolean') this.state.freezeOnStale.set(raw['freezeOnStale']);
+      if (typeof raw['audioAlertsEnabled'] === 'boolean') this.state.audioAlertsEnabled.set(raw['audioAlertsEnabled']);
+      if (typeof raw['voiceAlertsEnabled'] === 'boolean') this.state.voiceAlertsEnabled.set(raw['voiceAlertsEnabled']);
+      const audioVolume = Number(raw['audioVolume']);
+      if (Number.isFinite(audioVolume)) this.state.audioVolume.set(Math.max(0, Math.min(1, audioVolume)));
+      if (typeof raw['autoDemoOnDisconnect'] === 'boolean') this.state.autoDemoOnDisconnect.set(raw['autoDemoOnDisconnect']);
+      this.state.triggerHaptic('confirm');
       this.snackBar.open('Dashboard preferences imported.', 'Dismiss', { duration: 4000 });
     } catch (_) {
       this.snackBar.open('Preferences file is not valid JSON.', 'Dismiss', { duration: 5000 });

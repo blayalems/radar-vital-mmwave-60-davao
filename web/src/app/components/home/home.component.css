@@ -650,3 +650,36 @@
   width: 48px;
   height: 48px;
 }
+
+@media (max-width: 600px) {
+  .home-two-column-layout,
+  .setup-config-card,
+  .radar-scope-card,
+  .setup-card-content,
+  .setup-field,
+  .field-controls,
+  .form-field-full {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .setup-card-content {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 0;
+  }
+
+  .span-full {
+    grid-column: 1;
+  }
+
+  .field-controls .form-field-full {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  .icon-action-btn {
+    flex: 0 0 52px;
+    width: 52px !important;
+  }
+}

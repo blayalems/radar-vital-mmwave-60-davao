@@ -68,6 +68,7 @@ export class ReportComponent implements OnInit, AfterViewInit {
       const resp = await this.api.request<{ items?: SessionRecord[] }>('/api/sessions');
       if (resp && Array.isArray(resp.items)) {
         this.sessions = resp.items;
+        this.state.sessionItems.set(this.sessions);
         
         // Auto select current session if available, else first past run
         const activeId = this.state.currentSessionId();
@@ -145,6 +146,27 @@ export class ReportComponent implements OnInit, AfterViewInit {
     window.URL.revokeObjectURL(url);
   }
 
+  downloadSessionCsv(): void {
+    if (!this.selectedSessionId || !this.sessionDataRows.length) return;
+    const fields = Array.from(new Set(this.sessionDataRows.flatMap(row => Object.keys(row))));
+    const content = [
+      fields.map(field => this.csvValue(field)).join(','),
+      ...this.sessionDataRows.map(row => fields.map(field => this.csvValue(row[field])).join(','))
+    ].join('\n');
+    this.downloadText(content, `session_data_${this.selectedSessionId}.csv`, 'text/csv');
+    this.state.triggerHaptic('success');
+  }
+
+  downloadComparisonJson(): void {
+    if (!this.selectedSessionId || !this.comparison) return;
+    this.downloadText(
+      JSON.stringify(this.comparison, null, 2),
+      `session_comparison_${this.selectedSessionId}.json`,
+      'application/json'
+    );
+    this.state.triggerHaptic('success');
+  }
+
   async downloadThesisReport(): Promise<void> {
     if (!this.selectedSessionId || this.selectedSummary?.sandbox) {
       this.downloadSummaryJson();
@@ -185,6 +207,19 @@ export class ReportComponent implements OnInit, AfterViewInit {
   async refreshAnalysisStatus(): Promise<void> {
     if (!this.selectedSessionId) return;
     this.analysisStatus = await this.api.request<{ status?: string; progress_pct?: number; last_line?: string }>(`/api/sessions/${encodeURIComponent(this.selectedSessionId)}/analyse/status`);
+  }
+
+  private csvValue(value: unknown): string {
+    return `"${String(value ?? '').replaceAll('"', '""')}"`;
+  }
+
+  private downloadText(content: string, filename: string, type: string): void {
+    const href = URL.createObjectURL(new Blob([content], { type }));
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(href);
   }
 
   // Only render recorded or currently streamed series; never invent report data.

@@ -13,7 +13,7 @@ The design plan lives at `/root/.claude/plans/take-a-look-at-fizzy-taco.md` on t
 ## Invariants — do not break these
 
 1. **Three coupled artefacts.** Every change must be evaluated against all three: firmware (`.ino`), trainer (`.py`), dashboard (`.html`). Don't ship a dashboard call to an endpoint the trainer doesn't serve. Don't ship a trainer endpoint nobody calls.
-2. **Branch discipline.** Develop on `claude/mobile-first-dashboard-upABy`. Never push to `main` or `archive/*` without an explicit human instruction. The archive branch is frozen.
+2. **Branch discipline.** Develop on `codex/mobile-first-dashboard-upABy`. Never push to `main` or `archive/*` without an explicit human instruction. The archive branch is frozen.
 3. **No regression in the v11 features.** All KPI cards, chart tabs (Overview/Waves/HR/RR/Snaps/Audit), alerts drawer, snapshot capture, export, sliders, preflight, session-start/stop, and the four themes (light/dark/night/hc) must keep working. Use Playwright visual regression against the `v15.0.0-pre-mobile` baseline before deleting any CSS block.
 4. **Serial protocol is frozen.** The 207-column CSV at 115 200 baud is contractual. Don't change column order, names, or units. Add new columns only as additions on the right.
 5. **Approved frontend framework migration.** The v12 dashboard UI is a standalone Angular application using Angular Material 3 under `web/src/`. Continue new UI work in Angular/Material; do not introduce a second UI framework or externally hosted runtime dependencies. Non-Angular browser assets remain self-hosted under `assets/`.

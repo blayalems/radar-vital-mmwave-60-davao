@@ -1,3 +1,4 @@
+import ast
 import json
 import re
 from pathlib import Path
@@ -29,7 +30,7 @@ def test_dashboard_pwa_contract():
     state = text(STATE)
     assert "viewport-fit=cover" in html
     assert "interactive-widget=resizes-content" in html
-    assert '<link rel="manifest" href="/manifest.webmanifest">' in html
+    assert '<link rel="manifest" href="./manifest.webmanifest">' in html
     assert "register('./sw.js')" in app
     assert 'id="demoBanner"' in layout
     assert "rvt-pair-token" in api
@@ -38,6 +39,8 @@ def test_dashboard_pwa_contract():
     assert "new EventSource" in telemetry
     assert "document.documentElement.dataset['theme']" in state
     assert "this.state.demoMode() || this.state.autoDemoActive()" in telemetry
+    assert "PersistenceService" in state
+    assert "indexedDB" in text(ROOT / "web" / "src" / "app" / "services" / "persistence.service.ts")
     assert "min-device-memory" not in html
     assert "fonts.googleapis" not in html
     assert "fonts.gstatic" not in html
@@ -46,7 +49,7 @@ def test_dashboard_pwa_contract():
 
 def test_service_worker_contract():
     sw = text(SW)
-    assert "rvt-shell-v12.0.0" in sw
+    assert "rvt-shell-v12.0.2" in sw
     assert "text/event-stream" in sw
     assert "SKIP_WAITING" in sw
     assert "SW_UPDATED" in sw
@@ -64,6 +67,7 @@ def test_trainer_routes_and_security_contract():
         "/api/server-info",
         "/api/auth/exchange",
         "/api/events/subscribe",
+        "/api/serial/ports",
         "/pair",
     ]:
         assert route in py
@@ -80,6 +84,9 @@ def test_trainer_routes_and_security_contract():
     assert ".rvt_tls" in static_py and "target.relative_to(private_root)" in static_py
     
     assert "_qr_png_bytes" in py
+    assert '"/api/sessions/") and path.endswith("/signoff")' in py
+    assert 'public resource not found' in py
+    assert "return super().do_GET()" not in py
 
 
 def test_manifest_payload_is_plain_manifest():
@@ -103,6 +110,24 @@ def test_firmware_ble_contract():
     assert "hrBpm >= 1.0f && hrBpm <= 254.0f" in ino
 
 
+def test_frozen_serial_protocol_contract():
+    ino = text(FW)
+    trainer = text(TRAINER_MONOLITH)
+    module = ast.parse(trainer)
+    columns_assignment = next(
+        node for node in module.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "RADAR_LOG_COLUMNS" for target in node.targets)
+    )
+    columns = ast.literal_eval(columns_assignment.value)
+
+    assert len(columns) == 207
+    assert columns[-1] == "correction_params_hash"
+    assert "EXPECTED_RADAR_LOG_COLUMN_COUNT = 207" in trainer
+    assert "#define CSV_COLUMN_COUNT 207" in ino
+    assert re.search(r"\bSerial\.begin\(115200\)", ino)
+
+
 def test_packaging_scaffolds_exist():
     assert (ROOT / "packaging" / "capacitor" / "capacitor.config.ts").exists()
     assert (ROOT / "packaging" / "tauri" / "tauri.conf.json").exists()
@@ -112,3 +137,5 @@ def test_packaging_scaffolds_exist():
     assert tauri["bundle"]["windows"]["webviewInstallMode"]["type"] == "downloadBootstrapper"
     desktop_tauri = json.loads((ROOT / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8"))
     assert desktop_tauri["bundle"]["windows"]["webviewInstallMode"]["type"] == "downloadBootstrapper"
+    assert "connect-src 'self'" in desktop_tauri["app"]["security"]["csp"]
+    assert "http://127.0.0.1" not in desktop_tauri["app"]["security"]["csp"]

@@ -9,12 +9,12 @@
 
 | Workstream | Source-of-truth | Current state | Owner / last touched |
 |---|---|---|---|
-| Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material 3 source of truth; Live diagnostics plus complete offline-ready Help playbook, recovery tools, and responsive theme containment repaired | codex/help-material-parity |
-| Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` (#11) + `api/auth.py` (#9) + `assets/static.py` (this PR) own real code. `api/sse.py` still a facade. | claude/trainer-extract-static |
-| PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Stable asset packaging and Angular build pass locally; PR Pages build/deploy preview remains CI-verified | codex/mobile-first-dashboard-upABy |
-| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | Local `assembleDebug` reverified after Help restoration and produced `app-debug.apk` on 2026-05-24; CI artifact verification follows in PR | codex/help-material-parity |
-| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Local Tauri NSIS build reverified after Help restoration and produced the Windows setup EXE on 2026-05-24; CI artifact verification follows in PR | codex/help-material-parity |
-| Smoke + visual tests | `tests/` | Live and Help Material action/containment coverage restored; 96 smoke and 96 visual cases pass on all four projects | codex/help-material-parity |
+| Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material source of truth; scoped IndexedDB, PIN pairing, report sign-off, alert diagnosis, mobile commands and dark inverse HC remediation implemented | codex/mobile-first-dashboard-upABy |
+| Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 partial extraction continues; monolith now denies generic static reads, protects LAN telemetry reads/SSE and exposes serial/notes/sign-off contracts | codex/mobile-first-dashboard-upABy |
+| PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Offline-complete self-contained shell and repository-scoped manifest/SW output verify locally; Pages deployment remains CI-verified | codex/mobile-first-dashboard-upABy |
+| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | `cap:sync` and local `assembleDebug` produced `app-debug.apk` on 2026-05-24; real paired-LAN/GATT acceptance remains open | codex/mobile-first-dashboard-upABy |
+| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Native paired-origin HTTP and BLE bridge compiles; local NSIS build produced `Radar Vital_12.0.0-alpha.1_x64-setup.exe`; hardware acceptance remains open | codex/mobile-first-dashboard-upABy |
+| Smoke + visual tests | `tests/` | 34 Python contracts, 116 Playwright smoke checks and 80 current route/theme/device visual checks pass locally | codex/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows
 
@@ -60,6 +60,14 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-24 - Migration security, truthfulness and native completion increment
+- Fast-forwarded the Help restoration commit onto `codex/mobile-first-dashboard-upABy`, then tracked the confirmed remediation inventory in `docs/angular-migration-audit.md`.
+- Removed generic repository static serving, protected LAN physiological/session/BLE/SSE reads, and added typed serial-port, review-notes and validated sign-off APIs with security/contract tests.
+- Added PIN/QR exchange, demo/live/legacy-scoped IndexedDB persistence, truthful automatic DEMO fallback, persistent report sign-off, mobile command entry, alert diagnosis/waveform jump and jittered paired polling.
+- Repaired offline/Pages shell output, implemented Tauri paired-origin HTTP/download and BLE command surfaces, and normalized the inverse HC treatment with reviewed phone/desktop baseline updates.
+- Verification: `npm run build:check`; `python -m pytest -q tests` (34 passed), `compileall` and `python -m rvt_trainer --help`; Playwright smoke across desktop/Pixel 7/iPhone 14/iPad (29 each, 116 total); `npx playwright test tests/visual/rvt-v12.spec.ts` (80 passed); Pages static output checks; `cargo check --manifest-path src-tauri\Cargo.toml`; Arduino CLI compile for `esp32:esp32:XIAO_ESP32C6`; Capacitor `assembleDebug`; and Tauri NSIS build.
+- Remaining gates: run paired real-session 1 Hz validation in APK/EXE and physical Capacitor/Tauri GATT acceptance before enabling firmware BLE; complete CI/Pages deployment; reduce the advisory Angular initial-bundle overage (12.79 kB above the 2 MB warning budget).
 
 ### 2026-05-24 - Complete Material Help playbook and recovery restoration
 - Restored an offline-ready Angular Material Help playbook with core topic navigation, beginner/advanced guidance, DSP and field reference fallback content, and live-schema enrichment when the trainer is available.

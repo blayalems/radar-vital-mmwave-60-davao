@@ -90,6 +90,7 @@
       <mat-icon>more_vert</mat-icon>
     </button>
     <mat-menu #mobileActions="matMenu">
+      <button mat-menu-item type="button" (click)="openPalette()"><mat-icon>search</mat-icon>Search commands</button>
       <button mat-menu-item type="button" (click)="togglePause()"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon>Pause or resume</button>
       <button mat-menu-item type="button" (click)="openAlerts()"><mat-icon>notifications</mat-icon>Alerts</button>
       <button mat-menu-item type="button" (click)="openSettings()"><mat-icon>settings</mat-icon>Settings</button>

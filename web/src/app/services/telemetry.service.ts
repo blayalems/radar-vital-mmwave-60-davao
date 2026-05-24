@@ -20,6 +20,7 @@ export class TelemetryService {
   private sse: EventSource | null = null;
   private sseMode = false;
   private sseErrors: number[] = [];
+  private httpPollFailures = 0;
   private demoT = 0;
 
   constructor() {
@@ -102,6 +103,7 @@ export class TelemetryService {
       const latency = Date.now() - startMs;
       this.applyLivePayload(payload);
       
+      this.httpPollFailures = 0;
       this.state.ctlStatus.update(s => ({ ...(s ?? { ok: true }), ok: true, latency }));
       this.scheduleNextPoll(1000);
     } catch (error: unknown) {
@@ -115,7 +117,10 @@ export class TelemetryService {
         this.state.autoDemoActive.set(true);
         this.scheduleNextPoll(0);
       } else {
-        this.scheduleNextPoll(3000); // Backoff on fail
+        this.httpPollFailures++;
+        const baseDelay = Math.min(60_000, 3_000 * (2 ** Math.min(this.httpPollFailures - 1, 4)));
+        const jitter = Math.floor(Math.random() * 1000) - 500;
+        this.scheduleNextPoll(Math.max(1000, baseDelay + jitter));
       }
     }
   }
@@ -373,17 +378,17 @@ export class TelemetryService {
     const hr = Number(normalized.radar.reported_hr);
     const rr = Number(normalized.radar.reported_rr);
     if (Number.isFinite(hr) && (hr < thresholds.hrLow || hr > thresholds.hrHigh)) {
-      this.emitAlert(`Heart rate ${Math.round(hr)} bpm outside ${thresholds.hrLow}-${thresholds.hrHigh} bpm`, 'warn');
+      this.emitAlert(`Heart rate ${Math.round(hr)} bpm outside ${thresholds.hrLow}-${thresholds.hrHigh} bpm`, 'warn', 'heart-rate');
     }
     if (Number.isFinite(rr) && (rr < thresholds.rrLow || rr > thresholds.rrHigh)) {
-      this.emitAlert(`Respiration ${Math.round(rr)} br/min outside ${thresholds.rrLow}-${thresholds.rrHigh} br/min`, 'warn');
+      this.emitAlert(`Respiration ${Math.round(rr)} br/min outside ${thresholds.rrLow}-${thresholds.rrHigh} br/min`, 'warn', 'respiration');
     }
     normalized.faults.forEach(fault => {
       const record = typeof fault === 'object' ? fault : null;
       const message = typeof fault === 'string'
         ? fault
         : record?.['message'] || record?.['msg'] || record?.['code'];
-      if (message) this.emitAlert(String(message), 'critical');
+      if (message) this.emitAlert(String(message), 'critical', 'fault');
     });
 
     // Update real-time spark data
@@ -396,9 +401,9 @@ export class TelemetryService {
     });
   }
 
-  private emitAlert(message: string, severity: 'warn' | 'critical'): void {
+  private emitAlert(message: string, severity: 'warn' | 'critical', source = 'telemetry'): void {
     const before = this.state.alertHistory().length;
-    this.state.pushAlert(message, severity);
+    this.state.pushAlert(message, severity, source, Date.now());
     if (this.state.alertHistory().length === before) return;
     this.audio.playAlertBeep(severity === 'critical' ? 'bad' : 'warn');
     this.audio.speakAlert(message, severity === 'critical' ? 'bad' : 'warn');

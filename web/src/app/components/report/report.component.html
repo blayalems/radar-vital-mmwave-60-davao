@@ -115,6 +115,35 @@
       </mat-card>
     </div>
 
+    <mat-card class="signoff-card" [class.signed]="!!signoff.signed_at">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="header-avatar-ic">verified_user</mat-icon>
+        <mat-card-title>Operator Validation Sign-off</mat-card-title>
+        <mat-card-subtitle>
+          {{ signoff.signed_at ? ('Signed ' + (signoff.signed_at | date:'medium')) : 'Unsigned reports display a warning in exports.' }}
+        </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content class="signoff-fields">
+        <mat-form-field appearance="outline">
+          <mat-label>Operator name</mat-label>
+          <input matInput [(ngModel)]="signoff.operator_name" maxlength="120">
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Initials</mat-label>
+          <input matInput [(ngModel)]="signoff.initials" maxlength="5" autocapitalize="characters" placeholder="AB">
+          <mat-hint>2-5 uppercase letters</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="signoff-comment">
+          <mat-label>Validation comments</mat-label>
+          <textarea matInput [(ngModel)]="signoff.validation_comment" maxlength="500" rows="3"></textarea>
+          <mat-hint align="end">{{ signoff.validation_comment.length }} / 500</mat-hint>
+        </mat-form-field>
+        <button mat-flat-button type="button" (click)="saveSignoff()" [disabled]="!signoff.operator_name || signoff.initials.length < 2">
+          <mat-icon>draw</mat-icon>Record sign-off
+        </button>
+      </mat-card-content>
+    </mat-card>
+
     <mat-card class="analysis-card">
       <mat-card-header>
         <mat-icon mat-card-avatar class="header-avatar-ic">science</mat-icon>

@@ -6,6 +6,8 @@ import { MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatDialogRef } from '@angular/material/dialog';
+import { Router } from '@angular/router';
 
 import { AlertEvent } from '../../models/rvt.models';
 import { StateService } from '../../services/state.service';
@@ -19,7 +21,9 @@ import { StateService } from '../../services/state.service';
 })
 export class AlertsDialogComponent {
   protected readonly state = inject(StateService);
-  protected readonly filter = signal<'active' | 'all' | 'critical' | 'pinned'>('active');
+  private readonly router = inject(Router);
+  private readonly dialogRef = inject(MatDialogRef<AlertsDialogComponent>);
+  protected readonly filter = signal<'active' | 'all' | 'info' | 'warn' | 'critical' | 'pinned'>('active');
 
   protected readonly alerts = computed(() => {
     const now = Date.now();
@@ -27,6 +31,8 @@ export class AlertsDialogComponent {
     return [...this.state.alertHistory()].filter(alert => {
       if (selectedFilter === 'all') return true;
       if (selectedFilter === 'critical') return alert.severity === 'critical' && !alert.dismissed;
+      if (selectedFilter === 'warn') return alert.severity === 'warn' && !alert.dismissed;
+      if (selectedFilter === 'info') return alert.severity === 'info' && !alert.dismissed;
       if (selectedFilter === 'pinned') return this.state.alertPins().includes(alert.id);
       return !alert.dismissed && (!alert.snoozedUntil || alert.snoozedUntil <= now);
     }).sort((a, b) => {
@@ -40,8 +46,15 @@ export class AlertsDialogComponent {
     this.state.pushAlert('Test alert: verify notifications, tone, and operator response.', 'warn');
   }
 
-  snooze(alert: AlertEvent): void {
-    this.state.snoozeAlert(alert.id);
+  snooze(alert: AlertEvent, minutes: number): void {
+    this.state.snoozeAlert(alert.id, minutes);
+  }
+
+  jumpToWaveform(alert: AlertEvent): void {
+    this.state.waveformSeekAt.set(alert.seekTimestamp || alert.ts);
+    this.state.activeTab.set('tab-waves');
+    void this.router.navigate(['/live']);
+    this.dialogRef.close();
   }
 
   dismiss(alert: AlertEvent): void {

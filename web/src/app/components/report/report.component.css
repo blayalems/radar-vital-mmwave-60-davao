@@ -236,6 +236,29 @@
   padding: 16px;
 }
 
+.signoff-card {
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 16px !important;
+  padding: 16px;
+  background: var(--md-sys-color-surface) !important;
+}
+
+.signoff-card.signed {
+  border-color: var(--md-sys-color-primary);
+}
+
+.signoff-fields {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 1fr) minmax(130px, 0.45fr) minmax(260px, 1.4fr) auto;
+  margin-top: 16px;
+}
+
+.signoff-comment {
+  width: 100%;
+}
+
 .compare-grid {
   display: grid;
   gap: 12px;
@@ -259,6 +282,10 @@
 
   .notes-action-row {
     flex-direction: column;
+  }
+
+  .signoff-fields {
+    grid-template-columns: 1fr;
   }
 }
 

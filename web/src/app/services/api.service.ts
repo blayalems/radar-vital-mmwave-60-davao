@@ -3,7 +3,9 @@ import {
   BleScanDevice,
   ControlStatus,
   PreflightCheck,
+  SessionNotesPayload,
   SessionRecord,
+  SessionSignoff,
   SubjectProfileRecord
 } from '../models/rvt.models';
 import { StateService } from './state.service';
@@ -22,6 +24,12 @@ interface CapacitorBridge {
   Plugins?: { CapacitorHttp?: NativeHttpPlugin; Http?: NativeHttpPlugin };
 }
 
+interface TauriBridge {
+  core?: {
+    invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
+  };
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -32,7 +40,12 @@ export class ApiService {
   private readonly TOKEN_KEY = 'rvt-pair-token';
 
   constructor() {
-    this.detectControlMode();
+    void this.initializeConnection();
+  }
+
+  private async initializeConnection(): Promise<void> {
+    await this.consumePairPinFromUrl();
+    await this.detectControlMode();
   }
 
   // Retrieve current API base address
@@ -91,6 +104,35 @@ export class ApiService {
     return this.pairToken().length > 0;
   }
 
+  async exchangePairPin(pin: string): Promise<void> {
+    const cleanPin = String(pin || '').trim();
+    if (!/^\d{6}$/.test(cleanPin)) {
+      throw new Error('Enter the six-digit pairing PIN.');
+    }
+    const payload = await this.request<{ token?: string }>('/api/auth/exchange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: cleanPin })
+    }, true);
+    if (!payload.token) throw new Error('Trainer did not return a pairing token.');
+    this.setPairToken(payload.token);
+    await this.setTauriPairedOrigin();
+  }
+
+  private async consumePairPinFromUrl(): Promise<void> {
+    const url = new URL(window.location.href);
+    const pin = url.searchParams.get('pair');
+    if (!pin) return;
+    try {
+      await this.exchangePairPin(pin);
+    } catch (error: unknown) {
+      this.state.pushAlert(error instanceof Error ? error.message : 'Pairing failed.', 'critical', 'pairing');
+    } finally {
+      url.searchParams.delete('pair');
+      history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+  }
+
   // Low-level HTTP requests with native Tauri/Capacitor plugins fallback
   async request<T = unknown>(path: string, init?: RequestInit, bypassSandbox = false): Promise<T> {
     const isSandbox = !bypassSandbox && (
@@ -113,6 +155,29 @@ export class ApiService {
     const tok = this.pairToken();
     if (tok) {
       headers.set('X-RVT-Auth', tok);
+    }
+
+    const tauri = (window as Window & { __TAURI__?: TauriBridge }).__TAURI__?.core;
+    if (tauri?.invoke && base) {
+      const method = String(init?.method || 'GET').toUpperCase();
+      const headerObj: Record<string, string> = {};
+      headers.forEach((value, key) => { headerObj[key] = value; });
+      const command = path === '/api/auth/exchange' || path === '/api/server-info'
+        ? 'native_pair_request'
+        : 'native_http_request';
+      const resp = await tauri.invoke<{ status: number; data: unknown }>(command, {
+        request: {
+          origin: base,
+          path: String(path),
+          method,
+          headers: headerObj,
+          body: typeof init?.body === 'string' ? init.body : null
+        }
+      });
+      if (resp.status < 200 || resp.status >= 300) {
+        throw new Error(this.errorMessage(resp.data, `HTTP ${resp.status}`));
+      }
+      return resp.data as T;
     }
 
     // Try Capacitor native Http wrapper
@@ -174,9 +239,23 @@ export class ApiService {
     const headers = new Headers();
     const token = this.pairToken();
     if (token) headers.set('X-RVT-Auth', token);
+    const tauri = (window as Window & { __TAURI__?: TauriBridge }).__TAURI__?.core;
+    if (tauri?.invoke && base) {
+      const response = await tauri.invoke<{ status: number; body_base64: string; content_type: string }>('native_download', {
+        request: { origin: base, path, method: 'GET', headers: Object.fromEntries(headers.entries()), body: null }
+      });
+      if (response.status < 200 || response.status >= 300) throw new Error(`Download failed: HTTP ${response.status}`);
+      const binary = atob(response.body_base64);
+      const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+      this.downloadBlob(new Blob([bytes], { type: response.content_type || 'application/octet-stream' }), filename);
+      return;
+    }
     const response = await fetch(target, { headers, cache: 'no-store' });
     if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
-    const blob = await response.blob();
+    this.downloadBlob(await response.blob(), filename);
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
     const href = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = href;
@@ -204,6 +283,7 @@ export class ApiService {
 
   enableSandboxControlMode(reason: string) {
     this.state.ctlOn.set(true);
+    this.state.autoDemoActive.set(true);
     this.state.ctlStatus.set({
       ok: true,
       mode: 'sandbox',
@@ -213,10 +293,6 @@ export class ApiService {
   }
 
   // --- LOCAL SANDBOX / MOCK ENDPOINTS ---
-
-  private sandboxStoreKey(): string {
-    return 'rvt-sandbox-sessions';
-  }
 
   private errorMessage(body: unknown, fallback: string): string {
     if (typeof body === 'object' && body !== null) {
@@ -228,19 +304,12 @@ export class ApiService {
   }
 
   private sandboxReadSessions(): SessionRecord[] {
-    try {
-      const raw = localStorage.getItem(this.sandboxStoreKey());
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (_) {}
-    return [];
+    return this.state.sessionItems().filter(item => item.sandbox || item.session_id.startsWith('sandbox_'));
   }
 
   private sandboxLoadSessions(): SessionRecord[] {
-    const raw = localStorage.getItem(this.sandboxStoreKey());
-    if (raw === null) {
+    const existing = this.sandboxReadSessions();
+    if (!existing.length) {
       // Seed default sessions only on very first launch (when key doesn't exist)
       const iso = (mins: number) => new Date(Date.now() - mins * 60000).toISOString();
       const items = [
@@ -251,7 +320,8 @@ export class ApiService {
           subject: 'demo-A',
           operator: 'Demo operator',
           verdict: 'demo',
-          summary: 'Completed 8 min simulated telemetry preview; no physiological conclusion.'
+          summary: 'Completed 8 min simulated telemetry preview; no physiological conclusion.',
+          sandbox: true
         },
         {
           session_id: 'sandbox_20260419_141803',
@@ -260,16 +330,14 @@ export class ApiService {
           subject: 'demo-B',
           operator: 'Demo operator',
           verdict: 'demo',
-          summary: 'Completed 5 min simulated telemetry preview; no physiological conclusion.'
+          summary: 'Completed 5 min simulated telemetry preview; no physiological conclusion.',
+          sandbox: true
         }
       ];
-      try {
-        localStorage.setItem(this.sandboxStoreKey(), JSON.stringify(items));
-      } catch (_) {}
       this.state.sessionItems.set(items);
       return items;
     }
-    const items = this.sandboxReadSessions().map(item => item.session_id.startsWith('sandbox_')
+    const items = existing.map(item => item.session_id.startsWith('sandbox_')
       ? { ...item, verdict: 'demo', summary: 'Simulated telemetry preview; no physiological conclusion.' }
       : item);
     this.sandboxSaveSessions(items);
@@ -278,9 +346,6 @@ export class ApiService {
   }
 
   private sandboxSaveSessions(items: SessionRecord[]) {
-    try {
-      localStorage.setItem(this.sandboxStoreKey(), JSON.stringify(items));
-    } catch (_) {}
     this.state.sessionItems.set(items);
   }
 
@@ -412,6 +477,9 @@ export class ApiService {
   private sandboxApiJson(path: string, opts?: RequestInit): unknown {
     if (path === '/api/status') return { ok: true, mode: 'sandbox', message: 'Local dashboard sandbox active' };
     if (path === '/api/defaults') return this.sandboxDefaults();
+    if (path === '/api/serial/ports') {
+      return { ok: true, ports: ['COM10', 'COM11', 'COM12'].map(device => ({ device, label: `Demo port ${device}` })), selected: this.state.setup().radar_port };
+    }
     if (path === '/api/preflight') return this.sandboxPreflight();
     const preflightMatch = path.match(/^\/api\/preflight\/([^/?]+)$/);
     if (preflightMatch) {
@@ -443,6 +511,24 @@ export class ApiService {
       const item = this.sandboxReadSessions().find(session => session.session_id === sessionId);
       return item ? this.sandboxSummary(item) : { error: 'Demo session not found' };
     }
+    const notesMatch = path.match(/^\/api\/sessions\/([^/]+)\/notes$/);
+    if (notesMatch) {
+      const sessionId = decodeURIComponent(notesMatch[1]);
+      if (String(opts?.method || 'GET').toUpperCase() === 'PUT') {
+        const body = typeof opts?.body === 'string' ? JSON.parse(opts.body) as { review_summary?: string } : {};
+        this.state.sessionNotes.update(notes => ({ ...notes, [sessionId]: String(body.review_summary || '').slice(0, 4000) }));
+      }
+      return { session_id: sessionId, review_summary: this.state.sessionNotes()[sessionId] || '', notes: [] } satisfies SessionNotesPayload;
+    }
+    const signoffMatch = path.match(/^\/api\/sessions\/([^/]+)\/signoff$/);
+    if (signoffMatch) {
+      const sessionId = decodeURIComponent(signoffMatch[1]);
+      if (String(opts?.method || 'GET').toUpperCase() === 'PUT') {
+        const body = typeof opts?.body === 'string' ? JSON.parse(opts.body) as SessionSignoff : {} as SessionSignoff;
+        this.state.sessionSignoffs.update(items => ({ ...items, [sessionId]: { ...body, session_id: sessionId, signed_at: new Date().toISOString() } }));
+      }
+      return this.state.sessionSignoffs()[sessionId] || { session_id: sessionId, operator_name: '', initials: '', validation_comment: '', signed_at: null };
+    }
     const dataMatch = path.match(/^\/api\/sessions\/([^/]+)\/data/);
     if (dataMatch) return { ok: true, sandbox: true, rows: [] };
     const compareMatch = path.match(/^\/api\/sessions\/([^/]+)\/compare$/);
@@ -453,5 +539,13 @@ export class ApiService {
     const analyseStatusMatch = path.match(/^\/api\/sessions\/([^/]+)\/analyse\/status$/);
     if (analyseStatusMatch) return { sandbox: true, status: 'sandbox_only', progress_pct: 0 };
     return { error: 'Not found in sandbox' };
+  }
+
+  private async setTauriPairedOrigin(): Promise<void> {
+    const tauri = (window as Window & { __TAURI__?: TauriBridge }).__TAURI__?.core;
+    const origin = this.currentApiBase();
+    if (tauri?.invoke && origin) {
+      await tauri.invoke('native_set_paired_origin', { origin });
+    }
   }
 }

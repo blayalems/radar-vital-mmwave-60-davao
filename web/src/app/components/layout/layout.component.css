@@ -3,6 +3,7 @@
   flex-direction: column;
   height: 100dvh;
   overflow: hidden;
+  background: var(--md-sys-color-surface);
 }
 
 :host #demoBanner {

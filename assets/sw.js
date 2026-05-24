@@ -1,8 +1,9 @@
-const CACHE = 'rvt-shell-v12.0.0';
-const DASHBOARD = './';
+const CACHE = 'rvt-shell-v12.0.2';
+const DASHBOARD = './index.html';
+const MONOLITH = './radar_vital_live_dashboard_v12_for_v16_0.html';
 const PRECACHE = [
   DASHBOARD,
-  './radar_vital_live_dashboard_v12_for_v16_0.html',
+  MONOLITH,
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -19,7 +20,7 @@ const PRECACHE = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(PRECACHE).catch(() => {})));
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(PRECACHE)));
 });
 
 self.addEventListener('message', event => {
@@ -36,7 +37,7 @@ self.addEventListener('activate', event => {
   })());
 });
 
-async function networkFirst(request, timeoutMs = 2000) {
+async function networkFirst(request, timeoutMs = 2000, shellFallback = false) {
   const cache = await caches.open(CACHE);
   let timeoutId = 0;
   const timeout = new Promise((_, reject) => {
@@ -49,7 +50,9 @@ async function networkFirst(request, timeoutMs = 2000) {
     return response;
   } catch (_) {
     clearTimeout(timeoutId);
-    const cached = await cache.match(request);
+    const cached = await cache.match(request)
+      || (shellFallback ? await cache.match(DASHBOARD) : null)
+      || (shellFallback ? await cache.match(MONOLITH) : null);
     if (cached) return cached;
     throw _;
   }
@@ -79,7 +82,7 @@ self.addEventListener('fetch', event => {
     return;
   }
   if (url.pathname.endsWith('/') || url.pathname.endsWith('/radar_vital_live_dashboard_v12_for_v16_0.html') || url.pathname.endsWith('/index.html')) {
-    event.respondWith(networkFirst(request, 2000));
+    event.respondWith(networkFirst(request, 2000, true));
     return;
   }
   if (url.pathname.endsWith('/manifest.webmanifest')) {

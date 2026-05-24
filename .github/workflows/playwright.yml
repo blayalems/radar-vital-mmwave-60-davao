@@ -44,10 +44,8 @@ jobs:
           python radar_vital_trainer_v12_for_v16_0.py --help > /dev/null
           python -m rvt_trainer --help > /dev/null
 
-      - name: Run Python unit tests (rvt_trainer/)
-        # Glob picks up every tests/test_trainer_*.py file so future PRs can
-        # add modules (auth, static, sse, server_info, …) without touching CI.
-        run: python -m pytest tests/test_trainer_*.py -v
+      - name: Run Python contract and unit tests
+        run: python -m pytest tests -v
 
       - name: Verify web/ ↔ monolith round-trip
         run: npm run build:check
@@ -55,8 +53,14 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run Playwright smoke + API tests
-        run: npx playwright test tests/smoke --project=desktop
+      - name: Run Playwright smoke + API tests across supported viewports
+        run: npx playwright test tests/smoke
+        env:
+          PYTHON: python3
+          RVT_TEST_PORT: 8989
+
+      - name: Run visual regression across themes and supported viewports
+        run: npx playwright test tests/visual
         env:
           PYTHON: python3
           RVT_TEST_PORT: 8989

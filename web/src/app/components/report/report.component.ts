@@ -13,7 +13,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatListModule } from '@angular/material/list';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { DownloadRecord, SessionDataPayload, SessionRecord } from '../../models/rvt.models';
+import { DownloadRecord, SessionDataPayload, SessionNotesPayload, SessionRecord, SessionSignoff } from '../../models/rvt.models';
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 
@@ -54,6 +54,7 @@ export class ReportComponent implements OnInit, AfterViewInit {
   summaryLoading = false;
   summaryError = '';
   sessionNotesInput = '';
+  signoff: SessionSignoff = { session_id: '', operator_name: '', initials: '', validation_comment: '', signed_at: null };
 
   ngOnInit() {
     this.loadSessions();
@@ -96,16 +97,20 @@ export class ReportComponent implements OnInit, AfterViewInit {
       this.summaryLoading = true;
       try {
         const sessionPath = `/api/sessions/${encodeURIComponent(this.selectedSessionId)}`;
-        const [summary, data, comparison, analysisStatus] = await Promise.all([
+        const [summary, data, comparison, analysisStatus, notes, signoff] = await Promise.all([
           this.api.request<SessionRecord>(`${sessionPath}/summary`),
           this.api.request<SessionDataPayload>(`${sessionPath}/data?points=1000`),
           this.api.request<{ selected?: SessionRecord | null; previous?: SessionRecord | null; best?: SessionRecord | null }>(`${sessionPath}/compare`),
-          this.api.request<{ status?: string; progress_pct?: number; last_line?: string }>(`${sessionPath}/analyse/status`)
+          this.api.request<{ status?: string; progress_pct?: number; last_line?: string }>(`${sessionPath}/analyse/status`),
+          this.api.request<SessionNotesPayload>(`${sessionPath}/notes`),
+          this.api.request<SessionSignoff>(`${sessionPath}/signoff`)
         ]);
         this.selectedSummary = summary;
         this.sessionDataRows = data.rows || [];
         this.comparison = comparison;
         this.analysisStatus = analysisStatus;
+        this.sessionNotesInput = notes.review_summary || '';
+        this.signoff = { ...signoff, session_id: this.selectedSessionId };
       } catch (error: unknown) {
         this.summaryError = error instanceof Error ? error.message : 'Recorded session summary is unavailable.';
       } finally {
@@ -115,13 +120,40 @@ export class ReportComponent implements OnInit, AfterViewInit {
     }
   }
 
-  saveReportNotes() {
+  async saveReportNotes(): Promise<void> {
     if (this.selectedSessionId) {
-      this.state.sessionNotes.update(notes => ({
-        ...notes,
-        [this.selectedSessionId]: this.sessionNotesInput
-      }));
+      try {
+        await this.api.request<SessionNotesPayload>(`/api/sessions/${encodeURIComponent(this.selectedSessionId)}/notes`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ review_summary: this.sessionNotesInput })
+        });
+        this.state.sessionNotes.update(notes => ({ ...notes, [this.selectedSessionId]: this.sessionNotesInput }));
+        this.state.triggerHaptic('success');
+        this.snackBar.open('Operator review summary saved.', 'Dismiss', { duration: 4000 });
+      } catch (error: unknown) {
+        this.snackBar.open(error instanceof Error ? error.message : 'Review summary could not be saved.', 'Dismiss', { duration: 6000 });
+      }
+    }
+  }
+
+  async saveSignoff(): Promise<void> {
+    if (!this.selectedSessionId) return;
+    try {
+      this.signoff = await this.api.request<SessionSignoff>(`/api/sessions/${encodeURIComponent(this.selectedSessionId)}/signoff`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operator_name: this.signoff.operator_name,
+          initials: this.signoff.initials.toUpperCase(),
+          validation_comment: this.signoff.validation_comment
+        })
+      });
+      this.state.sessionSignoffs.update(items => ({ ...items, [this.selectedSessionId]: this.signoff }));
       this.state.triggerHaptic('success');
+      this.snackBar.open('Operator validation sign-off recorded.', 'Dismiss', { duration: 4000 });
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Sign-off could not be saved.', 'Dismiss', { duration: 6000 });
     }
   }
 

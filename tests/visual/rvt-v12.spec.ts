@@ -26,7 +26,10 @@ test.describe('v12 dashboard visual baseline', () => {
         await page.goto(`/${view}`, { waitUntil: 'domcontentloaded' });
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
         await expect(page.locator('app-layout')).toBeVisible();
-        await expect(page).toHaveScreenshot(`v12-${theme}-${view}.png`, { fullPage: true, timeout: 30000 });
+        const snapshotName = theme === 'hc' && view === 'live'
+          ? 'v12-hc-live-dark-inverse-controls.png'
+          : `v12-${theme}-${view}.png`;
+        await expect(page).toHaveScreenshot(snapshotName, { fullPage: true, timeout: 30000 });
       });
     }
   }

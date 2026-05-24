@@ -58,6 +58,13 @@ jobs:
       - name: Build www/
         run: npm run build:web
 
+      - name: Verify repository-scoped static PWA output
+        run: |
+          test -f www/index.html
+          test -f www/radar_vital_live_dashboard_v12_for_v16_0.html
+          grep -q 'href="./manifest.webmanifest"' www/index.html
+          grep -q '"id": "./"' www/manifest.webmanifest
+
       - name: Add CNAME and robots
         run: |
           # No custom domain by default; remove if/when one is added via repo settings.

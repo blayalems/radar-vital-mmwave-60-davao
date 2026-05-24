@@ -12,7 +12,8 @@
 }
 
 [data-theme='dark'],
-[data-theme='night'] {
+[data-theme='night'],
+[data-theme='hc'] {
   color-scheme: dark;
 }
 
@@ -20,6 +21,29 @@ html {
   font-size: calc(16px * var(--rvt-font-scale, 1));
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+html,
+body,
+app-root {
+  min-height: 100%;
+  background: var(--md-sys-color-surface);
+}
+
+html[data-theme='hc'],
+html[data-theme='hc'] body,
+html[data-theme='hc'] app-root {
+  background: #000 !important;
+  color: #fff !important;
+}
+
+html[data-theme='hc'] canvas,
+html[data-theme='hc'] .canvas-plot-wrap,
+html[data-theme='hc'] .canvas-plot-container,
+html[data-theme='hc'] .large-canvas-container,
+html[data-theme='hc'] .kpi-card-spark {
+  background: #000 !important;
+  border-color: #fff !important;
 }
 
 /* Migrated v11/v12 visual contracts load after Material system tokens. */
@@ -230,4 +254,54 @@ body[data-view='home'] app-home .home-stat-card {
   body[data-view] .app app-topbar .topbar-status {
     display: none !important;
   }
+}
+
+/* Dark inverse high-contrast surfaces must not inherit light legacy button fills. */
+html[data-theme='hc'] {
+  --md-sys-color-primary-container: #000 !important;
+  --md-sys-color-on-primary-container: #fff !important;
+  --brand-100: #000 !important;
+  --shell-active-bg: #000 !important;
+}
+
+html[data-theme='hc'] .rail,
+html[data-theme='hc'] .rail .mat-drawer-inner-container,
+html[data-theme='hc'] .rail .operator,
+html[data-theme='hc'] .rail .r-item,
+html[data-theme='hc'] .rail .r-item.sub,
+html[data-theme='hc'] app-topbar .mat-button-toggle,
+html[data-theme='hc'] app-topbar .ic-btn,
+html[data-theme='hc'] app-topbar .tb-more,
+html[data-theme='hc'] app-topbar .tb-export,
+html[data-theme='hc'] button.mat-mdc-button-base,
+html[data-theme='hc'] a.mat-mdc-button-base {
+  background: #000 !important;
+  border-color: #fff !important;
+  color: #fff !important;
+}
+
+html[data-theme='hc'] .rail .r-item,
+html[data-theme='hc'] .rail .operator,
+html[data-theme='hc'] app-topbar :is(.mat-button-toggle, .ic-btn, .tb-more, .tb-export) {
+  border: 1px solid #fff !important;
+}
+
+html[data-theme='hc'] .rail .r-item.active,
+html[data-theme='hc'] .rail .r-item.sub.active,
+html[data-theme='hc'] .rail .r-item[aria-current='page'],
+html[data-theme='hc'] app-topbar .mat-button-toggle-checked {
+  background: #000 !important;
+  color: #fff !important;
+  box-shadow: inset 0 0 0 2px #fff !important;
+}
+
+html[data-theme='hc'] .rail :is(.r-item.active, .r-item.sub.active, .r-item[aria-current='page']) .r-ic,
+html[data-theme='hc'] .rail :is(.r-item.active, .r-item.sub.active, .r-item[aria-current='page']) .material-symbols-rounded {
+  background: #000 !important;
+  color: #fff !important;
+}
+
+html[data-theme='hc'] .rail :is(.r-item, .operator) *,
+html[data-theme='hc'] app-topbar :is(.mat-button-toggle, .ic-btn, .tb-more, .tb-export) * {
+  color: #fff !important;
 }

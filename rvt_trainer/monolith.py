@@ -91,6 +91,7 @@ FEATURE_ENGINEERING_VERSION = "v11.0-physio-2026"
 FEATURE_SCHEMA_VERSION = "v11.0-feature-categories-2026"
 CONTROL_API_SCHEMA_VERSION = "rvt-control-api-v12.0"
 SESSION_NOTES_SCHEMA_VERSION = "rvt-session-notes-v12.0"
+SESSION_SIGNOFF_SCHEMA_VERSION = "rvt-session-signoff-v12.0"
 TRAINING_PROGRESS_SCHEMA_VERSION = "rvt-training-progress-v12.0"
 LIVE_EVENT_SCHEMA_VERSION = "rvt-live-events-v12.0"
 SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v12.0"
@@ -5878,6 +5879,26 @@ def _auto_detect_radar_port(default: str = DEFAULT_RADAR_PORT) -> str:
     return scored[0][1] if len(scored) == 1 else default
 
 
+def _serial_ports_payload(selected: str = DEFAULT_RADAR_PORT) -> Dict[str, object]:
+    ports: List[Dict[str, str]] = []
+    try:
+        import serial.tools.list_ports
+        for item in serial.tools.list_ports.comports():
+            device = str(getattr(item, "device", "") or "")
+            if not device:
+                continue
+            label = str(getattr(item, "description", "") or device)
+            ports.append({"device": device, "label": label})
+    except Exception:
+        ports = []
+    return {
+        "ok": True,
+        "schema_version": CONTROL_API_SCHEMA_VERSION,
+        "ports": ports,
+        "selected": selected,
+    }
+
+
 def _count_csv_data_rows(path: Path, limit: int = 61) -> int:
     if not path.exists():
         return 0
@@ -6022,6 +6043,9 @@ def _build_report_export_html(session_dir: str, out_dir: Optional[str] = None) -
     summary = _load_session_summary(session_dir)
     root = Path(session_dir)
     warnings = [f"Missing optional artifact: {rel}" for rel in ("analysis/analyse_hr_overlay.png", "analysis/analyse_rr_overlay.png", "ref_ble_raw.csv") if not (root / rel).exists()]
+    signoff = _read_json_if_exists(str(root / "session_signoff.json")) or {}
+    if not signoff.get("signed_at"):
+        warnings.insert(0, "UNSIGNED REPORT: operator validation sign-off has not been recorded.")
     payload = json.dumps(nan_safe(summary), ensure_ascii=False)
     warn_html = "".join(f"<li>{html_escape(w)}</li>" for w in warnings) or "<li>No missing optional artifacts.</li>"
     verdict = summary.get("ml_readiness_verdict") if isinstance(summary.get("ml_readiness_verdict"), dict) else {}
@@ -6046,6 +6070,9 @@ def _build_report_export_html(session_dir: str, out_dir: Optional[str] = None) -
         tr("Contract diagnosis", diagnosis.get("status")),
         tr("Observed contract columns", diagnosis.get("observed_contract_length")),
         tr("Schema hash", truth.get("schema_hash")),
+        tr("Signed by", signoff.get("operator_name") or "--"),
+        tr("Initials", signoff.get("initials") or "--"),
+        tr("Signed at", signoff.get("signed_at") or "UNSIGNED"),
     ])
     downloads = "".join(f"<li>{html_escape(str(d.get('label', d.get('relpath', 'file'))))}</li>" for d in summary.get("downloads", []))
     style = "body{font-family:Arial,sans-serif;margin:24px;line-height:1.45;color:#1a1b1e}table{border-collapse:collapse;min-width:520px}th,td{border-bottom:1px solid #ddd;padding:8px 10px;text-align:left}.badge{display:inline-block;border-radius:999px;padding:6px 10px;background:#dbe4ff;font-weight:700}.ready{background:#cdf3d6}.conditional{background:#ffe1bf}.not_ready{background:#ffdad6}.warn{color:#8a4b00}pre{white-space:pre-wrap;background:#f4f2f7;padding:12px;border-radius:8px;max-height:420px;overflow:auto}"
@@ -6540,9 +6567,20 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_bytes(200, target.read_bytes(), _content_type_for_asset(target), cache_control="public, max-age=31536000, immutable")
             return
+        public_api_paths = {
+            "/api/health",
+            "/api/version",
+            "/api/server-info",
+            "/api/help/schema",
+        }
+        if path.startswith("/api/") and path not in public_api_paths and not self._require_control_auth():
+            return
         if path == "/api/health":
             t0 = time.perf_counter()
-            self._send_json(200, {"ok": True, "t": int(time.time() * 1000), "version": VERSION, "feature_flags": FEATURE_FLAGS, "metrics": _system_metrics(self.server.sessions_root), "latency_ms": round((time.perf_counter() - t0) * 1000, 3)})
+            payload = {"ok": True, "t": int(time.time() * 1000), "version": VERSION, "latency_ms": round((time.perf_counter() - t0) * 1000, 3)}
+            if getattr(self.server, "bind_mode", "local") != "lan":
+                payload.update({"feature_flags": FEATURE_FLAGS, "metrics": _system_metrics(self.server.sessions_root)})
+            self._send_json(200, payload)
             return
         if path == "/api/version":
             self._send_json(200, {
@@ -6593,6 +6631,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/defaults":
             self._send_json(200, _effective_defaults(self.server.sessions_root))
+            return
+        if path == "/api/serial/ports":
+            self._send_json(200, _serial_ports_payload(str(_effective_defaults(self.server.sessions_root).get("radar_port", DEFAULT_RADAR_PORT))))
             return
         if path == "/api/preflight":
             q = {k: v[-1] for k, v in parse_qs(parsed.query).items() if v}
@@ -6685,7 +6726,26 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "schema_version": SESSION_NOTES_SCHEMA_VERSION,
                 "session_id": sid,
                 "updated_at": updated_at,
+                "review_summary": str(existing.get("review_summary") or ""),
                 "notes": notes,
+            })
+            return
+        if path.startswith("/api/sessions/") and path.endswith("/signoff"):
+            sid = unquote(path.split("/")[3])
+            try:
+                root = _session_path(self.server.sessions_root, sid)
+            except Exception:
+                self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": "session not found"}})
+                return
+            existing = _read_json_if_exists(str(root / "session_signoff.json")) or {}
+            self._send_json(200, {
+                "schema_version": SESSION_SIGNOFF_SCHEMA_VERSION,
+                "session_id": sid,
+                "operator_name": str(existing.get("operator_name") or ""),
+                "initials": str(existing.get("initials") or ""),
+                "validation_comment": str(existing.get("validation_comment") or ""),
+                "signed_at": existing.get("signed_at"),
+                "updated_at": existing.get("updated_at"),
             })
             return
         if path.startswith("/api/sessions/") and path.endswith("/summary"):
@@ -6795,7 +6855,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_bytes(200, template_path.read_bytes(), "text/html; charset=utf-8")
             return
-        return super().do_GET()
+        self._send_json(404, {"ok": False, "error": {"code": "NOT_FOUND", "message": "public resource not found"}})
 
     def do_POST(self):
         if self._reject_untrusted():
@@ -6917,6 +6977,51 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         path = urlparse(self.path).path
         body = self._read_body()
+        if path.startswith("/api/sessions/") and path.endswith("/notes"):
+            sid = unquote(path.split("/")[3])
+            try:
+                root = _session_path(self.server.sessions_root, sid)
+            except Exception:
+                self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": "session not found"}})
+                return
+            review_summary = _sanitize_user_string(body.get("review_summary", ""), 4000).strip()
+            notes_path = root / "session_notes.json"
+            existing = _read_json_if_exists(str(notes_path)) or {}
+            existing.update({
+                "schema_version": SESSION_NOTES_SCHEMA_VERSION,
+                "session_id": sid,
+                "review_summary": review_summary,
+                "notes": existing.get("notes") if isinstance(existing.get("notes"), list) else [],
+                "updated_at": _iso_now(),
+            })
+            save_json(existing, str(notes_path))
+            self._send_json(200, existing)
+            return
+        if path.startswith("/api/sessions/") and path.endswith("/signoff"):
+            sid = unquote(path.split("/")[3])
+            try:
+                root = _session_path(self.server.sessions_root, sid)
+            except Exception:
+                self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": "session not found"}})
+                return
+            operator_name = _sanitize_user_string(body.get("operator_name", ""), 120).strip()
+            initials = str(body.get("initials") or "").strip().upper()
+            validation_comment = _sanitize_user_string(body.get("validation_comment", ""), 500).strip()
+            if not operator_name or not re.fullmatch(r"[A-Z]{2,5}", initials):
+                self._send_json(400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "operator_name and 2-5 uppercase initials are required"}})
+                return
+            signoff = {
+                "schema_version": SESSION_SIGNOFF_SCHEMA_VERSION,
+                "session_id": sid,
+                "operator_name": operator_name,
+                "initials": initials,
+                "validation_comment": validation_comment,
+                "signed_at": _iso_now(),
+                "updated_at": _iso_now(),
+            }
+            save_json(signoff, str(root / "session_signoff.json"))
+            self._send_json(200, signoff)
+            return
         if path.startswith("/api/sessions/") and path.endswith("/tags"):
             sid = unquote(path.split("/")[3])
             try:

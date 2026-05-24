@@ -9,12 +9,12 @@
 
 | Workstream | Source-of-truth | Current state | Owner / last touched |
 |---|---|---|---|
-| Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material 3 source of truth; command/help/export parity, Live diagnostic restoration, real-series rendering, and responsive theme containment repaired | codex/mobile-first-dashboard-upABy |
+| Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material 3 source of truth; Live diagnostics plus complete offline-ready Help playbook, recovery tools, and responsive theme containment repaired | codex/help-material-parity |
 | Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` (#11) + `api/auth.py` (#9) + `assets/static.py` (this PR) own real code. `api/sse.py` still a facade. | claude/trainer-extract-static |
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Stable asset packaging and Angular build pass locally; PR Pages build/deploy preview remains CI-verified | codex/mobile-first-dashboard-upABy |
-| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | Local `assembleDebug` reverified after Live parity work and produced `app-debug.apk` on 2026-05-24; CI artifact verification follows in PR | codex/mobile-first-dashboard-upABy |
-| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Local Tauri NSIS build reverified after Live parity work and produced the Windows setup EXE on 2026-05-24; CI artifact verification follows in PR | codex/mobile-first-dashboard-upABy |
-| Smoke + visual tests | `tests/` | Live Material action and containment coverage restored; 92 smoke and 96 visual cases pass on all four projects | codex/mobile-first-dashboard-upABy |
+| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | Local `assembleDebug` reverified after Help restoration and produced `app-debug.apk` on 2026-05-24; CI artifact verification follows in PR | codex/help-material-parity |
+| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Local Tauri NSIS build reverified after Help restoration and produced the Windows setup EXE on 2026-05-24; CI artifact verification follows in PR | codex/help-material-parity |
+| Smoke + visual tests | `tests/` | Live and Help Material action/containment coverage restored; 96 smoke and 96 visual cases pass on all four projects | codex/help-material-parity |
 
 ## How the dashboard build flows
 
@@ -60,6 +60,13 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-24 - Complete Material Help playbook and recovery restoration
+- Restored an offline-ready Angular Material Help playbook with core topic navigation, beginner/advanced guidance, DSP and field reference fallback content, and live-schema enrichment when the trainer is available.
+- Added functional recovery checklist persistence/reset, support-summary action, topic deep-link state, and explicit mobile/desktop layout ownership so legacy Help grid rules cannot compress or truncate the migrated page.
+- Added browser coverage for failed Help schema fallback, topic/toggle/checklist/button behavior and responsive containment; refreshed intentional Help baselines across all four themes and viewports.
+- Verification: `npm run build:check`, `npm --prefix web run build`, trainer `compileall`/`--help`, `python -m pytest -q tests` (30 passed), Playwright smoke (96 passed), and visual regression (96 passed via isolated viewport runs after the aggregate runner stalled without assertion output).
+- Packaging: Capacitor sync plus Gradle `assembleDebug` produced `app-debug.apk`; Tauri NSIS produced `Radar Vital_12.0.0-alpha.1_x64-setup.exe`; this commit is prepared as a stacked follow-up while PR #19 remains open.
 
 ### 2026-05-24 - Material Live diagnostics parity and visual/button hardening
 - Restored real trainer series binding and Material Live panels for target tracking, SQI, HR/RR funnel and stage diagnostics, RR recovery, validation, reason histograms, and BLE reference quality.

@@ -25,14 +25,16 @@
       "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://127.0.0.1:* https://localhost:*; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'"
     }
   },
-        "language": "en-US"
-      },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "Radar Vital",
+    "shortDescription": "Mobile-first console for mmWave 60 GHz radar vital-sign monitoring.",
+    "longDescription": "Operator console for the Radar Vital trainer that connects to a local Python trainer or a LAN-paired trainer to monitor vitals at 1 Hz, run preflight checks, and review ML-readiness verdicts.",
+    "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
-    },
-    "publisher": "Radar Vital",
-    "shortDescription": "Mobile-first console for mmWave 60 GHz radar vital-sign monitoring.",
-    "longDescription": "Operator console for the Radar Vital trainer — connects to a local Python trainer or any LAN-paired trainer to monitor vitals at 1 Hz, run preflight checks, and review ML-readiness verdicts."
+    }
   }
 }

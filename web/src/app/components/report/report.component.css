@@ -230,6 +230,38 @@
   background: var(--md-sys-color-surface, #ffffff) !important;
 }
 
+.analysis-card {
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: 16px !important;
+  padding: 16px;
+}
+
+.compare-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.compare-item {
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+@media (max-width: 760px) {
+  .compare-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notes-action-row {
+    flex-direction: column;
+  }
+}
+
 .report-trends-content {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -266,7 +298,7 @@
 }
 
 .legend-dot.hr { background: rgba(0, 164, 150, 0.95); }
-.legend-dot.rr { background: rgba(255, 65, 248, 0.95); }
+.legend-dot.rr { background: rgba(97, 105, 198, 0.95); }
 
 .canvas-plot-wrap {
   width: 100%;

@@ -1,83 +1,100 @@
-<header class="topbar">
+<mat-toolbar class="topbar">
   <div class="crumbs">
     <span class="crumb-eyebrow">{{ getBreadcrumbEyebrow() }}</span>
     <h1 class="crumb-title">{{ getBreadcrumbTitle() }}</h1>
     <div class="crumb-trail" aria-label="Breadcrumb navigation">
       <span>{{ state.currentView() }}</span>
-      <span *ngIf="state.currentView() === 'live'"> / {{ state.activeTab() }}</span>
+      @if (state.currentView() === 'live') { <span> / {{ state.activeTab() }}</span> }
     </div>
   </div>
 
-  <div class="topbar-status">
+  <mat-chip-set class="topbar-status" aria-label="Monitoring status">
     <!-- Connection Health -->
-    <div class="status-pill conn" [ngClass]="{ 'active': state.ctlStatus()?.ok, 'failed': state.ctlStatus()?.ok === false }" id="conn" role="status" aria-live="polite">
+    <mat-chip class="status-pill conn" [class.active]="state.ctlStatus()?.ok" [class.failed]="state.ctlStatus()?.ok === false" id="conn" role="status" aria-live="polite">
       <span class="status-dot dot"></span>
       <span class="status-txt">
         {{ state.ctlStatus()?.ok ? (state.paused() ? 'Paused' : 'Monitoring') : 'Disconnected' }}
       </span>
-      <span class="conn-retry-info" *ngIf="state.ctlStatus()?.ok === false">
-        <button class="conn-retry-btn" (click)="manualReconnect()" type="button">Retry now</button>
-      </span>
+      @if (state.ctlStatus()?.ok === false) { <span class="conn-retry-info">
+        <button mat-button class="conn-retry-btn" (click)="manualReconnect()" type="button">Retry now</button>
+      </span> }
       <span class="status-sub">{{ state.ctlStatus()?.latency ? state.ctlStatus()?.latency + 'ms' : '--' }}</span>
-    </div>
+    </mat-chip>
 
     <!-- Source Mode -->
-    <div class="status-pill mode mode-badge" [ngClass]="state.ctlStatus()?.mode || 'waiting'" id="modeBadge" title="Source mode">
+    <mat-chip class="status-pill mode mode-badge" [class.sandbox]="state.ctlStatus()?.mode === 'sandbox'" [class.live]="state.ctlStatus()?.mode === 'live'" id="modeBadge" title="Source mode">
       <span class="status-dot dot"></span>
       <span class="material-symbols-rounded" id="modeBadgeIcon">
         {{ state.ctlStatus()?.mode === 'sandbox' ? 'wifi_tethering_off' : 'sensors' }}
       </span>
       <span class="status-txt">{{ state.ctlStatus()?.mode || 'waiting' }}</span>
-      <span class="status-sub">{{ state.ctlStatus()?.mode === 'sandbox' ? 'Sandbox' : 'Hardware' }}</span>
-    </div>
+      <span class="status-sub">{{ state.ctlStatus()?.mode === 'sandbox' ? 'Sandbox' : (state.ctlStatus()?.ok ? 'Trainer API' : '--') }}</span>
+    </mat-chip>
 
     <!-- Current Operator -->
-    <div class="status-pill operator-badge" id="homeOperatorBadge" title="Current operator">
+    <mat-chip class="status-pill operator-badge" id="homeOperatorBadge" title="Current operator">
       <span class="material-symbols-rounded">person</span>
       <span class="status-txt">{{ state.setup().operator_label || 'Operator A' }}</span>
       <span class="status-sub">{{ state.setup().station_label || 'Lab · Station 3' }}</span>
-    </div>
-  </div>
+    </mat-chip>
+  </mat-chip-set>
 
   <div class="topbar-actions" role="group" aria-label="Console actions">
     <!-- Zen/Live Mode Segment -->
-    <div class="seg seg-sm tb-live-mode" role="radiogroup" aria-label="Telemetry detail">
-      <button [ngClass]="{ 'active': state.zenMode() }" (click)="setLiveMode('simple')" type="button" title="Simple view">
+    <mat-button-toggle-group class="seg seg-sm tb-live-mode" [value]="state.zenMode() ? 'simple' : 'advanced'" aria-label="Telemetry detail">
+      <mat-button-toggle value="simple" (click)="setLiveMode('simple')" title="Simple view">
         <span class="material-symbols-rounded">visibility</span>
-      </button>
-      <button [ngClass]="{ 'active': !state.zenMode() }" (click)="setLiveMode('advanced')" type="button" title="Advanced view">
+      </mat-button-toggle>
+      <mat-button-toggle value="advanced" (click)="setLiveMode('advanced')" title="Advanced view">
         <span class="material-symbols-rounded">data_exploration</span>
-      </button>
-    </div>
+      </mat-button-toggle>
+    </mat-button-toggle-group>
 
     <!-- Density Segment -->
-    <div class="seg seg-sm tb-density" role="radiogroup" aria-label="Density">
-      <button [ngClass]="{ 'active': state.density() === 'comfortable' }" (click)="setDensity('comfortable')" type="button" title="Comfortable">
+    <mat-button-toggle-group class="seg seg-sm tb-density" [value]="state.density()" aria-label="Density">
+      <mat-button-toggle value="comfortable" (click)="setDensity('comfortable')" title="Comfortable">
         <span class="material-symbols-rounded">density_medium</span>
-      </button>
-      <button [ngClass]="{ 'active': state.density() === 'compact' }" (click)="setDensity('compact')" type="button" title="Compact">
+      </mat-button-toggle>
+      <mat-button-toggle value="compact" (click)="setDensity('compact')" title="Compact">
         <span class="material-symbols-rounded">density_small</span>
-      </button>
-    </div>
+      </mat-button-toggle>
+    </mat-button-toggle-group>
 
     <!-- Pause/Resume Polling -->
-    <button class="ic-btn icon-btn tb-pause" [ngClass]="{ 'active': state.paused() }" (click)="togglePause()" type="button" title="Pause / resume live polling">
+    <button mat-icon-button class="ic-btn icon-btn tb-pause" [class.active]="state.paused()" (click)="togglePause()" type="button" title="Pause / resume live polling">
       <span class="material-symbols-rounded">{{ state.paused() ? 'play_arrow' : 'pause' }}</span>
     </button>
 
     <!-- Settings Button -->
-    <button class="ic-btn icon-btn tb-settings" (click)="openSettings()" type="button" title="Settings">
+    <button mat-icon-button class="ic-btn icon-btn tb-alerts" (click)="openAlerts()" type="button" title="Alerts"
+      [matBadge]="state.alertHistory().length" [matBadgeHidden]="state.alertHistory().length === 0" matBadgeColor="warn">
+      <span class="material-symbols-rounded">notifications</span>
+    </button>
+
+    <!-- Settings Button -->
+    <button mat-icon-button class="ic-btn icon-btn tb-settings" (click)="openSettings()" type="button" title="Settings">
       <span class="material-symbols-rounded">settings</span>
     </button>
 
     <!-- Cycle Theme -->
-    <button class="ic-btn icon-btn tb-theme" (click)="toggleTheme()" type="button" title="Cycle theme">
+    <button mat-icon-button class="ic-btn icon-btn tb-theme" (click)="toggleTheme()" type="button" title="Cycle theme">
       <span class="material-symbols-rounded">dark_mode</span>
     </button>
 
     <!-- Export JSON Button -->
-    <button class="fab btn-primary tb-export" (click)="exportData()" type="button" title="Export JSON payload">
+    <button mat-flat-button class="fab btn-primary tb-export" (click)="exportData()" type="button" title="Export JSON payload">
       <span class="material-symbols-rounded">download</span>Export
     </button>
+
+    <button mat-icon-button class="tb-more" type="button" [matMenuTriggerFor]="mobileActions" aria-label="More console actions">
+      <mat-icon>more_vert</mat-icon>
+    </button>
+    <mat-menu #mobileActions="matMenu">
+      <button mat-menu-item type="button" (click)="togglePause()"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon>Pause or resume</button>
+      <button mat-menu-item type="button" (click)="openAlerts()"><mat-icon>notifications</mat-icon>Alerts</button>
+      <button mat-menu-item type="button" (click)="openSettings()"><mat-icon>settings</mat-icon>Settings</button>
+      <button mat-menu-item type="button" (click)="toggleTheme()"><mat-icon>palette</mat-icon>Cycle theme</button>
+      <button mat-menu-item type="button" (click)="exportData()"><mat-icon>download</mat-icon>Export current payload</button>
+    </mat-menu>
   </div>
-</header>
+</mat-toolbar>

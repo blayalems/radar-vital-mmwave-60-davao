@@ -28,6 +28,9 @@ jobs:
       - name: Install npm deps
         run: npm ci
 
+      - name: Install Angular web dependencies
+        run: npm --prefix web ci
+
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip

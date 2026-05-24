@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -6,20 +6,24 @@ import { Router } from '@angular/router';
 // Angular Material 3 modules
 import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatTabChangeEvent } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { firstValueFrom } from 'rxjs';
 
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
+import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-live',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,
@@ -29,10 +33,13 @@ import { AudioService } from '../../services/audio.service';
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
-    MatTableModule
+    MatTableModule,
+    MatDialogModule,
+    MatSnackBarModule
   ],
   templateUrl: './live.component.html',
-  styleUrl: './live.component.css'
+  styleUrl: './live.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly state = inject(StateService);
@@ -40,8 +47,11 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly telemetry = inject(TelemetryService);
   protected readonly audio = inject(AudioService);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
 
   protected readonly Math = Math;
+  protected readonly NaN = Number.NaN;
 
   // Canvas element references for dynamic renderers
   @ViewChild('breathCanvas', { static: false }) breathCanvas!: ElementRef<HTMLCanvasElement>;
@@ -86,7 +96,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  onTabChange(event: any) {
+  onTabChange(event: MatTabChangeEvent) {
     const tabs = ['tab-overview', 'tab-waves', 'tab-hr', 'tab-rr', 'tab-snaps', 'tab-audit'];
     this.activeTabIndex = event.index;
     this.state.activeTab.set(tabs[event.index]);
@@ -100,17 +110,29 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async stopSession() {
     this.state.triggerHaptic('confirm');
-    if (confirm('Are you sure you want to stop this monitoring session and compile the report?')) {
+    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: 'Stop monitoring session?',
+        message: 'Stop telemetry capture and compile the recorded report.',
+        confirmLabel: 'Stop session'
+      },
+      restoreFocus: true
+    }).afterClosed());
+    if (confirmed) {
       try {
         this.state.ctlStopPending.set(true);
-        const r = await this.api.request('/api/session/stop');
+        const r = await this.api.request<{ ok?: boolean }>('/api/session/stop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: 'user_request' })
+        });
         if (r && r.ok) {
           this.state.currentSessionId.set(null);
           this.audio.speakAlert('Session completed successfully.', 'ok', true);
           this.router.navigate(['/report']);
         }
       } catch (e: any) {
-        alert(`Stop session failed: ${e.message || e}`);
+        this.snackBar.open(`Stop session failed: ${e.message || e}`, 'Dismiss', { duration: 7000 });
       } finally {
         this.state.ctlStopPending.set(false);
       }
@@ -147,9 +169,17 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     });
   }
 
-  clearAllSnaps() {
+  async clearAllSnaps() {
     this.state.triggerHaptic('destructiveAccept');
-    if (confirm('Clear all snapshots pinned during this session?')) {
+    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: 'Clear all snapshots?',
+        message: 'This removes the pinned frames and their notes from this dashboard.',
+        confirmLabel: 'Clear snapshots'
+      },
+      restoreFocus: true
+    }).afterClosed());
+    if (confirmed) {
       this.state.snaps.set([]);
       this.state.snapNotes.set({});
     }
@@ -174,6 +204,45 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
     const next = this.sessionNotesInput ? `${this.sessionNotesInput}, ${tag}` : tag;
     this.saveSessionNotes(next);
+  }
+
+  async recordObservation(): Promise<void> {
+    const note = this.sessionNotesInput.trim();
+    if (!note) return;
+    try {
+      await this.api.request<{ ok?: boolean }>('/api/session/annotate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note })
+      });
+      this.snackBar.open('Observation recorded in the active session.', 'Dismiss', { duration: 3500 });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'annotation failed';
+      this.snackBar.open(`Observation saved locally only: ${message}`, 'Dismiss', { duration: 6000 });
+    }
+  }
+
+  formatFault(fault: string | Record<string, unknown>): string {
+    if (typeof fault === 'string') return fault;
+    return String(fault['message'] || fault['msg'] || fault['code'] || 'Reported sensor fault');
+  }
+
+  formatEvent(event: string | Record<string, unknown>): string {
+    if (typeof event === 'string') return event;
+    return String(event['message'] || event['msg'] || event['event'] || event['type'] || 'Telemetry event');
+  }
+
+  eventTime(event: string | Record<string, unknown>): string {
+    if (typeof event === 'string') return '';
+    return String(event['created_at'] || event['ts'] || '');
+  }
+
+  downloadChart(canvas: HTMLCanvasElement, label: string) {
+    const anchor = document.createElement('a');
+    anchor.href = canvas.toDataURL('image/png');
+    anchor.download = `${label}_${Date.now()}.png`;
+    anchor.click();
+    this.state.triggerHaptic('success');
   }
 
   // --- Real-time Waveforms & Trends Canvas plots ---
@@ -239,7 +308,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     };
 
     if (this.breathCanvas) {
-      drawPhase(this.breathCanvas, breathPoints, 'rgba(255, 65, 248, 0.95)');
+      drawPhase(this.breathCanvas, breathPoints, 'rgba(97, 105, 198, 0.95)');
     }
     if (this.heartCanvas) {
       drawPhase(this.heartCanvas, heartPoints, 'rgba(0, 164, 150, 0.95)');
@@ -308,7 +377,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       plotTrend(this.hrTrendCanvas, payload.series.hr || [], 'rgba(0, 164, 150, 0.95)', 40, 160);
     }
     if (this.activeTabIndex === 3 && this.rrTrendCanvas) {
-      plotTrend(this.rrTrendCanvas, payload.series.rr || [], 'rgba(255, 65, 248, 0.95)', 5, 35);
+      plotTrend(this.rrTrendCanvas, payload.series.rr || [], 'rgba(97, 105, 198, 0.95)', 5, 35);
     }
   }
 
@@ -359,7 +428,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     };
 
     if (this.overviewHrSpark) drawMiniSpark(this.overviewHrSpark, spark.hr, 'rgba(0, 164, 150, 0.8)');
-    if (this.overviewRrSpark) drawMiniSpark(this.overviewRrSpark, spark.rr, 'rgba(255, 65, 248, 0.8)');
+    if (this.overviewRrSpark) drawMiniSpark(this.overviewRrSpark, spark.rr, 'rgba(97, 105, 198, 0.8)');
     if (this.overviewFpsSpark) drawMiniSpark(this.overviewFpsSpark, spark.fps, 'rgba(100, 116, 139, 0.8)');
     if (this.overviewDistSpark) drawMiniSpark(this.overviewDistSpark, spark.dist, 'rgba(14, 165, 233, 0.8)');
   }

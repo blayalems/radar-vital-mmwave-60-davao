@@ -1,6 +1,6 @@
 // Build pipeline for the Angular Dashboard:
 //   1. Build the Angular production application inside web/ into www/.
-//   2. Copy the manifest and service workers from assets/ into www/ root.
+//   2. Copy the manifest, service workers, and stable root asset aliases into www/.
 //   3. Inline all output JS bundles and CSS stylesheets from index.html into a self-contained monolith
 //      at the repository root (radar_vital_live_dashboard_v12_for_v16_0.html).
 //
@@ -35,45 +35,72 @@ async function main() {
   await fs.copyFile(path.join(SRC_ASSETS, 'manifest.webmanifest'), path.join(WWW, 'manifest.webmanifest'));
   await fs.copyFile(path.join(SRC_ASSETS, 'sw.js'), path.join(WWW, 'sw.js'));
   await fs.copyFile(path.join(SRC_ASSETS, 'rvt-sw.js'), path.join(WWW, 'rvt-sw.js'));
+  for (const directory of ['fonts', 'icons', 'lib']) {
+    await fs.cp(path.join(SRC_ASSETS, directory), path.join(WWW, directory), { recursive: true });
+  }
 
   console.log('--- Phase 3: Bundling Self-Contained HTML Monolith ---');
-  let indexHtml = normalizeNewlines(await fs.readFile(path.join(WWW, 'index.html'), 'utf8'));
+  const indexPath = path.join(WWW, 'index.html');
+  let builtIndexHtml = normalizeNewlines(await fs.readFile(indexPath, 'utf8'));
+  const runtimeFontLink = '  <link rel="stylesheet" href="./fonts/rvt-fonts.css" data-rvt-runtime-fonts>\n';
+  if (!builtIndexHtml.includes('data-rvt-runtime-fonts')) {
+    builtIndexHtml = builtIndexHtml.replace('</head>', `${runtimeFontLink}</head>`);
+    await fs.writeFile(indexPath, builtIndexHtml);
+  }
+  let indexHtml = builtIndexHtml;
 
   // 1. Gather all CSS stylesheet matches first (M4) to prevent stateful global regex mutation bugs
   const linkRegex = /<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/g;
   const cssMatches = Array.from(indexHtml.matchAll(linkRegex));
   
+  const inlinedStylesheets = new Set();
   for (const match of cssMatches) {
     const fullTag = match[0];
     const cssPath = match[1];
     
     // Skip absolute external files if any
     if (cssPath.startsWith('http') || cssPath.startsWith('//')) continue;
+    // Keep font-face URLs relative to the stable /fonts asset alias for HTML and file previews.
+    if (cssPath === './fonts/rvt-fonts.css') continue;
 
+    if (inlinedStylesheets.has(cssPath)) {
+      indexHtml = indexHtml.replace(fullTag, '');
+      continue;
+    }
+    inlinedStylesheets.add(cssPath);
     console.log(`Inlining stylesheet: ${cssPath}`);
     const cssContent = await fs.readFile(path.join(WWW, cssPath), 'utf8');
-    indexHtml = indexHtml.replaceAll(fullTag, `<style>\n${cssContent}\n</style>`);
+    indexHtml = indexHtml.replace(fullTag, `<style>\n${cssContent}\n</style>`);
   }
 
   // 2. Gather all JS bundle matches first (M4) to prevent stateful global regex mutation bugs
   const scriptRegex = /<script[^>]*src="([^"]+)"[^>]*><\/script>/g;
   const jsMatches = Array.from(indexHtml.matchAll(scriptRegex));
   
+  const inlinedScripts = new Set();
   for (const match of jsMatches) {
     const fullTag = match[0];
     const jsPath = match[1];
 
     if (jsPath.startsWith('http') || jsPath.startsWith('//')) continue;
 
+    if (inlinedScripts.has(jsPath)) {
+      indexHtml = indexHtml.replace(fullTag, '');
+      continue;
+    }
+    inlinedScripts.add(jsPath);
     console.log(`Inlining JS bundle: ${jsPath}`);
     const jsContent = await fs.readFile(path.join(WWW, jsPath), 'utf8');
-    indexHtml = indexHtml.replaceAll(fullTag, `<script type="module">\n${jsContent}\n</script>`);
+    indexHtml = indexHtml.replace(fullTag, `<script type="module">\n${jsContent}\n</script>`);
   }
 
   // Post-build validation assertions: Verify that no local un-inlined stylesheets or scripts remain in the monolith
-  const remainingLink = indexHtml.match(/<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/);
-  if (remainingLink && !remainingLink[1].startsWith('http') && !remainingLink[1].startsWith('//')) {
-    throw new Error(`Monolith compilation assertion failed: Un-inlined local stylesheet tag remains: ${remainingLink[0]}`);
+  const remainingLinks = Array.from(indexHtml.matchAll(linkRegex)).filter(match => {
+    const href = match[1];
+    return !href.startsWith('http') && !href.startsWith('//') && href !== './fonts/rvt-fonts.css';
+  });
+  if (remainingLinks.length) {
+    throw new Error(`Monolith compilation assertion failed: Un-inlined local stylesheet tag remains: ${remainingLinks[0][0]}`);
   }
 
   const remainingScript = indexHtml.match(/<script[^>]*src="([^"]+)"[^>]*>/);

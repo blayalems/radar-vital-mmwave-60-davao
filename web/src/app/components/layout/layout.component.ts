@@ -1,39 +1,60 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { filter } from 'rxjs/operators';
-import { MatDialog } from '@angular/material/dialog';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatIconModule } from '@angular/material/icon';
+import { MatListModule } from '@angular/material/list';
+import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatToolbarModule } from '@angular/material/toolbar';
 
 import { StateService } from '../../services/state.service';
 import { TopbarComponent } from '../topbar/topbar.component';
-import { SettingsComponent } from '../settings/settings.component';
+import { CommandPaletteComponent } from '../command-palette/command-palette.component';
 
 @Component({
   selector: 'app-layout',
-  standalone: true,
   imports: [
     CommonModule,
     RouterModule,
-    TopbarComponent
+    TopbarComponent,
+    MatButtonModule,
+    MatDialogModule,
+    MatIconModule,
+    MatListModule,
+    MatSidenavModule,
+    MatToolbarModule
   ],
   templateUrl: './layout.component.html',
-  styleUrl: './layout.component.css'
+  styleUrl: './layout.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:keydown)': 'onKeyboardShortcut($event)'
+  }
 })
 export class LayoutComponent implements OnInit {
   protected readonly state = inject(StateService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly breakpointObserver = inject(BreakpointObserver);
 
   railCollapsed = false;
-  mobileDrawerOpen = false;
+  protected readonly showRail = signal(false);
 
   ngOnInit() {
-    // Keep StateService currentView signal perfectly in sync with active Angular routes
+    this.breakpointObserver.observe('(min-width: 1024px)').pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(result => this.showRail.set(result.matches));
+    this.syncCurrentView(this.router.url);
     this.router.events.pipe(
-      filter(event => event instanceof NavigationEnd)
-    ).subscribe((event: any) => {
-      const path = event.urlAfterRedirects.split('/')[1] || 'live';
-      this.state.currentView.set(path);
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(event => {
+      this.syncCurrentView(event.urlAfterRedirects);
     });
   }
 
@@ -42,42 +63,35 @@ export class LayoutComponent implements OnInit {
     this.state.triggerHaptic('tap');
   }
 
-  toggleMobileDrawer() {
-    this.mobileDrawerOpen = !this.mobileDrawerOpen;
-    this.state.triggerHaptic('tap');
-  }
-
   openPalette() {
     this.state.triggerHaptic('tap');
-    // Renders the command palette if integrated or prompts
-    const command = prompt('Command Palette:\nEnter search term or keyboard shortcut (e.g. "/theme", "/help", "/reset"):');
-    if (!command) return;
-    
-    const cmd = command.trim().toLowerCase();
-    if (cmd === '/theme') {
-      const cycle: ('light' | 'dark' | 'night' | 'hc')[] = ['light', 'dark', 'night', 'hc'];
-      this.state.theme.set(cycle[(cycle.indexOf(this.state.theme()) + 1) % cycle.length]);
-      this.state.triggerHaptic('success');
-    } else if (cmd === '/help') {
-      this.router.navigate(['/help']);
-    } else if (cmd === '/reset') {
-      if (confirm('Reset all defaults?')) {
-        this.state.theme.set('dark');
-        this.state.density.set('comfortable');
-        this.state.kpiThresholds.set({ hrLow: 40, hrHigh: 140, rrLow: 6, rrHigh: 30 });
-        this.state.triggerHaptic('destructiveAccept');
-      }
-    } else {
-      alert(`Command "${command}" not recognized.`);
+    this.dialog.open(CommandPaletteComponent, {
+      autoFocus: 'input',
+      restoreFocus: true,
+      maxWidth: 'calc(100vw - 24px)',
+      panelClass: 'm3-dialog-panel',
+      backdropClass: 'rvt-palette-backdrop'
+    });
+  }
+
+  onKeyboardShortcut(event: KeyboardEvent) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      this.openPalette();
+      return;
+    }
+    if (event.altKey && ['1', '2', '3', '4', '5', '6'].includes(event.key)) {
+      event.preventDefault();
+      void this.router.navigate(['/live']).then(() => {
+        const tabs = ['tab-overview', 'tab-waves', 'tab-hr', 'tab-rr', 'tab-snaps', 'tab-audit'];
+        this.state.activeTab.set(tabs[Number(event.key) - 1]);
+      });
     }
   }
 
-  openSettings() {
-    this.dialog.open(SettingsComponent, {
-      width: '600px',
-      maxWidth: '95vw',
-      panelClass: 'm3-dialog-panel'
-    });
-    this.state.triggerHaptic('tap');
+  private syncCurrentView(url: string): void {
+    const path = url.split(/[/?#]/).filter(Boolean)[0] || 'home';
+    this.state.currentView.set(path);
+    document.body.dataset['view'] = path;
   }
 }

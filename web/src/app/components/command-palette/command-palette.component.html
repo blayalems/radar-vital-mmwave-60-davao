@@ -1,0 +1,37 @@
+<h2 mat-dialog-title>Command Palette</h2>
+<mat-dialog-content class="palette-content">
+  <mat-form-field appearance="outline" class="palette-search">
+    <mat-label>Search commands, help, and shortcuts</mat-label>
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput [value]="query()" (input)="updateQuery($event)" cdkFocusInitial autocomplete="off" aria-label="Search commands">
+  </mat-form-field>
+
+  <div class="palette-hint" aria-label="Command palette hints">
+    <mat-chip-set>
+      <mat-chip>Navigation</mat-chip>
+      <mat-chip>Session</mat-chip>
+      <mat-chip>Source</mat-chip>
+      <mat-chip>Appearance</mat-chip>
+      <mat-chip>Export</mat-chip>
+    </mat-chip-set>
+  </div>
+
+  <mat-nav-list aria-label="Available commands">
+    @for (command of filteredCommands(); track command.id) {
+    <button mat-list-item type="button" (click)="run(command)" [disabled]="!!disabledReason(command)"
+      [attr.aria-description]="disabledReason(command) || command.description">
+      <mat-icon matListItemIcon>{{ command.icon }}</mat-icon>
+      <span matListItemTitle>{{ command.label }}</span>
+      <span matListItemLine>{{ disabledReason(command) || command.description }}</span>
+      <span matListItemMeta class="command-meta">
+        @if (command.shortcut) { <kbd>{{ command.shortcut }}</kbd> }
+        <span>{{ command.group }}</span>
+      </span>
+    </button>
+    }
+  </mat-nav-list>
+  @if (filteredCommands().length === 0) { <p class="palette-empty">No matching command. Try snapshot, report, theme, demo, or reconnect.</p> }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Close</button>
+</mat-dialog-actions>

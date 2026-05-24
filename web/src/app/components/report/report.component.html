@@ -15,45 +15,47 @@
       <mat-form-field appearance="outline" class="session-dropdown-field">
         <mat-label>Choose Session</mat-label>
         <mat-select [(ngModel)]="selectedSessionId" (selectionChange)="onSessionChange()">
-          <mat-option *ngFor="let s of sessions" [value]="s.session_id">
+        @for (s of sessions; track s.session_id) {
+        <mat-option [value]="s.session_id">
             {{ s.started_at | date:'short' }} - ({{ s.subject || 'Sandbox' }})
           </mat-option>
+        }
         </mat-select>
       </mat-form-field>
     </div>
   </mat-card>
 
   <!-- REPORT BODY CONTENT -->
-  <div class="report-body-layout" *ngIf="selectedSession; else emptyState">
+  @if (selectedSession) {
+  <div class="report-body-layout">
     
     <!-- CENTRAL QUALITY VERDICT CARD -->
-    <mat-card class="verdict-hero-card" [attr.data-verdict]="selectedSession.verdict">
+    <mat-card class="verdict-hero-card" [attr.data-verdict]="reportVerdict()">
       <div class="verdict-banner-inner">
         <div class="verdict-meta">
-          <span class="eyebrow">Diagnostic Verdict Outcome</span>
+          <span class="eyebrow">Analysis Readiness Outcome</span>
           <h2>
-            {{ selectedSession.verdict === 'ready' || selectedSession.verdict === 'pass'
-              ? 'PASS - Physiology Confirmed Ready'
-              : selectedSession.verdict === 'conditional' || selectedSession.verdict === 'warn'
-              ? 'CONDITIONAL - Requires Clinical Review'
-              : 'FAIL - Telemetry Quality Unready'
+            {{ selectedSummary?.sandbox
+              ? 'DEMO - Simulated Data Only'
+              : reportVerdict() === 'ready' || reportVerdict() === 'pass'
+              ? 'READY - Analysis Passed'
+              : reportVerdict() === 'conditional' || reportVerdict() === 'warn'
+              ? 'CONDITIONAL - Review Required'
+              : reportVerdict()
+              ? 'NOT READY - Review Required'
+              : 'PENDING - No Analysis Verdict'
             }}
           </h2>
           <p>
-            {{ selectedSession.verdict === 'ready' || selectedSession.verdict === 'pass'
-              ? 'Excellent signal quality. Subject is resting calmly. No heart or breath anomalies observed during the recording.'
-              : selectedSession.verdict === 'conditional' || selectedSession.verdict === 'warn'
-              ? 'Moderate signal quality detected. Periodic motion volatility observed. Verify subject placement.'
-              : 'Severe drift or sensor disconnected. Heart rate and breathing metrics fell outside valid ranges.'
-            }}
+            {{ selectedSummary?.['message'] || selectedSession.summary || 'Load the recorded analysis summary and source artifacts before interpreting this session.' }}
           </p>
         </div>
 
         <div class="verdict-badge-box">
           <mat-icon class="verdict-badge-icon">
-            {{ selectedSession.verdict === 'ready' || selectedSession.verdict === 'pass' ? 'check_circle' : 'warning' }}
+            {{ reportVerdict() === 'ready' || reportVerdict() === 'pass' ? 'check_circle' : 'warning' }}
           </mat-icon>
-          <strong>{{ (selectedSession.verdict || 'ready') | uppercase }}</strong>
+          <strong>{{ (selectedSummary?.sandbox ? 'demo' : reportVerdict() || 'pending') | uppercase }}</strong>
         </div>
       </div>
     </mat-card>
@@ -68,12 +70,12 @@
         <mat-card-content class="attributes-table-wrap">
           <table class="attributes-table">
             <tbody>
-              <tr><td>Session ID</td><td><strong>{{ selectedSession.session_id }}</strong></td></tr>
-              <tr><td>Date / Time</td><td><strong>{{ selectedSession.started_at | date:'medium' }}</strong></td></tr>
-              <tr><td>Duration</td><td><strong>{{ selectedSession.duration_s }} seconds</strong></td></tr>
-              <tr><td>Subject ID</td><td><strong>{{ selectedSession.subject || 'demo-subject' }}</strong></td></tr>
-              <tr><td>Operator</td><td><strong>{{ selectedSession.operator || 'Operator A' }}</strong></td></tr>
-              <tr><td>Station</td><td><strong>{{ selectedSession.station || 'Lab · Station 3' }}</strong></td></tr>
+              <tr><td>Session ID</td><td><strong>{{ reportRecord().session_id }}</strong></td></tr>
+              <tr><td>Date / Time</td><td><strong>{{ reportRecord().started_at | date:'medium' }}</strong></td></tr>
+              <tr><td>Duration</td><td><strong>{{ reportRecord().duration_s }} seconds</strong></td></tr>
+              <tr><td>Subject ID</td><td><strong>{{ reportRecord().subject_label || reportRecord().subject || '--' }}</strong></td></tr>
+              <tr><td>Operator</td><td><strong>{{ reportRecord().operator_label || reportRecord().operator || '--' }}</strong></td></tr>
+              <tr><td>Status</td><td><strong>{{ summaryLoading ? 'Loading summary...' : (summaryError || reportRecord().analysis_status || 'Loaded') }}</strong></td></tr>
             </tbody>
           </table>
         </mat-card-content>
@@ -86,12 +88,19 @@
           <mat-card-title>Operator Review Summary</mat-card-title>
         </mat-card-header>
         <mat-card-content class="notes-content-wrap">
-          <textarea class="report-textarea" [(ngModel)]="sessionNotesInput" placeholder="Add operator remarks or notes for this report..."></textarea>
+          <mat-form-field appearance="outline" class="form-field-full">
+            <mat-label>Operator report notes</mat-label>
+            <textarea matInput class="report-textarea" [(ngModel)]="sessionNotesInput" placeholder="Add operator remarks or notes for this report..."></textarea>
+          </mat-form-field>
           
           <div class="notes-action-row">
-            <button mat-stroked-button color="primary" (click)="downloadCsv()">
+            <button mat-stroked-button color="primary" (click)="downloadSummaryJson()" [disabled]="!selectedSummary">
               <mat-icon>download</mat-icon>
-              Download Telemetry CSV
+              Download Summary JSON
+            </button>
+            <button mat-stroked-button color="primary" (click)="downloadThesisReport()" [disabled]="!selectedSummary">
+              <mat-icon>description</mat-icon>
+              {{ selectedSummary?.sandbox ? 'Export Demo Summary' : 'Export Thesis HTML' }}
             </button>
             <button mat-flat-button color="primary" (click)="saveReportNotes()">
               <mat-icon>save</mat-icon>
@@ -102,11 +111,27 @@
       </mat-card>
     </div>
 
+    <mat-card class="analysis-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="header-avatar-ic">science</mat-icon>
+        <mat-card-title>Analysis Job</mat-card-title>
+        <mat-card-subtitle>Re-run trainer analysis and inspect its recorded status.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <p>{{ analysisStatus?.last_line || 'Status unavailable.' }}</p>
+        <mat-progress-bar mode="determinate" [value]="analysisStatus?.progress_pct || 0"></mat-progress-bar>
+        <div class="notes-action-row">
+          <button mat-stroked-button type="button" (click)="refreshAnalysisStatus()"><mat-icon>refresh</mat-icon>Refresh status</button>
+          <button mat-flat-button type="button" (click)="rerunAnalysis()" [disabled]="selectedSummary?.sandbox"><mat-icon>play_arrow</mat-icon>Run analysis</button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
     <!-- DYNAMIC REPORT SPARKLINE GRAPH PLOTS -->
     <mat-card class="report-trends-card">
       <mat-card-header>
         <mat-card-title>Historical Telemetry Trend Plot</mat-card-title>
-        <mat-card-subtitle>Chronological heart rate and respiratory rate profiles saved during the active run.</mat-card-subtitle>
+        <mat-card-subtitle>Recorded series are rendered only when the session summary provides them; no values are synthesized.</mat-card-subtitle>
       </mat-card-header>
 
       <mat-card-content class="report-trends-content">
@@ -132,14 +157,50 @@
       </mat-card-content>
     </mat-card>
 
-  </div>
+    <mat-card class="report-trends-card">
+      <mat-card-header>
+        <mat-card-title>Session Comparison</mat-card-title>
+        <mat-card-subtitle>Trainer-produced comparison against the preceding and strongest available session.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content class="compare-grid">
+        @for (entry of [
+          { label: 'Selected', value: comparison?.selected },
+          { label: 'Previous', value: comparison?.previous },
+          { label: 'Best', value: comparison?.best }
+        ]; track entry.label) {
+          <section class="compare-item">
+            <strong>{{ entry.label }}</strong>
+            <span>{{ entry.value?.session_id || '--' }}</span>
+            <span>Verdict: {{ entry.value?.verdict || '--' }}</span>
+            <span>HR RMSE: {{ entry.value?.['hr_rmse'] ?? '--' }}</span>
+            <span>HR r: {{ entry.value?.['hr_r'] ?? '--' }}</span>
+          </section>
+        }
+      </mat-card-content>
+    </mat-card>
 
-  <ng-template #emptyState>
+    @if ((selectedSummary?.downloads?.length || 0) > 0) {
+      <mat-card class="report-trends-card">
+        <mat-card-header><mat-card-title>Recorded Artifacts</mat-card-title></mat-card-header>
+        <mat-card-content>
+          <mat-nav-list aria-label="Session artifact downloads">
+            @for (file of selectedSummary?.downloads || []; track file.relpath || file.path || file.label) {
+              <button mat-list-item type="button" (click)="downloadArtifact(file)">
+                <mat-icon matListItemIcon>download</mat-icon>
+                <span matListItemTitle>{{ file.label || file.relpath || file.path }}</span>
+              </button>
+            }
+          </mat-nav-list>
+        </mat-card-content>
+      </mat-card>
+    }
+  </div>
+  } @else {
     <div class="report-empty-state">
       <mat-icon class="empty-icon animate-pulse">history_toggle_off</mat-icon>
       <h3>No Telemetry Sessions Found</h3>
       <p>Please complete a live recording session or enable sandbox simulation in Settings to populate the report history.</p>
     </div>
-  </ng-template>
+  }
 
 </div>

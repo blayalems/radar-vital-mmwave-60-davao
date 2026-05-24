@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -9,13 +9,16 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatListModule } from '@angular/material/list';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
+import { DownloadRecord, SessionDataPayload, SessionRecord } from '../../models/rvt.models';
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 
 @Component({
   selector: 'app-report',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,
@@ -24,21 +27,32 @@ import { ApiService } from '../../services/api.service';
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
-    MatSelectModule
+    MatSelectModule,
+    MatProgressBarModule,
+    MatListModule,
+    MatSnackBarModule
   ],
   templateUrl: './report.component.html',
-  styleUrl: './report.component.css'
+  styleUrl: './report.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ReportComponent implements OnInit, AfterViewInit {
   protected readonly state = inject(StateService);
   protected readonly api = inject(ApiService);
+  private readonly snackBar = inject(MatSnackBar);
 
   @ViewChild('hrReportCanvas', { static: false }) hrReportCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('rrReportCanvas', { static: false }) rrReportCanvas!: ElementRef<HTMLCanvasElement>;
 
-  sessions: any[] = [];
+  sessions: SessionRecord[] = [];
   selectedSessionId = '';
-  selectedSession: any = null;
+  selectedSession: SessionRecord | null = null;
+  selectedSummary: SessionRecord | null = null;
+  comparison: { selected?: SessionRecord | null; previous?: SessionRecord | null; best?: SessionRecord | null } | null = null;
+  analysisStatus: { status?: string; progress_pct?: number; last_line?: string } | null = null;
+  sessionDataRows: Array<Record<string, number | string | null>> = [];
+  summaryLoading = false;
+  summaryError = '';
   sessionNotesInput = '';
 
   ngOnInit() {
@@ -51,7 +65,7 @@ export class ReportComponent implements OnInit, AfterViewInit {
 
   async loadSessions() {
     try {
-      const resp = await this.api.request('/api/sessions');
+      const resp = await this.api.request<{ items?: SessionRecord[] }>('/api/sessions');
       if (resp && Array.isArray(resp.items)) {
         this.sessions = resp.items;
         
@@ -69,11 +83,34 @@ export class ReportComponent implements OnInit, AfterViewInit {
     }
   }
 
-  onSessionChange() {
+  async onSessionChange() {
     this.selectedSession = this.sessions.find(s => s.session_id === this.selectedSessionId) || null;
+    this.selectedSummary = null;
+    this.comparison = null;
+    this.analysisStatus = null;
+    this.sessionDataRows = [];
+    this.summaryError = '';
     if (this.selectedSession) {
       this.sessionNotesInput = this.state.sessionNotes()[this.selectedSessionId] || this.selectedSession.summary || '';
-      setTimeout(() => this.drawReportTrends(), 50);
+      this.summaryLoading = true;
+      try {
+        const sessionPath = `/api/sessions/${encodeURIComponent(this.selectedSessionId)}`;
+        const [summary, data, comparison, analysisStatus] = await Promise.all([
+          this.api.request<SessionRecord>(`${sessionPath}/summary`),
+          this.api.request<SessionDataPayload>(`${sessionPath}/data?points=1000`),
+          this.api.request<{ selected?: SessionRecord | null; previous?: SessionRecord | null; best?: SessionRecord | null }>(`${sessionPath}/compare`),
+          this.api.request<{ status?: string; progress_pct?: number; last_line?: string }>(`${sessionPath}/analyse/status`)
+        ]);
+        this.selectedSummary = summary;
+        this.sessionDataRows = data.rows || [];
+        this.comparison = comparison;
+        this.analysisStatus = analysisStatus;
+      } catch (error: unknown) {
+        this.summaryError = error instanceof Error ? error.message : 'Recorded session summary is unavailable.';
+      } finally {
+        this.summaryLoading = false;
+        setTimeout(() => this.drawReportTrends(), 50);
+      }
     }
   }
 
@@ -87,32 +124,77 @@ export class ReportComponent implements OnInit, AfterViewInit {
     }
   }
 
-  downloadCsv() {
-    this.state.triggerHaptic('tap');
-    if (!this.selectedSession) return;
-
-    // Simulate CSV generation for download
-    const headers = 'Timestamp,Reported_HR,Reported_RR,Reference_HR,Reference_RR,Distance_cm\n';
-    const rows = [
-      `14:02:00,72,15,71,15,50\n`,
-      `14:02:01,73,15,72,15,51\n`,
-      `14:02:02,72,16,72,16,50\n`,
-      `14:02:03,74,15,73,15,52\n`
-    ].join('');
-    
-    const blob = new Blob([headers + rows], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('href', url);
-    a.setAttribute('download', `session_export_${this.selectedSessionId}.csv`);
-    a.click();
+  reportRecord(): SessionRecord {
+    return this.selectedSummary || this.selectedSession || { session_id: '' };
   }
 
-  // --- Draw simulated trend lines based on historical reports ---
+  reportVerdict(): string {
+    const raw = this.reportRecord()?.verdict;
+    return String(typeof raw === 'object' && raw !== null ? raw['verdict'] || raw['readiness_kind'] || '' : raw || '').toLowerCase();
+  }
+
+  downloadSummaryJson() {
+    this.state.triggerHaptic('tap');
+    if (!this.selectedSession || !this.selectedSummary) return;
+    const blob = new Blob([JSON.stringify(this.selectedSummary, null, 2)], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session_summary_${this.selectedSessionId}.json`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }
+
+  async downloadThesisReport(): Promise<void> {
+    if (!this.selectedSessionId || this.selectedSummary?.sandbox) {
+      this.downloadSummaryJson();
+      return;
+    }
+    try {
+      await this.api.download(
+        `/api/report/export?session=${encodeURIComponent(this.selectedSessionId)}`,
+        `session_report_${this.selectedSessionId}.html`
+      );
+      this.state.triggerHaptic('success');
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Report download failed.', 'Dismiss', { duration: 6000 });
+    }
+  }
+
+  async downloadArtifact(file: DownloadRecord): Promise<void> {
+    const relativePath = file.relpath || file.path;
+    if (!this.selectedSessionId || !relativePath) return;
+    const name = relativePath.split('/').pop() || 'artifact';
+    await this.api.download(
+      `/api/sessions/${encodeURIComponent(this.selectedSessionId)}/files/${relativePath.split('/').map(encodeURIComponent).join('/')}`,
+      name
+    );
+  }
+
+  async rerunAnalysis(): Promise<void> {
+    if (!this.selectedSessionId || this.selectedSummary?.sandbox) return;
+    try {
+      await this.api.request<{ ok?: boolean }>(`/api/sessions/${encodeURIComponent(this.selectedSessionId)}/analyse`, { method: 'POST' });
+      this.analysisStatus = await this.api.request<{ status?: string; progress_pct?: number; last_line?: string }>(`/api/sessions/${encodeURIComponent(this.selectedSessionId)}/analyse/status`);
+      this.snackBar.open('Analysis job requested. Refresh status to view completion.', 'Dismiss', { duration: 5000 });
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Analysis could not be started.', 'Dismiss', { duration: 6000 });
+    }
+  }
+
+  async refreshAnalysisStatus(): Promise<void> {
+    if (!this.selectedSessionId) return;
+    this.analysisStatus = await this.api.request<{ status?: string; progress_pct?: number; last_line?: string }>(`/api/sessions/${encodeURIComponent(this.selectedSessionId)}/analyse/status`);
+  }
+
+  // Only render recorded or currently streamed series; never invent report data.
   private drawReportTrends() {
     if (!this.hrReportCanvas || !this.rrReportCanvas) return;
 
-    const plotReportTrend = (canvasRef: ElementRef<HTMLCanvasElement>, color: string, baseVal: number, rangeVal: number) => {
+    const hrPoints = this.sessionDataRows.map(row => Number(row['reported_hr'])).filter(Number.isFinite);
+    const rrPoints = this.sessionDataRows.map(row => Number(row['reported_rr'])).filter(Number.isFinite);
+
+    const plotReportTrend = (canvasRef: ElementRef<HTMLCanvasElement>, color: string, points: number[]) => {
       const canvas = canvasRef.nativeElement;
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
@@ -126,11 +208,12 @@ export class ReportComponent implements OnInit, AfterViewInit {
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, w, h);
 
-      // Generate stable simulated trend points based on session_id hash
-      const seed = this.selectedSessionId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      const points: number[] = [];
-      for (let i = 0; i < 40; i++) {
-        points.push(baseVal + Math.sin(i / 3 + seed) * (rangeVal * 0.3) + Math.cos(i / 5) * (rangeVal * 0.1));
+      if (!Array.isArray(points) || points.length < 2) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = '12px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('No recorded series in this summary.', w / 2, h / 2);
+        return;
       }
 
       const pad = 12;
@@ -170,7 +253,7 @@ export class ReportComponent implements OnInit, AfterViewInit {
       ctx.stroke();
     };
 
-    plotReportTrend(this.hrReportCanvas, 'rgba(0, 164, 150, 0.95)', 70, 30);
-    plotReportTrend(this.rrReportCanvas, 'rgba(255, 65, 248, 0.95)', 15, 8);
+    plotReportTrend(this.hrReportCanvas, 'rgba(0, 164, 150, 0.95)', hrPoints);
+    plotReportTrend(this.rrReportCanvas, 'rgba(97, 105, 198, 0.95)', rrPoints);
   }
 }

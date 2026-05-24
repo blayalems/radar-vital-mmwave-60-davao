@@ -6,8 +6,7 @@ const THEMES = ['light', 'dark', 'night', 'hc'] as const;
 for (const theme of THEMES) {
   test(`dashboard renders without layout collapse (${theme})`, async ({ page }, testInfo) => {
     // Block external font loading to prevent screenshot hanging in offline/sandboxed environments
-    await page.route('**/*.{woff,woff2}', route => route.abort());
-    await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
 
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     // Allow up to one post-install reload to complete.

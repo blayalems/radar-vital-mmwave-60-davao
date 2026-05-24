@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -13,16 +13,17 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
 import { BluetoothService } from '../../services/bluetooth.service';
+import { BleScanDevice, PreflightCheck, SessionRecord, SubjectProfileRecord } from '../../models/rvt.models';
 
 @Component({
   selector: 'app-home',
-  standalone: true,
   imports: [
     CommonModule,
     FormsModule,
@@ -35,10 +36,12 @@ import { BluetoothService } from '../../services/bluetooth.service';
     MatSelectModule,
     MatCheckboxModule,
     MatProgressSpinnerModule,
-    MatChipsModule
+    MatChipsModule,
+    MatSnackBarModule
   ],
   templateUrl: './home.component.html',
-  styleUrl: './home.component.css'
+  styleUrl: './home.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly state = inject(StateService);
@@ -48,6 +51,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly audio = inject(AudioService);
   protected readonly bluetooth = inject(BluetoothService);
   private readonly router = inject(Router);
+  private readonly snackBar = inject(MatSnackBar);
 
   @ViewChild('radarCanvas', { static: false }) radarCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('trendCanvas', { static: false }) trendCanvas!: ElementRef<HTMLCanvasElement>;
@@ -58,8 +62,10 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // Local form model binding
   radarPorts: string[] = ['COM3', 'COM10', 'COM11', 'COM12', '/dev/ttyUSB0', '/dev/ttyUSB1'];
-  bleDevices: any[] = [];
-  preflightChecks: any[] = [];
+  bleDevices: BleScanDevice[] = [];
+  subjectProfiles: Record<string, SubjectProfileRecord> = {};
+  preflightChecks: PreflightCheck[] = [];
+  preflightError = '';
   isScanningPorts = false;
   isScanningBle = false;
   isPreflightRunning = false;
@@ -70,6 +76,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnInit() {
     this.selectedDuration = this.state.setup().duration_s;
     this.refreshDefaults();
+    this.loadSubjectProfiles();
     this.runPreflight();
   }
 
@@ -85,10 +92,10 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async refreshDefaults() {
     try {
-      const defs = await this.api.request('/api/defaults');
+      const defs = await this.api.request<{ radar_port?: string; serial_ports?: string[] }>('/api/defaults');
       if (defs) {
         if (defs.radar_port) {
-          this.state.setup.update(s => ({ ...s, radar_port: defs.radar_port }));
+          this.state.setup.update(s => ({ ...s, radar_port: defs.radar_port ?? s.radar_port }));
         }
         if (defs.serial_ports && Array.isArray(defs.serial_ports)) {
           this.radarPorts = defs.serial_ports;
@@ -106,8 +113,20 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   onFormChange() {
-    // Sync active state setup variables
-    this.state.setup.update(s => ({ ...s }));
+    this.runPreflight();
+  }
+
+  updateSetup<K extends keyof ReturnType<StateService['setup']>>(key: K, value: ReturnType<StateService['setup']>[K]): void {
+    this.state.setup.update(setup => ({ ...setup, [key]: value }));
+  }
+
+  async loadSubjectProfiles(): Promise<void> {
+    try {
+      const response = await this.api.request<{ profiles?: Record<string, SubjectProfileRecord> }>('/api/subject-profiles');
+      this.subjectProfiles = response.profiles || {};
+    } catch (_) {
+      this.subjectProfiles = {};
+    }
   }
 
   async scanSerialPorts() {
@@ -127,17 +146,17 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.isScanningBle = true;
     this.state.triggerHaptic('tap');
     try {
-      if (this.bluetooth.isSupported()) {
+      if (this.state.ctlStatus()?.mode !== 'sandbox') {
+        const response = await this.api.request<{ devices?: BleScanDevice[] }>('/api/ble/scan?timeout_s=3');
+        this.bleDevices = response.devices || [];
+      } else if (this.bluetooth.isSupported() && !this.state.demoMode()) {
         const dev = await this.bluetooth.requestDevice();
         if (dev && dev.name) {
           this.state.setup.update(s => ({ ...s, ble_address: dev.id || dev.name || '' }));
         }
       } else {
-        // Fallback simulate scan
-        await new Promise(resolve => setTimeout(resolve, 1500));
         this.bleDevices = [
-          { name: 'Oximeter 10:22', id: '10:22:33:9E:8F:63' },
-          { name: 'BerryMed SpO2', id: '00:A0:50:B1:C2:D3' }
+          { name: 'Demo oximeter', id: this.state.setup().ble_address, address: this.state.setup().ble_address }
         ];
       }
       this.state.triggerHaptic('success');
@@ -151,13 +170,18 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async runPreflight() {
     this.isPreflightRunning = true;
+    this.preflightError = '';
     try {
-      const resp = await this.api.request('/api/preflight');
+      const query = new URLSearchParams({
+        port: this.state.setup().radar_port,
+        address: this.state.setup().ble_address
+      });
+      const resp = await this.api.request<{ checks?: PreflightCheck[] }>(`/api/preflight?${query.toString()}`);
       if (resp && Array.isArray(resp.checks)) {
         this.preflightChecks = resp.checks;
       }
-    } catch (e) {
-      console.warn('Preflight load failed', e);
+    } catch (error: unknown) {
+      this.preflightError = error instanceof Error ? error.message : 'Preflight unavailable.';
     } finally {
       this.isPreflightRunning = false;
     }
@@ -166,10 +190,18 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   async runSingleCheck(checkId: string) {
     this.state.triggerHaptic('tap');
     try {
-      const resp = await this.api.request(`/api/preflight/${checkId}`);
-      if (resp && resp.check) {
-        this.preflightChecks = this.preflightChecks.map(c => c.id === checkId ? resp.check : c);
-        if (resp.check.status === 'good') {
+      const resp = await this.api.request<PreflightCheck | { check?: PreflightCheck }>(`/api/preflight/${checkId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          port: this.state.setup().radar_port,
+          address: this.state.setup().ble_address
+        })
+      });
+      const check = 'check' in resp && resp.check ? resp.check : resp as PreflightCheck;
+      if (check && check.id) {
+        this.preflightChecks = this.preflightChecks.map(c => c.id === checkId ? check : c);
+        if (check.status === 'good') {
           this.state.triggerHaptic('success');
         } else {
           this.state.triggerHaptic('warn');
@@ -181,13 +213,25 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   getChecksPassedCount(): number {
-    return this.preflightChecks.filter(c => c.status === 'good').length;
+    return this.preflightChecks.filter(c => this.checkPasses(c)).length;
   }
 
   getReadinessPercentage(): number {
     if (!this.preflightChecks.length) return 0;
-    const good = this.preflightChecks.filter(c => c.status === 'good').length;
+    const good = this.preflightChecks.filter(c => this.checkPasses(c)).length;
     return Math.round((good / this.preflightChecks.length) * 100);
+  }
+
+  hasBlockingPreflightFailure(): boolean {
+    return this.preflightChecks.some(check => ['bad', 'fail', 'error'].includes(check.status.toLowerCase()));
+  }
+
+  canStartSession(): boolean {
+    return !this.isPreflightRunning && this.preflightChecks.length > 0 && !this.hasBlockingPreflightFailure();
+  }
+
+  private checkPasses(check: PreflightCheck): boolean {
+    return ['good', 'pass', 'ready', 'ok'].includes(check.status.toLowerCase());
   }
 
   setSessionFilter(filter: 'all' | 'pass' | 'warn' | 'fail' | 'tagged') {
@@ -213,6 +257,11 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   async startSession() {
     this.state.triggerHaptic('sessionStart');
     try {
+      await this.runPreflight();
+      if (!this.canStartSession()) {
+        this.snackBar.open('Start blocked: resolve failed preflight checks first.', 'Dismiss', { duration: 7000 });
+        return;
+      }
       const payload = {
         duration_s: this.selectedDuration,
         radar_port: this.state.setup().radar_port,
@@ -220,10 +269,13 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         subject_label: this.state.setup().subject_label,
         operator_label: this.state.setup().operator_label,
         station_label: this.state.setup().station_label,
-        skip_countdown: this.state.setup().skip_countdown
+        subject_profile_id: this.state.setup().subject_profile_id,
+        ble_profile: this.state.setup().ble_profile,
+        skip_countdown: this.state.setup().skip_countdown,
+        advanced: { notify_char: this.state.setup().notify_char }
       };
       
-      const r = await this.api.request('/api/session/start', {
+      const r = await this.api.request<SessionRecord>('/api/session/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -236,7 +288,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         this.router.navigate(['/live']);
       }
     } catch (e: any) {
-      alert(`Could not start session: ${e.message || e}`);
+      this.snackBar.open(`Could not start session: ${e.message || e}`, 'Dismiss', { duration: 7000 });
       this.state.triggerHaptic('reject');
     }
   }
@@ -333,7 +385,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       // Breathing ring ripple
       const rrSpeed = (Date.now() / (60000 / reportedRr)) % 1;
       const rrPulseRadius = radius * 0.66 + (radius * 0.25) * Math.sin(rrSpeed * Math.PI);
-      ctx.strokeStyle = 'rgba(255, 65, 248, 0.45)';
+      ctx.strokeStyle = 'rgba(97, 105, 198, 0.45)';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(cx, cy, rrPulseRadius, 0, Math.PI * 2);
@@ -424,7 +476,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
     // Plot HR (green/teal) ranging roughly between 40 and 160
     drawLine(hrs, 'rgba(0, 164, 150, 0.85)', 40, 160);
-    // Plot RR (magenta/pink) ranging roughly between 5 and 35
-    drawLine(rrs, 'rgba(255, 65, 248, 0.85)', 5, 35);
+    // Plot RR using the secondary chart accent.
+    drawLine(rrs, 'rgba(97, 105, 198, 0.85)', 5, 35);
   }
 }

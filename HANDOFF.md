@@ -9,33 +9,34 @@
 
 | Workstream | Source-of-truth | Current state | Owner / last touched |
 |---|---|---|---|
-| Dashboard refactor (v12/v16 monolith → split) | `web/` | Phase 3 complete — body partials split; legacy patch tail bundled into 2 patch files | codex/complete-handoff-phases |
+| Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material 3 source of truth; Material shell/dialogs, live state, reports, and generated monolith repaired | claude/mobile-first-dashboard-upABy |
 | Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` (#11) + `api/auth.py` (#9) + `assets/static.py` (this PR) own real code. `api/sse.py` still a facade. | claude/trainer-extract-static |
-| PWA (GitHub Pages) | `.github/workflows/pages.yml` → `www/` | Build green on PR #8 (merged). Deploy gated to push-to-main; needs Settings→Pages source = "GitHub Actions" (one-time manual). | main |
-| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | Every PR targeting `main` builds a fresh APK artifact; release workflow publishes permanent APK assets with signing when secrets exist. | codex/release-artifact-hardening |
-| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Every PR targeting `main` builds a required NSIS `.exe`; release workflow publishes permanent EXE assets with signing when certificate secrets exist. | codex/release-artifact-hardening |
-| Smoke + visual tests | `tests/` | Green on every PR after #7. 14/14 desktop in ~1:32 in CI. | main |
+| PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Workflow now installs the nested Angular lockfile before building; stable `/fonts`, `/icons`, `/lib` aliases are packaged for SW routes | claude/mobile-first-dashboard-upABy |
+| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | Angular dependency installation added to APK/release jobs; local and CI gates pending final verification | claude/mobile-first-dashboard-upABy |
+| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Invalid Tauri v2 JSON repaired and Angular dependency installation added; NSIS gate pending final verification | claude/mobile-first-dashboard-upABy |
+| Smoke + visual tests | `tests/` | Contract tests now read Angular sources; smoke will fail resource console errors and covers theme, palette, demo telemetry, snapshots | claude/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows
 
 ```
-web/                          (source of truth, split files)
-  index.html                  (shell with BUILD:INCLUDE markers)
-  styles/*.css                (one file per <style id="...">)
-  modules/*.js                (one file per <script id="...">)
-  components/**/*.html        (panel partials + overlays)
+web/                          (Angular source of truth)
+  src/index.html              (PWA document shell)
+  src/app/components/**       (Material UI views, shell and dialogs)
+  src/app/services/**         (API, telemetry and persisted state)
+  src/styles.scss             (Material 3 theme plus migrated CSS contract)
+  package-lock.json           (nested Angular/Material dependency lockfile)
         │
-        ▼   npm run build:web
-        │   scripts/build-www.mjs resolves markers, concats in order
+        ▼   npm --prefix web ci && npm run build:web
+        │   scripts/build-angular.mjs builds Angular, packages root asset aliases,
+        │   and inlines compiled JS/CSS into the monolith
         ▼
-radar_vital_live_dashboard_v12_for_v16_0.html   (assembled monolith — built artifact)
+radar_vital_live_dashboard_v12_for_v16_0.html   (compiled monolith - built artifact)
         │
-        ▼   build-www.mjs also copies to www/
+        ▼   Angular output plus stable PWA/native assets
         ▼
 www/
-  index.html                  (= assembled monolith)
-  radar_vital_live_dashboard_v12_for_v16_0.html  (alias for deep links)
-  assets/ manifest.webmanifest sw.js 404.html
+  index.html                  (Angular application shell)
+  assets/ fonts/ icons/ lib/ manifest.webmanifest sw.js rvt-sw.js 404.html
         │
         ├──▶ GitHub Pages (.github/workflows/pages.yml)
         ├──▶ Capacitor sync   (npm run cap:sync)
@@ -44,25 +45,27 @@ www/
 
 ## Contracts that must NOT break
 
-1. **DOM element IDs and class names are frozen.** `#tab-overview`, `#fwBadge`,
-   `#demoBanner`, `.r-item`, etc. are referenced by scripts and CSS selectors.
-   Renaming them silently breaks the cascade.
-2. **Load order is contractual.** See `web/index.html` for the canonical order.
-   `v11-*` and patch blocks intentionally come AFTER the consolidated CSS/JS to
-   override the cascade and monkey-patch behaviour. Do not reorder.
-3. **`#rvt-v12-demo-first-paint` must be adjacent to `#demoBanner`** — the
-   script reads the banner element synchronously at parse time.
+1. **Feature parity selectors are contractual.** `#demoBanner`, `.r-item`, live tab names, snapshot controls, and four theme values are covered by CSS/tests and must remain stable across Angular component edits.
+2. **Theme order is contractual.** `web/src/styles.scss` emits Material 3 system tokens first, then loads migrated v11/v12 CSS in its documented order so the established theme selectors remain effective.
+3. **Overlays use Angular Material.** Palette, alerts and confirmations rely on `MatDialog` focus trapping, focus return and Escape dismissal; do not replace them with browser dialogs.
 4. **Service worker path** = `/sw.js`. Manifest path = `/manifest.webmanifest`.
    These resolve from www root, served by the trainer at `/sw.js` and
    `/manifest.webmanifest` (NOT `/assets/sw.js`).
-5. **Trainer API surface** (consumed by dashboard JS): `/api/server-info`,
+5. **Trainer API surface** (consumed by Angular services): `/api/server-info`,
    `/api/auth/exchange`, `/sw.js`, `/manifest.webmanifest`, `/pair`,
-   `/api/telemetry` (SSE). See `AGENTS.md` for the full list.
+   `/api/events/subscribe` (SSE), `/api/preflight`, `/api/session/start`,
+   `/api/session/stop`, and `/api/sessions/<id>/summary`. See `AGENTS.md` for the full list.
 6. **The monolithic `.html` at repo root remains a build artifact.** Some
    consumers (file:// open, legacy trainer paths) still expect it. It can be
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-24 - Angular Material migration continuity and release repairs
+- Updated `AGENTS.md` and this handoff so the approved Angular Material 3 frontend under `web/src/` is no longer contradicted by obsolete vanilla-only instructions.
+- Converted shell interactions to Material primitives (`MatSidenav`, `MatToolbar`, `MatDialog`, lists, chips, buttons, badges and snackbars), wired persisted themes into document/Material tokens, and restored working Demo telemetry plus alerts and snapshot/chart actions.
+- Repaired trainer-facing calls for individual preflight and session stop, and made Reports load actual session summaries/export paths without generated physiological measurements.
+- Repaired root PWA asset packaging, nested Angular installation in CI workflows, valid Tauri v2 NSIS configuration, and tests for Angular contracts and resource-clean smoke behavior.
 
 ### 2026-05-23 — Standalone Angular Dashboard Refinement & Hardening
 - Hardened PWA service worker registration with double-reload guards and relative pathing `./sw.js` (C1).
@@ -269,6 +272,8 @@ www/
 
 ## Phase plan
 
+The phase entries below document the pre-Angular extraction and remain historical context. The active dashboard source is now the Angular Material application in `web/src/`; the extracted vanilla implementation is retained under `web-legacy/` only for parity checks.
+
 ### Phase 1 — CSS / JS extraction (done)
 - [x] `scripts/extract-monolith.mjs` produces `web/styles/<id>.css` and
       `web/modules/<id>.js` for every `<style id>` / `<script id>` block.
@@ -320,7 +325,7 @@ www/
   break.
 - **Always update this file in the same commit** as your changes. Add a dated
   entry at the top of the progress log.
-- **Always run `npm run build:web && npm test`** before pushing. The full
+- **Always run `npm --prefix web ci`, `npm run build:web`, and `npm test`** before pushing. The full
   multi-browser smoke suite can take several minutes on WebKit-backed projects.
 - **Visual regressions** (`npm run test:visual`) need a Linux Playwright
   baseline. If you commit new baselines, take them from CI, not your local

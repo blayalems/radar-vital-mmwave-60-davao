@@ -1,31 +1,38 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatBadgeModule } from '@angular/material/badge';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatToolbarModule } from '@angular/material/toolbar';
 
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { SettingsComponent } from '../settings/settings.component';
+import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
 
 @Component({
   selector: 'app-topbar',
-  standalone: true,
   imports: [
     CommonModule,
     RouterModule,
     MatDialogModule,
     MatButtonModule,
+    MatButtonToggleModule,
+    MatBadgeModule,
     MatIconModule,
     MatChipsModule,
-    MatMenuModule
+    MatMenuModule,
+    MatToolbarModule
   ],
   templateUrl: './topbar.component.html',
-  styleUrl: './topbar.component.css'
+  styleUrl: './topbar.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TopbarComponent {
   protected readonly state = inject(StateService);
@@ -71,7 +78,17 @@ export class TopbarComponent {
     this.state.triggerHaptic('tap');
   }
 
-  manualReconnect() {
+  openAlerts() {
+    this.dialog.open(AlertsDialogComponent, {
+      maxWidth: 'calc(100vw - 24px)',
+      restoreFocus: true,
+      panelClass: 'm3-dialog-panel'
+    });
+    this.state.triggerHaptic('tap');
+  }
+
+  async manualReconnect(): Promise<void> {
+    await this.api.detectControlMode();
     this.telemetry.stop();
     this.telemetry.start();
     this.state.triggerHaptic('confirm');
@@ -97,6 +114,7 @@ export class TopbarComponent {
     a.href = url;
     a.download = `rvt_export_${Date.now()}.json`;
     a.click();
+    URL.revokeObjectURL(url);
     this.state.triggerHaptic('success');
   }
 

@@ -192,6 +192,8 @@ export class ApiService {
       this.state.ctlOn.set(true);
       this.state.autoDemoActive.set(false);
       this.state.ctlStatus.set({ ...r, mode: r.mode === 'sandbox' ? 'sandbox' : 'live' });
+      const activeSession = r.active_session || r.session;
+      this.state.currentSessionId.set(activeSession?.session_id || null);
       return true;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Control API unavailable';

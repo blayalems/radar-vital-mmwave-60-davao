@@ -34,3 +34,18 @@
 .clear-alerts {
   margin-right: auto;
 }
+
+@media (max-width: 600px) {
+  .alerts-content {
+    width: calc(100vw - 32px);
+  }
+
+  mat-dialog-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .clear-alerts {
+    margin-right: 0;
+  }
+}

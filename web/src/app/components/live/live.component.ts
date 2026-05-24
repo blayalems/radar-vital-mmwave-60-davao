@@ -13,6 +13,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 
@@ -35,6 +36,7 @@ import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.compone
     MatInputModule,
     MatTableModule,
     MatDialogModule,
+    MatMenuModule,
     MatSnackBarModule
   ],
   templateUrl: './live.component.html',
@@ -131,8 +133,9 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
           this.audio.speakAlert('Session completed successfully.', 'ok', true);
           this.router.navigate(['/report']);
         }
-      } catch (e: any) {
-        this.snackBar.open(`Stop session failed: ${e.message || e}`, 'Dismiss', { duration: 7000 });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.snackBar.open(`Stop session failed: ${message}`, 'Dismiss', { duration: 7000 });
       } finally {
         this.state.ctlStopPending.set(false);
       }
@@ -242,6 +245,42 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     anchor.href = canvas.toDataURL('image/png');
     anchor.download = `${label}_${Date.now()}.png`;
     anchor.click();
+    this.state.triggerHaptic('success');
+  }
+
+  exportAuditLog(format: 'json' | 'csv'): void {
+    const payload = this.state.lastPayload();
+    const eventRows = (payload?.events || []).map(event => ({
+      timestamp: this.eventTime(event),
+      kind: 'event',
+      severity: '',
+      message: this.formatEvent(event)
+    }));
+    const alertRows = this.state.alertHistory().map(alert => ({
+      timestamp: new Date(alert.ts).toISOString(),
+      kind: 'alert',
+      severity: alert.severity,
+      message: alert.msg
+    }));
+    const rows = [...eventRows, ...alertRows];
+    const content = format === 'json'
+      ? JSON.stringify({
+          exported_at: new Date().toISOString(),
+          connection: this.state.ctlStatus(),
+          analysis: payload?.analysis || null,
+          rows
+        }, null, 2)
+      : [
+          'timestamp,kind,severity,message',
+          ...rows.map(row => [row.timestamp, row.kind, row.severity, row.message]
+            .map(value => `"${String(value).replaceAll('"', '""')}"`).join(','))
+        ].join('\n');
+    const href = URL.createObjectURL(new Blob([content], { type: format === 'json' ? 'application/json' : 'text/csv' }));
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = `radar-vital-audit.${format}`;
+    anchor.click();
+    URL.revokeObjectURL(href);
     this.state.triggerHaptic('success');
   }
 

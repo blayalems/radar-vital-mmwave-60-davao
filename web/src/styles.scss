@@ -18,6 +18,8 @@
 
 html {
   font-size: calc(16px * var(--rvt-font-scale, 1));
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* Migrated v11/v12 visual contracts load after Material system tokens. */
@@ -127,5 +129,105 @@ body[data-view='home'] app-home .home-stat-card {
     flex-direction: column !important;
     min-height: 0 !important;
     padding: 14px !important;
+  }
+}
+
+/*
+ * The Angular sidenav already owns the desktop content offset. Keep the
+ * topbar inside that content box instead of inheriting the legacy monolith
+ * negative margins and grid slots.
+ */
+@media (min-width: 761px) {
+  body[data-view] app-topbar .topbar {
+    align-items: center !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 14px !important;
+    height: auto !important;
+    margin: 0 !important;
+    min-height: 84px !important;
+    padding: 12px 24px !important;
+    position: sticky !important;
+    top: 0 !important;
+    width: 100% !important;
+  }
+
+  body[data-view] app-topbar .crumbs {
+    align-self: center !important;
+    display: block !important;
+    flex: 1 1 300px !important;
+    margin: 0 !important;
+    min-width: 250px !important;
+    overflow: visible !important;
+    text-align: left !important;
+  }
+
+  body[data-view] app-topbar .crumb-eyebrow,
+  body[data-view] app-topbar .crumb-title {
+    text-align: left !important;
+  }
+
+  body[data-view] app-topbar .crumb-title {
+    font-size: clamp(1.55rem, 2.4vw, 2.25rem) !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+
+  body[data-view] app-topbar .crumb-trail {
+    display: flex !important;
+    justify-content: flex-start !important;
+  }
+
+  body[data-view] app-topbar .topbar-status {
+    display: flex !important;
+    flex: 0 1 auto !important;
+    grid-area: auto !important;
+    margin-left: auto !important;
+    max-width: none !important;
+    width: auto !important;
+  }
+
+  body[data-view] app-topbar .topbar-actions {
+    align-items: center !important;
+    display: flex !important;
+    flex: 0 0 auto !important;
+    flex-wrap: nowrap !important;
+    grid-area: auto !important;
+    margin: 0 !important;
+    max-width: none !important;
+    padding: 0 !important;
+    width: auto !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1499px) {
+  body[data-view] app-topbar .tb-density,
+  body[data-view] app-topbar .tb-settings,
+  body[data-view] app-topbar .operator-badge {
+    display: none !important;
+  }
+
+  body[data-view] app-topbar .tb-export {
+    font-size: 0 !important;
+    min-width: 52px !important;
+    padding-inline: 0 !important;
+  }
+
+  body[data-view] app-topbar .tb-export .material-symbols-rounded {
+    margin: 0 !important;
+  }
+}
+
+@media (min-width: 761px) {
+  body[data-view] .app app-topbar .topbar {
+    flex-wrap: nowrap !important;
+    gap: 14px !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1499px) {
+  body[data-view] .app app-topbar .topbar-status {
+    display: none !important;
   }
 }

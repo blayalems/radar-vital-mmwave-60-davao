@@ -9,7 +9,13 @@ test.describe('v12 dashboard visual baseline', () => {
     for (const view of views) {
       test(`${theme} ${view}`, async ({ page }) => {
         // Block external font loading to prevent screenshot hanging in offline/sandboxed environments
-      await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
+        await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
+        if (view === 'home') {
+          // The radar scope is a canvas animation driven by wall-clock time.
+          await page.addInitScript(() => {
+            Date.now = () => 1_700_000_000_000;
+          });
+        }
 
         await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
         await page.evaluate(({ theme }) => {

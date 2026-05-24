@@ -1,9 +1,23 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+:host #demoBanner {
+  flex: 0 0 auto;
+  inset: auto !important;
+  position: relative !important;
+}
+
 /* Simple grid layout integration */
 .app {
   /* Material calculates the sidenav offset; a grid here double-offsets content. */
   display: block !important;
-  height: 100dvh;
-  min-height: 100dvh;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
   width: 100%;
   overflow: hidden;
 }
@@ -110,4 +124,19 @@
     display: grid;
     justify-items: center;
   }
+}
+
+:host-context(html[data-theme='hc']) .bottom-nav {
+  background: #000 !important;
+  border-color: #fff !important;
+}
+
+:host-context(html[data-theme='hc']) .bottom-nav .bn-item {
+  color: #fff !important;
+  opacity: 1 !important;
+}
+
+:host-context(html[data-theme='hc']) .bottom-nav .bn-item .material-symbols-rounded {
+  color: #fff !important;
+  opacity: 1 !important;
 }

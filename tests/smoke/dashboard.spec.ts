@@ -275,7 +275,7 @@ test.describe('Dashboard smoke', () => {
     await page.getByRole('button', { name: 'Done' }).click();
 
     await page.keyboard.press('Alt+6');
-    await expect(page.getByText('Telemetry Event Logs')).toBeVisible();
+    await expect(page.getByText('Active Enforcement Logs')).toBeVisible();
     await page.locator('.audit-card-header').getByRole('button', { name: 'Export' }).click();
     const auditDownloadPromise = page.waitForEvent('download');
     await page.getByRole('menuitem', { name: /Audit JSON/ }).click();
@@ -290,8 +290,94 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('#demoBanner')).toBeVisible();
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
     await page.getByRole('button', { name: /Pin Snapshot/ }).first().click();
-    await page.getByRole('tab', { name: 'Snapshots' }).click();
+    await page.getByRole('tab', { name: 'Snaps' }).click();
     await expect(page.getByText('Pinned Telemetry Snapshots')).toBeVisible();
     await expect(page.locator('.snap-card')).toHaveCount(1);
+  });
+
+  test('restores live diagnostics and functional Material actions in demo mode', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => localStorage.setItem('rvt-demo-mode', '1'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+    const demoHeaderContained = await page.evaluate(() => {
+      const banner = document.querySelector('#demoBanner')?.getBoundingClientRect();
+      const topbar = document.querySelector('.topbar')?.getBoundingClientRect();
+      return !!banner && !!topbar && topbar.top >= banner.bottom - 1;
+    });
+    expect(demoHeaderContained).toBe(true);
+    if ((page.viewportSize()?.width || 0) <= 760) {
+      const tabsContained = await page.evaluate(() => {
+        const header = document.querySelector('.live-tabs-group .mat-mdc-tab-header')?.getBoundingClientRect();
+        const tabs = Array.from(document.querySelectorAll('.live-tabs-group .mat-mdc-tab'))
+          .map(element => element.getBoundingClientRect());
+        return !!header && tabs.length === 6 &&
+          tabs.every(tab => tab.left >= header.left - 1 && tab.right <= header.right + 1);
+      });
+      expect(tabsContained).toBe(true);
+    }
+
+    const notes = page.getByLabel('Operator observations');
+    const expectVisibleCardsContained = async () => {
+      await page.waitForTimeout(550);
+      const overflowCards = await page.evaluate(() => {
+        const main = document.querySelector('.main-content-scroll')?.getBoundingClientRect();
+        if (!main) return ['main-content-scroll unavailable'];
+        return Array.from(document.querySelectorAll('app-live .mat-mdc-card'))
+          .filter(card => card.getClientRects().length > 0)
+          .filter(card => {
+            const rect = card.getBoundingClientRect();
+            return rect.left < main.left - 1 || rect.right > main.right + 1;
+          })
+          .map(card => `${card.className}: ${Math.round(card.getBoundingClientRect().left)}..${Math.round(card.getBoundingClientRect().right)} outside ${Math.round(main.left)}..${Math.round(main.right)}`);
+      });
+      expect(overflowCards).toEqual([]);
+    };
+    await notes.fill('Baseline seated');
+    await page.getByRole('button', { name: /Position/ }).click();
+    await page.getByLabel('Custom tag').fill('Calibration');
+    await page.getByRole('button', { name: /Add Tag/ }).click();
+    await expect(notes).toHaveValue(/Position change/);
+    await expect(notes).toHaveValue(/Calibration/);
+
+    const notesDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name: /Export session notes as text/ }).click();
+    expect((await notesDownload).suggestedFilename()).toMatch(/^session-notes-.+\.txt$/);
+    await expect(page.getByText('Target Tracking')).toBeVisible();
+    await page.getByRole('button', { name: /Pin Frame/ }).click();
+
+    await page.getByRole('tab', { name: 'Waves' }).click();
+    await expect(page.getByText(/SQI \d+%/).first()).toBeVisible();
+    await expectVisibleCardsContained();
+    const waveDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name: /Download breathing waveform image/ }).click();
+    expect((await waveDownload).suggestedFilename()).toMatch(/^breathing_waveform_\d+\.png$/);
+
+    await page.getByRole('tab', { name: 'HR' }).click();
+    await expect(page.getByText('HR Funnel Telemetry')).toBeVisible();
+    await expect(page.getByText('HR Stage Values')).toBeVisible();
+    await expectVisibleCardsContained();
+    await page.getByRole('radio', { name: '30s' }).click();
+    await expect(page.getByText('Viewing 30 seconds')).toBeVisible();
+    await page.getByRole('button', { name: /Reset heart rate chart window/ }).click();
+    await expect(page.getByText('Viewing 120 seconds')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'RR' }).click();
+    await expect(page.getByText('RR Funnel Telemetry')).toBeVisible();
+    await expect(page.getByText('RR Recovery Diagnostics')).toBeVisible();
+    await expect(page.getByText('No RR-specific warnings')).toBeVisible();
+    await expectVisibleCardsContained();
+    const rrDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name: /Download respiration trend image/ }).click();
+    expect((await rrDownload).suggestedFilename()).toMatch(/^respiration_trend_\d+\.png$/);
+
+    await page.getByRole('tab', { name: 'Audit' }).click();
+    await expect(page.getByText('Live Validation')).toBeVisible();
+    await expect(page.getByText('Reason Histograms')).toBeVisible();
+    await expect(page.getByText('BLE Reference Quality')).toBeVisible();
+    await expectVisibleCardsContained();
+    await page.getByRole('tab', { name: 'Snaps' }).click();
+    await expect(page.locator('.snap-card')).toHaveCount(1);
+    await expectVisibleCardsContained();
   });
 });

@@ -9,12 +9,12 @@
 
 | Workstream | Source-of-truth | Current state | Owner / last touched |
 |---|---|---|---|
-| Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material 3 source of truth; command/help/export parity, overlay blur, and responsive desktop/mobile containment repaired | codex/mobile-first-dashboard-upABy |
+| Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material 3 source of truth; command/help/export parity, Live diagnostic restoration, real-series rendering, and responsive theme containment repaired | codex/mobile-first-dashboard-upABy |
 | Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 **partial extraction in progress**. `api/server_info.py` (#11) + `api/auth.py` (#9) + `assets/static.py` (this PR) own real code. `api/sse.py` still a facade. | claude/trainer-extract-static |
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Stable asset packaging and Angular build pass locally; PR Pages build/deploy preview remains CI-verified | codex/mobile-first-dashboard-upABy |
-| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | Local `assembleDebug` produced `app-debug.apk` on 2026-05-24; CI artifact verification follows in PR | codex/mobile-first-dashboard-upABy |
-| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Local Tauri NSIS build produced the Windows setup EXE on 2026-05-24; CI artifact verification follows in PR | codex/mobile-first-dashboard-upABy |
-| Smoke + visual tests | `tests/` | Material parity and containment smoke coverage restored; 88 smoke and 96 visual cases pass on all four projects | codex/mobile-first-dashboard-upABy |
+| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | Local `assembleDebug` reverified after Live parity work and produced `app-debug.apk` on 2026-05-24; CI artifact verification follows in PR | codex/mobile-first-dashboard-upABy |
+| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Local Tauri NSIS build reverified after Live parity work and produced the Windows setup EXE on 2026-05-24; CI artifact verification follows in PR | codex/mobile-first-dashboard-upABy |
+| Smoke + visual tests | `tests/` | Live Material action and containment coverage restored; 92 smoke and 96 visual cases pass on all four projects | codex/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows
 
@@ -60,6 +60,13 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-24 - Material Live diagnostics parity and visual/button hardening
+- Restored real trainer series binding and Material Live panels for target tracking, SQI, HR/RR funnel and stage diagnostics, RR recovery, validation, reason histograms, and BLE reference quality.
+- Completed working Live actions for notes/tag export, chart range/reset/download, and snapshot capture; added browser interaction and per-tab containment coverage.
+- Corrected the DEMO banner/topbar overlap, phone tab truncation, and high-contrast foreground/navigation visibility; refreshed intentional four-theme visual baselines.
+- Verification: `npm run build:check`, `npm --prefix web run build`, trainer `compileall`/`--help`, `python -m pytest -q tests` (30 passed), Playwright smoke (92 passed), and visual regression (96 passed).
+- Packaging: Capacitor sync plus Gradle `assembleDebug` produced `app-debug.apk`; Tauri NSIS produced `Radar Vital_12.0.0-alpha.1_x64-setup.exe`; Pages remains a PR CI verification gate.
 
 ### 2026-05-24 - Material parity restoration and native packaging verification
 - Restored the v11-style blurred `Ctrl+K` Material dialog backdrop and additional searchable actions for preflight, view printing, alert audio/voice, thresholds, and chart windows; verified restored Help topic search remains reachable.

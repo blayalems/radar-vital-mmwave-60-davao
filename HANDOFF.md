@@ -61,6 +61,10 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-25 - Install CI browsers required by mobile Playwright projects
+- PR #21 exposed that its Ubuntu smoke job installed only Chromium while the configured iPhone and iPad projects launch WebKit, causing missing-browser failures before application assertions.
+- Updated Ubuntu functional and Windows visual jobs to install both Chromium and WebKit, and extended the CI static contract to retain this browser/project mapping. Verification: failure diagnosis from GitHub Actions run `26367190071` and `python -m pytest -q tests` (36 passed); fresh PR validation follows this fix.
+
 ### 2026-05-25 - Align CI visual execution with committed Win32 baselines
 - Split visual regression from the Ubuntu functional/security test job into a `windows-latest` job because the reviewed route/theme/device snapshots are deliberately committed as `-win32.png`; running those assertions on Linux would request non-existent Linux baselines rather than compare the approved captures.
 - Added a static contract that enforces the visual-runner platform alignment. Verification: `python -m pytest -q tests` (36 passed) and snapshot inventory review (84 committed PNGs, all Win32-targeted); PR workflow validation reruns after this corrective follow-up.

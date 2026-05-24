@@ -83,6 +83,8 @@ def test_visual_ci_runs_on_the_committed_snapshot_platform():
     assert all("-win32.png" in snapshot.name for snapshot in snapshots)
     assert "name: Visual regression (committed Windows baselines)" in workflow
     assert re.search(r"\n  visual:\n(?:.*\n){1,3}    runs-on: windows-latest", workflow)
+    assert "npx playwright install --with-deps chromium webkit" in workflow
+    assert "npx playwright install chromium webkit" in workflow
     assert "npx playwright test tests/visual" in workflow
 
 

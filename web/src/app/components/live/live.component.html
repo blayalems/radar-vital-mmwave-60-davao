@@ -94,7 +94,7 @@
               <mat-icon>speed</mat-icon>
             </div>
             <div class="kpi-card-value">
-              <strong>{{ state.lastPayload()?.radar?.rows ? Math.round(state.lastPayload()?.radar?.rows ?? 0) : '--' }}</strong>
+              <strong>{{ computedFps() }}</strong>
               <small>Hz</small>
             </div>
             <div class="kpi-card-spark">
@@ -122,10 +122,17 @@
 
         <!-- SESSION NOTES WITH QUICK TAGS -->
         <mat-card class="session-notes-section-card">
-          <mat-card-header>
-            <mat-icon mat-card-avatar class="header-avatar-ic">edit_note</mat-icon>
-            <mat-card-title>Active Session Notes</mat-card-title>
-            <mat-card-subtitle>Operator observations logged directly to the report.</mat-card-subtitle>
+          <mat-card-header class="section-header-row">
+            <div class="section-title-group">
+              <mat-icon class="header-avatar-ic">edit_note</mat-icon>
+              <div>
+                <mat-card-title>Active Session Notes</mat-card-title>
+                <mat-card-subtitle>Operator observations logged directly to the report.</mat-card-subtitle>
+              </div>
+            </div>
+            <button mat-stroked-button type="button" (click)="exportSessionNotes()" aria-label="Export session notes as text">
+              <mat-icon>text_snippet</mat-icon>Export TXT
+            </button>
           </mat-card-header>
 
           <mat-card-content class="notes-content-area">
@@ -137,10 +144,65 @@
             <div class="quick-tags-toolbar">
               <span class="toolbar-label">Quick Tags:</span>
               <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Motion')"><mat-icon>directions_run</mat-icon>Motion</button>
+              <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Position change')"><mat-icon>accessibility</mat-icon>Position</button>
               <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Cough')"><mat-icon>sick</mat-icon>Cough</button>
               <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Speaking')"><mat-icon>record_voice_over</mat-icon>Speaking</button>
               <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Ref Issue')"><mat-icon>bluetooth_disabled</mat-icon>Ref Issue</button>
               <button mat-flat-button class="tag-btn" (click)="recordObservation()" [disabled]="!sessionNotesInput.trim()"><mat-icon>save</mat-icon>Record Note</button>
+            </div>
+            <div class="custom-tag-toolbar">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>Custom tag</mat-label>
+                <input matInput [(ngModel)]="customTagInput" maxlength="80" (keyup.enter)="addCustomTag()">
+              </mat-form-field>
+              <button mat-stroked-button type="button" (click)="addCustomTag()" [disabled]="!customTagInput.trim()">
+                <mat-icon>add</mat-icon>Add Tag
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="tracking-card">
+          <mat-card-header class="section-header-row">
+            <div class="section-title-group">
+              <mat-icon class="header-avatar-ic">explore</mat-icon>
+              <div>
+                <mat-card-title>Target Tracking</mat-card-title>
+                <mat-card-subtitle>Spatial telemetry and live vital context from the radar module.</mat-card-subtitle>
+              </div>
+            </div>
+            <button mat-stroked-button type="button" (click)="captureSnapshot()" [disabled]="!state.lastPayload()">
+              <mat-icon>bookmark_add</mat-icon>Pin Frame
+            </button>
+          </mat-card-header>
+          <mat-card-content class="tracking-layout">
+            <div class="target-plot-panel">
+              <div class="target-status-row">
+                <span class="eyebrow">Spatial view</span>
+                <span class="status-pill" [class.live]="metricState('target_info_ok') === 'Yes'">
+                  Target: {{ metricLabel('num_targets') }}
+                </span>
+              </div>
+              <canvas #targetCanvas class="target-canvas" aria-label="Target position radar scope"></canvas>
+            </div>
+            <div class="target-details-grid">
+              <div class="spatial-kpis">
+                <div><span>FPS</span><strong>{{ computedFps() }}</strong></div>
+                <div class="rr-accent"><span>Breath</span><strong>{{ metricText('reported_rr', 1) }}</strong></div>
+                <div class="hr-accent"><span>Heart</span><strong>{{ metricText('reported_hr', 1) }}</strong></div>
+              </div>
+              <table class="diagnostics-table">
+                <tbody>
+                  <tr><td>Person detected</td><td>{{ metricState('human') }}</td></tr>
+                  <tr><td>Distance</td><td>{{ metricText('distance_cm', 1, ' cm') }}</td></tr>
+                  <tr><td>X position</td><td>{{ metricText('primary_x', 2, ' m') }}</td></tr>
+                  <tr><td>Y position</td><td>{{ metricText('primary_y', 2, ' m') }}</td></tr>
+                  <tr><td>Spatial source</td><td>{{ metricLabel('spatial_source') }}</td></tr>
+                  <tr><td>Spatial age</td><td>{{ metricText('spatial_age_ms', 0, ' ms') }}</td></tr>
+                  <tr><td>Doppler speed</td><td>{{ metricText('primary_dop_speed_cms', 1, ' cm/s') }}</td></tr>
+                  <tr><td>Target info live</td><td>{{ metricState('target_info_ok') }}</td></tr>
+                </tbody>
+              </table>
             </div>
           </mat-card-content>
         </mat-card>
@@ -234,8 +296,8 @@
                 <tbody>
                   <tr><td>Person Detected</td><td>{{ state.lastPayload()?.radar?.human ? 'YES' : 'NO' }}</td></tr>
                   <tr><td>Distance (cm)</td><td>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) : '--' }}</td></tr>
-                  <tr><td>Point cloud targets</td><td>{{ state.lastPayload()?.radar?.['target_count'] ?? '--' }}</td></tr>
-                  <tr><td>Doppler cm/s</td><td>{{ state.lastPayload()?.radar?.['doppler_cm_s'] ?? '--' }}</td></tr>
+                  <tr><td>Point cloud targets</td><td>{{ metricLabel('num_targets') }}</td></tr>
+                  <tr><td>Doppler cm/s</td><td>{{ metricText('primary_dop_speed_cms', 1) }}</td></tr>
                 </tbody>
               </table>
             </mat-card-content>
@@ -246,12 +308,17 @@
     </mat-tab>
 
     <!-- 2. WAVES TAB -->
-    <mat-tab label="Live Waves">
+    <mat-tab label="Waves">
       <div class="tab-content-grid">
         <mat-card class="waveforms-container-card">
-          <mat-card-header>
-            <mat-card-title>Real-Time Phase Waveforms</mat-card-title>
-            <mat-card-subtitle>Live breath_phase and heart_phase outputs parsed from module telemetry feed.</mat-card-subtitle>
+          <mat-card-header class="section-header-row">
+            <div>
+              <mat-card-title>Real-Time Phase Waveforms</mat-card-title>
+              <mat-card-subtitle>Live breath_phase and heart_phase outputs parsed from module telemetry feed.</mat-card-subtitle>
+            </div>
+            <button mat-stroked-button type="button" (click)="resetTrendRange()">
+              <mat-icon>restart_alt</mat-icon>Reset Window
+            </button>
           </mat-card-header>
 
           <mat-card-content class="waveforms-grid">
@@ -265,6 +332,8 @@
               <div class="canvas-plot-container bg-pink-tint">
                 <canvas #breathCanvas class="waveform-canvas"></canvas>
               </div>
+              <mat-progress-bar mode="determinate" [value]="qualityPercent('pqi_breath')" class="quality-bar rr-quality"></mat-progress-bar>
+              <span class="quality-label">{{ qualityLabel('pqi_breath') }}</span>
             </div>
 
             <div class="waveform-chart-wrap">
@@ -277,6 +346,8 @@
               <div class="canvas-plot-container bg-teal-tint">
                 <canvas #heartCanvas class="waveform-canvas"></canvas>
               </div>
+              <mat-progress-bar mode="determinate" [value]="qualityPercent('pqi_heart')" class="quality-bar hr-quality"></mat-progress-bar>
+              <span class="quality-label">{{ qualityLabel('pqi_heart') }}</span>
             </div>
           </mat-card-content>
         </mat-card>
@@ -284,35 +355,103 @@
     </mat-tab>
 
     <!-- 3. HEART RATE TAB -->
-    <mat-tab label="HR Trends">
+    <mat-tab label="HR">
       <div class="tab-content-grid">
         <mat-card class="trend-large-card">
-          <mat-card-header>
-            <mat-card-title>Heart Rate Funnel Trends</mat-card-title>
-            <mat-card-subtitle>Reported radar, raw index, corrected raw, and BLE references plotted sequentially.</mat-card-subtitle>
-            <button mat-icon-button type="button" aria-label="Download heart rate trend image" (click)="downloadChart(hrTrendCanvas, 'heart_rate_trend')">
-              <mat-icon>download</mat-icon>
-            </button>
+          <mat-card-header class="trend-header-row">
+            <div>
+              <mat-card-title>Heart Rate Funnel Trends</mat-card-title>
+              <mat-card-subtitle>Reported radar sequence; window controls match the operator workflow.</mat-card-subtitle>
+            </div>
+            <div class="trend-actions">
+              <mat-button-toggle-group aria-label="Heart rate chart time range">
+                <mat-button-toggle [checked]="trendRange() === 30" (click)="setTrendRange(30)">30s</mat-button-toggle>
+                <mat-button-toggle [checked]="trendRange() === 60" (click)="setTrendRange(60)">60s</mat-button-toggle>
+                <mat-button-toggle [checked]="trendRange() === 120" (click)="setTrendRange(120)">120s</mat-button-toggle>
+                <mat-button-toggle [checked]="trendRange() === 'max'" (click)="setTrendRange('max')">Max</mat-button-toggle>
+              </mat-button-toggle-group>
+              <button mat-icon-button type="button" aria-label="Reset heart rate chart window" (click)="resetTrendRange()"><mat-icon>restart_alt</mat-icon></button>
+              <button mat-icon-button type="button" aria-label="Download heart rate trend image" (click)="downloadChart(hrTrendCanvas, 'heart_rate_trend')"><mat-icon>download</mat-icon></button>
+            </div>
           </mat-card-header>
           <mat-card-content class="trend-large-content">
+            <div class="range-caption">Viewing {{ trendRangeLabel() }}</div>
             <div class="large-canvas-container">
               <canvas #hrTrendCanvas class="large-trend-canvas"></canvas>
             </div>
           </mat-card-content>
         </mat-card>
+        <mat-card class="advanced-card">
+          <mat-card-header>
+            <mat-card-title>Raw-HR vs Ref-HR Rate-Bucketed Bias</mat-card-title>
+            <mat-card-subtitle>Mean raw-minus-reference bias per 10-bpm reference bucket.</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content class="bias-bucket-list">
+            @if (hrBiasBuckets().length > 0) {
+              @for (bucket of hrBiasBuckets(); track bucket.label) {
+                <div class="bias-row">
+                  <span>{{ bucket.label }}</span>
+                  <div class="bias-track"><div class="bias-fill" [style.width.%]="bucket.width"></div></div>
+                  <strong>{{ bucket.bias.toFixed(1) }} bpm / n={{ bucket.count }}</strong>
+                </div>
+              }
+            } @else {
+              <p class="empty-copy">Waiting for raw HR and BLE/reference series.</p>
+            }
+          </mat-card-content>
+        </mat-card>
+        <div class="diagnostics-double-column">
+          <mat-card class="diagnostics-card">
+            <mat-card-header><mat-card-title>HR Funnel Telemetry</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Arbiter to reject-phase to blend to coherence to publish.</mat-card-subtitle>
+            <mat-card-content class="diagnostics-table-wrap">
+              <mat-chip-set class="signal-chip-set" aria-label="Heart rate status flags">
+                <mat-chip [class.status-good]="metricState('hr_arbiter_corrected') === 'Yes'">Arbiter {{ metricState('hr_arbiter_corrected') }}</mat-chip>
+                <mat-chip [class.status-warn]="metricState('hr_rejectphase_rejected') === 'Yes'">Reject phase {{ metricState('hr_rejectphase_rejected') }}</mat-chip>
+                <mat-chip [class.status-good]="metricState('trusted_hr_fresh') === 'Yes'">Trust fresh {{ metricState('trusted_hr_fresh') }}</mat-chip>
+              </mat-chip-set>
+              <table class="diagnostics-table"><tbody>
+                <tr><td>Agreement error</td><td>{{ metricText('hr_agree_err_bpm', 2, ' bpm') }}</td></tr>
+                <tr><td>ZC bpm / confidence</td><td>{{ metricText('hr_zc_bpm', 2) }} / {{ metricText('hr_zc_conf', 3) }}</td></tr>
+                <tr><td>Spec bpm / magnitude</td><td>{{ metricText('hr_spec_bpm', 2) }} / {{ metricText('hr_spec_mag', 4) }}</td></tr>
+                <tr><td>Trusted anchor</td><td>{{ metricText('hr_trusted_anchor_value', 2, ' bpm') }}</td></tr>
+                <tr><td>Anchor error</td><td>{{ metricText('hr_anchor_err_bpm', 2, ' bpm') }}</td></tr>
+                <tr><td>Publish reason</td><td>{{ metricLabel('hr_publish_reason_name') }}</td></tr>
+              </tbody></table>
+            </mat-card-content>
+          </mat-card>
+          <mat-card class="diagnostics-card">
+            <mat-card-header><mat-card-title>HR Stage Values</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Values carried through the publish path.</mat-card-subtitle>
+            <mat-card-content class="diagnostics-table-wrap">
+              <table class="diagnostics-table"><tbody>
+                <tr><td>Pre reject-phase</td><td>{{ metricText('hr_pre_rejectphase', 2, ' bpm') }}</td></tr>
+                <tr><td>Post reject-phase</td><td>{{ metricText('hr_post_rejectphase', 2, ' bpm') }}</td></tr>
+                <tr><td>Post blend</td><td>{{ metricText('hr_post_blend', 2, ' bpm') }}</td></tr>
+                <tr><td>Post coherence</td><td>{{ metricText('hr_post_coherence', 2, ' bpm') }}</td></tr>
+                <tr><td>Final publish</td><td>{{ metricText('hr_final_publish_candidate', 2, ' bpm') }}</td></tr>
+                <tr><td>Raw high-bias suspect</td><td>{{ metricState('hr_raw_high_bias_suspect') }}</td></tr>
+              </tbody></table>
+            </mat-card-content>
+          </mat-card>
+        </div>
       </div>
     </mat-tab>
 
     <!-- 4. RESPIRATORY RATE TAB -->
-    <mat-tab label="RR Trends">
+    <mat-tab label="RR">
       <div class="tab-content-grid">
         <mat-card class="trend-large-card">
-          <mat-card-header>
-            <mat-card-title>Respiration Funnel Trends</mat-card-title>
-            <mat-card-subtitle>Reported breathing index, candidate rates, and BLE references plotted sequentially.</mat-card-subtitle>
-            <button mat-icon-button type="button" aria-label="Download respiration trend image" (click)="downloadChart(rrTrendCanvas, 'respiration_trend')">
-              <mat-icon>download</mat-icon>
-            </button>
+          <mat-card-header class="trend-header-row">
+            <div>
+              <mat-card-title>Respiration Funnel Trends</mat-card-title>
+              <mat-card-subtitle>Reported respiration sequence and recovery context.</mat-card-subtitle>
+            </div>
+            <div class="trend-actions">
+              <span class="range-caption">{{ trendRangeLabel() }}</span>
+              <button mat-icon-button type="button" aria-label="Reset respiration chart window" (click)="resetTrendRange()"><mat-icon>restart_alt</mat-icon></button>
+              <button mat-icon-button type="button" aria-label="Download respiration trend image" (click)="downloadChart(rrTrendCanvas, 'respiration_trend')"><mat-icon>download</mat-icon></button>
+            </div>
           </mat-card-header>
           <mat-card-content class="trend-large-content">
             <div class="large-canvas-container">
@@ -320,11 +459,73 @@
             </div>
           </mat-card-content>
         </mat-card>
+        <div class="diagnostics-double-column">
+          <mat-card class="diagnostics-card">
+            <mat-card-header><mat-card-title>RR Funnel Telemetry</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Selector to accept to blend to Kalman to publish.</mat-card-subtitle>
+            <mat-card-content class="diagnostics-table-wrap">
+              <mat-chip-set class="signal-chip-set" aria-label="Respiration status flags">
+                <mat-chip [class.status-good]="metricState('rr_anchor_fresh') === 'Yes'">Anchor fresh {{ metricState('rr_anchor_fresh') }}</mat-chip>
+                <mat-chip [class.status-good]="metricState('rr_raw_agree_ok') === 'Yes'">Raw agree {{ metricState('rr_raw_agree_ok') }}</mat-chip>
+                <mat-chip [class.status-warn]="metricState('rr_fundamental_recovery_triggered') === 'Yes'">Recovery {{ metricState('rr_fundamental_recovery_triggered') }}</mat-chip>
+              </mat-chip-set>
+              <table class="diagnostics-table"><tbody>
+                <tr><td>Gate reason</td><td>{{ metricLabel('rr_gate_reason_name') }}</td></tr>
+                <tr><td>Publish reason</td><td>{{ metricLabel('rr_publish_reason_name') }}</td></tr>
+                <tr><td>ZC bpm / confidence</td><td>{{ metricText('rr_zc_bpm', 2) }} / {{ metricText('rr_zc_conf', 3) }}</td></tr>
+                <tr><td>Spec bpm / confidence</td><td>{{ metricText('rr_spec_bpm', 2) }} / {{ metricText('rr_spec_conf', 3) }}</td></tr>
+                <tr><td>Raw anchor error</td><td>{{ metricText('rr_raw_anchor_err_bpm', 2, ' bpm') }}</td></tr>
+              </tbody></table>
+            </mat-card-content>
+          </mat-card>
+          <mat-card class="diagnostics-card">
+            <mat-card-header><mat-card-title>RR Stage Values</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Anchor, recovery, and final stage values.</mat-card-subtitle>
+            <mat-card-content class="diagnostics-table-wrap">
+              <table class="diagnostics-table"><tbody>
+                <tr><td>Pre accept-phase</td><td>{{ metricText('rr_pre_acceptphase', 2, ' br/min') }}</td></tr>
+                <tr><td>Post accept-phase</td><td>{{ metricText('rr_post_acceptphase', 2, ' br/min') }}</td></tr>
+                <tr><td>Post blend</td><td>{{ metricText('rr_post_blend', 2, ' br/min') }}</td></tr>
+                <tr><td>Post Kalman</td><td>{{ metricText('rr_post_kalman', 2, ' br/min') }}</td></tr>
+                <tr><td>Final publish</td><td>{{ metricText('rr_final_publish_candidate', 2, ' br/min') }}</td></tr>
+                <tr><td>Anchor confidence</td><td>{{ metricText('rr_anchor_confidence', 2) }}</td></tr>
+              </tbody></table>
+            </mat-card-content>
+          </mat-card>
+        </div>
+        <div class="diagnostics-double-column">
+          <mat-card class="diagnostics-card">
+            <mat-card-header><mat-card-title>RR Recovery Diagnostics</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Confidence, recovery, and seed consistency.</mat-card-subtitle>
+            <mat-card-content class="diagnostics-table-wrap">
+              <table class="diagnostics-table"><tbody>
+                <tr><td>Recovery count</td><td>{{ metricLabel('rr_fundamental_recovery_count') }}</td></tr>
+                <tr><td>Recovery triggered</td><td>{{ metricState('rr_fundamental_recovery_triggered') }}</td></tr>
+                <tr><td>Seed consistency</td><td>{{ metricLabel('rr_raw_seed_consistent_count') }}</td></tr>
+                <tr><td>Re-anchor allowed</td><td>{{ metricState('rr_midsession_raw_reanchor_allowed') }}</td></tr>
+                <tr><td>Trust fresh</td><td>{{ metricState('trusted_rr_fresh') }}</td></tr>
+              </tbody></table>
+            </mat-card-content>
+          </mat-card>
+          <mat-card class="diagnostics-card warning-card">
+            <mat-card-header><mat-card-title>RR / Stale-State Warnings</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Anchor, candidate aging, and integrity warnings.</mat-card-subtitle>
+            <mat-card-content class="warning-list">
+              @if (rrWarnings().length > 0) {
+                @for (warning of rrWarnings(); track warning) {
+                  <div class="warning-item"><mat-icon>warning</mat-icon><span>{{ warning }}</span></div>
+                }
+              } @else {
+                <div class="good-state"><mat-icon>verified</mat-icon><span>No RR-specific warnings in this payload.</span></div>
+              }
+            </mat-card-content>
+          </mat-card>
+        </div>
       </div>
     </mat-tab>
 
     <!-- 5. SNAPSHOTS TAB -->
-    <mat-tab label="Snapshots">
+    <mat-tab label="Snaps">
       <div class="tab-content-grid">
         <mat-card class="snapshots-container-card">
           <mat-card-header class="snapshots-header-row">
@@ -333,7 +534,7 @@
               <mat-card-subtitle>Historical points captured to analyze physiological drifts or sensor drops.</mat-card-subtitle>
             </div>
             <div class="snapshots-actions">
-              <button mat-flat-button color="primary" (click)="captureSnapshot()">
+              <button mat-flat-button color="primary" (click)="captureSnapshot()" [disabled]="!state.lastPayload()">
                 <mat-icon>add</mat-icon>
                 Pin Current Frame
               </button>
@@ -351,7 +552,7 @@
               <mat-card class="snap-card">
                 <mat-card-header class="snap-card-header-row">
                   <strong>Frame Point: {{ snap.ts | date:'mediumTime' }}</strong>
-                  <button mat-icon-button color="warn" (click)="deleteSnap(snap.id)">
+                  <button mat-icon-button color="warn" (click)="deleteSnap(snap.id)" aria-label="Delete snapshot">
                     <mat-icon>close</mat-icon>
                   </button>
                 </mat-card-header>
@@ -383,27 +584,75 @@
     </mat-tab>
 
     <!-- 6. AUDIT LOG TAB -->
-    <mat-tab label="Audit Log">
+    <mat-tab label="Audit">
       <div class="tab-content-grid">
-        <div class="diagnostics-double-column">
-          
+        <div class="audit-summary-grid">
           <mat-card class="diagnostics-card">
-            <mat-card-header><mat-card-title>Analysis & Integrity Audit</mat-card-title></mat-card-header>
+            <mat-card-header><mat-card-title>Live Validation</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Schema and connectivity.</mat-card-subtitle>
             <mat-card-content class="diagnostics-table-wrap">
               <table class="diagnostics-table">
                 <tbody>
-                  <tr><td>Schema integrity hash</td><td><strong>{{ state.lastPayload()?.analysis?.['schema_hash'] || '--' }}</strong></td></tr>
+                  <tr><td>Schema invalid</td><td><strong>{{ analysisMetric('schema_invalid_count') }}</strong></td></tr>
+                  <tr><td>Schema warnings</td><td><strong>{{ analysisMetric('schema_warning_count') }}</strong></td></tr>
+                  <tr><td>Reconnect attempts</td><td><strong>{{ analysisMetric('reconnect_attempts') }}</strong></td></tr>
                   <tr><td>Connection state</td><td><strong>{{ state.ctlStatus()?.ok ? 'CONNECTED' : 'DISCONNECTED' }}</strong></td></tr>
-                  <tr><td>Funnel survival status</td><td><strong>{{ state.lastPayload()?.analysis?.['funnel_survival_pct'] ?? '--' }}</strong></td></tr>
-                  <tr><td>AGC / Doppler indexes</td><td><strong>{{ state.lastPayload()?.analysis?.['agc_status'] || '--' }}</strong></td></tr>
                 </tbody>
               </table>
             </mat-card-content>
           </mat-card>
 
           <mat-card class="diagnostics-card">
+            <mat-card-header><mat-card-title>Analysis Audit</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Gates, firmware, and funnel survival.</mat-card-subtitle>
+            <mat-card-content class="diagnostics-table-wrap">
+              <table class="diagnostics-table"><tbody>
+                <tr><td>Schema integrity hash</td><td><strong>{{ analysisMetric('schema_hash') }}</strong></td></tr>
+                <tr><td>Funnel survival</td><td><strong>{{ analysisMetric('funnel_survival_pct') }}</strong></td></tr>
+                <tr><td>Firmware version</td><td><strong>{{ analysisNested('fw_truthfulness', 'version') }}</strong></td></tr>
+                <tr><td>Module valid</td><td><strong>{{ analysisNested('fw_truthfulness', 'module_version_valid') }}</strong></td></tr>
+                <tr><td>HR eval bins</td><td><strong>{{ analysisNested('gate_audit', 'hr_eval_bins') }}</strong></td></tr>
+                <tr><td>RR eval bins</td><td><strong>{{ analysisNested('gate_audit', 'rr_eval_bins') }}</strong></td></tr>
+              </tbody></table>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="diagnostics-card">
+            <mat-card-header><mat-card-title>Reason Histograms</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Top gate blocks and AGC flags.</mat-card-subtitle>
+            <mat-card-content class="diagnostics-table-wrap">
+              <table class="diagnostics-table"><tbody>
+                <tr><td>HR gate reasons</td><td>{{ histogramSummary('hr_gate_reason_histogram') }}</td></tr>
+                <tr><td>RR gate reasons</td><td>{{ histogramSummary('rr_gate_reason_histogram') }}</td></tr>
+                <tr><td>Gain floor</td><td>{{ analysisNested('agc_anomaly_flags', 'gain_floor_pct', 1) }}%</td></tr>
+                <tr><td>Near field</td><td>{{ analysisNested('agc_anomaly_flags', 'near_field_pct', 1) }}%</td></tr>
+                <tr><td>Skip DSP</td><td>{{ analysisNested('agc_anomaly_flags', 'skipdsp_pct', 1) }}%</td></tr>
+              </tbody></table>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="diagnostics-card">
+            <mat-card-header><mat-card-title>BLE Reference Quality</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Packet, decode, and perfusion evidence.</mat-card-subtitle>
+            <mat-card-content class="diagnostics-table-wrap">
+              <table class="diagnostics-table"><tbody>
+                <tr><td>Status</td><td>{{ analysisNested('ble_ref_quality', 'status') }}</td></tr>
+                <tr><td>Raw packets</td><td>{{ analysisNested('ble_ref_quality', 'raw_packets') }}</td></tr>
+                <tr><td>Parsed rows</td><td>{{ analysisNested('ble_ref_quality', 'parsed_rows') }}</td></tr>
+                <tr><td>Packet loss</td><td>{{ analysisNested('ble_ref_quality', 'packet_loss_pct', 1) }}%</td></tr>
+                <tr><td>Decode error</td><td>{{ analysisNested('ble_ref_quality', 'decode_error_pct', 1) }}%</td></tr>
+              </tbody></table>
+            </mat-card-content>
+          </mat-card>
+        </div>
+
+        <div class="audit-log-grid">
+          <mat-card class="diagnostics-card">
             <mat-card-header class="audit-card-header">
-              <mat-card-title>Telemetry Event Logs</mat-card-title>
+              <div>
+                <mat-card-title>Active Enforcement Logs</mat-card-title>
+                <mat-card-subtitle>Real-time drops and recovery events.</mat-card-subtitle>
+              </div>
               <button mat-stroked-button type="button" [matMenuTriggerFor]="auditExportMenu">
                 <mat-icon>download</mat-icon>Export
               </button>
@@ -441,7 +690,6 @@
               </div>
             </mat-card-content>
           </mat-card>
-
         </div>
       </div>
     </mat-tab>

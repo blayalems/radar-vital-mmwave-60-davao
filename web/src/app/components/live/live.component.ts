@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -15,6 +15,9 @@ import { MatTableModule } from '@angular/material/table';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { firstValueFrom } from 'rxjs';
 
 import { StateService } from '../../services/state.service';
@@ -22,6 +25,15 @@ import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+
+type TrendRange = 30 | 60 | 120 | 'max';
+
+interface BiasBucket {
+  label: string;
+  bias: number;
+  count: number;
+  width: number;
+}
 
 @Component({
   selector: 'app-live',
@@ -37,7 +49,10 @@ import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.compone
     MatTableModule,
     MatDialogModule,
     MatMenuModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatButtonToggleModule,
+    MatChipsModule,
+    MatProgressBarModule
   ],
   templateUrl: './live.component.html',
   styleUrl: './live.component.css',
@@ -60,6 +75,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('heartCanvas', { static: false }) heartCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('hrTrendCanvas', { static: false }) hrTrendCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('rrTrendCanvas', { static: false }) rrTrendCanvas!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('targetCanvas', { static: false }) targetCanvas!: ElementRef<HTMLCanvasElement>;
 
   // Mini sparkline references
   @ViewChild('overviewHrSpark', { static: false }) overviewHrSpark!: ElementRef<HTMLCanvasElement>;
@@ -72,6 +88,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   // Local active tab selector
   activeTabIndex = 0;
   sessionNotesInput = '';
+  customTagInput = '';
+  protected readonly trendRange = signal<TrendRange>(120);
 
   constructor() {
     effect(() => {
@@ -209,6 +227,24 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     this.saveSessionNotes(next);
   }
 
+  addCustomTag(): void {
+    const tag = this.customTagInput.trim();
+    if (!tag) return;
+    this.addQuickTag(tag.slice(0, 80));
+    this.customTagInput = '';
+  }
+
+  exportSessionNotes(): void {
+    const session = this.state.currentSessionId() || 'local-session';
+    const content = [
+      `Session: ${session}`,
+      `Exported: ${new Date().toISOString()}`,
+      '',
+      this.sessionNotesInput.trim() || 'No operator notes recorded.'
+    ].join('\n');
+    this.downloadText(content, `session-notes-${session}.txt`, 'text/plain');
+  }
+
   async recordObservation(): Promise<void> {
     const note = this.sessionNotesInput.trim();
     if (!note) return;
@@ -248,6 +284,142 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     this.state.triggerHaptic('success');
   }
 
+  setTrendRange(range: TrendRange): void {
+    this.trendRange.set(range);
+    this.state.triggerHaptic('tap');
+  }
+
+  resetTrendRange(): void {
+    this.trendRange.set(120);
+    this.snackBar.open('Chart window reset to 120 seconds.', 'Dismiss', { duration: 2500 });
+    this.state.triggerHaptic('tap');
+  }
+
+  trendRangeLabel(): string {
+    return this.trendRange() === 'max' ? 'Maximum history' : `${this.trendRange()} seconds`;
+  }
+
+  metricNumber(key: string): number | null {
+    const value = this.telemetryValue(key);
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  }
+
+  metricText(key: string, decimals = 1, suffix = ''): string {
+    const value = this.metricNumber(key);
+    return value === null ? '--' : `${value.toFixed(decimals)}${suffix}`;
+  }
+
+  metricLabel(key: string): string {
+    const value = this.telemetryValue(key);
+    if (value === undefined || value === null || value === '') return '--';
+    return String(value);
+  }
+
+  metricState(key: string): 'Yes' | 'No' | '--' {
+    const value = this.telemetryValue(key);
+    if (value === undefined || value === null || value === '') return '--';
+    if (typeof value === 'string') {
+      const normalized = value.toLowerCase();
+      if (['true', 'yes', 'ok', 'pass', 'passed', '1'].includes(normalized)) return 'Yes';
+      if (['false', 'no', 'fail', 'failed', '0'].includes(normalized)) return 'No';
+    }
+    return Number(value) >= 0.5 || value === true ? 'Yes' : 'No';
+  }
+
+  qualityPercent(key: string): number {
+    const value = this.metricNumber(key);
+    return value === null ? 0 : Math.max(0, Math.min(100, value * 100));
+  }
+
+  qualityLabel(key: string): string {
+    const value = this.metricNumber(key);
+    return value === null ? 'SQI waiting for signal' : `SQI ${(value * 100).toFixed(0)}%`;
+  }
+
+  computedFps(): string {
+    const direct = this.metricNumber('fps_hz');
+    if (direct !== null) return direct.toFixed(1);
+    const timestamps = this.seriesNumbers('ts', 't');
+    if (timestamps.length < 3) return '--';
+    const deltas = timestamps.slice(1).map((value, index) => value - timestamps[index]).filter(value => value > 0);
+    if (deltas.length === 0) return '--';
+    deltas.sort((a, b) => a - b);
+    const median = deltas[Math.floor(deltas.length / 2)];
+    return median > 0 ? (1 / median).toFixed(1) : '--';
+  }
+
+  hrBiasBuckets(): BiasBucket[] {
+    const raw = this.seriesNumbers('raw_hr_uncorrected', 'raw_hr');
+    const reference = this.seriesNumbers('ref_hr', 'ble_hr');
+    const count = Math.min(raw.length, reference.length);
+    if (count === 0) return [];
+    const buckets = new Map<number, { sum: number; count: number }>();
+    for (let index = 0; index < count; index += 1) {
+      const rawValue = raw[raw.length - count + index];
+      const refValue = reference[reference.length - count + index];
+      if (rawValue <= 0 || refValue <= 0) continue;
+      const bucket = Math.floor(refValue / 10) * 10;
+      const entry = buckets.get(bucket) || { sum: 0, count: 0 };
+      entry.sum += rawValue - refValue;
+      entry.count += 1;
+      buckets.set(bucket, entry);
+    }
+    const values = [...buckets.entries()].sort(([a], [b]) => a - b).slice(-6);
+    const maxBias = Math.max(1, ...values.map(([, entry]) => Math.abs(entry.sum / entry.count)));
+    return values.map(([bucket, entry]) => {
+      const bias = entry.sum / entry.count;
+      return {
+        label: `${bucket}-${bucket + 9} bpm`,
+        bias,
+        count: entry.count,
+        width: Math.max(4, Math.abs(bias) / maxBias * 100)
+      };
+    });
+  }
+
+  rrWarnings(): string[] {
+    const warnings: string[] = [];
+    if (this.metricState('rr_anchor_fresh') === 'No') warnings.push('RR anchor is stale; publish values may rely on aged state.');
+    const age = this.metricNumber('candidate_rr_age_ms');
+    if (age !== null && age > 10000) warnings.push('RR candidate is older than 10 seconds.');
+    if (this.metricState('rr_midsession_raw_reanchor_blocked') === 'Yes') {
+      warnings.push(`Mid-session re-anchor blocked: ${this.metricLabel('rr_midsession_raw_reanchor_reason')}.`);
+    }
+    if (this.state.telemetryStale()) warnings.push('Live telemetry payload is stale.');
+    return warnings;
+  }
+
+  analysisMetric(key: string): string {
+    const analysis = this.state.lastPayload()?.analysis;
+    const value = analysis?.[key];
+    if (value === undefined || value === null || value === '') return '--';
+    return typeof value === 'object' ? JSON.stringify(value) : String(value);
+  }
+
+  analysisNested(recordKey: string, key: string, decimals?: number): string {
+    const analysis = this.state.lastPayload()?.analysis;
+    const record = analysis?.[recordKey];
+    if (!record || typeof record !== 'object') return '--';
+    const value = (record as Record<string, unknown>)[key];
+    if (decimals !== undefined) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toFixed(decimals) : '--';
+    }
+    return value === undefined || value === null || value === '' ? '--' : String(value);
+  }
+
+  histogramSummary(key: string): string {
+    const raw = this.state.lastPayload()?.analysis?.[key];
+    if (!raw || typeof raw !== 'object') return '--';
+    const entries = Object.entries(raw as Record<string, unknown>)
+      .map(([label, value]) => [label, Number(value)] as const)
+      .filter(([, value]) => Number.isFinite(value))
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+    return entries.length > 0 ? entries.map(([label, value]) => `${label}=${value}`).join(' | ') : '--';
+  }
+
   exportAuditLog(format: 'json' | 'csv'): void {
     const payload = this.state.lastPayload();
     const eventRows = (payload?.events || []).map(event => ({
@@ -275,13 +447,42 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
           ...rows.map(row => [row.timestamp, row.kind, row.severity, row.message]
             .map(value => `"${String(value).replaceAll('"', '""')}"`).join(','))
         ].join('\n');
-    const href = URL.createObjectURL(new Blob([content], { type: format === 'json' ? 'application/json' : 'text/csv' }));
+    this.downloadText(content, `radar-vital-audit.${format}`, format === 'json' ? 'application/json' : 'text/csv');
+  }
+
+  private downloadText(content: string, filename: string, type: string): void {
+    const href = URL.createObjectURL(new Blob([content], { type }));
     const anchor = document.createElement('a');
     anchor.href = href;
-    anchor.download = `radar-vital-audit.${format}`;
+    anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(href);
     this.state.triggerHaptic('success');
+  }
+
+  private telemetryValue(key: string): unknown {
+    const payload = this.state.lastPayload();
+    const radarValue = payload?.radar?.[key];
+    if (radarValue !== undefined && radarValue !== null && radarValue !== '') return radarValue;
+    const series = payload?.series as Record<string, unknown> | undefined;
+    const values = series?.[key];
+    return Array.isArray(values) && values.length > 0 ? values[values.length - 1] : undefined;
+  }
+
+  private seriesNumbers(...keys: string[]): number[] {
+    const series = this.state.lastPayload()?.series as Record<string, unknown> | undefined;
+    for (const key of keys) {
+      const values = series?.[key];
+      if (Array.isArray(values) && values.length > 0) {
+        return values.map(value => Number(value)).filter(value => Number.isFinite(value));
+      }
+    }
+    return [];
+  }
+
+  private trimTrend(points: number[]): number[] {
+    const range = this.trendRange();
+    return range === 'max' ? points : points.slice(-range);
   }
 
   // --- Real-time Waveforms & Trends Canvas plots ---
@@ -290,6 +491,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       this.drawWaves();
       this.drawTrends();
       this.drawOverviewSparklines();
+      this.drawTargetPosition();
       this.animeFrameId = requestAnimationFrame(renderLoop);
     };
     this.animeFrameId = requestAnimationFrame(renderLoop);
@@ -302,8 +504,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     const payload = this.state.lastPayload();
     if (!payload || !payload.series) return;
 
-    const breathPoints = payload.series.breath || [];
-    const heartPoints = payload.series.heart || [];
+    const breathPoints = this.seriesNumbers('breath_phase', 'breath');
+    const heartPoints = this.seriesNumbers('heart_phase', 'heart');
 
     const drawPhase = (canvasRef: ElementRef<HTMLCanvasElement>, points: number[], color: string) => {
       const canvas = canvasRef.nativeElement;
@@ -413,10 +615,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     };
 
     if (this.activeTabIndex === 2 && this.hrTrendCanvas) {
-      plotTrend(this.hrTrendCanvas, payload.series.hr || [], 'rgba(0, 164, 150, 0.95)', 40, 160);
+      plotTrend(this.hrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_hr', 'hr')), 'rgba(0, 164, 150, 0.95)', 40, 160);
     }
     if (this.activeTabIndex === 3 && this.rrTrendCanvas) {
-      plotTrend(this.rrTrendCanvas, payload.series.rr || [], 'rgba(97, 105, 198, 0.95)', 5, 35);
+      plotTrend(this.rrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_rr', 'rr')), 'rgba(97, 105, 198, 0.95)', 5, 35);
     }
   }
 
@@ -470,5 +672,53 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     if (this.overviewRrSpark) drawMiniSpark(this.overviewRrSpark, spark.rr, 'rgba(97, 105, 198, 0.8)');
     if (this.overviewFpsSpark) drawMiniSpark(this.overviewFpsSpark, spark.fps, 'rgba(100, 116, 139, 0.8)');
     if (this.overviewDistSpark) drawMiniSpark(this.overviewDistSpark, spark.dist, 'rgba(14, 165, 233, 0.8)');
+  }
+
+  private drawTargetPosition(): void {
+    if (this.activeTabIndex !== 0 || !this.targetCanvas) return;
+    const canvas = this.targetCanvas.nativeElement;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.resetTransform();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, width, height);
+    const originX = width / 2;
+    const originY = height - 12;
+    const radius = Math.min(width / 2 - 14, height - 24);
+    ctx.strokeStyle = 'rgba(97, 105, 198, 0.22)';
+    ctx.lineWidth = 1;
+    for (const factor of [0.33, 0.66, 1]) {
+      ctx.beginPath();
+      ctx.arc(originX, originY, radius * factor, Math.PI, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(originX, originY);
+    ctx.lineTo(originX, originY - radius);
+    ctx.stroke();
+    const x = this.metricNumber('primary_x');
+    const y = this.metricNumber('primary_y');
+    if (x === null || y === null || y < 0) return;
+    const scale = radius / 3;
+    const pointX = originX + x * scale;
+    const pointY = originY - y * scale;
+    const gradient = ctx.createRadialGradient(pointX, pointY, 1, pointX, pointY, 18);
+    gradient.addColorStop(0, 'rgba(0, 164, 150, 1)');
+    gradient.addColorStop(1, 'rgba(0, 164, 150, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(pointX, pointY, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0, 164, 150, 1)';
+    ctx.beginPath();
+    ctx.arc(pointX, pointY, 4, 0, Math.PI * 2);
+    ctx.fill();
   }
 }

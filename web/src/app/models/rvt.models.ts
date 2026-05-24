@@ -99,12 +99,23 @@ export interface BleScanDevice {
 
 export interface TelemetrySeries {
   ts?: number[];
+  t?: number[];
   hr?: number[];
   rr?: number[];
   reported_hr?: number[];
   reported_rr?: number[];
+  candidate_hr?: number[];
+  candidate_rr?: number[];
+  raw_hr?: number[];
+  raw_hr_uncorrected?: number[];
+  raw_hr_corrected?: number[];
+  ble_hr?: number[];
+  ble_rr?: number[];
   breath?: number[];
   heart?: number[];
+  breath_phase?: number[];
+  heart_phase?: number[];
+  [key: string]: unknown;
 }
 
 export interface LivePayload {

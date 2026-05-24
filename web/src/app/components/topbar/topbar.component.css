@@ -103,3 +103,9 @@
     width: 48px !important;
   }
 }
+
+:host-context(html[data-theme='hc']) .topbar,
+:host-context(html[data-theme='hc']) .crumb-title,
+:host-context(html[data-theme='hc']) .crumb-eyebrow {
+  color: #fff !important;
+}

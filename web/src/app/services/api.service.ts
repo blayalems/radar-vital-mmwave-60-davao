@@ -1,5 +1,26 @@
 import { Injectable, inject } from '@angular/core';
+import {
+  BleScanDevice,
+  ControlStatus,
+  PreflightCheck,
+  SessionRecord,
+  SubjectProfileRecord
+} from '../models/rvt.models';
 import { StateService } from './state.service';
+
+interface NativeHttpPlugin {
+  request(options: {
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+    data?: BodyInit | null;
+  }): Promise<{ status?: number; data?: unknown }>;
+}
+
+interface CapacitorBridge {
+  isNativePlatform?(): boolean;
+  Plugins?: { CapacitorHttp?: NativeHttpPlugin; Http?: NativeHttpPlugin };
+}
 
 @Injectable({
   providedIn: 'root'
@@ -50,12 +71,36 @@ export class ApiService {
     return normalized;
   }
 
+  pairToken(): string {
+    try {
+      return sessionStorage.getItem(this.TOKEN_KEY) || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  setPairToken(value: string): void {
+    const token = value.trim();
+    try {
+      if (token) sessionStorage.setItem(this.TOKEN_KEY, token);
+      else sessionStorage.removeItem(this.TOKEN_KEY);
+    } catch (_) {}
+  }
+
+  hasPairToken(): boolean {
+    return this.pairToken().length > 0;
+  }
+
   // Low-level HTTP requests with native Tauri/Capacitor plugins fallback
-  async request(path: string, init?: RequestInit): Promise<any> {
-    const isSandbox = this.state.autoDemoActive() || this.state.demoMode() || (this.state.ctlOn() && this.state.ctlStatus()?.['mode'] === 'sandbox');
+  async request<T = unknown>(path: string, init?: RequestInit, bypassSandbox = false): Promise<T> {
+    const isSandbox = !bypassSandbox && (
+      this.state.autoDemoActive()
+      || this.state.demoMode()
+      || (this.state.ctlOn() && this.state.ctlStatus()?.mode === 'sandbox')
+    );
 
     if (isSandbox && path.startsWith('/api/')) {
-      return this.sandboxApiJson(path, init);
+      return this.sandboxApiJson(path, init) as T;
     }
 
     const base = this.currentApiBase();
@@ -65,14 +110,14 @@ export class ApiService {
     // Security design decision: We keep the pairing auth token in sessionStorage.
     // This is intentional so that it does not persist across separate browser tabs or survive
     // browser session closure, preventing authentication leaks on shared operator workstations.
-    const tok = sessionStorage.getItem(this.TOKEN_KEY);
+    const tok = this.pairToken();
     if (tok) {
       headers.set('X-RVT-Auth', tok);
     }
 
     // Try Capacitor native Http wrapper
-    const cap = (window as any).Capacitor;
-    const http = cap?.Plugins?.CapacitorHttp || cap?.Plugins?.Http || (window as any).CapacitorHttp || (window as any).Http;
+    const cap = (window as Window & { Capacitor?: CapacitorBridge }).Capacitor;
+    const http = cap?.Plugins?.CapacitorHttp || cap?.Plugins?.Http;
     if (cap?.isNativePlatform?.() && http?.request) {
       try {
         const method = String(init?.method || 'GET').toUpperCase();
@@ -90,12 +135,10 @@ export class ApiService {
         const data = resp.data;
         
         if (status < 200 || status >= 300) {
-          const err: any = new Error(data?.error?.message || data?.error || `HTTP ${status}`);
-          err.status = status;
-          err.body = data;
+          const err = new Error(this.errorMessage(data, `HTTP ${status}`));
           throw err;
         }
-        return typeof data === 'string' ? JSON.parse(data || '{}') : data;
+        return (typeof data === 'string' ? JSON.parse(data || '{}') : data) as T;
       } catch (err) {
         console.warn('Native request failed', err);
         throw err;
@@ -111,7 +154,7 @@ export class ApiService {
 
     const res = await fetch(target, opts);
     const text = await res.text();
-    let data: any = {};
+    let data: unknown = {};
     try {
       data = JSON.parse(text);
     } catch (_) {
@@ -119,24 +162,40 @@ export class ApiService {
     }
 
     if (!res.ok) {
-      const err: any = new Error(data?.error?.message || data?.error || `HTTP ${res.status}`);
-      err.status = res.status;
-      err.body = data;
-      throw err;
+      throw new Error(this.errorMessage(data, `HTTP ${res.status}`));
     }
 
-    return data;
+    return data as T;
+  }
+
+  async download(path: string, filename: string): Promise<void> {
+    const base = this.currentApiBase();
+    const target = /^[a-z][a-z0-9+.-]*:\/\//i.test(path) ? path : base + path;
+    const headers = new Headers();
+    const token = this.pairToken();
+    if (token) headers.set('X-RVT-Auth', token);
+    const response = await fetch(target, { headers, cache: 'no-store' });
+    if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
+    const blob = await response.blob();
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(href);
   }
 
   // Detect control mode / connect
   async detectControlMode(): Promise<boolean> {
     try {
-      const r = await this.request('/api/status');
+      const r = await this.request<ControlStatus>('/api/status', undefined, true);
       this.state.ctlOn.set(true);
-      this.state.ctlStatus.set(r);
+      this.state.autoDemoActive.set(false);
+      this.state.ctlStatus.set({ ...r, mode: r.mode === 'sandbox' ? 'sandbox' : 'live' });
       return true;
-    } catch (e: any) {
-      this.enableSandboxControlMode(e.message || 'Control API unavailable');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Control API unavailable';
+      this.enableSandboxControlMode(message);
       return false;
     }
   }
@@ -157,7 +216,16 @@ export class ApiService {
     return 'rvt-sandbox-sessions';
   }
 
-  private sandboxReadSessions(): any[] {
+  private errorMessage(body: unknown, fallback: string): string {
+    if (typeof body === 'object' && body !== null) {
+      const payload = body as { error?: string | { message?: string } };
+      if (typeof payload.error === 'string') return payload.error;
+      if (payload.error?.message) return payload.error.message;
+    }
+    return fallback;
+  }
+
+  private sandboxReadSessions(): SessionRecord[] {
     try {
       const raw = localStorage.getItem(this.sandboxStoreKey());
       if (raw) {
@@ -168,7 +236,7 @@ export class ApiService {
     return [];
   }
 
-  private sandboxLoadSessions(): any[] {
+  private sandboxLoadSessions(): SessionRecord[] {
     const raw = localStorage.getItem(this.sandboxStoreKey());
     if (raw === null) {
       // Seed default sessions only on very first launch (when key doesn't exist)
@@ -179,18 +247,18 @@ export class ApiService {
           started_at: iso(64),
           duration_s: 480,
           subject: 'demo-A',
-          operator: 'codex',
-          verdict: 'ready',
-          summary: 'Completed 8 min sandbox telemetry review; stable waveforms recorded.'
+          operator: 'Demo operator',
+          verdict: 'demo',
+          summary: 'Completed 8 min simulated telemetry preview; no physiological conclusion.'
         },
         {
           session_id: 'sandbox_20260419_141803',
           started_at: iso(1240),
           duration_s: 300,
           subject: 'demo-B',
-          operator: 'codex',
-          verdict: 'conditional',
-          summary: 'Completed 5 min demo run; minor breathing anomalies observed.'
+          operator: 'Demo operator',
+          verdict: 'demo',
+          summary: 'Completed 5 min simulated telemetry preview; no physiological conclusion.'
         }
       ];
       try {
@@ -199,12 +267,15 @@ export class ApiService {
       this.state.sessionItems.set(items);
       return items;
     }
-    const items = this.sandboxReadSessions();
+    const items = this.sandboxReadSessions().map(item => item.session_id.startsWith('sandbox_')
+      ? { ...item, verdict: 'demo', summary: 'Simulated telemetry preview; no physiological conclusion.' }
+      : item);
+    this.sandboxSaveSessions(items);
     this.state.sessionItems.set(items);
     return items;
   }
 
-  private sandboxSaveSessions(items: any[]) {
+  private sandboxSaveSessions(items: SessionRecord[]) {
     try {
       localStorage.setItem(this.sandboxStoreKey(), JSON.stringify(items));
     } catch (_) {}
@@ -223,8 +294,8 @@ export class ApiService {
     };
   }
 
-  private sandboxPreflight(url: string) {
-    const checks = [
+  private sandboxPreflight() {
+    const checks: PreflightCheck[] = [
       { id: 'python_env', label: 'Python Runtime environment', status: 'good', description: 'Browser sandbox runtime ready.' },
       { id: 'firmware_file_present', label: 'Firmware contract checks', status: 'good', description: 'Firmware contract fixture loaded for UI review.' },
       { id: 'serial_port_list', label: 'Serial ports discovery', status: 'good', description: "ports=['COM10','COM11','COM12']" },
@@ -247,13 +318,15 @@ export class ApiService {
     };
   }
 
-  private sandboxStart(opts: any) {
-    let body: any = {};
+  private sandboxStart(opts?: RequestInit): SessionRecord {
+    let body: Record<string, unknown> = {};
     try {
-      body = typeof opts?.body === 'string' ? JSON.parse(opts.body) : (opts?.body || {});
+      body = typeof opts?.body === 'string'
+        ? JSON.parse(opts.body) as Record<string, unknown>
+        : {};
     } catch (_) {}
 
-    const duration = Number(body.duration_s) || 30;
+    const duration = Number(body['duration_s']) || 30;
     const sid = 'sandbox_' + new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15);
     
     this.state.currentSessionId.set(sid);
@@ -277,12 +350,12 @@ export class ApiService {
     return currentSession;
   }
 
-  private sandboxCurrent() {
+  private sandboxCurrent(): SessionRecord | null {
     const status = this.state.ctlStatus();
     const cur = status?.session;
     if (!cur) return null;
 
-    const elapsed = Math.max(0, (Date.now() - cur.started_ms) / 1000);
+    const elapsed = Math.max(0, (Date.now() - (cur.started_ms ?? Date.now())) / 1000);
     const dur = Number(cur.duration_s) || 30;
 
     return {
@@ -296,7 +369,7 @@ export class ApiService {
     };
   }
 
-  private sandboxStop() {
+  private sandboxStop(): { ok: boolean; session?: SessionRecord; error?: string } {
     const cur = this.sandboxCurrent();
     if (!cur) return { ok: false, error: 'No active session' };
 
@@ -304,10 +377,10 @@ export class ApiService {
       session_id: cur.session_id,
       started_at: cur.started_at,
       duration_s: cur.duration_s,
-      subject: cur.params?.subject_label || 'sandbox-subject',
-      operator: cur.params?.operator_label || 'sandbox-operator',
-      verdict: 'ready',
-      summary: 'Completed sandbox session ' + cur.session_id
+      subject: String(cur.params?.['subject_label'] || 'sandbox-subject'),
+      operator: String(cur.params?.['operator_label'] || 'sandbox-operator'),
+      verdict: 'demo',
+      summary: 'Completed simulated session ' + cur.session_id
     };
 
     const items = [item, ...this.sandboxReadSessions().filter(i => i.session_id !== cur.session_id)];
@@ -323,15 +396,60 @@ export class ApiService {
     return { ok: true, session: item };
   }
 
-  private sandboxApiJson(path: string, opts?: any): any {
+  private sandboxSummary(item: SessionRecord): SessionRecord {
+    return {
+      ...item,
+      sandbox: true,
+      status: 'demo',
+      downloads: [],
+      analysis_status: 'sandbox_only',
+      message: 'Demo session summary. No physiological readiness claim is produced from simulated data.'
+    };
+  }
+
+  private sandboxApiJson(path: string, opts?: RequestInit): unknown {
     if (path === '/api/status') return { ok: true, mode: 'sandbox', message: 'Local dashboard sandbox active' };
     if (path === '/api/defaults') return this.sandboxDefaults();
-    if (path.startsWith('/api/preflight')) return this.sandboxPreflight(path);
+    if (path === '/api/preflight') return this.sandboxPreflight();
+    const preflightMatch = path.match(/^\/api\/preflight\/([^/?]+)$/);
+    if (preflightMatch) {
+      const checkId = decodeURIComponent(preflightMatch[1]);
+      return this.sandboxPreflight().checks.find(check => check.id === checkId)
+        || { id: checkId, status: 'bad', label: checkId, description: 'Demo check not implemented.' };
+    }
+    if (path.startsWith('/api/ble/scan')) {
+      const devices: BleScanDevice[] = [
+        { name: 'Demo oximeter', address: this.state.setup().ble_address, id: this.state.setup().ble_address }
+      ];
+      return { ok: true, sandbox: true, devices };
+    }
+    if (path === '/api/subject-profiles') {
+      const profiles: Record<string, SubjectProfileRecord> = {
+        adult_default: { label: 'Adult Default', age_group: 'adult', fitness_level: 'typical' },
+        adult_athlete: { label: 'Adult Athlete', age_group: 'adult', fitness_level: 'athlete' }
+      };
+      return { schema_version: 'rvt-subject-profiles-v12.0', profiles };
+    }
     if (path === '/api/help/schema') return this.sandboxHelpSchema();
     if (path === '/api/session/start') return this.sandboxStart(opts);
     if (path === '/api/session/current') return this.sandboxCurrent();
     if (path === '/api/session/stop') return this.sandboxStop();
-    if (path === '/api/sessions') return { items: this.sandboxReadSessions(), sandbox: true };
+    if (path === '/api/sessions') return { items: this.sandboxLoadSessions(), sandbox: true };
+    const summaryMatch = path.match(/^\/api\/sessions\/([^/]+)\/summary$/);
+    if (summaryMatch) {
+      const sessionId = decodeURIComponent(summaryMatch[1]);
+      const item = this.sandboxReadSessions().find(session => session.session_id === sessionId);
+      return item ? this.sandboxSummary(item) : { error: 'Demo session not found' };
+    }
+    const dataMatch = path.match(/^\/api\/sessions\/([^/]+)\/data/);
+    if (dataMatch) return { ok: true, sandbox: true, rows: [] };
+    const compareMatch = path.match(/^\/api\/sessions\/([^/]+)\/compare$/);
+    if (compareMatch) {
+      const item = this.sandboxReadSessions().find(session => session.session_id === decodeURIComponent(compareMatch[1]));
+      return { sandbox: true, selected: item ? this.sandboxSummary(item) : null, previous: null, best: null, sweep_delta_rows: [] };
+    }
+    const analyseStatusMatch = path.match(/^\/api\/sessions\/([^/]+)\/analyse\/status$/);
+    if (analyseStatusMatch) return { sandbox: true, status: 'sandbox_only', progress_pct: 0 };
     return { error: 'Not found in sandbox' };
   }
 }

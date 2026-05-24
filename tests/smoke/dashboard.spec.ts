@@ -6,7 +6,12 @@ test.describe('Dashboard smoke', () => {
   test('loads without console errors', async ({ page }) => {
     const consoleErrors: string[] = [];
     const pageErrors: string[] = [];
-    page.on('console', (msg) => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        const source = msg.location().url ? ` (${msg.location().url})` : '';
+        consoleErrors.push(`${msg.text()}${source}`);
+      }
+    });
     page.on('pageerror', (err) => {
       const message = err.message || '';
       // WebKit can report aborted same-origin API probes during reload/SW startup as
@@ -21,12 +26,11 @@ test.describe('Dashboard smoke', () => {
     await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => { /* tolerate long-poll SSE */ });
     await page.waitForTimeout(1500);
 
-    // Hard fail on uncaught script errors. Console errors are reported but not fail-by-default
-    // (the v11 dashboard logs many warnings the redesign hasn't touched yet).
+    const relevantConsoleErrors = consoleErrors.filter((message) =>
+      !message.includes('Viewport argument key "interactive-widget" not recognized and ignored.')
+    );
     expect(pageErrors, `uncaught errors: ${pageErrors.join(' | ')}`).toEqual([]);
-    if (consoleErrors.length) {
-      console.warn(`[smoke] dashboard logged ${consoleErrors.length} console errors during boot:\n  ${consoleErrors.slice(0, 5).join('\n  ')}`);
-    }
+    expect(relevantConsoleErrors, `console errors: ${relevantConsoleErrors.join(' | ')}`).toEqual([]);
   });
 
   test('PWA manifest link is reachable and well-formed', async ({ page, request }) => {
@@ -104,5 +108,30 @@ test.describe('Dashboard smoke', () => {
     expect(themeColor).toBeTruthy();
     const appleIcon = await page.locator('link[rel="apple-touch-icon"]').first().getAttribute('href');
     expect(appleIcon).toBeTruthy();
+  });
+
+  test('applies persisted themes and opens the Material command palette', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => localStorage.setItem('rvt-theme', 'night'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'night');
+
+    await page.keyboard.press('Control+K');
+    await expect(page.getByRole('dialog')).toContainText('Command Palette');
+    await page.getByRole('button', { name: /Help Open operator guidance/ }).click();
+    await expect(page).toHaveURL(/\/help$/);
+  });
+
+  test('explicit demo mode streams telemetry and preserves snapshot capture', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => localStorage.setItem('rvt-demo-mode', '1'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    await expect(page.locator('#demoBanner')).toBeVisible();
+    await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+    await page.getByRole('button', { name: /Pin Snapshot/ }).first().click();
+    await page.getByRole('tab', { name: 'Snapshots' }).click();
+    await expect(page.getByText('Pinned Telemetry Snapshots')).toBeVisible();
+    await expect(page.locator('.snap-card')).toHaveCount(1);
   });
 });

@@ -1,0 +1,36 @@
+.alerts-content {
+  width: min(520px, calc(100vw - 48px));
+  min-height: 180px;
+}
+
+.alerts-filter {
+  display: flex;
+  margin: 0 0 16px;
+  width: 100%;
+}
+
+.alerts-filter mat-button-toggle {
+  flex: 1;
+}
+
+.alert-actions {
+  display: flex;
+}
+
+.alert-row mat-icon.critical {
+  color: var(--md-sys-color-error, #ba1a1a);
+}
+
+.alerts-empty {
+  align-items: center;
+  color: var(--md-sys-color-on-surface-variant);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  min-height: 180px;
+}
+
+.clear-alerts {
+  margin-right: auto;
+}

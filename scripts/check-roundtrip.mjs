@@ -1,7 +1,7 @@
 // Round-trip check: confirms web/ is the source of truth.
 //
 //   1. Snapshot current radar_vital_live_dashboard_v12_for_v16_0.html.
-//   2. Run build-www.mjs.
+//   2. Run build-angular.mjs.
 //   3. Verify the rebuilt monolith equals the snapshot after newline
 //      normalization. This keeps Windows checkouts from failing on CRLF-only
 //      drift while still catching real source/content drift.
@@ -47,6 +47,9 @@ const requiredWwwAssets = [
   'assets/fonts/material-symbols-rounded.woff2',
   'assets/icons/apple-touch-icon-180.png',
   'assets/lib/chart.umd.min.js',
+  'fonts/material-symbols-rounded.woff2',
+  'icons/apple-touch-icon-180.png',
+  'lib/chart.umd.min.js',
 ];
 for (const asset of requiredWwwAssets) {
   try {

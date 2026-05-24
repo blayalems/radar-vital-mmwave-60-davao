@@ -5,6 +5,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DASH = ROOT / "radar_vital_live_dashboard_v12_for_v16_0.html"
+APP = ROOT / "web" / "src" / "app" / "app.ts"
+LAYOUT = ROOT / "web" / "src" / "app" / "components" / "layout" / "layout.component.html"
+API = ROOT / "web" / "src" / "app" / "services" / "api.service.ts"
+TELEMETRY = ROOT / "web" / "src" / "app" / "services" / "telemetry.service.ts"
+STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
 FW = ROOT / "radar_vital_v16_0_0.ino"
@@ -17,17 +22,22 @@ def text(path: Path) -> str:
 
 def test_dashboard_pwa_contract():
     html = text(DASH)
+    app = text(APP)
+    layout = text(LAYOUT)
+    api = text(API)
+    telemetry = text(TELEMETRY)
+    state = text(STATE)
     assert "viewport-fit=cover" in html
     assert "interactive-widget=resizes-content" in html
     assert '<link rel="manifest" href="/manifest.webmanifest">' in html
-    assert "/sw.js" in html
-    assert "demoBanner" in html
-    assert "RVT-v12" in html
-    assert "rvt-pair-token" in html
-    assert "apiES('/api/events/subscribe')" in html
-    assert "X-RVT-Auth" in html
-    assert "S.apiBase" in html
-    assert "EventSource(base + path)" in html
+    assert "register('./sw.js')" in app
+    assert 'id="demoBanner"' in layout
+    assert "rvt-pair-token" in api
+    assert "X-RVT-Auth" in api
+    assert "/api/events/subscribe" in telemetry
+    assert "new EventSource" in telemetry
+    assert "document.documentElement.dataset['theme']" in state
+    assert "this.state.demoMode() || this.state.autoDemoActive()" in telemetry
     assert "min-device-memory" not in html
     assert "fonts.googleapis" not in html
     assert "fonts.gstatic" not in html
@@ -100,3 +110,5 @@ def test_packaging_scaffolds_exist():
     assert "@capacitor-community/http" in cap_pkg["dependencies"]
     tauri = json.loads((ROOT / "packaging" / "tauri" / "tauri.conf.json").read_text(encoding="utf-8"))
     assert tauri["bundle"]["windows"]["webviewInstallMode"]["type"] == "downloadBootstrapper"
+    desktop_tauri = json.loads((ROOT / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8"))
+    assert desktop_tauri["bundle"]["windows"]["webviewInstallMode"]["type"] == "downloadBootstrapper"

@@ -2,7 +2,7 @@
 <div class="home-container">
 
   <!-- CONNECTIONS / SANDBOX BANNER STATUS -->
-  <div class="sandbox-note" [class.connected]="api.currentApiBase() && state.ctlStatus()?.mode !== 'sandbox'">
+  <div class="sandbox-note" [class.connected]="state.ctlStatus()?.ok && state.ctlStatus()?.mode !== 'sandbox'">
     <mat-icon class="status-icon">
       {{ state.ctlStatus()?.mode === 'sandbox' ? 'warning' : 'cloud_done' }}
     </mat-icon>
@@ -45,7 +45,7 @@
           <strong>{{ getReadinessPercentage() }}%</strong>
           <span>{{ getReadinessPercentage() >= 80 ? 'Ready' : 'Incomplete' }}</span>
         </div>
-        <div class="home-stat-sub">{{ getReadinessPercentage() >= 80 ? 'All systems go' : 'Checks pending' }}</div>
+        <div class="home-stat-sub">{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo checks only' : (getReadinessPercentage() >= 80 ? 'Preflight complete' : 'Checks pending') }}</div>
       </div>
     </mat-card>
 
@@ -87,9 +87,9 @@
       <div class="home-stat-copy">
         <div class="home-stat-title">Environment</div>
         <div class="home-stat-line">
-          <strong>Normal</strong>
+          <strong>{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo' : (state.ctlStatus()?.ok ? 'Connected' : 'Unknown') }}</strong>
         </div>
-        <div class="home-stat-sub">No anomalies detected</div>
+        <div class="home-stat-sub">{{ state.telemetryStale() ? 'Awaiting live telemetry' : 'Payload recently received' }}</div>
       </div>
     </mat-card>
   </div>
@@ -108,11 +108,11 @@
         <div class="setup-field span-full">
           <label class="field-label">Recording Duration <span class="label-hint">how long to record</span></label>
           <div class="duration-chips">
-            <button type="button" class="duration-chip" [class.active]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
-            <button type="button" class="duration-chip" [class.active]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
-            <button type="button" class="duration-chip" [class.active]="selectedDuration === 300" (click)="selectDuration(300)">5m</button>
-            <button type="button" class="duration-chip" [class.active]="selectedDuration === 480" (click)="selectDuration(480)">8m</button>
-            <button type="button" class="duration-chip" [class.active]="selectedDuration === 1200" (click)="selectDuration(1200)">20m</button>
+            <button mat-stroked-button type="button" class="duration-chip" [class.active]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
+            <button mat-stroked-button type="button" class="duration-chip" [class.active]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
+            <button mat-stroked-button type="button" class="duration-chip" [class.active]="selectedDuration === 300" (click)="selectDuration(300)">5m</button>
+            <button mat-stroked-button type="button" class="duration-chip" [class.active]="selectedDuration === 480" (click)="selectDuration(480)">8m</button>
+            <button mat-stroked-button type="button" class="duration-chip" [class.active]="selectedDuration === 1200" (click)="selectDuration(1200)">20m</button>
           </div>
         </div>
 
@@ -121,8 +121,10 @@
           <label class="field-label">Radar Port</label>
           <div class="field-controls">
             <mat-form-field appearance="outline" class="form-field-full">
-              <mat-select [(ngModel)]="state.setup().radar_port" (selectionChange)="onFormChange()">
-                <mat-option *ngFor="let port of radarPorts" [value]="port">{{ port }}</mat-option>
+              <mat-select [ngModel]="state.setup().radar_port" (ngModelChange)="updateSetup('radar_port', $event); onFormChange()">
+                @for (port of radarPorts; track port) {
+                <mat-option [value]="port">{{ port }}</mat-option>
+                }
               </mat-select>
             </mat-form-field>
             <button mat-stroked-button (click)="scanSerialPorts()" [disabled]="isScanningPorts" class="icon-action-btn">
@@ -136,25 +138,40 @@
           <label class="field-label">BLE Oximeter Address</label>
           <div class="field-controls">
             <mat-form-field appearance="outline" class="form-field-full">
-              <input matInput [(ngModel)]="state.setup().ble_address" (input)="onFormChange()" placeholder="e.g. 10:22:33:9E:8F:63">
+              <input matInput [ngModel]="state.setup().ble_address" (ngModelChange)="updateSetup('ble_address', $event)" (blur)="onFormChange()" placeholder="e.g. 10:22:33:9E:8F:63">
             </mat-form-field>
             <button mat-stroked-button (click)="scanBleDevices()" [disabled]="isScanningBle" class="icon-action-btn">
               <mat-icon>{{ isScanningBle ? 'sync' : 'bluetooth' }}</mat-icon>
             </button>
           </div>
-          <div class="ble-scan-list" *ngIf="bleDevices.length > 0">
-            <div *ngFor="let dev of bleDevices" class="ble-device-item" (click)="state.setup().ble_address = dev.id; onFormChange(); bleDevices = []">
+          @if (bleDevices.length > 0) {
+          <div class="ble-scan-list">
+            @for (dev of bleDevices; track dev.id || dev.address || dev.name) {
+            <button mat-button type="button" class="ble-device-item" (click)="updateSetup('ble_address', dev.address || dev.id || ''); onFormChange(); bleDevices = []">
               <span>{{ dev.name }}</span>
-              <small>{{ dev.id }}</small>
-            </div>
+              <small>{{ dev.address || dev.id }}</small>
+            </button>
+            }
           </div>
+          }
+        </div>
+
+        <div class="setup-field">
+          <mat-form-field appearance="outline" class="form-field-full">
+            <mat-label>Subject Profile</mat-label>
+            <mat-select [ngModel]="state.setup().subject_profile_id" (ngModelChange)="updateSetup('subject_profile_id', $event); state.activeSubjectProfileId.set($event)">
+              @for (profile of subjectProfiles | keyvalue; track profile.key) {
+              <mat-option [value]="profile.key">{{ profile.value.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
         </div>
 
         <!-- SUBJECT LABELS -->
         <div class="setup-field">
           <mat-form-field appearance="outline" class="form-field-full">
             <mat-label>Subject Label (Optional)</mat-label>
-            <input matInput [(ngModel)]="state.setup().subject_label" (input)="onFormChange()" placeholder="P-014">
+            <input matInput [ngModel]="state.setup().subject_label" (ngModelChange)="updateSetup('subject_label', $event)" placeholder="P-014">
           </mat-form-field>
         </div>
 
@@ -162,7 +179,7 @@
         <div class="setup-field">
           <mat-form-field appearance="outline" class="form-field-full">
             <mat-label>Operator Label</mat-label>
-            <input matInput [(ngModel)]="state.setup().operator_label" (input)="onFormChange()" placeholder="Operator A">
+            <input matInput [ngModel]="state.setup().operator_label" (ngModelChange)="updateSetup('operator_label', $event)" placeholder="Operator A">
           </mat-form-field>
         </div>
 
@@ -170,20 +187,20 @@
         <div class="setup-field span-full">
           <mat-form-field appearance="outline" class="form-field-full">
             <mat-label>Research Station</mat-label>
-            <input matInput [(ngModel)]="state.setup().station_label" (input)="onFormChange()" placeholder="Lab · Station 3">
+            <input matInput [ngModel]="state.setup().station_label" (ngModelChange)="updateSetup('station_label', $event)" placeholder="Lab / Station 3">
           </mat-form-field>
         </div>
 
         <!-- COUNTDOWN CHECKBOX -->
         <div class="setup-checkbox span-full">
-          <mat-checkbox [(ngModel)]="state.setup().skip_countdown" (change)="onFormChange()">
+          <mat-checkbox [ngModel]="state.setup().skip_countdown" (ngModelChange)="updateSetup('skip_countdown', $event)">
             Skip 3-second stillness countdown calibration
           </mat-checkbox>
         </div>
       </mat-card-content>
 
       <mat-card-actions class="setup-card-actions">
-        <button mat-flat-button color="primary" class="start-session-btn" (click)="startSession()">
+        <button mat-flat-button color="primary" class="start-session-btn" (click)="startSession()" [disabled]="!canStartSession()">
           <mat-icon>play_arrow</mat-icon>
           Start Telemetry Session
         </button>
@@ -207,17 +224,17 @@
         <div class="scope-metrics-row">
           <div class="scope-metric">
             <span>Range</span>
-            <strong>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm) + ' cm' : '--' }}</strong>
+            <strong>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) + ' cm' : '--' }}</strong>
             <small>{{ state.lastPayload()?.radar?.human ? 'Subject detected' : 'Searching range' }}</small>
           </div>
           <div class="scope-metric">
             <span>Live HR</span>
-            <strong>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr) + ' bpm' : '--' }}</strong>
+            <strong>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) + ' bpm' : '--' }}</strong>
             <small>Radar reported</small>
           </div>
           <div class="scope-metric">
             <span>Live RR</span>
-            <strong>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr) + ' br' : '--' }}</strong>
+            <strong>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) + ' br' : '--' }}</strong>
             <small>Radar reported</small>
           </div>
         </div>
@@ -251,10 +268,14 @@
     </mat-card-header>
 
     <mat-card-content class="preflight-card-grid">
-      <div *ngFor="let check of preflightChecks" class="preflight-row" [class.pf-good]="check.status === 'good'" [class.pf-warn]="check.status === 'warn'" [class.pf-bad]="check.status === 'bad'">
+      @if (preflightError) {
+        <p role="alert">{{ preflightError }}</p>
+      }
+      @for (check of preflightChecks; track check.id) {
+      <div class="preflight-row" [class.pf-good]="check.status === 'good' || check.status === 'pass'" [class.pf-warn]="check.status === 'warn'" [class.pf-bad]="check.status === 'bad' || check.status === 'fail'">
         <div class="pf-info">
           <mat-icon class="pf-status-icon">
-            {{ check.status === 'good' ? 'check_circle' : check.status === 'warn' ? 'warning' : 'error' }}
+            {{ check.status === 'good' || check.status === 'pass' ? 'check_circle' : check.status === 'warn' ? 'warning' : 'error' }}
           </mat-icon>
           <div class="pf-text">
             <strong>{{ check.label }}</strong>
@@ -265,6 +286,7 @@
           <mat-icon>refresh</mat-icon>
         </button>
       </div>
+      }
     </mat-card-content>
   </mat-card>
 
@@ -276,16 +298,17 @@
         <mat-card-subtitle>Review quality verdict outcomes, sensor profiles, and historical charts.</mat-card-subtitle>
       </div>
       <div class="sessions-filter-chips">
-        <button type="button" class="filter-chip" [class.active]="sessionFilter === 'all'" (click)="setSessionFilter('all')">All</button>
-        <button type="button" class="filter-chip" [class.active]="sessionFilter === 'pass'" (click)="setSessionFilter('pass')">Ready</button>
-        <button type="button" class="filter-chip" [class.active]="sessionFilter === 'warn'" (click)="setSessionFilter('warn')">Conditional</button>
-        <button type="button" class="filter-chip" [class.active]="sessionFilter === 'fail'" (click)="setSessionFilter('fail')">Unready</button>
-        <button type="button" class="filter-chip" [class.active]="sessionFilter === 'tagged'" (click)="setSessionFilter('tagged')">Tagged</button>
+        <button mat-stroked-button type="button" class="filter-chip" [class.active]="sessionFilter === 'all'" (click)="setSessionFilter('all')">All</button>
+        <button mat-stroked-button type="button" class="filter-chip" [class.active]="sessionFilter === 'pass'" (click)="setSessionFilter('pass')">Ready</button>
+        <button mat-stroked-button type="button" class="filter-chip" [class.active]="sessionFilter === 'warn'" (click)="setSessionFilter('warn')">Conditional</button>
+        <button mat-stroked-button type="button" class="filter-chip" [class.active]="sessionFilter === 'fail'" (click)="setSessionFilter('fail')">Unready</button>
+        <button mat-stroked-button type="button" class="filter-chip" [class.active]="sessionFilter === 'tagged'" (click)="setSessionFilter('tagged')">Tagged</button>
       </div>
     </mat-card-header>
 
     <mat-card-content class="sessions-log-table">
-      <div class="sessions-list-grid" *ngIf="getFilteredSessions().length > 0; else noSessions">
+      @if (getFilteredSessions().length > 0) {
+      <div class="sessions-list-grid">
         <div class="session-log-row header">
           <span>Date / Time</span>
           <span>Duration</span>
@@ -295,7 +318,8 @@
           <span>Review</span>
         </div>
 
-        <div *ngFor="let session of getFilteredSessions()" class="session-log-row">
+        @for (session of getFilteredSessions(); track session.session_id) {
+        <div class="session-log-row">
           <strong>{{ session.started_at | date:'short' }}</strong>
           <span>{{ session.duration_s }} seconds</span>
           <span>{{ session.subject || '--' }}</span>
@@ -303,20 +327,20 @@
             {{ session.verdict | uppercase }}
           </span>
           <span class="session-summary-col">
-            {{ state.sessionNotes()[session.session_id] || session.summary || 'Completed successfully.' }}
+            {{ state.sessionNotes()[session.session_id] || session.summary || 'No operator summary recorded.' }}
           </span>
           <button mat-icon-button color="primary" (click)="reviewSession(session.session_id)">
             <mat-icon>open_in_new</mat-icon>
           </button>
         </div>
+        }
       </div>
-      
-      <ng-template #noSessions>
+      } @else {
         <div class="sessions-empty-state">
           <mat-icon class="empty-icon">history_toggle_off</mat-icon>
           <span>No historical sessions found matching filter criteria.</span>
         </div>
-      </ng-template>
+      }
     </mat-card-content>
   </mat-card>
 

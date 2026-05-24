@@ -1,0 +1,335 @@
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatListModule } from '@angular/material/list';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { firstValueFrom } from 'rxjs';
+
+import { SnapshotRecord, ThemeId } from '../../models/rvt.models';
+import { ApiService } from '../../services/api.service';
+import { StateService } from '../../services/state.service';
+import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
+import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+
+type CommandGroup = 'Navigate' | 'Live Session' | 'Source' | 'Appearance' | 'Export';
+
+interface PaletteCommand {
+  id: string;
+  label: string;
+  description: string;
+  keywords: string;
+  group: CommandGroup;
+  icon: string;
+  shortcut?: string;
+  disabledReason?: () => string | null;
+  action: () => void | Promise<unknown>;
+}
+
+@Component({
+  selector: 'app-command-palette',
+  imports: [
+    MatButtonModule,
+    MatChipsModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatListModule,
+    MatSnackBarModule
+  ],
+  templateUrl: './command-palette.component.html',
+  styleUrl: './command-palette.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class CommandPaletteComponent {
+  private readonly state = inject(StateService);
+  private readonly api = inject(ApiService);
+  private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
+  private readonly dialogRef = inject(MatDialogRef<CommandPaletteComponent>);
+  private readonly snackBar = inject(MatSnackBar);
+
+  protected readonly query = signal('');
+  protected readonly commands: PaletteCommand[] = [
+    this.navCommand('setup', 'Start a new session', 'Setup, hardware discovery and preflight checks', 'play_circle', '/home', 'start record preflight hardware'),
+    this.tabCommand('overview', 'Live overview', 'KPI and reference overview', 'dashboard', 'tab-overview', 'Alt+1'),
+    this.tabCommand('waves', 'Live waves', 'Breath and heartbeat phase waveforms', 'show_chart', 'tab-waves', 'Alt+2'),
+    this.tabCommand('hr', 'Heart rate trends', 'Open the HR trend tab', 'ecg_heart', 'tab-hr', 'Alt+3'),
+    this.tabCommand('rr', 'Respiration trends', 'Open the RR trend tab', 'pulmonology', 'tab-rr', 'Alt+4'),
+    this.tabCommand('snapshots', 'Pinned snapshots', 'Review pinned frames and annotations', 'bookmark', 'tab-snaps', 'Alt+5'),
+    this.tabCommand('audit', 'Audit log', 'Review actual stream events and policy fields', 'fact_check', 'tab-audit', 'Alt+6'),
+    this.navCommand('reports', 'Reports and comparison', 'Summary, recorded trends and analysis status', 'assignment', '/report', 'summary compare thesis analysis'),
+    this.navCommand('help', 'Operator playbook', 'Search field guidance and recovery actions', 'help', '/help', 'documentation keyboard troubleshooting'),
+    this.navCommand('settings', 'Settings', 'Source, appearance, thresholds and audio', 'settings', '/settings', 'endpoint pairing token audio'),
+    {
+      id: 'capture',
+      label: 'Pin current snapshot',
+      description: 'Capture HR, RR, range and BLE reference at this moment',
+      keywords: 'snapshot bookmark frame capture',
+      group: 'Live Session',
+      icon: 'bookmark_add',
+      disabledReason: () => this.state.lastPayload() ? null : 'Requires a live or demo payload.',
+      action: () => this.captureSnapshot()
+    },
+    {
+      id: 'pause',
+      label: 'Pause or resume live stream',
+      description: 'Freeze or resume dashboard stream updates',
+      keywords: 'pause resume freeze stream',
+      group: 'Live Session',
+      icon: 'pause_circle',
+      action: () => this.state.paused.update(paused => !paused)
+    },
+    {
+      id: 'stop',
+      label: 'Stop active session',
+      description: 'Stop recording and move to report review',
+      keywords: 'stop finish end record',
+      group: 'Live Session',
+      icon: 'stop_circle',
+      disabledReason: () => this.state.currentSessionId() ? null : 'No active session is recorded.',
+      action: () => this.stopSession()
+    },
+    {
+      id: 'alerts',
+      label: 'Open alerts',
+      description: 'Filter, pin, snooze and dismiss alert history',
+      keywords: 'warning fault notification drawer',
+      group: 'Live Session',
+      icon: 'notifications',
+      action: () => this.openAlerts()
+    },
+    {
+      id: 'copy-brief',
+      label: 'Copy operator brief',
+      description: 'Copy current subject, source and vitals summary',
+      keywords: 'handoff clipboard summary brief',
+      group: 'Export',
+      icon: 'content_copy',
+      action: () => this.copyOperatorBrief()
+    },
+    {
+      id: 'export-payload',
+      label: 'Export current payload JSON',
+      description: 'Download the most recently received source payload',
+      keywords: 'download json data export telemetry',
+      group: 'Export',
+      icon: 'download',
+      disabledReason: () => this.state.lastLivePayload() ? null : 'No source payload is available.',
+      action: () => this.exportCurrentPayload()
+    },
+    {
+      id: 'reconnect',
+      label: 'Reconnect trainer',
+      description: 'Retry the configured trainer endpoint and leave fallback mode when reachable',
+      keywords: 'retry live server endpoint connect',
+      group: 'Source',
+      icon: 'sync',
+      action: () => this.reconnectTrainer()
+    },
+    {
+      id: 'demo-toggle',
+      label: 'Toggle demo mode',
+      description: 'Use or stop simulated telemetry; simulation is always labelled',
+      keywords: 'sandbox simulation preview source',
+      group: 'Source',
+      icon: 'science',
+      action: () => this.toggleDemo()
+    },
+    this.themeCommand('light', 'Light theme'),
+    this.themeCommand('dark', 'Dark theme'),
+    this.themeCommand('night', 'Night theme'),
+    this.themeCommand('hc', 'High contrast theme'),
+    {
+      id: 'density-comfort',
+      label: 'Comfortable density',
+      description: 'Increase spacing for touch operation',
+      keywords: 'display spacing layout accessible',
+      group: 'Appearance',
+      icon: 'density_medium',
+      action: () => this.state.density.set('comfortable')
+    },
+    {
+      id: 'density-compact',
+      label: 'Compact density',
+      description: 'Show more metrics on larger displays',
+      keywords: 'display spacing layout dense',
+      group: 'Appearance',
+      icon: 'density_small',
+      action: () => this.state.density.set('compact')
+    },
+    {
+      id: 'focus',
+      label: 'Toggle focused live view',
+      description: 'Show either simplified or detailed live telemetry',
+      keywords: 'zen simple advanced focus details',
+      group: 'Appearance',
+      icon: 'visibility',
+      action: () => this.state.zenMode.update(enabled => !enabled)
+    }
+  ];
+
+  protected readonly filteredCommands = computed(() => {
+    const query = this.query().trim().toLowerCase();
+    if (!query) return this.commands;
+    return this.commands.filter(command =>
+      `${command.label} ${command.description} ${command.keywords} ${command.group}`.toLowerCase().includes(query)
+    );
+  });
+
+  protected updateQuery(event: Event): void {
+    this.query.set((event.target as HTMLInputElement).value);
+  }
+
+  protected disabledReason(command: PaletteCommand): string | null {
+    return command.disabledReason?.() || null;
+  }
+
+  protected run(command: PaletteCommand): void {
+    const reason = this.disabledReason(command);
+    if (reason) {
+      this.snackBar.open(reason, 'Dismiss', { duration: 4000 });
+      return;
+    }
+    this.state.triggerHaptic('tap');
+    this.dialogRef.close();
+    queueMicrotask(() => void command.action());
+  }
+
+  private navCommand(id: string, label: string, description: string, icon: string, path: string, keywords: string): PaletteCommand {
+    return { id, label, description, icon, keywords, group: 'Navigate', action: () => this.router.navigate([path]) };
+  }
+
+  private tabCommand(id: string, label: string, description: string, icon: string, tab: string, shortcut: string): PaletteCommand {
+    return {
+      id,
+      label,
+      description,
+      icon,
+      shortcut,
+      keywords: `live tab ${id}`,
+      group: 'Navigate',
+      action: async () => {
+        this.state.activeTab.set(tab);
+        await this.router.navigate(['/live']);
+      }
+    };
+  }
+
+  private themeCommand(theme: ThemeId, label: string): PaletteCommand {
+    return {
+      id: `theme-${theme}`,
+      label,
+      description: `Apply the ${label.toLowerCase()} across the dashboard`,
+      keywords: `theme palette color ${theme}`,
+      group: 'Appearance',
+      icon: theme === 'hc' ? 'contrast' : 'palette',
+      action: () => this.state.theme.set(theme)
+    };
+  }
+
+  private captureSnapshot(): void {
+    const payload = this.state.lastPayload();
+    if (!payload) return;
+    const id = `snap_${Date.now()}`;
+    const snapshot: SnapshotRecord = {
+      id,
+      ts: Date.now(),
+      reported_hr: payload.radar.reported_hr ?? 0,
+      reported_rr: payload.radar.reported_rr ?? 0,
+      distance_cm: payload.radar.distance_cm ?? 0,
+      ble_hr: payload.ble.hr ?? 0,
+      ble_rr: payload.ble.rr ?? 0
+    };
+    this.state.snaps.update(snapshots => [...snapshots, snapshot]);
+    this.state.snapNotes.update(notes => ({ ...notes, [id]: '' }));
+    this.snackBar.open('Current telemetry frame pinned.', 'Dismiss', { duration: 3000 });
+  }
+
+  private async stopSession(): Promise<void> {
+    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: 'Stop monitoring session?',
+        message: 'Stop telemetry capture and compile the recorded report.',
+        confirmLabel: 'Stop session'
+      },
+      restoreFocus: true
+    }).afterClosed());
+    if (!confirmed) return;
+    try {
+      this.state.ctlStopPending.set(true);
+      const response = await this.api.request<{ ok?: boolean }>('/api/session/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'command_palette' })
+      });
+      if (response.ok) {
+        this.state.currentSessionId.set(null);
+        await this.router.navigate(['/report']);
+      }
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Session stop failed.', 'Dismiss', { duration: 6000 });
+    } finally {
+      this.state.ctlStopPending.set(false);
+    }
+  }
+
+  private openAlerts(): void {
+    this.dialog.open(AlertsDialogComponent, {
+      maxWidth: 'calc(100vw - 24px)',
+      restoreFocus: true,
+      panelClass: 'm3-dialog-panel'
+    });
+  }
+
+  private async copyOperatorBrief(): Promise<void> {
+    const payload = this.state.lastPayload();
+    const setup = this.state.setup();
+    const brief = [
+      `Subject: ${setup.subject_label || '--'}`,
+      `Operator: ${setup.operator_label || '--'}`,
+      `Source: ${this.state.ctlStatus()?.mode === 'sandbox' ? 'DEMO' : 'TRAINER'}`,
+      `HR: ${payload?.radar.reported_hr ?? '--'} bpm`,
+      `RR: ${payload?.radar.reported_rr ?? '--'} br/min`,
+      `Distance: ${payload?.radar.distance_cm ?? '--'} cm`,
+      `Freshness: ${this.state.telemetryStale() ? 'STALE' : 'LIVE'}`
+    ].join('\n');
+    try {
+      await navigator.clipboard.writeText(brief);
+      this.snackBar.open('Operator brief copied.', 'Dismiss', { duration: 3000 });
+    } catch (_) {
+      this.snackBar.open('Clipboard permission denied.', 'Dismiss', { duration: 5000 });
+    }
+  }
+
+  private exportCurrentPayload(): void {
+    const payload = this.state.lastLivePayload();
+    if (!payload) return;
+    const href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = `rvt_payload_${Date.now()}.json`;
+    anchor.click();
+    URL.revokeObjectURL(href);
+  }
+
+  private async reconnectTrainer(): Promise<void> {
+    const connected = await this.api.detectControlMode();
+    this.snackBar.open(
+      connected ? 'Trainer connection established.' : 'Trainer unavailable; sandbox preview remains active.',
+      'Dismiss',
+      { duration: 4500 }
+    );
+  }
+
+  private async toggleDemo(): Promise<void> {
+    const enabled = !this.state.demoMode();
+    this.state.demoMode.set(enabled);
+    if (!enabled) await this.reconnectTrainer();
+  }
+}

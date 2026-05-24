@@ -52,38 +52,38 @@
         <!-- KPI METRICS SUMMARY BOARD -->
         <div class="kpi-grid">
           <!-- HEART RATE CARD -->
-          <div class="kpi-metric-card kpi-hr" [class.alert-low]="state.lastPayload()?.radar?.reported_hr < state.kpiThresholds().hrLow" [class.alert-high]="state.lastPayload()?.radar?.reported_hr > state.kpiThresholds().hrHigh">
+          <div class="kpi-metric-card kpi-hr" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
             <div class="kpi-card-header">
               <span>Heart Rate</span>
               <mat-icon>ecg_heart</mat-icon>
             </div>
             <div class="kpi-card-value">
-              <strong>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr) : '--' }}</strong>
+              <strong>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) : '--' }}</strong>
               <small>bpm</small>
             </div>
             <div class="kpi-card-spark">
               <canvas #overviewHrSpark class="sparkline-canvas"></canvas>
             </div>
             <div class="kpi-card-footer">
-              Ref: {{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr) + ' bpm' : 'no reference' }}
+              Ref: {{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : 'no reference' }}
             </div>
           </div>
 
           <!-- RESPIRATORY RATE CARD -->
-          <div class="kpi-metric-card kpi-rr" [class.alert-low]="state.lastPayload()?.radar?.reported_rr < state.kpiThresholds().rrLow" [class.alert-high]="state.lastPayload()?.radar?.reported_rr > state.kpiThresholds().rrHigh">
+          <div class="kpi-metric-card kpi-rr" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
             <div class="kpi-card-header">
               <span>Respiration</span>
               <mat-icon>air</mat-icon>
             </div>
             <div class="kpi-card-value">
-              <strong>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr) : '--' }}</strong>
+              <strong>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) : '--' }}</strong>
               <small>br/min</small>
             </div>
             <div class="kpi-card-spark">
               <canvas #overviewRrSpark class="sparkline-canvas"></canvas>
             </div>
             <div class="kpi-card-footer">
-              Ref: {{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr) + ' br/m' : 'no reference' }}
+              Ref: {{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : 'no reference' }}
             </div>
           </div>
 
@@ -94,7 +94,7 @@
               <mat-icon>speed</mat-icon>
             </div>
             <div class="kpi-card-value">
-              <strong>{{ state.lastPayload()?.radar?.rows ? Math.round(state.lastPayload()?.radar?.rows) : '--' }}</strong>
+              <strong>{{ state.lastPayload()?.radar?.rows ? Math.round(state.lastPayload()?.radar?.rows ?? 0) : '--' }}</strong>
               <small>Hz</small>
             </div>
             <div class="kpi-card-spark">
@@ -110,7 +110,7 @@
               <mat-icon>radar</mat-icon>
             </div>
             <div class="kpi-card-value">
-              <strong>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm) : '--' }}</strong>
+              <strong>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) : '--' }}</strong>
               <small>cm</small>
             </div>
             <div class="kpi-card-spark">
@@ -129,7 +129,10 @@
           </mat-card-header>
 
           <mat-card-content class="notes-content-area">
-            <textarea class="notes-textarea" [ngModel]="sessionNotesInput" (ngModelChange)="saveSessionNotes($event)" placeholder="Write your clinical notes here..."></textarea>
+            <mat-form-field appearance="outline" class="form-field-full">
+              <mat-label>Operator observations</mat-label>
+              <textarea matInput class="notes-textarea" [ngModel]="sessionNotesInput" (ngModelChange)="saveSessionNotes($event)" placeholder="Write your session notes here..."></textarea>
+            </mat-form-field>
             
             <div class="quick-tags-toolbar">
               <span class="toolbar-label">Quick Tags:</span>
@@ -137,6 +140,7 @@
               <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Cough')"><mat-icon>sick</mat-icon>Cough</button>
               <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Speaking')"><mat-icon>record_voice_over</mat-icon>Speaking</button>
               <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Ref Issue')"><mat-icon>bluetooth_disabled</mat-icon>Ref Issue</button>
+              <button mat-flat-button class="tag-btn" (click)="recordObservation()" [disabled]="!sessionNotesInput.trim()"><mat-icon>save</mat-icon>Record Note</button>
             </div>
           </mat-card-content>
         </mat-card>
@@ -149,9 +153,9 @@
               <table class="diagnostics-table">
                 <tbody>
                   <tr><td>Human presence detected</td><td><strong>{{ state.lastPayload()?.radar?.human ? 'YES' : 'NO' }}</strong></td></tr>
-                  <tr><td>Motion index volatility</td><td><strong>{{ state.lastPayload()?.radar?.motion ? Math.round(state.lastPayload()?.radar?.motion * 100) / 100 : '--' }}</strong></td></tr>
-                  <tr><td>Ref perfusion index</td><td><strong>{{ state.lastPayload()?.ble?.perf || 'Normal' }}</strong></td></tr>
-                  <tr><td>Dynamic thresholds active</td><td><strong>Adult Default</strong></td></tr>
+                  <tr><td>Motion index volatility</td><td><strong>{{ state.lastPayload()?.radar?.motion ? Math.round((state.lastPayload()?.radar?.motion ?? 0) * 100) / 100 : '--' }}</strong></td></tr>
+                  <tr><td>Ref perfusion index</td><td><strong>{{ state.lastPayload()?.ble?.perf ?? '--' }}</strong></td></tr>
+                  <tr><td>Subject profile</td><td><strong>{{ state.activeSubjectProfileId() }}</strong></td></tr>
                 </tbody>
               </table>
             </mat-card-content>
@@ -162,9 +166,9 @@
             <mat-card-content class="diagnostics-table-wrap">
               <table class="diagnostics-table">
                 <tbody>
-                  <tr><td>Event dispatcher bound</td><td><strong>LAN Webservice</strong></td></tr>
-                  <tr><td>Security CSP policy</td><td><strong>connect-src 'self'</strong></td></tr>
-                  <tr><td>TLS certificates bound</td><td><strong>Dynamic Self-Signed</strong></td></tr>
+                  <tr><td>Source mode</td><td><strong>{{ state.ctlStatus()?.mode === 'sandbox' ? 'DEMO' : (state.ctlStatus()?.ok ? 'TRAINER API' : '--') }}</strong></td></tr>
+                  <tr><td>Payload freshness</td><td><strong>{{ state.telemetryStale() ? 'STALE / WAITING' : 'LIVE' }}</strong></td></tr>
+                  <tr><td>Analysis state</td><td><strong>{{ state.lastPayload()?.analysis?.['status'] || '--' }}</strong></td></tr>
                   <tr><td>Haptic profile</td><td><strong>{{ state.hxMode() | uppercase }}</strong></td></tr>
                 </tbody>
               </table>
@@ -179,10 +183,10 @@
             <mat-card-content class="diagnostics-table-wrap">
               <table class="diagnostics-table">
                 <tbody>
-                  <tr><td>Reported HR</td><td>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr) + ' bpm' : '--' }}</td></tr>
-                  <tr><td>Reported RR</td><td>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr) + ' br/m' : '--' }}</td></tr>
-                  <tr><td>Candidate HR</td><td>{{ state.lastPayload()?.radar?.candidate_hr ? Math.round(state.lastPayload()?.radar?.candidate_hr) + ' bpm' : '--' }}</td></tr>
-                  <tr><td>Candidate RR</td><td>{{ state.lastPayload()?.radar?.candidate_rr ? Math.round(state.lastPayload()?.radar?.candidate_rr) + ' br/m' : '--' }}</td></tr>
+                  <tr><td>Reported HR</td><td>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) + ' bpm' : '--' }}</td></tr>
+                  <tr><td>Reported RR</td><td>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) + ' br/m' : '--' }}</td></tr>
+                  <tr><td>Candidate HR</td><td>{{ state.lastPayload()?.radar?.candidate_hr ? Math.round(state.lastPayload()?.radar?.candidate_hr ?? 0) + ' bpm' : '--' }}</td></tr>
+                  <tr><td>Candidate RR</td><td>{{ state.lastPayload()?.radar?.candidate_rr ? Math.round(state.lastPayload()?.radar?.candidate_rr ?? 0) + ' br/m' : '--' }}</td></tr>
                 </tbody>
               </table>
             </mat-card-content>
@@ -194,9 +198,9 @@
               <table class="diagnostics-table">
                 <tbody>
                   <tr><td>Linked device</td><td>{{ state.lastPayload()?.ble?.address || 'Not Linked' }}</td></tr>
-                  <tr><td>BLE Pulse HR</td><td>{{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr) + ' bpm' : '--' }}</td></tr>
-                  <tr><td>BLE Respiration RR</td><td>{{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr) + ' br/m' : '--' }}</td></tr>
-                  <tr><td>Adapter active</td><td>{{ state.lastPayload()?.ble?.connected ? 'CONNECTED' : 'STANDBY' }}</td></tr>
+                  <tr><td>BLE Pulse HR</td><td>{{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : '--' }}</td></tr>
+                  <tr><td>BLE Respiration RR</td><td>{{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : '--' }}</td></tr>
+                  <tr><td>Adapter active</td><td>{{ state.lastPayload()?.ble?.connected ? 'CONNECTED' : (state.lastPayload() ? 'NOT REPORTED' : '--') }}</td></tr>
                 </tbody>
               </table>
             </mat-card-content>
@@ -205,18 +209,21 @@
           <mat-card class="diagnostics-mini-card">
             <mat-card-header><mat-card-title>Mismatches / Faults</mat-card-title></mat-card-header>
             <mat-card-content class="diagnostics-table-wrap">
-              <div class="faults-list-container" *ngIf="state.lastPayload()?.faults?.length > 0; else noFaults">
-                <div *ngFor="let fault of state.lastPayload()?.faults" class="fault-item">
-                  <mat-icon>warning</mat-icon>
-                  <span>{{ fault }}</span>
+              @if ((state.lastPayload()?.faults?.length || 0) > 0) {
+                <div class="faults-list-container">
+                  @for (fault of state.lastPayload()?.faults || []; track $index) {
+                    <div class="fault-item">
+                      <mat-icon>warning</mat-icon>
+                      <span>{{ formatFault(fault) }}</span>
+                    </div>
+                  }
                 </div>
-              </div>
-              <ng-template #noFaults>
+              } @else {
                 <div class="faults-empty">
                   <mat-icon>verified</mat-icon>
-                  <span>Zero drift detected between sensors.</span>
+                  <span>No faults reported in the current payload.</span>
                 </div>
-              </ng-template>
+              }
             </mat-card-content>
           </mat-card>
 
@@ -226,9 +233,9 @@
               <table class="diagnostics-table">
                 <tbody>
                   <tr><td>Person Detected</td><td>{{ state.lastPayload()?.radar?.human ? 'YES' : 'NO' }}</td></tr>
-                  <tr><td>Distance (cm)</td><td>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm) : '--' }}</td></tr>
-                  <tr><td>Point cloud targets</td><td>{{ state.lastPayload()?.radar?.rows ? '1 target' : '0 targets' }}</td></tr>
-                  <tr><td>Doppler cms/s</td><td>{{ state.lastPayload()?.radar?.motion ? Math.round(state.lastPayload()?.radar?.motion * 10) : '0' }}</td></tr>
+                  <tr><td>Distance (cm)</td><td>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) : '--' }}</td></tr>
+                  <tr><td>Point cloud targets</td><td>{{ state.lastPayload()?.radar?.['target_count'] ?? '--' }}</td></tr>
+                  <tr><td>Doppler cm/s</td><td>{{ state.lastPayload()?.radar?.['doppler_cm_s'] ?? '--' }}</td></tr>
                 </tbody>
               </table>
             </mat-card-content>
@@ -251,7 +258,9 @@
             <div class="waveform-chart-wrap">
               <div class="chart-header">
                 <strong>Breathing Waveform</strong>
-                <span>breath_phase (rad)</span>
+                <button mat-icon-button type="button" aria-label="Download breathing waveform image" (click)="downloadChart(breathCanvas, 'breathing_waveform')">
+                  <mat-icon>download</mat-icon>
+                </button>
               </div>
               <div class="canvas-plot-container bg-pink-tint">
                 <canvas #breathCanvas class="waveform-canvas"></canvas>
@@ -261,7 +270,9 @@
             <div class="waveform-chart-wrap">
               <div class="chart-header">
                 <strong>Heartbeat Waveform</strong>
-                <span>heart_phase (rad)</span>
+                <button mat-icon-button type="button" aria-label="Download heartbeat waveform image" (click)="downloadChart(heartCanvas, 'heartbeat_waveform')">
+                  <mat-icon>download</mat-icon>
+                </button>
               </div>
               <div class="canvas-plot-container bg-teal-tint">
                 <canvas #heartCanvas class="waveform-canvas"></canvas>
@@ -279,6 +290,9 @@
           <mat-card-header>
             <mat-card-title>Heart Rate Funnel Trends</mat-card-title>
             <mat-card-subtitle>Reported radar, raw index, corrected raw, and BLE references plotted sequentially.</mat-card-subtitle>
+            <button mat-icon-button type="button" aria-label="Download heart rate trend image" (click)="downloadChart(hrTrendCanvas, 'heart_rate_trend')">
+              <mat-icon>download</mat-icon>
+            </button>
           </mat-card-header>
           <mat-card-content class="trend-large-content">
             <div class="large-canvas-container">
@@ -296,6 +310,9 @@
           <mat-card-header>
             <mat-card-title>Respiration Funnel Trends</mat-card-title>
             <mat-card-subtitle>Reported breathing index, candidate rates, and BLE references plotted sequentially.</mat-card-subtitle>
+            <button mat-icon-button type="button" aria-label="Download respiration trend image" (click)="downloadChart(rrTrendCanvas, 'respiration_trend')">
+              <mat-icon>download</mat-icon>
+            </button>
           </mat-card-header>
           <mat-card-content class="trend-large-content">
             <div class="large-canvas-container">
@@ -328,8 +345,10 @@
           </mat-card-header>
 
           <mat-card-content class="snapshots-catalog">
-            <div class="snapshots-grid-container" *ngIf="state.snaps().length > 0; else noSnaps">
-              <mat-card *ngFor="let snap of state.snaps()" class="snap-card">
+            @if (state.snaps().length > 0) {
+              <div class="snapshots-grid-container">
+              @for (snap of state.snaps(); track snap.id) {
+              <mat-card class="snap-card">
                 <mat-card-header class="snap-card-header-row">
                   <strong>Frame Point: {{ snap.ts | date:'mediumTime' }}</strong>
                   <button mat-icon-button color="warn" (click)="deleteSnap(snap.id)">
@@ -350,14 +369,14 @@
                   </div>
                 </mat-card-content>
               </mat-card>
-            </div>
-
-            <ng-template #noSnaps>
+              }
+              </div>
+            } @else {
               <div class="snapshots-empty-state">
                 <mat-icon class="empty-icon">bookmark_border</mat-icon>
                 <span>No snapshots pinned yet. Click "Pin Current Frame" above to capture a point.</span>
               </div>
-            </ng-template>
+            }
           </mat-card-content>
         </mat-card>
       </div>
@@ -373,10 +392,10 @@
             <mat-card-content class="diagnostics-table-wrap">
               <table class="diagnostics-table">
                 <tbody>
-                  <tr><td>Schema integrity hash</td><td><strong>VALID (15.0)</strong></td></tr>
-                  <tr><td>Failures / reconnected logs</td><td><strong>0 / 30 drops</strong></td></tr>
-                  <tr><td>Funnel survival status</td><td><strong>100%</strong></td></tr>
-                  <tr><td>AGC / Doppler indexes</td><td><strong>AGC Normal</strong></td></tr>
+                  <tr><td>Schema integrity hash</td><td><strong>{{ state.lastPayload()?.analysis?.['schema_hash'] || '--' }}</strong></td></tr>
+                  <tr><td>Connection state</td><td><strong>{{ state.ctlStatus()?.ok ? 'CONNECTED' : 'DISCONNECTED' }}</strong></td></tr>
+                  <tr><td>Funnel survival status</td><td><strong>{{ state.lastPayload()?.analysis?.['funnel_survival_pct'] ?? '--' }}</strong></td></tr>
+                  <tr><td>AGC / Doppler indexes</td><td><strong>{{ state.lastPayload()?.analysis?.['agc_status'] || '--' }}</strong></td></tr>
                 </tbody>
               </table>
             </mat-card-content>
@@ -386,22 +405,30 @@
             <mat-card-header><mat-card-title>Telemetry Event Logs</mat-card-title></mat-card-header>
             <mat-card-content class="event-logger-console">
               <div class="console-logs-list">
+                @if (state.paused()) {
                 <div class="console-log-item">
-                  <span class="log-stamp">14:02:18</span>
-                  <span class="log-msg font-green">SSE connection active. Polling fallback deactivated.</span>
-                </div>
-                <div class="console-log-item" *ngIf="state.paused()">
-                  <span class="log-stamp">14:02:30</span>
+                  <span class="log-stamp">Now</span>
                   <span class="log-msg font-warn">Telemetry buffer stream paused by operator.</span>
                 </div>
-                <div class="console-log-item" *ngFor="let alert of state.alertHistory()">
-                  <span class="log-stamp">14:02:45</span>
-                  <span class="log-msg font-danger">Warning: physiology threshold delta: {{ alert.msg }}</span>
-                </div>
+                }
+                @for (event of state.lastPayload()?.events || []; track $index) {
                 <div class="console-log-item">
-                  <span class="log-stamp">14:03:00</span>
-                  <span class="log-msg">Standby polling thread loaded cleanly.</span>
+                  <span class="log-stamp">{{ eventTime(event) || 'Event' }}</span>
+                  <span class="log-msg">{{ formatEvent(event) }}</span>
                 </div>
+                }
+                @for (alert of state.alertHistory(); track alert.id) {
+                <div class="console-log-item">
+                  <span class="log-stamp">{{ alert.ts | date:'mediumTime' }}</span>
+                  <span class="log-msg font-danger">{{ alert.msg }}</span>
+                </div>
+                }
+                @if ((state.lastPayload()?.events?.length || 0) === 0 && state.alertHistory().length === 0) {
+                <div class="console-log-item">
+                  <span class="log-stamp">--</span>
+                  <span class="log-msg">No telemetry events reported in the active stream.</span>
+                </div>
+                }
               </div>
             </mat-card-content>
           </mat-card>

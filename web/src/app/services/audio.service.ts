@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { AlertEvent } from '../models/rvt.models';
 import { StateService } from './state.service';
 
 @Injectable({
@@ -22,7 +23,8 @@ export class AudioService {
       return this.audioCtx;
     }
     try {
-      const AudioCtxClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      const AudioCtxClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtxClass) return null;
       this.audioCtx = new AudioCtxClass();
       return this.audioCtx;
     } catch (_) {
@@ -85,10 +87,10 @@ export class AudioService {
     } catch (_) {}
   }
 
-  announceAlerts(items: any[]) {
+  announceAlerts(items: AlertEvent[]) {
     if (!this.state.voiceAlertsEnabled() || (typeof document !== 'undefined' && document.hidden)) return;
-    const top = (Array.isArray(items) ? items : []).find(x => x && x.severity !== 'good');
+    const top = items[0];
     if (!top) return;
-    this.speakAlert(`Alert: ${top.title || 'check dashboard'}`, top.severity || 'warn');
+    this.speakAlert(`Alert: ${top.msg}`, top.severity === 'critical' ? 'bad' : 'warn');
   }
 }

@@ -1,105 +1,219 @@
-import { Component, inject, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-
-// Angular Material 3 modules
-import { MatCardModule } from '@angular/material/card';
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+import { MatCardModule } from '@angular/material/card';
+import { MatChipsModule } from '@angular/material/chips';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatListModule } from '@angular/material/list';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
+import { StateService } from '../../services/state.service';
 
-interface HelpTopic {
+type HelpCategory = 'workflow' | 'vitals' | 'quality' | 'truthfulness' | 'reference' | 'troubleshooting' | 'shortcuts';
+
+interface HelpEntry {
+  id: string;
   title: string;
-  category: 'general' | 'steps' | 'errors' | 'shortcuts';
-  content: string;
+  category: HelpCategory;
+  summary: string;
+  detail?: string;
+}
+
+interface DspStep {
+  n: number;
+  title: string;
+  summary: string;
+  detail: string;
+}
+
+interface TroubleshootingEntry {
+  id: string;
+  title: string;
+  steps: string[];
+}
+
+interface HelpSchema {
+  version?: string;
+  glossary?: Array<{ id?: string; term?: string; short?: string; long?: string; category?: string }>;
+  faq?: Array<{ q?: string; a?: string }>;
+  tooltips?: Record<string, string>;
+  dsp_steps?: DspStep[];
+  troubleshooting?: TroubleshootingEntry[];
 }
 
 @Component({
   selector: 'app-help',
-  standalone: true,
   imports: [
-    CommonModule,
-    FormsModule,
-    MatCardModule,
+    RouterModule,
     MatButtonModule,
-    MatIconModule,
+    MatCardModule,
+    MatChipsModule,
+    MatExpansionModule,
     MatFormFieldModule,
+    MatIconModule,
     MatInputModule,
-    MatExpansionModule
+    MatListModule,
+    MatSnackBarModule
   ],
   templateUrl: './help.component.html',
-  styleUrl: './help.component.css'
+  styleUrl: './help.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class HelpComponent implements OnInit {
   protected readonly state = inject(StateService);
   protected readonly api = inject(ApiService);
+  private readonly router = inject(Router);
+  private readonly snackBar = inject(MatSnackBar);
 
-  searchQuery = '';
-  activeCategory: 'all' | 'general' | 'steps' | 'errors' | 'shortcuts' = 'all';
+  protected readonly searchQuery = signal('');
+  protected readonly activeCategory = signal<HelpCategory | 'all'>('all');
+  protected readonly schemaVersion = signal('');
+  protected readonly entries = signal<HelpEntry[]>(this.baseEntries());
+  protected readonly dspSteps = signal<DspStep[]>([]);
+  protected readonly troubleshooting = signal<TroubleshootingEntry[]>([]);
+  protected readonly tooltips = signal<Array<{ key: string; value: string }>>([]);
+  protected readonly loading = signal(false);
+  protected readonly allTopicsVisible = signal(false);
 
-  helpTopics: HelpTopic[] = [
-    {
-      title: 'How does mmWave Radar telemetry work?',
-      category: 'general',
-      content: 'The 60 GHz mmWave radar module uses frequency-modulated continuous wave (FMCW) technology to sense physiological movements without touching the skin. It captures tiny phase changes (down to microns) caused by the heartbeat and breathing expansion of the chest wall. Advanced DSP algorithms isolate these movements from background clutter.'
-    },
-    {
-      title: 'Active Sandbox Mode Explained',
-      category: 'general',
-      content: 'If the dashboard cannot reach the local Python trainer control server, it automatically activates Sandbox Mode. In this mode, telemetry data is simulated locally within the browser, allowing you to preview dashboards, reviews, haptic tests, and layout switches with full operational features. No actual USB hardware is polled.'
-    },
-    {
-      title: 'Quick steps: Setting up a recording',
-      category: 'steps',
-      content: '1. Navigate to the Home workspace.\n2. Ensure the USB radar module is connected and check the active serial port dropdown list.\n3. Position the subject directly facing the radar sweep scope at a distance of 40 to 120 cm.\n4. Enter the subject ID and click "Start Telemetry Session".\n5. Direct the subject to sit completely still during the 3-second countdown phase to calibrate the baseline.'
-    },
-    {
-      title: 'Troubleshooting: Jitter & Mismatch warnings',
-      category: 'errors',
-      content: 'If a "Physiological Mismatch Alert" is triggered, it indicates a high variance (drift) between the radar reported HR/RR and the connected BLE reference oximeter. Ensure the BLE oximeter is securely attached to the finger and the subject is not coughing or speaking. Real-time drift alerts emit audio warnings.'
-    },
-    {
-      title: 'Operator Keyboard Shortcuts list',
-      category: 'shortcuts',
-      content: 'Maximize workflow speeds with keyboard controls:\n- "Ctrl + K": Open the floating interactive Command Palette.\n- "Alt + 1": Switch to live Overview dashboard.\n- "Alt + 2": Switch to real-time Waveforms view.\n- "Alt + 3": Switch to heart rate trend chart.\n- "Alt + 4": Switch to respiration trend graph.\n- "Alt + 5": Open session Snapshots vault.'
-    }
+  protected readonly categories: Array<{ id: HelpCategory | 'all'; label: string; icon: string }> = [
+    { id: 'all', label: 'All', icon: 'menu_book' },
+    { id: 'workflow', label: 'Workflow', icon: 'route' },
+    { id: 'vitals', label: 'Vitals', icon: 'ecg_heart' },
+    { id: 'quality', label: 'Quality', icon: 'verified' },
+    { id: 'truthfulness', label: 'Truthfulness', icon: 'fact_check' },
+    { id: 'reference', label: 'Reference', icon: 'bluetooth' },
+    { id: 'troubleshooting', label: 'Recovery', icon: 'build' },
+    { id: 'shortcuts', label: 'Shortcuts', icon: 'keyboard' }
   ];
 
-  ngOnInit() {
-    this.fetchHelpSchema();
+  protected readonly filteredEntries = computed(() => {
+    const category = this.activeCategory();
+    const query = this.searchQuery().trim().toLowerCase();
+    const matches = this.entries().filter(entry => {
+      if (category !== 'all' && entry.category !== category) return false;
+      return !query || `${entry.title} ${entry.summary} ${entry.detail || ''}`.toLowerCase().includes(query);
+    });
+    if (category === 'all' && !query && !this.allTopicsVisible()) {
+      return matches.filter(entry => ['setup', 'demo', 'palette'].includes(entry.id));
+    }
+    return matches;
+  });
+
+  protected readonly overviewMode = computed(() =>
+    this.activeCategory() === 'all' && !this.searchQuery().trim() && !this.allTopicsVisible()
+  );
+
+  protected readonly additionalTopicCount = computed(() =>
+    Math.max(0, this.entries().length - this.filteredEntries().length)
+  );
+
+  protected readonly filteredTroubleshooting = computed(() => {
+    const query = this.searchQuery().trim().toLowerCase();
+    return this.troubleshooting().filter(issue =>
+      !query || `${issue.title} ${issue.steps.join(' ')}`.toLowerCase().includes(query)
+    );
+  });
+
+  protected readonly filteredTooltips = computed(() => {
+    const query = this.searchQuery().trim().toLowerCase();
+    return this.tooltips().filter(tip =>
+      !query || `${tip.key} ${tip.value}`.toLowerCase().includes(query)
+    );
+  });
+
+  ngOnInit(): void {
+    void this.fetchHelpSchema();
   }
 
-  async fetchHelpSchema() {
-    try {
-      const resp = await this.api.request('/api/help/schema');
-      if (resp && resp.faq) {
-        // Option to dynamically expand schemas
-      }
-    } catch (_) {}
+  protected updateSearch(event: Event): void {
+    this.searchQuery.set((event.target as HTMLInputElement).value);
   }
 
-  setCategory(cat: 'all' | 'general' | 'steps' | 'errors' | 'shortcuts') {
-    this.activeCategory = cat;
+  protected setCategory(category: HelpCategory | 'all'): void {
+    this.activeCategory.set(category);
+    this.allTopicsVisible.set(category !== 'all');
     this.state.triggerHaptic('tap');
   }
 
-  getFilteredTopics(): HelpTopic[] {
-    let list = this.helpTopics;
-    if (this.activeCategory !== 'all') {
-      list = list.filter(t => t.category === this.activeCategory);
+  protected revealAllTopics(): void {
+    this.allTopicsVisible.set(true);
+    this.state.triggerHaptic('tap');
+  }
+
+  protected async reconnect(): Promise<void> {
+    const connected = await this.api.detectControlMode();
+    this.snackBar.open(
+      connected ? 'Trainer connection established.' : 'Trainer unavailable; review source settings.',
+      'Dismiss',
+      { duration: 5000 }
+    );
+  }
+
+  protected openPreflight(): void {
+    void this.router.navigate(['/home']);
+  }
+
+  private async fetchHelpSchema(): Promise<void> {
+    this.loading.set(true);
+    try {
+      const schema = await this.api.request<HelpSchema>('/api/help/schema');
+      this.schemaVersion.set(schema.version || '');
+      const glossary = (schema.glossary || []).map(item => ({
+        id: String(item.id || item.term || 'glossary'),
+        title: String(item.term || 'Telemetry field'),
+        category: this.mapCategory(item.category),
+        summary: String(item.short || ''),
+        detail: String(item.long || '')
+      }));
+      const faq = (schema.faq || []).map((item, index) => ({
+        id: `faq-${index}`,
+        title: String(item.q || 'Question'),
+        category: 'workflow' as const,
+        summary: String(item.a || '')
+      }));
+      this.entries.set([...this.baseEntries(), ...faq, ...glossary]);
+      this.dspSteps.set(schema.dsp_steps || []);
+      this.troubleshooting.set(schema.troubleshooting || []);
+      this.tooltips.set(Object.entries(schema.tooltips || {}).map(([key, value]) => ({ key, value })));
+    } catch (_) {
+      this.snackBar.open('Trainer help schema is unavailable; showing embedded guidance.', 'Dismiss', { duration: 5000 });
+    } finally {
+      this.loading.set(false);
     }
-    if (this.searchQuery.trim()) {
-      const q = this.searchQuery.toLowerCase().trim();
-      list = list.filter(t => 
-        t.title.toLowerCase().includes(q) || 
-        t.content.toLowerCase().includes(q)
-      );
-    }
-    return list;
+  }
+
+  private mapCategory(category?: string): HelpCategory {
+    const known = ['vitals', 'quality', 'truthfulness', 'reference'] as HelpCategory[];
+    return known.includes(category as HelpCategory) ? category as HelpCategory : 'workflow';
+  }
+
+  private baseEntries(): HelpEntry[] {
+    return [
+      {
+        id: 'setup',
+        title: 'Recording workflow',
+        category: 'workflow',
+        summary: 'Use Setup to select hardware and run preflight before Start is enabled.',
+        detail: 'Do not interpret demo data as a recorded subject session. Connected trainer mode performs structural preflight before capture.'
+      },
+      {
+        id: 'demo',
+        title: 'Demo mode',
+        category: 'truthfulness',
+        summary: 'Demo mode renders simulated telemetry only and always displays a banner.',
+        detail: 'Reports exported from demo mode carry no physiological readiness verdict.'
+      },
+      {
+        id: 'palette',
+        title: 'Command palette',
+        category: 'shortcuts',
+        summary: 'Press Ctrl+K to search navigation, capture, alerts, exports, source and appearance controls.',
+        detail: 'Alt+1 through Alt+6 open Overview, Waves, HR, RR, Snapshots and Audit tabs.'
+      }
+    ];
   }
 }

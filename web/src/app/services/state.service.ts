@@ -1,4 +1,16 @@
-import { Injectable, signal, effect, WritableSignal } from '@angular/core';
+import { Injectable, signal, effect } from '@angular/core';
+import {
+  AlertEvent,
+  AlertSeverity,
+  ControlStatus,
+  DensityId,
+  HapticMode,
+  LivePayload,
+  SessionRecord,
+  SetupState,
+  SnapshotRecord,
+  ThemeId
+} from '../models/rvt.models';
 
 export interface SubjectProfile {
   label: string;
@@ -53,16 +65,19 @@ export class StateService {
   // Global View & Navigation State
   currentView = signal<string>('live');
   activeTab = signal<string>('tab-overview');
+  commandPaletteOpen = signal<boolean>(false);
+  alertsOpen = signal<boolean>(false);
 
   // Connection/Control states
   ctlOn = signal<boolean>(false);
-  ctlStatus = signal<any>(null);
+  ctlStatus = signal<ControlStatus | null>(null);
   ctlStopPending = signal<boolean>(false);
   paused = signal<boolean>(false);
   
   // Theme & Accessibility
-  theme = signal<'light' | 'dark' | 'night' | 'hc'>('dark');
-  density = signal<'comfortable' | 'compact'>('comfortable');
+  theme = signal<ThemeId>('dark');
+  density = signal<DensityId>('comfortable');
+  fontScale = signal<number>(1);
   zenMode = signal<boolean>(false);
 
   // Audio Alerts
@@ -85,7 +100,7 @@ export class StateService {
   activeSubjectProfileId = signal<string>('adult_default');
 
   // Setup Details
-  setup = signal({
+  setup = signal<SetupState>({
     duration_s: 30,
     customDuration: 30,
     customUnit: 's',
@@ -101,15 +116,17 @@ export class StateService {
   });
 
   // Data variables
-  lastPayload = signal<any>(null);
-  lastLivePayload = signal<any>(null);
-  snaps = signal<any[]>([]);
+  lastPayload = signal<LivePayload | null>(null);
+  lastLivePayload = signal<LivePayload | null>(null);
+  liveReceivedAt = signal<number | null>(null);
+  telemetryStale = signal<boolean>(true);
+  snaps = signal<SnapshotRecord[]>([]);
   snapNotes = signal<Record<string, string>>({});
   activeSnapNoteId = signal<string | null>(null);
-  alertHistory = signal<any[]>([]);
+  alertHistory = signal<AlertEvent[]>([]);
   alertPins = signal<string[]>([]);
   sessionNotes = signal<Record<string, string>>({});
-  sessionItems = signal<any[]>([]);
+  sessionItems = signal<SessionRecord[]>([]);
   currentSessionId = signal<string | null>(null);
 
   // Sparkline buffer for live KPIs
@@ -121,7 +138,7 @@ export class StateService {
   });
 
   // Haptic feedback mode
-  hxMode = signal<'on' | 'off' | 'auto'>('auto');
+  hxMode = signal<HapticMode>('auto');
 
   constructor() {
     this.loadFromStorage();
@@ -129,14 +146,22 @@ export class StateService {
     // Effect to sync settings back to storage
     effect(() => {
       localStorage.setItem('rvt-theme', this.theme());
+      document.documentElement.dataset['theme'] = this.theme();
     });
 
     effect(() => {
       localStorage.setItem('rvt-density', this.density());
+      document.documentElement.dataset['density'] = this.density();
+    });
+
+    effect(() => {
+      localStorage.setItem('rvt-font-scale', String(this.fontScale()));
+      document.documentElement.style.setProperty('--rvt-font-scale', String(this.fontScale()));
     });
 
     effect(() => {
       localStorage.setItem('rvt-zen-mode', this.zenMode() ? '1' : '0');
+      document.body.classList.toggle('zen-mode', this.zenMode());
     });
 
     effect(() => {
@@ -172,11 +197,27 @@ export class StateService {
     });
 
     effect(() => {
+      localStorage.setItem('rvt-alert-history', JSON.stringify(this.alertHistory()));
+    });
+
+    effect(() => {
       localStorage.setItem('rvt-session-notes', JSON.stringify(this.sessionNotes()));
     });
 
     effect(() => {
       localStorage.setItem('rvt-kpi-thresholds', JSON.stringify(this.kpiThresholds()));
+    });
+
+    effect(() => {
+      localStorage.setItem('rvt-freeze-on-stale', this.freezeOnStale() ? '1' : '0');
+    });
+
+    effect(() => {
+      localStorage.setItem('rvt-setup', JSON.stringify(this.setup()));
+    });
+
+    effect(() => {
+      document.body.dataset['view'] = this.currentView();
     });
 
     // M1 Effect writers for user settings
@@ -194,6 +235,10 @@ export class StateService {
 
     effect(() => {
       localStorage.setItem('rvt-auto-demo-on-disconnect', this.autoDemoOnDisconnect() ? '1' : '0');
+      document.body.classList.toggle(
+        'demo-mode',
+        this.demoMode() || this.autoDemoActive() || this.ctlStatus()?.mode === 'sandbox'
+      );
     });
   }
 
@@ -202,21 +247,21 @@ export class StateService {
       // M6 Strict allowlist enum-like validation
       const themeVal = localStorage.getItem('rvt-theme');
       if (themeVal && ['light', 'dark', 'night', 'hc'].includes(themeVal)) {
-        this.theme.set(themeVal as any);
+        this.theme.set(themeVal as ThemeId);
       } else if (themeVal) {
         localStorage.removeItem('rvt-theme');
       }
 
       const densityVal = localStorage.getItem('rvt-density');
       if (densityVal && ['comfortable', 'compact'].includes(densityVal)) {
-        this.density.set(densityVal as any);
+        this.density.set(densityVal as DensityId);
       } else if (densityVal) {
         localStorage.removeItem('rvt-density');
       }
 
       const hxModeVal = localStorage.getItem('rvt-hx-mode');
       if (hxModeVal && ['on', 'off', 'auto'].includes(hxModeVal)) {
-        this.hxMode.set(hxModeVal as any);
+        this.hxMode.set(hxModeVal as HapticMode);
       } else if (hxModeVal) {
         localStorage.removeItem('rvt-hx-mode');
       }
@@ -244,6 +289,21 @@ export class StateService {
       }
       this.demoMode.set(localStorage.getItem('rvt-demo-mode') === '1');
       this.autoDemoOnDisconnect.set(localStorage.getItem('rvt-auto-demo-on-disconnect') === '1');
+      const freezeVal = localStorage.getItem('rvt-freeze-on-stale');
+      if (freezeVal !== null) this.freezeOnStale.set(freezeVal !== '0');
+
+      const setupVal = localStorage.getItem('rvt-setup');
+      if (setupVal) {
+        const stored = JSON.parse(setupVal);
+        if (stored && typeof stored === 'object') {
+          this.setup.update(current => ({ ...current, ...stored }));
+        }
+      }
+
+      const fontScaleVal = Number(localStorage.getItem('rvt-font-scale'));
+      if (Number.isFinite(fontScaleVal) && fontScaleVal >= 0.9 && fontScaleVal <= 1.25) {
+        this.fontScale.set(fontScaleVal);
+      }
 
       const snapsVal = localStorage.getItem('rvt-snaps');
       if (snapsVal) this.snaps.set(JSON.parse(snapsVal));
@@ -254,6 +314,9 @@ export class StateService {
       const alertPinsVal = localStorage.getItem('rvt-alert-pins');
       if (alertPinsVal) this.alertPins.set(JSON.parse(alertPinsVal));
 
+      const alertHistoryVal = localStorage.getItem('rvt-alert-history');
+      if (alertHistoryVal) this.alertHistory.set(JSON.parse(alertHistoryVal));
+
       const sessionNotesVal = localStorage.getItem('rvt-session-notes');
       if (sessionNotesVal) this.sessionNotes.set(JSON.parse(sessionNotesVal));
 
@@ -262,6 +325,41 @@ export class StateService {
     } catch (e) {
       console.warn('Failed to load from localStorage, using defaults', e);
     }
+  }
+
+  pushAlert(message: string, severity: AlertSeverity = 'warn') {
+    const now = Date.now();
+    const latest = this.alertHistory()[0];
+    if (latest?.msg === message && now - latest.ts < 15_000) return;
+    this.alertHistory.update(items => [
+      { id: `alert_${now}`, ts: now, msg: message, severity },
+      ...items
+    ].slice(0, 80));
+  }
+
+  toggleAlertPin(alertId: string) {
+    this.alertPins.update(items => items.includes(alertId)
+      ? items.filter(item => item !== alertId)
+      : [...items, alertId]);
+  }
+
+  dismissAlert(alertId: string) {
+    this.alertHistory.update(items => items.map(item => item.id === alertId
+      ? { ...item, dismissed: true }
+      : item));
+    this.alertPins.update(items => items.filter(item => item !== alertId));
+  }
+
+  snoozeAlert(alertId: string, minutes = 10) {
+    const until = Date.now() + minutes * 60_000;
+    this.alertHistory.update(items => items.map(item => item.id === alertId
+      ? { ...item, snoozedUntil: until }
+      : item));
+  }
+
+  clearAlerts() {
+    this.alertHistory.set([]);
+    this.alertPins.set([]);
   }
 
   // Helper vibration logic

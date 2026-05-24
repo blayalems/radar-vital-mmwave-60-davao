@@ -1,4 +1,6 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, effect, inject } from '@angular/core';
+import { LivePayload } from '../models/rvt.models';
+import { AudioService } from './audio.service';
 import { StateService } from './state.service';
 import { ApiService } from './api.service';
 
@@ -8,9 +10,11 @@ import { ApiService } from './api.service';
 export class TelemetryService {
   private state = inject(StateService);
   private api = inject(ApiService);
+  private audio = inject(AudioService);
 
-  private pollTimer: any = null;
-  private reconnectTimer: any = null;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private staleTimer: ReturnType<typeof setTimeout> | null = null;
   private sseReconnectAttempts = 0;
   private running = false;
   private sse: EventSource | null = null;
@@ -20,6 +24,19 @@ export class TelemetryService {
 
   constructor() {
     this.start();
+    effect(() => {
+      const simulating = this.state.demoMode() || this.state.autoDemoActive();
+      if (simulating) {
+        this.stopSse();
+        this.clearReconnectTimer();
+        this.scheduleNextPoll(0);
+      } else if (this.running && !this.sseMode) {
+        void this.api.detectControlMode().then(() => {
+          this.scheduleNextPoll(0);
+          this.startSse();
+        });
+      }
+    });
   }
 
   start() {
@@ -33,6 +50,7 @@ export class TelemetryService {
     this.clearPollTimer();
     this.stopSse();
     this.clearReconnectTimer();
+    if (this.staleTimer) clearTimeout(this.staleTimer);
   }
 
   private clearPollTimer() {
@@ -63,7 +81,7 @@ export class TelemetryService {
       return;
     }
 
-    if (this.state.autoDemoActive()) {
+    if (this.state.demoMode() || this.state.autoDemoActive()) {
       this.runSimulationStep();
       this.scheduleNextPoll(1000);
       return;
@@ -79,16 +97,19 @@ export class TelemetryService {
     try {
       const path = '/api/session/current/live_dashboard.json';
       const startMs = Date.now();
-      const payload = await this.api.request(`${path}?t=${Date.now()}`);
+      const payload = await this.api.request<Partial<LivePayload>>(`${path}?t=${Date.now()}`);
       
       const latency = Date.now() - startMs;
       this.applyLivePayload(payload);
       
-      this.state.ctlStatus.update(s => ({ ...s, ok: true, latency }));
+      this.state.ctlStatus.update(s => ({ ...(s ?? { ok: true }), ok: true, latency }));
       this.scheduleNextPoll(1000);
-    } catch (e: any) {
-      console.warn('Telemetry poll failed', e);
-      this.state.ctlStatus.update(s => ({ ...s, ok: false, error: e.message }));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'poll failed';
+      console.warn('Telemetry poll failed', error);
+      this.state.telemetryStale.set(true);
+      this.state.ctlStatus.update(s => ({ ...(s ?? { ok: false }), ok: false, error: message }));
+      this.emitAlert(`Live connection unavailable: ${message}`, 'critical');
       
       if (this.state.autoDemoOnDisconnect()) {
         this.state.autoDemoActive.set(true);
@@ -103,6 +124,11 @@ export class TelemetryService {
     if (typeof EventSource === 'undefined') return;
     if (this.state.demoMode() || this.state.autoDemoActive()) return;
     if (!this.running) return;
+    // EventSource cannot attach the LAN pairing header; authenticated links use polling.
+    if (this.api.hasPairToken()) {
+      this.scheduleNextPoll(0);
+      return;
+    }
 
     try {
       const base = this.api.currentApiBase();
@@ -245,11 +271,11 @@ export class TelemetryService {
     this.applyLivePayload(payload);
   }
 
-  private applyLivePayload(payload: any) {
+  private applyLivePayload(payload: Partial<LivePayload>) {
     if (!payload) return;
 
-    // Normalize
-    const normalized = {
+    const receivedAt = Date.now();
+    const normalized: LivePayload = {
       meta: payload.meta || {},
       radar: payload.radar || {},
       ble: payload.ble || {},
@@ -259,9 +285,32 @@ export class TelemetryService {
       series: payload.series || {},
       analysis: payload.analysis || null
     };
+    normalized.meta.received_at_ms = receivedAt;
+    normalized.meta.stale = false;
 
     this.state.lastPayload.set(normalized);
     this.state.lastLivePayload.set(normalized);
+    this.state.liveReceivedAt.set(receivedAt);
+    this.state.telemetryStale.set(false);
+    if (this.staleTimer) clearTimeout(this.staleTimer);
+    this.staleTimer = setTimeout(() => this.state.telemetryStale.set(true), 3500);
+
+    const thresholds = this.state.kpiThresholds();
+    const hr = Number(normalized.radar.reported_hr);
+    const rr = Number(normalized.radar.reported_rr);
+    if (Number.isFinite(hr) && (hr < thresholds.hrLow || hr > thresholds.hrHigh)) {
+      this.emitAlert(`Heart rate ${Math.round(hr)} bpm outside ${thresholds.hrLow}-${thresholds.hrHigh} bpm`, 'warn');
+    }
+    if (Number.isFinite(rr) && (rr < thresholds.rrLow || rr > thresholds.rrHigh)) {
+      this.emitAlert(`Respiration ${Math.round(rr)} br/min outside ${thresholds.rrLow}-${thresholds.rrHigh} br/min`, 'warn');
+    }
+    normalized.faults.forEach(fault => {
+      const record = typeof fault === 'object' ? fault : null;
+      const message = typeof fault === 'string'
+        ? fault
+        : record?.['message'] || record?.['msg'] || record?.['code'];
+      if (message) this.emitAlert(String(message), 'critical');
+    });
 
     // Update real-time spark data
     this.state.spark.update(s => {
@@ -271,5 +320,13 @@ export class TelemetryService {
       const dist = [...s.dist, normalized.radar.distance_cm || 0].slice(-20);
       return { hr, rr, fps, dist };
     });
+  }
+
+  private emitAlert(message: string, severity: 'warn' | 'critical'): void {
+    const before = this.state.alertHistory().length;
+    this.state.pushAlert(message, severity);
+    if (this.state.alertHistory().length === before) return;
+    this.audio.playAlertBeep(severity === 'critical' ? 'bad' : 'warn');
+    this.audio.speakAlert(message, severity === 'critical' ? 'bad' : 'warn');
   }
 }

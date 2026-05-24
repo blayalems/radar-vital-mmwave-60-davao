@@ -1,97 +1,138 @@
-<!-- OPERATOR PLAYBOOK & HELP WORKSPACE -->
 <div class="help-container">
-
-  <!-- PLAYBOOK HEADER HERO -->
   <mat-card class="help-header-card">
     <div class="help-header-inner">
       <div class="help-title-group">
         <mat-icon class="help-main-icon">help</mat-icon>
         <div>
-          <strong>Operator Playbook & Help</strong>
-          <small>Diagnostic guides, clinical workflows, error mitigations, and keyboard shortcuts.</small>
+          <strong>Operator Playbook & Field Dictionary</strong>
+          <small>Workflow, truthfulness rules, telemetry terms, DSP pipeline and hardware recovery.</small>
         </div>
       </div>
+      <mat-chip-set aria-label="Support status">
+        <mat-chip>{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo source' : (state.ctlStatus()?.ok ? 'Trainer API source' : 'Source unavailable') }}</mat-chip>
+        @if (schemaVersion()) { <mat-chip>{{ schemaVersion() }}</mat-chip> }
+      </mat-chip-set>
     </div>
   </mat-card>
 
-  <!-- SEARCH TOOLBAR -->
   <mat-card class="help-search-card">
     <div class="search-toolbar-inner">
       <mat-form-field appearance="outline" class="search-field">
-        <mat-label>Search help, fields, errors, or shortcuts</mat-label>
+        <mat-label>Search help, telemetry fields, errors or shortcuts</mat-label>
         <mat-icon matPrefix>search</mat-icon>
-        <input matInput [(ngModel)]="searchQuery" placeholder="e.g. calibration, mismatch, alt 1">
+        <input matInput [value]="searchQuery()" (input)="updateSearch($event)" placeholder="e.g. stale, BLE coverage, contract mismatch">
       </mat-form-field>
-      <span class="shortcut-tip"><kbd>Ctrl K</kbd> command palette</span>
+      <span class="shortcut-tip"><kbd>Ctrl K</kbd> commands | <kbd>Alt 1-6</kbd> live tabs</span>
     </div>
+    <mat-chip-set class="category-chips" aria-label="Help categories">
+      @for (category of categories; track category.id) {
+        <button mat-stroked-button type="button" [class.active]="activeCategory() === category.id" (click)="setCategory(category.id)">
+          <mat-icon>{{ category.icon }}</mat-icon>{{ category.label }}
+        </button>
+      }
+    </mat-chip-set>
   </mat-card>
 
-  <!-- HELP CONTENT LAYOUT -->
   <div class="help-layout">
-    <!-- COLLAPSIBLE ASIDE TABS -->
-    <div class="help-sidebar-menu">
-      <button mat-button class="sidebar-item" [class.active]="activeCategory === 'all'" (click)="setCategory('all')">
-        <mat-icon>menu_book</mat-icon>All Documentation
-      </button>
-      <button mat-button class="sidebar-item" [class.active]="activeCategory === 'general'" (click)="setCategory('general')">
-        <mat-icon>explore</mat-icon>General Science
-      </button>
-      <button mat-button class="sidebar-item" [class.active]="activeCategory === 'steps'" (click)="setCategory('steps')">
-        <mat-icon>format_list_numbered</mat-icon>Quick Steps
-      </button>
-      <button mat-button class="sidebar-item" [class.active]="activeCategory === 'errors'" (click)="setCategory('errors')">
-        <mat-icon>healing</mat-icon>Troubleshooting
-      </button>
-      <button mat-button class="sidebar-item" [class.active]="activeCategory === 'shortcuts'" (click)="setCategory('shortcuts')">
-        <mat-icon>keyboard</mat-icon>Shortcuts
-      </button>
-    </div>
-
-    <!-- MAIN COLLAPSIBLE FAQS (MAT-ACCORDION) -->
-    <div class="help-accordion-content">
+    <section class="help-accordion-content" aria-label="Help topics">
       <mat-accordion class="help-accordion" multi>
-        <mat-expansion-panel *ngFor="let topic of getFilteredTopics()" expanded="true" class="faq-panel">
-          <mat-expansion-panel-header>
-            <mat-panel-title class="faq-title">
-              <mat-icon class="faq-category-icon">
-                {{ topic.category === 'general' ? 'explore' : 
-                   topic.category === 'steps' ? 'format_list_numbered' : 
-                   topic.category === 'errors' ? 'healing' : 'keyboard' }}
-              </mat-icon>
-              {{ topic.title }}
-            </mat-panel-title>
-          </mat-expansion-panel-header>
-          <div class="faq-body-text">
-            {{ topic.content }}
-          </div>
-        </mat-expansion-panel>
+        @for (entry of filteredEntries(); track entry.id) {
+          <mat-expansion-panel class="faq-panel">
+            <mat-expansion-panel-header>
+              <mat-panel-title class="faq-title">
+                <mat-icon class="faq-category-icon">{{ entry.category === 'truthfulness' ? 'fact_check' : entry.category === 'shortcuts' ? 'keyboard' : 'menu_book' }}</mat-icon>
+                {{ entry.title }}
+              </mat-panel-title>
+            </mat-expansion-panel-header>
+            <div class="faq-body-text">
+              <strong>{{ entry.summary }}</strong>
+              @if (entry.detail) { <p>{{ entry.detail }}</p> }
+            </div>
+          </mat-expansion-panel>
+        }
       </mat-accordion>
+      @if (overviewMode() && additionalTopicCount()) {
+        <mat-card class="reference-gateway">
+          <mat-icon>dictionary</mat-icon>
+          <div>
+            <strong>Field dictionary and trainer guidance</strong>
+            <span>{{ additionalTopicCount() }} additional reference topics are available from the trainer schema.</span>
+          </div>
+          <button mat-stroked-button type="button" (click)="revealAllTopics()">Browse all topics</button>
+        </mat-card>
+      }
+      @if (!filteredEntries().length) {
+        <div class="no-topics-state"><mat-icon>find_in_page</mat-icon><span>No matching operator guidance found.</span></div>
+      }
+    </section>
 
-      <div class="no-topics-state" *ngIf="getFilteredTopics().length === 0">
-        <mat-icon>find_in_page</mat-icon>
-        <span>No matching playbook topics found. Clear search filter.</span>
-      </div>
-    </div>
-
-    <!-- SIDE RECOVERY ACTIONS CARD -->
-    <mat-card class="recovery-card">
-      <mat-card-header>
-        <mat-card-title>Quick Support Actions</mat-card-title>
-      </mat-card-header>
-      <mat-card-content class="recovery-actions-list">
-        <p>Still experiencing issues calibrating range readings or sensor syncs?</p>
-        
-        <button mat-flat-button color="primary" class="recovery-btn" routerLink="/home">
-          <mat-icon>fact_check</mat-icon>
-          Run Diagnostics Quickcheck
-        </button>
-
-        <button mat-stroked-button class="recovery-btn" routerLink="/settings">
-          <mat-icon>settings</mat-icon>
-          Configure Audio volumes
-        </button>
-      </mat-card-content>
-    </mat-card>
+    <aside class="support-column">
+      <mat-card class="recovery-card">
+        <mat-card-header><mat-card-title>Quick Support Actions</mat-card-title></mat-card-header>
+        <mat-card-content class="recovery-actions-list">
+          <p>Verify source mode and preflight before relying on live readings.</p>
+          <button mat-flat-button type="button" (click)="openPreflight()"><mat-icon>fact_check</mat-icon>Run preflight</button>
+          <button mat-stroked-button type="button" (click)="reconnect()"><mat-icon>sync</mat-icon>Reconnect trainer</button>
+          <button mat-stroked-button type="button" routerLink="/settings"><mat-icon>settings</mat-icon>Source settings</button>
+          <button mat-stroked-button type="button" routerLink="/report"><mat-icon>assignment</mat-icon>Open reports</button>
+        </mat-card-content>
+      </mat-card>
+    </aside>
   </div>
 
+  <mat-accordion class="deep-reference-panels" multi>
+    @if (dspSteps().length) {
+      <mat-expansion-panel class="wide-help-card">
+        <mat-expansion-panel-header>
+          <mat-panel-title>Signal Pipeline</mat-panel-title>
+          <mat-panel-description>Processing chain behind published values</mat-panel-description>
+        </mat-expansion-panel-header>
+        <div class="pipeline-grid">
+          @for (step of dspSteps(); track step.n) {
+            <article class="pipeline-step">
+              <span>{{ step.n }}</span>
+              <strong>{{ step.title }}</strong>
+              <p>{{ step.summary }}</p>
+            </article>
+          }
+        </div>
+      </mat-expansion-panel>
+    }
+
+    @if (filteredTroubleshooting().length) {
+      <mat-expansion-panel class="wide-help-card" [expanded]="activeCategory() === 'troubleshooting' || !!searchQuery().trim()">
+        <mat-expansion-panel-header>
+          <mat-panel-title>Recovery Checklists</mat-panel-title>
+          <mat-panel-description>Trainer and sensor fault steps</mat-panel-description>
+        </mat-expansion-panel-header>
+        <mat-accordion multi>
+          @for (issue of filteredTroubleshooting(); track issue.id) {
+            <mat-expansion-panel class="faq-panel">
+              <mat-expansion-panel-header><mat-panel-title>{{ issue.title }}</mat-panel-title></mat-expansion-panel-header>
+              <mat-list>
+                @for (step of issue.steps; track $index) { <mat-list-item>{{ $index + 1 }}. {{ step }}</mat-list-item> }
+              </mat-list>
+            </mat-expansion-panel>
+          }
+        </mat-accordion>
+      </mat-expansion-panel>
+    }
+
+    @if (filteredTooltips().length) {
+      <mat-expansion-panel class="wide-help-card" [expanded]="activeCategory() === 'reference' || !!searchQuery().trim()">
+        <mat-expansion-panel-header>
+          <mat-panel-title>Context Labels</mat-panel-title>
+          <mat-panel-description>KPI, preflight and analysis definitions</mat-panel-description>
+        </mat-expansion-panel-header>
+        <div class="tooltip-grid">
+        @for (tip of filteredTooltips(); track tip.key) {
+          <article>
+            <strong>{{ tip.key }}</strong>
+            <span>{{ tip.value }}</span>
+          </article>
+        }
+        </div>
+      </mat-expansion-panel>
+    }
+  </mat-accordion>
 </div>

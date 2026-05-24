@@ -43,6 +43,9 @@ jobs:
       - name: Install npm deps
         run: npm ci
 
+      - name: Install Angular web dependencies
+        run: npm --prefix web ci
+
       - name: Build www/
         run: npm run build:web
 

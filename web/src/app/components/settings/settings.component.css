@@ -20,7 +20,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   padding-bottom: 1rem;
 }
 
@@ -28,9 +28,7 @@
   font-size: 2rem;
   font-weight: 700;
   margin: 0;
-  background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--md-sys-color-primary);
   letter-spacing: -0.05rem;
 }
 
@@ -51,9 +49,8 @@
 }
 
 .settings-card {
-  background: rgba(255, 255, 255, 0.03) !important;
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--md-sys-color-surface-container) !important;
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 16px !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
@@ -61,7 +58,7 @@
 
 .settings-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(59, 130, 246, 0.25);
+  border-color: var(--md-sys-color-primary);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
 }
 
@@ -69,8 +66,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
+  color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
   border-radius: 50%;
   padding: 8px;
 }
@@ -127,8 +124,8 @@ mat-card-content {
 /* Button Toggles */
 .theme-toggle-group, .density-toggle-group, .haptics-toggle-group {
   width: 100%;
-  background: rgba(0, 0, 0, 0.2) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--md-sys-color-surface-container-low) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
   border-radius: 8px !important;
   overflow: hidden;
 }
@@ -145,8 +142,8 @@ mat-button-toggle {
 }
 
 .mat-button-toggle-checked {
-  background: rgba(59, 130, 246, 0.15) !important;
-  color: #60a5fa !important;
+  background: var(--md-sys-color-secondary-container) !important;
+  color: var(--md-sys-color-on-secondary-container) !important;
 }
 
 /* Thresholds Alert Card */
@@ -187,8 +184,8 @@ mat-button-toggle {
 .threshold-value {
   font-size: 0.875rem;
   font-weight: 700;
-  color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
+  color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
   padding: 2px 8px;
   border-radius: 12px;
 }
@@ -205,9 +202,9 @@ mat-button-toggle {
 
 .num-input {
   width: 64px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: white;
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
   border-radius: 8px;
   padding: 6px;
   text-align: center;
@@ -217,8 +214,8 @@ mat-button-toggle {
 }
 
 .num-input:focus {
-  border-color: #3b82f6;
-  background: rgba(0, 0, 0, 0.35);
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container);
 }
 
 .waveform-input {
@@ -242,10 +239,10 @@ mat-button-toggle {
   display: flex;
   align-items: center;
   gap: 1rem;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--md-sys-color-surface-container-low);
   padding: 8px 16px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .audio-slider {
@@ -275,8 +272,17 @@ mat-button-toggle {
   justify-content: space-between;
   align-items: center;
   margin-top: 2rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
   padding-top: 1.5rem;
+}
+
+.visually-hidden {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 .reset-all-btn {

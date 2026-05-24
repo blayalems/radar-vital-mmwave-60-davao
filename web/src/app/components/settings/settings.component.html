@@ -22,7 +22,7 @@
             <span class="row-title">Demo Mode</span>
             <span class="row-description">Use generated sample telemetry instead of the trainer JSON feed. Intended for UI demos only.</span>
           </div>
-          <mat-slide-toggle [checked]="state.demoMode()" (change)="state.demoMode.set($event.checked)"></mat-slide-toggle>
+          <mat-slide-toggle [checked]="state.demoMode()" (change)="setDemoMode($event.checked)"></mat-slide-toggle>
         </div>
 
         <div class="settings-row">
@@ -32,6 +32,19 @@
           </div>
           <mat-slide-toggle [checked]="state.autoDemoOnDisconnect()" (change)="state.autoDemoOnDisconnect.set($event.checked)"></mat-slide-toggle>
         </div>
+        <mat-form-field appearance="outline" class="form-field-full">
+          <mat-label>Trainer server origin</mat-label>
+          <input matInput [ngModel]="endpointInput()" (ngModelChange)="endpointInput.set($event)" placeholder="http://127.0.0.1:8765">
+          <mat-hint>Leave blank when the dashboard is served by the trainer.</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="form-field-full">
+          <mat-label>Pairing token for LAN mode</mat-label>
+          <input matInput type="password" [ngModel]="tokenInput()" (ngModelChange)="tokenInput.set($event)" autocomplete="off">
+          <mat-hint>Stored for this browser tab only.</mat-hint>
+        </mat-form-field>
+        <button mat-flat-button type="button" (click)="reconnectTrainer()" [disabled]="connectionBusy()">
+          <mat-icon>link</mat-icon>{{ connectionBusy() ? 'Connecting...' : 'Connect to trainer' }}
+        </button>
       </mat-card-content>
     </mat-card>
 
@@ -74,6 +87,17 @@
 
         <div class="settings-row block-row">
           <div class="settings-copy">
+            <span class="row-title">Text Scale</span>
+            <span class="row-description">Increase dashboard text without hiding telemetry controls.</span>
+          </div>
+          <mat-slider min="0.9" max="1.25" step="0.05" discrete class="audio-slider">
+            <input matSliderThumb [value]="state.fontScale()" (valueChange)="state.fontScale.set($event)">
+          </mat-slider>
+          <span class="audio-label">{{ Math.round(state.fontScale() * 100) }}%</span>
+        </div>
+
+        <div class="settings-row block-row">
+          <div class="settings-copy">
             <span class="row-title">Density</span>
             <span class="row-description">Comfortable leaves more breathing room; compact fits more telemetry.</span>
           </div>
@@ -102,6 +126,21 @@
             <mat-button-toggle value="auto">Auto</mat-button-toggle>
             <mat-button-toggle value="on">On</mat-button-toggle>
           </mat-button-toggle-group>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="settings-card premium-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">import_export</mat-icon>
+        <mat-card-title>Preferences Portability</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p class="settings-help-text">Export or restore presentation and alert preferences. Pairing tokens and session data are excluded.</p>
+        <div class="audio-actions">
+          <button mat-stroked-button type="button" (click)="exportPreferences()"><mat-icon>download</mat-icon>Export</button>
+          <button mat-stroked-button type="button" (click)="settingsFile.click()"><mat-icon>upload</mat-icon>Import</button>
+          <input #settingsFile class="visually-hidden" type="file" accept="application/json" (change)="importPreferences($event)">
         </div>
       </mat-card-content>
     </mat-card>

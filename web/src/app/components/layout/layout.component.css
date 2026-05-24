@@ -1,9 +1,18 @@
 /* Simple grid layout integration */
 .app {
-  display: flex;
-  height: 100vh;
-  width: 100vw;
+  /* Material calculates the sidenav offset; a grid here double-offsets content. */
+  display: block !important;
+  height: 100dvh;
+  min-height: 100dvh;
+  width: 100%;
   overflow: hidden;
+}
+
+.rail.mat-drawer {
+  height: 100% !important;
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
 }
 
 .main-wrapper {
@@ -13,6 +22,22 @@
   min-width: 0;
   height: 100%;
   position: relative;
+  background: var(--md-sys-color-surface);
+}
+
+.app.rail-collapsed .rail.mat-drawer {
+  width: var(--rail-w-collapsed, 64px) !important;
+}
+
+.app.rail-collapsed .brand-label,
+.app.rail-collapsed .nav-heading,
+.app.rail-collapsed .op-meta {
+  display: none;
+}
+
+.app.rail-collapsed .r-item {
+  font-size: 0;
+  justify-content: center;
 }
 
 .main-content-scroll {
@@ -22,8 +47,67 @@
   position: relative;
 }
 
+.bottom-nav {
+  display: none;
+}
+
 @media (max-width: 760px) {
   .main-content-scroll {
     padding: 12px 12px 80px; /* Space for bottom nav */
+  }
+
+  .bottom-nav {
+    background: var(--md-sys-color-surface-container);
+    border-top: 1px solid var(--md-sys-color-outline-variant);
+    bottom: 0;
+    display: block;
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    position: sticky;
+    z-index: 800;
+  }
+
+  .bottom-nav-inner {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    height: 68px;
+    width: 100%;
+  }
+
+  .bn-item {
+    align-content: center;
+    display: grid;
+    font-size: 12px;
+    justify-items: center;
+    min-width: 0;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1023px) {
+  .main-content-scroll {
+    padding-bottom: 80px;
+  }
+
+  .bottom-nav {
+    background: var(--md-sys-color-surface-container);
+    border-top: 1px solid var(--md-sys-color-outline-variant);
+    display: block;
+    height: 68px;
+    position: sticky;
+    z-index: 800;
+  }
+
+  .bottom-nav-inner {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    height: 68px;
+    width: 100%;
+  }
+
+  .bn-item {
+    align-content: center;
+    display: grid;
+    justify-items: center;
   }
 }

@@ -117,10 +117,12 @@ async function main() {
   await fs.writeFile(path.join(WWW, path.basename(DASHBOARD)), indexHtml);
   console.log(`Successfully compiled monolithic dashboard: ${path.basename(DASHBOARD)} (${indexHtml.length.toLocaleString()} characters)`);
 
-  // Create standard fallback 404 for GitHub Pages PWA
+  // GitHub Pages serves 404.html for direct Angular route loads. Use the
+  // application shell itself so /report, /settings and other routes survive
+  // reloads within the repository-scoped Pages URL.
   await fs.writeFile(
     path.join(WWW, '404.html'),
-    '<!DOCTYPE html><meta http-equiv="refresh" content="0; url=./index.html">'
+    indexHtml
   );
   console.log('Dashboard build round-trip clean & compiled.');
 }

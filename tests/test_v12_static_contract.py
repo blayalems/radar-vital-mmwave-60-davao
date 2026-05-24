@@ -15,6 +15,8 @@ TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
 FW = ROOT / "radar_vital_v16_0_0.ino"
 SW = ROOT / "assets" / "sw.js"
+BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
+PAGES_WORKFLOW = ROOT / ".github" / "workflows" / "pages.yml"
 
 
 def text(path: Path) -> str:
@@ -55,6 +57,20 @@ def test_service_worker_contract():
     assert "SW_UPDATED" in sw
     assert "/api/session/current/live_dashboard.json" in sw
     assert "/fonts/material-symbols-rounded.woff2" in sw
+
+
+def test_pages_publishes_angular_pwa_shell_not_documentation():
+    builder = text(BUILD_ANGULAR)
+    workflow = text(PAGES_WORKFLOW)
+
+    assert re.search(r"path\.join\(WWW, '404\.html'\),\s*indexHtml", builder)
+    assert 'meta http-equiv="refresh"' not in builder
+    assert "path: ./www" in workflow
+    assert "grep -q '<app-root></app-root>' www/index.html" in workflow
+    assert "grep -q '<app-root></app-root>' www/404.html" in workflow
+    assert "markdown-body|README[.]md" in workflow
+    assert "cmp -s www/index.html www/404.html" in workflow
+    assert "const DASHBOARD = './index.html';" in workflow
 
 
 def test_trainer_routes_and_security_contract():

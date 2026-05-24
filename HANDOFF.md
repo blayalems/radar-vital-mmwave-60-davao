@@ -11,10 +11,10 @@
 |---|---|---|---|
 | Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material source of truth; scoped IndexedDB, PIN pairing, report sign-off, alert diagnosis, mobile commands and dark inverse HC remediation implemented | codex/mobile-first-dashboard-upABy |
 | Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 partial extraction continues; monolith now denies generic static reads, protects LAN telemetry reads/SSE and exposes serial/notes/sign-off contracts | codex/mobile-first-dashboard-upABy |
-| PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Offline-complete self-contained shell and repository-scoped manifest/SW output verify locally; Pages deployment remains CI-verified | codex/mobile-first-dashboard-upABy |
+| PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Public URL serves the Angular shell; current branch enforces Angular-only Pages artifacts and direct-route shell fallback while its updated SW awaits deployment | codex/mobile-first-dashboard-upABy |
 | APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | `cap:sync` and local `assembleDebug` produced `app-debug.apk` on 2026-05-24; real paired-LAN/GATT acceptance remains open | codex/mobile-first-dashboard-upABy |
 | EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Native paired-origin HTTP and BLE bridge compiles; local NSIS build produced `Radar Vital_12.0.0-alpha.1_x64-setup.exe`; hardware acceptance remains open | codex/mobile-first-dashboard-upABy |
-| Smoke + visual tests | `tests/` | 34 Python contracts, 116 Playwright smoke checks and 80 current route/theme/device visual checks pass locally | codex/mobile-first-dashboard-upABy |
+| Smoke + visual tests | `tests/` | 35 Python contracts, 80 current Playwright smoke checks and 80 route/theme/device visual checks pass locally | codex/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows
 
@@ -60,6 +60,11 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-25 - GitHub Pages Angular PWA publication hardening
+- Verified the public repository Pages URL returns the Angular `<app-root>` shell rather than README-rendered content; its deployed service worker remains the older `rvt-shell-v12.0.0` output until the current branch deploys.
+- Replaced the Pages redirect-only `404.html` with the generated Angular shell so direct loads of routed PWA views retain Angular bootstrapping, and added deployment checks rejecting README/documentation markup in the uploaded `www/` artifact.
+- Verification: `npm run build:check`; generated `www/index.html` / `www/404.html` shell-identity and service-worker assertions; `python -m pytest -q tests` (35 passed); `npx playwright test tests/smoke/dashboard.spec.ts --reporter=line` (80 passed across desktop, Pixel 7, iPhone 14 and iPad). Real paired-session APK/EXE and physical GATT acceptance remain release gates.
 
 ### 2026-05-24 - Migration security, truthfulness and native completion increment
 - Fast-forwarded the Help restoration commit onto `codex/mobile-first-dashboard-upABy`, then tracked the confirmed remediation inventory in `docs/angular-migration-audit.md`.

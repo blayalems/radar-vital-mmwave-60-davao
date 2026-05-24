@@ -1,6 +1,7 @@
 # Angular Material v12/v16 Migration Remediation Audit
 
 Date: 2026-05-24
+Updated: 2026-05-25
 Branch: `codex/mobile-first-dashboard-upABy`
 Baseline: v11 operator workflows preserved through Angular Material 3 source in `web/src/`.
 
@@ -14,7 +15,7 @@ Baseline: v11 operator workflows preserved through Angular Material 3 source in 
 | High | Angular had no PIN exchange workflow. | Fixed: Settings accepts a six-digit PIN, QR `?pair=` links are consumed once, issued tokens remain session-only, and the PIN is removed from browser history. |
 | High | Tauri EXE lacked a secure LAN bridge and BLE implementation surface. | Fixed in code: native HTTP/download traffic is pinned to the paired origin and native BLE scan/connect/notification commands are exposed; real-device GATT acceptance remains a release gate. |
 | High | Report review summaries and operator sign-off were not persisted. | Fixed: protected historical notes/sign-off routes, Material sign-off UI, validation bounds, and explicit unsigned export warnings. |
-| High | Packaged/Pages PWA output did not reliably precache a bootable shell. | Fixed: build emits one self-contained entry document for root and `www/`, relative manifest/scope URLs work under repository Pages paths, and SW installation fails visibly if required assets are missing. |
+| High | Packaged/Pages PWA output did not reliably precache a bootable shell or preserve direct Angular route loads. | Fixed: build emits one self-contained entry document for root, `www/index.html` and `www/404.html`; relative manifest/scope URLs work under repository Pages paths; SW installation fails visibly if required assets are missing; Pages CI rejects non-Angular/README artifacts. The public Pages root was verified to serve Angular HTML on 2026-05-25, while deployment of the current worker remains pending. |
 | High | CI did not exercise stated viewport/visual/static contracts. | Fixed: CI runs complete Python tests, all Playwright viewport projects, and visual regressions. Native build workflows retain artifact gates. |
 | Medium | HC left bright unowned surfaces/plot backgrounds in an inverse theme. | Fixed: HC establishes all surface tokens, canvas/nav/safe-area backgrounds, and dark color-scheme ownership. Phone and desktop HC captures were visually inspected before accepting updated baselines. |
 | Medium | Serial scan, mobile command entry, alert review controls and polling resilience were incomplete. | Fixed: typed serial route, touch command action, alert filter/snooze/wave jump flow, and bounded jittered HTTP polling retry. |
@@ -27,7 +28,7 @@ Baseline: v11 operator workflows preserved through Angular Material 3 source in 
 | PIN exchange and scoped telemetry persistence | [`web/src/app/services/api.service.ts`](../web/src/app/services/api.service.ts), [`web/src/app/services/persistence.service.ts`](../web/src/app/services/persistence.service.ts), [`web/src/app/services/state.service.ts`](../web/src/app/services/state.service.ts) | [`tests/smoke/dashboard.spec.ts`](../tests/smoke/dashboard.spec.ts), [`tests/test_v12_static_contract.py`](../tests/test_v12_static_contract.py) |
 | Notes, sign-off and serial discovery | [`rvt_trainer/monolith.py`](../rvt_trainer/monolith.py), [`web/src/app/components/report/report.component.ts`](../web/src/app/components/report/report.component.ts), [`web/src/app/components/home/home.component.ts`](../web/src/app/components/home/home.component.ts) | [`tests/test_trainer_security_api.py`](../tests/test_trainer_security_api.py), [`tests/smoke/dashboard.spec.ts`](../tests/smoke/dashboard.spec.ts) |
 | Mobile workflow and HC visual parity | [`web/src/app/components/topbar/topbar.component.ts`](../web/src/app/components/topbar/topbar.component.ts), [`web/src/app/components/alerts-dialog/alerts-dialog.component.ts`](../web/src/app/components/alerts-dialog/alerts-dialog.component.ts), [`web/src/styles.scss`](../web/src/styles.scss) | [`tests/visual/rvt-v12.spec.ts`](../tests/visual/rvt-v12.spec.ts) and its committed screenshots |
-| Offline shell and Pages scope | [`assets/sw.js`](../assets/sw.js), [`scripts/build-angular.mjs`](../scripts/build-angular.mjs), [`.github/workflows/pages.yml`](../.github/workflows/pages.yml) | [`tests/smoke/dashboard.spec.ts`](../tests/smoke/dashboard.spec.ts), local Pages static output checks |
+| Offline shell and Pages scope | [`assets/sw.js`](../assets/sw.js), [`scripts/build-angular.mjs`](../scripts/build-angular.mjs), [`.github/workflows/pages.yml`](../.github/workflows/pages.yml) | [`tests/smoke/dashboard.spec.ts`](../tests/smoke/dashboard.spec.ts), [`tests/test_v12_static_contract.py`](../tests/test_v12_static_contract.py), generated Pages shell-identity checks |
 | Native paired transport and BLE gate | [`src-tauri/src/main.rs`](../src-tauri/src/main.rs), [`web/src/app/services/bluetooth.service.ts`](../web/src/app/services/bluetooth.service.ts) | `cargo check`, local NSIS/APK packaging; physical GATT acceptance remains open |
 | Frozen firmware protocol | [`radar_vital_v16_0_0.ino`](../radar_vital_v16_0_0.ino), [`rvt_trainer/monolith.py`](../rvt_trainer/monolith.py) | [`tests/test_v12_static_contract.py`](../tests/test_v12_static_contract.py), Arduino CLI compile |
 
@@ -43,12 +44,13 @@ Baseline: v11 operator workflows preserved through Angular Material 3 source in 
 
 - Run APK and EXE paired-LAN 1 Hz telemetry validation against a real trainer.
 - Run Capacitor and Tauri GATT acceptance with the target BLE device before considering firmware BLE promotion.
-- Confirm APK/EXE/Pages workflows in CI and reduce the advisory Angular initial bundle warning (currently 12.79 kB over the 2 MB warning budget).
+- Deploy the current Pages workflow output so the public site advances from its verified Angular shell with the older `rvt-shell-v12.0.0` worker to the remediation worker and direct-route fallback.
+- Confirm APK/EXE workflow runs in CI and reduce the advisory Angular initial bundle warning (currently 12.79 kB over the 2 MB warning budget).
 
 ## Verification Evidence
 
 - `npm run build:check` passed; `web/` and the committed monolith round-trip cleanly.
-- `python -m pytest -q tests` passed with 34 tests, including LAN authorization/static denial and frozen 207-column/115200 protocol assertions.
-- Playwright smoke passed across desktop, Pixel 7, iPhone 14 and iPad at 29 checks each (116 total); Chromium verifies offline launch, while WebKit verifies precaching because Playwright offline navigation emulation reports an internal engine error.
+- `python -m pytest -q tests` passed with 35 tests, including LAN authorization/static denial, Pages Angular-shell publication, and frozen 207-column/115200 protocol assertions.
+- `npx playwright test tests/smoke/dashboard.spec.ts --reporter=line` passed 80 current checks across desktop, Pixel 7, iPhone 14 and iPad; Chromium verifies offline launch, while WebKit verifies precaching because Playwright offline navigation emulation reports an internal engine error.
 - `npx playwright test tests/visual/rvt-v12.spec.ts` passed all 80 current route/theme/device baselines after intentional HC/settings updates.
-- Pages static output checks, `cargo check --manifest-path src-tauri\Cargo.toml`, Arduino CLI compile for `esp32:esp32:XIAO_ESP32C6`, Android `assembleDebug`, and Tauri NSIS build passed locally.
+- Generated Pages output checks confirmed identical Angular shells in `www/index.html` and `www/404.html`, no README rendering marker, and the `rvt-shell-v12.0.2` service worker; the public URL returned Angular HTML rather than a README page on 2026-05-25. `cargo check --manifest-path src-tauri\Cargo.toml`, Arduino CLI compile for `esp32:esp32:XIAO_ESP32C6`, Android `assembleDebug`, and Tauri NSIS build passed locally in the earlier remediation increment.

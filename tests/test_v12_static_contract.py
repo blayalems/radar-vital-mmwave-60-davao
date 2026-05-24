@@ -17,6 +17,8 @@ FW = ROOT / "radar_vital_v16_0_0.ino"
 SW = ROOT / "assets" / "sw.js"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
 PAGES_WORKFLOW = ROOT / ".github" / "workflows" / "pages.yml"
+PLAYWRIGHT_WORKFLOW = ROOT / ".github" / "workflows" / "playwright.yml"
+VISUAL_SNAPSHOTS = ROOT / "tests" / "visual" / "rvt-v12.spec.ts-snapshots"
 
 
 def text(path: Path) -> str:
@@ -71,6 +73,17 @@ def test_pages_publishes_angular_pwa_shell_not_documentation():
     assert "markdown-body|README[.]md" in workflow
     assert "cmp -s www/index.html www/404.html" in workflow
     assert "const DASHBOARD = './index.html';" in workflow
+
+
+def test_visual_ci_runs_on_the_committed_snapshot_platform():
+    workflow = text(PLAYWRIGHT_WORKFLOW)
+    snapshots = list(VISUAL_SNAPSHOTS.glob("*.png"))
+
+    assert snapshots
+    assert all("-win32.png" in snapshot.name for snapshot in snapshots)
+    assert "name: Visual regression (committed Windows baselines)" in workflow
+    assert re.search(r"\n  visual:\n(?:.*\n){1,3}    runs-on: windows-latest", workflow)
+    assert "npx playwright test tests/visual" in workflow
 
 
 def test_trainer_routes_and_security_contract():

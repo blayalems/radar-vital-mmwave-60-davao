@@ -14,7 +14,7 @@
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Public URL serves the Angular shell; current branch enforces Angular-only Pages artifacts and direct-route shell fallback while its updated SW awaits deployment | codex/mobile-first-dashboard-upABy |
 | APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | `cap:sync` and local `assembleDebug` produced `app-debug.apk` on 2026-05-24; real paired-LAN/GATT acceptance remains open | codex/mobile-first-dashboard-upABy |
 | EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Native paired-origin HTTP and BLE bridge compiles; local NSIS build produced `Radar Vital_12.0.0-alpha.1_x64-setup.exe`; hardware acceptance remains open | codex/mobile-first-dashboard-upABy |
-| Smoke + visual tests | `tests/` | 35 Python contracts, 80 current Playwright smoke checks and 80 route/theme/device visual checks pass locally | codex/mobile-first-dashboard-upABy |
+| Smoke + visual tests | `tests/` | 36 Python contracts; 80 current functional smoke checks and 80 Win32 visual baselines pass locally; CI runs visuals on Windows to match committed snapshots | codex/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows
 
@@ -60,6 +60,10 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-25 - Align CI visual execution with committed Win32 baselines
+- Split visual regression from the Ubuntu functional/security test job into a `windows-latest` job because the reviewed route/theme/device snapshots are deliberately committed as `-win32.png`; running those assertions on Linux would request non-existent Linux baselines rather than compare the approved captures.
+- Added a static contract that enforces the visual-runner platform alignment. Verification: `python -m pytest -q tests` (36 passed) and snapshot inventory review (84 committed PNGs, all Win32-targeted); PR workflow validation reruns after this corrective follow-up.
 
 ### 2026-05-25 - GitHub Pages Angular PWA publication hardening
 - Verified the public repository Pages URL returns the Angular `<app-root>` shell rather than README-rendered content; its deployed service worker remains the older `rvt-shell-v12.0.0` output until the current branch deploys.

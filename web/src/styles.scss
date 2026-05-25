@@ -262,6 +262,18 @@ html[data-theme='hc'] {
   --md-sys-color-on-primary-container: #fff !important;
   --brand-100: #000 !important;
   --shell-active-bg: #000 !important;
+  --shell-card-bg: #000 !important;
+  --shell-card-bg-solid: #000 !important;
+  --shell-card-border: #fff !important;
+  --shell-ink: #fff !important;
+  --shell-muted: #fff !important;
+  --v11-home-card-bg: #000 !important;
+  --v11-home-card-border: #fff !important;
+  --v11-home-card-shadow: none !important;
+  --v11-home-control-bg: #000 !important;
+  --v11-home-control-border: #fff !important;
+  --v11-home-control-ink: #fff !important;
+  --v11-home-muted: #fff !important;
 }
 
 html[data-theme='hc'] .rail,
@@ -303,5 +315,49 @@ html[data-theme='hc'] .rail :is(.r-item.active, .r-item.sub.active, .r-item[aria
 
 html[data-theme='hc'] .rail :is(.r-item, .operator) *,
 html[data-theme='hc'] app-topbar :is(.mat-button-toggle, .ic-btn, .tb-more, .tb-export) * {
+  color: #fff !important;
+}
+
+/* Angular Home replaced legacy card ids, so it owns inverse-HC surfaces here. */
+html[data-theme='hc'] body[data-view='home'] app-home :is(
+  .mobile-confidence-card,
+  .home-stat-card,
+  .setup-config-card,
+  .radar-scope-card,
+  .preflight-card-stack,
+  .sessions-history-card,
+  .radar-canvas-container,
+  .scope-metric,
+  .scope-trend-container,
+  .ble-scan-list,
+  .preflight-row,
+  .session-log-row.header
+) {
+  background: #000 !important;
+  border-color: #fff !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+html[data-theme='hc'] body[data-view='home'] app-home :is(
+  .home-stat-card:nth-child(3),
+  .home-stat-card:nth-child(4)
+) {
+  background: #000 !important;
+}
+
+html[data-theme='hc'] body[data-view='home'] app-home :is(
+  .mobile-confidence-head span,
+  .mobile-confidence-head strong,
+  .home-stat-title,
+  .home-stat-line,
+  .home-stat-sub,
+  .field-label,
+  .scope-metric span,
+  .scope-metric strong,
+  .scope-metric small,
+  .trend-header,
+  .pf-text small
+) {
   color: #fff !important;
 }

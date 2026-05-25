@@ -14,7 +14,7 @@
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Public URL serves the Angular shell; current branch enforces Angular-only Pages artifacts and direct-route shell fallback while its updated SW awaits deployment | codex/mobile-first-dashboard-upABy |
 | APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | `cap:sync` and local `assembleDebug` produced `app-debug.apk` on 2026-05-24; real paired-LAN/GATT acceptance remains open | codex/mobile-first-dashboard-upABy |
 | EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Native paired-origin HTTP and BLE bridge compiles; local NSIS build produced `Radar Vital_12.0.0-alpha.1_x64-setup.exe`; hardware acceptance remains open | codex/mobile-first-dashboard-upABy |
-| Smoke + visual tests | `tests/` | 36 Python contracts; 80 current functional smoke checks and 80 Win32 visual baselines pass locally; CI runs visuals on Windows to match committed snapshots | codex/mobile-first-dashboard-upABy |
+| Smoke + visual tests | `tests/` | 37 Python contracts and 80 Win32 visual baselines pass locally; PR functional viewport checks passed before this visual-only correction and fresh CI follows | codex/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows
 
@@ -60,6 +60,11 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-25 - Close inverse-HC Home surface leak and stabilize visual fixtures
+- PR #21 visual run `26367439592` exposed moving Home preview/preflight captures; inspection also confirmed migrated Home card rules still rendered white surfaces under dark inverse HC.
+- Final HC ownership now resets legacy Home surface aliases and forces Angular Home cards, preflight, scope and history panels to black surfaces with white ink/outlines; the screenshot fixture fixes asynchronous Home data and excludes only its continuously repainted preview canvases while Live route captures retain plot coverage.
+- Verification: browser-computed HC Home surfaces resolve black/white; `npm run build:check`; `python -m pytest -q tests` (37 passed); `npx playwright test tests/visual/rvt-v12.spec.ts --grep " home$" --repeat-each=2 --reporter=line` (32 passed); `npx playwright test tests/visual/rvt-v12.spec.ts --reporter=line` (80 passed). The Angular advisory initial-bundle warning is now 14.05 kB above the 2 MB budget; fresh PR CI follows.
 
 ### 2026-05-25 - Install CI browsers required by mobile Playwright projects
 - PR #21 exposed that its Ubuntu smoke job installed only Chromium while the configured iPhone and iPad projects launch WebKit, causing missing-browser failures before application assertions.

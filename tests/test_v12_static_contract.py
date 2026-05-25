@@ -15,6 +15,7 @@ TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
 FW = ROOT / "radar_vital_v16_0_0.ino"
 SW = ROOT / "assets" / "sw.js"
+STYLES = ROOT / "web" / "src" / "styles.scss"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
 PAGES_WORKFLOW = ROOT / ".github" / "workflows" / "pages.yml"
 PLAYWRIGHT_WORKFLOW = ROOT / ".github" / "workflows" / "playwright.yml"
@@ -86,6 +87,23 @@ def test_visual_ci_runs_on_the_committed_snapshot_platform():
     assert "npx playwright install --with-deps chromium webkit" in workflow
     assert "npx playwright install chromium webkit" in workflow
     assert "npx playwright test tests/visual" in workflow
+
+
+def test_dark_inverse_hc_owns_angular_home_surfaces():
+    styles = text(STYLES)
+
+    for token in [
+        "--shell-card-bg-solid: #000 !important;",
+        "--shell-card-border: #fff !important;",
+        "--shell-ink: #fff !important;",
+        "--v11-home-card-bg: #000 !important;",
+        "--v11-home-control-bg: #000 !important;",
+    ]:
+        assert token in styles
+    assert "body[data-view='home'] app-home :is(" in styles
+    assert ".home-stat-card" in styles
+    assert ".radar-scope-card" in styles
+    assert ".preflight-card-stack" in styles
 
 
 def test_trainer_routes_and_security_contract():

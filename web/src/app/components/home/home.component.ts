@@ -20,7 +20,7 @@ import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
 import { BluetoothService } from '../../services/bluetooth.service';
-import { BleScanDevice, PreflightCheck, SessionRecord, SubjectProfileRecord } from '../../models/rvt.models';
+import { BleScanDevice, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord } from '../../models/rvt.models';
 
 @Component({
   selector: 'app-home',
@@ -143,7 +143,14 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.isScanningPorts = true;
     this.state.triggerHaptic('tap');
     try {
-      await this.refreshDefaults();
+      const result = await this.api.request<{ ports?: SerialPortRecord[]; selected?: string }>('/api/serial/ports');
+      const ports = (result.ports || []).map(port => port.device).filter(Boolean);
+      if (ports.length) {
+        this.radarPorts = ports;
+        if (result.selected && ports.includes(result.selected)) {
+          this.state.setup.update(setup => ({ ...setup, radar_port: result.selected! }));
+        }
+      }
       this.state.triggerHaptic('success');
     } catch (_) {
       this.state.triggerHaptic('warn');

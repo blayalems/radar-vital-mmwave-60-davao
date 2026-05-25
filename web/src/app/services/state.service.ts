@@ -1,4 +1,4 @@
-import { Injectable, signal, effect } from '@angular/core';
+import { Injectable, signal, effect, inject } from '@angular/core';
 import {
   AlertEvent,
   AlertSeverity,
@@ -9,8 +9,10 @@ import {
   SessionRecord,
   SetupState,
   SnapshotRecord,
+  SessionSignoff,
   ThemeId
 } from '../models/rvt.models';
+import { PersistenceService, StorageScope } from './persistence.service';
 
 export interface SubjectProfile {
   label: string;
@@ -62,6 +64,10 @@ export const DEFAULT_SUBJECT_PROFILES: Record<string, SubjectProfile> = {
   providedIn: 'root'
 })
 export class StateService {
+  private readonly persistence = inject(PersistenceService);
+  private activeStorageScope: StorageScope | '' = '';
+  private scopedHydrated = false;
+  private hydrationGeneration = 0;
   // Global View & Navigation State
   currentView = signal<string>('live');
   activeTab = signal<string>('tab-overview');
@@ -126,6 +132,7 @@ export class StateService {
   alertHistory = signal<AlertEvent[]>([]);
   alertPins = signal<string[]>([]);
   sessionNotes = signal<Record<string, string>>({});
+  sessionSignoffs = signal<Record<string, SessionSignoff>>({});
   sessionItems = signal<SessionRecord[]>([]);
   currentSessionId = signal<string | null>(null);
 
@@ -139,9 +146,19 @@ export class StateService {
 
   // Haptic feedback mode
   hxMode = signal<HapticMode>('auto');
+  waveformSeekAt = signal<number | null>(null);
 
   constructor() {
     this.loadFromStorage();
+    void this.persistence.quarantineLegacyLocalStorage();
+
+    effect(() => {
+      const scope = this.storageScope();
+      if (scope !== this.activeStorageScope) {
+        this.activeStorageScope = scope;
+        void this.hydrateScopedRecords(scope);
+      }
+    });
 
     // Effect to sync settings back to storage
     effect(() => {
@@ -185,23 +202,38 @@ export class StateService {
     });
 
     effect(() => {
-      localStorage.setItem('rvt-snaps', JSON.stringify(this.snaps()));
+      const value = this.snaps();
+      if (this.scopedHydrated) void this.persistence.put('snapshots', this.activeStorageScope, value);
     });
 
     effect(() => {
-      localStorage.setItem('rvt-snap-notes', JSON.stringify(this.snapNotes()));
+      const value = this.snapNotes();
+      if (this.scopedHydrated) void this.persistence.put('snap-notes', this.activeStorageScope, value);
     });
 
     effect(() => {
-      localStorage.setItem('rvt-alert-pins', JSON.stringify(this.alertPins()));
+      const value = this.alertPins();
+      if (this.scopedHydrated) void this.persistence.put('settings-backup', `${this.activeStorageScope}:alert-pins`, value);
     });
 
     effect(() => {
-      localStorage.setItem('rvt-alert-history', JSON.stringify(this.alertHistory()));
+      const value = this.alertHistory();
+      if (this.scopedHydrated) void this.persistence.put('alert-history', this.activeStorageScope, value);
     });
 
     effect(() => {
-      localStorage.setItem('rvt-session-notes', JSON.stringify(this.sessionNotes()));
+      const value = this.sessionNotes();
+      if (this.scopedHydrated) void this.persistence.put('session-notes', this.activeStorageScope, value);
+    });
+
+    effect(() => {
+      const value = this.sessionSignoffs();
+      if (this.scopedHydrated) void this.persistence.put('session-notes', `${this.activeStorageScope}:signoffs`, value);
+    });
+
+    effect(() => {
+      const value = this.sessionItems();
+      if (this.scopedHydrated && this.activeStorageScope === 'demo') void this.persistence.put('sessions', 'demo', value);
     });
 
     effect(() => {
@@ -305,21 +337,6 @@ export class StateService {
         this.fontScale.set(fontScaleVal);
       }
 
-      const snapsVal = localStorage.getItem('rvt-snaps');
-      if (snapsVal) this.snaps.set(JSON.parse(snapsVal));
-
-      const snapNotesVal = localStorage.getItem('rvt-snap-notes');
-      if (snapNotesVal) this.snapNotes.set(JSON.parse(snapNotesVal));
-
-      const alertPinsVal = localStorage.getItem('rvt-alert-pins');
-      if (alertPinsVal) this.alertPins.set(JSON.parse(alertPinsVal));
-
-      const alertHistoryVal = localStorage.getItem('rvt-alert-history');
-      if (alertHistoryVal) this.alertHistory.set(JSON.parse(alertHistoryVal));
-
-      const sessionNotesVal = localStorage.getItem('rvt-session-notes');
-      if (sessionNotesVal) this.sessionNotes.set(JSON.parse(sessionNotesVal));
-
       const thresholdsVal = localStorage.getItem('rvt-kpi-thresholds');
       if (thresholdsVal) this.kpiThresholds.set(JSON.parse(thresholdsVal));
     } catch (e) {
@@ -327,12 +344,41 @@ export class StateService {
     }
   }
 
-  pushAlert(message: string, severity: AlertSeverity = 'warn') {
+  storageScope(): StorageScope {
+    return this.demoMode() || this.autoDemoActive() || this.ctlStatus()?.mode === 'sandbox'
+      ? 'demo'
+      : 'live';
+  }
+
+  private async hydrateScopedRecords(scope: StorageScope): Promise<void> {
+    const generation = ++this.hydrationGeneration;
+    this.scopedHydrated = false;
+    const [snaps, snapNotes, alertPins, alerts, sessionNotes, signoffs, sessions] = await Promise.all([
+      this.persistence.get<SnapshotRecord[]>('snapshots', scope),
+      this.persistence.get<Record<string, string>>('snap-notes', scope),
+      this.persistence.get<string[]>('settings-backup', `${scope}:alert-pins`),
+      this.persistence.get<AlertEvent[]>('alert-history', scope),
+      this.persistence.get<Record<string, string>>('session-notes', scope),
+      this.persistence.get<Record<string, SessionSignoff>>('session-notes', `${scope}:signoffs`),
+      scope === 'demo' ? this.persistence.get<SessionRecord[]>('sessions', 'demo') : Promise.resolve(undefined)
+    ]);
+    if (generation !== this.hydrationGeneration) return;
+    this.snaps.set(Array.isArray(snaps) ? snaps : []);
+    this.snapNotes.set(snapNotes || {});
+    this.alertPins.set(Array.isArray(alertPins) ? alertPins : []);
+    this.alertHistory.set(Array.isArray(alerts) ? alerts : []);
+    this.sessionNotes.set(sessionNotes || {});
+    this.sessionSignoffs.set(signoffs || {});
+    if (scope === 'demo' && Array.isArray(sessions)) this.sessionItems.set(sessions);
+    this.scopedHydrated = true;
+  }
+
+  pushAlert(message: string, severity: AlertSeverity = 'warn', source = 'telemetry', seekTimestamp?: number) {
     const now = Date.now();
     const latest = this.alertHistory()[0];
     if (latest?.msg === message && now - latest.ts < 15_000) return;
     this.alertHistory.update(items => [
-      { id: `alert_${now}`, ts: now, msg: message, severity },
+      { id: `alert_${now}`, ts: now, msg: message, severity, source, seekTimestamp },
       ...items
     ].slice(0, 80));
   }

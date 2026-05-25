@@ -1,8 +1,8 @@
 // Build pipeline for the Angular Dashboard:
 //   1. Build the Angular production application inside web/ into www/.
 //   2. Copy the manifest, service workers, and stable root asset aliases into www/.
-//   3. Inline all output JS bundles and CSS stylesheets from index.html into a self-contained monolith
-//      at the repository root (radar_vital_live_dashboard_v12_for_v16_0.html).
+//   3. Inline all output JS bundles and CSS stylesheets into one self-contained
+//      document used by the root artefact and static/native entry points.
 //
 
 import { promises as fs } from 'node:fs';
@@ -110,14 +110,19 @@ async function main() {
 
   console.log('Verification assertions passed: All local stylesheets and script bundles successfully inlined.');
 
-  // Save the inlined monolith to the repository root
+  // Keep every distribution entry point on the same self-contained shell. This
+  // also makes service-worker precaching deterministic for offline launch.
   await fs.writeFile(DASHBOARD, indexHtml);
+  await fs.writeFile(indexPath, indexHtml);
+  await fs.writeFile(path.join(WWW, path.basename(DASHBOARD)), indexHtml);
   console.log(`Successfully compiled monolithic dashboard: ${path.basename(DASHBOARD)} (${indexHtml.length.toLocaleString()} characters)`);
 
-  // Create standard fallback 404 for GitHub Pages PWA
+  // GitHub Pages serves 404.html for direct Angular route loads. Use the
+  // application shell itself so /report, /settings and other routes survive
+  // reloads within the repository-scoped Pages URL.
   await fs.writeFile(
     path.join(WWW, '404.html'),
-    '<!DOCTYPE html><meta http-equiv="refresh" content="0; url=./index.html">'
+    indexHtml
   );
   console.log('Dashboard build round-trip clean & compiled.');
 }

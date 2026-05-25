@@ -95,6 +95,39 @@ test.describe('Dashboard smoke', () => {
     expect(['installing', 'installed', 'activating', 'activated']).toContain(result.state);
   });
 
+  test('precaches the shell and opens it offline where navigation emulation permits', async ({ page, browserName }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(async () => {
+      await navigator.serviceWorker.ready;
+    });
+    await page.waitForFunction(() => !!navigator.serviceWorker.controller, undefined, { timeout: 15_000 });
+    const cachedShell = await page.evaluate(async () => {
+      const cache = await caches.open('rvt-shell-v12.0.2');
+      return Boolean(
+        await cache.match('./index.html')
+        || await cache.match('./radar_vital_live_dashboard_v12_for_v16_0.html')
+      );
+    });
+    expect(cachedShell).toBe(true);
+
+    if (browserName === 'webkit') {
+      test.info().annotations.push({
+        type: 'note',
+        description: 'Playwright WebKit reports an internal error for emulated offline navigation; precache was verified.'
+      });
+      return;
+    }
+
+    await page.context().setOffline(true);
+    try {
+      await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('app-layout')).toBeVisible();
+      await expect(page.locator('#demoBanner')).toBeVisible();
+    } finally {
+      await page.context().setOffline(false);
+    }
+  });
+
   test('viewport meta enables PWA install on mobile', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     const viewport = await page.locator('meta[name="viewport"]').first().getAttribute('content');
@@ -275,6 +308,69 @@ test.describe('Dashboard smoke', () => {
     expect(JSON.parse(stored.thresholds || '{}')).toEqual({ hrLow: 33, hrHigh: 172, rrLow: 7, rrHigh: 32 });
     expect(stored.audio).toBe('1');
     expect(stored.voice).toBe('1');
+  });
+
+  test('labels automatic fallback as DEMO and does not write unscoped telemetry stores', async ({ page }) => {
+    await page.route('**/api/status', route => route.fulfill({ status: 503, body: '{"error":"offline"}' }));
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#demoBanner')).toBeVisible();
+    await expect(page.locator('#demoBanner')).toContainText('simulated vitals only');
+    const legacyKeys = await page.evaluate(() => [
+      'rvt-snaps',
+      'rvt-snap-notes',
+      'rvt-alert-history',
+      'rvt-session-notes',
+      'rvt-sandbox-sessions'
+    ].filter(key => localStorage.getItem(key) !== null));
+    expect(legacyKeys).toEqual([]);
+  });
+
+  test('exchanges a one-time pairing PIN without exposing a raw token input', async ({ page }) => {
+    await page.addInitScript(() => {
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        const target = typeof input === 'string'
+          ? input
+          : input instanceof Request
+            ? input.url
+            : String(input);
+        if (target.includes('/api/auth/exchange')) {
+          return Promise.resolve(new Response(JSON.stringify({ token: 'paired-session-token' }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          }));
+        }
+        return originalFetch(input, init);
+      };
+    });
+    await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+    await page.getByLabel('Six-digit LAN pairing PIN').fill('482931');
+    await page.getByRole('button', { name: /Pair with PIN/ }).click();
+    await expect(page.locator('simple-snack-bar').last()).toContainText(/paired/i);
+    const token = await page.evaluate(() => sessionStorage.getItem('rvt-pair-token'));
+    expect(token).toBe('paired-session-token');
+    await expect(page.getByLabel(/Pairing token/)).toHaveCount(0);
+  });
+
+  test('persists demo report review and structured sign-off through Material controls', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
+    await page.goto('/report', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByText(/DEMO - Simulated Data Only/)).toBeVisible();
+    await page.getByLabel('Operator report notes').fill('Reviewed simulated trace only.');
+    await page.getByRole('button', { name: /Save Report Notes/ }).click();
+    await page.getByLabel('Operator name').fill('Field Operator');
+    await page.getByLabel('Initials').fill('FO');
+    await page.getByLabel('Validation comments').fill('Simulation marked non-clinical.');
+    await page.getByRole('button', { name: /Record sign-off/ }).click();
+    await expect(page.getByText(/Signed/).first()).toBeVisible();
+  });
+
+  test('exposes command search in the condensed mobile action menu', async ({ page }) => {
+    if ((page.viewportSize()?.width || 0) > 760) return;
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: 'More console actions' }).click();
+    await page.getByRole('menuitem', { name: /Search commands/ }).click();
+    await expect(page.getByRole('dialog')).toContainText('Command Palette');
   });
 
   test('hydrates active-session actions and home history from trainer APIs', async ({ page }) => {

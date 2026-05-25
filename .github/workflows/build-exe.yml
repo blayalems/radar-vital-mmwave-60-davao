@@ -64,6 +64,9 @@ jobs:
       - name: Print Tauri CLI version
         run: cargo tauri --version
 
+      - name: Run native transport and BLE contract tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --verbose
+
       - name: Compile-only (no bundling)
         # Surfaces Rust/Tauri compile errors separately from WiX/NSIS bundling
         # errors. The 14-min PR #5 failure could've been at compile time, link

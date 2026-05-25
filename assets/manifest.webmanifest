@@ -1,5 +1,5 @@
 {
-  "id": "/",
+  "id": "./",
   "name": "Radar Vital Trainer",
   "short_name": "Radar Vital",
   "description": "Mobile-first console for mmWave 60 GHz radar vital-sign monitoring sessions.",

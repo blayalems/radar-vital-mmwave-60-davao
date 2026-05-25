@@ -51,7 +51,7 @@ export class SettingsComponent {
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
   protected readonly endpointInput = signal(this.api.currentApiBase());
-  protected readonly tokenInput = signal('');
+  protected readonly pinInput = signal('');
   protected readonly connectionBusy = signal(false);
 
   testSound() {
@@ -76,7 +76,6 @@ export class SettingsComponent {
   async reconnectTrainer(): Promise<void> {
     this.connectionBusy.set(true);
     this.api.setApiBase(this.endpointInput());
-    this.api.setPairToken(this.tokenInput());
     this.state.demoMode.set(false);
     try {
       const connected = await this.api.detectControlMode();
@@ -85,6 +84,22 @@ export class SettingsComponent {
         'Dismiss',
         { duration: 5000 }
       );
+    } finally {
+      this.connectionBusy.set(false);
+    }
+  }
+
+  async pairWithPin(): Promise<void> {
+    this.connectionBusy.set(true);
+    this.api.setApiBase(this.endpointInput());
+    try {
+      await this.api.exchangePairPin(this.pinInput());
+      this.pinInput.set('');
+      await this.api.detectControlMode();
+      this.state.demoMode.set(false);
+      this.snackBar.open('LAN trainer paired for this browser session.', 'Dismiss', { duration: 5000 });
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Pairing failed.', 'Dismiss', { duration: 6000 });
     } finally {
       this.connectionBusy.set(false);
     }

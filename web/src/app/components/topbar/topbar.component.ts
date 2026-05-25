@@ -15,6 +15,7 @@ import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { SettingsComponent } from '../settings/settings.component';
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
+import { CommandPaletteComponent } from '../command-palette/command-palette.component';
 
 @Component({
   selector: 'app-topbar',
@@ -83,6 +84,17 @@ export class TopbarComponent {
       maxWidth: 'calc(100vw - 24px)',
       restoreFocus: true,
       panelClass: 'm3-dialog-panel'
+    });
+    this.state.triggerHaptic('tap');
+  }
+
+  openPalette() {
+    this.dialog.open(CommandPaletteComponent, {
+      autoFocus: 'input',
+      restoreFocus: true,
+      maxWidth: 'calc(100vw - 24px)',
+      panelClass: 'm3-dialog-panel',
+      backdropClass: 'rvt-palette-backdrop'
     });
     this.state.triggerHaptic('tap');
   }

@@ -58,6 +58,20 @@ jobs:
       - name: Build www/
         run: npm run build:web
 
+      - name: Verify repository-scoped static PWA output
+        run: |
+          test -f www/index.html
+          test -f www/404.html
+          test -f www/sw.js
+          test -f www/radar_vital_live_dashboard_v12_for_v16_0.html
+          grep -q '<app-root></app-root>' www/index.html
+          grep -q '<app-root></app-root>' www/404.html
+          ! grep -Eqi 'markdown-body|README[.]md' www/index.html
+          cmp -s www/index.html www/404.html
+          grep -q 'href="./manifest.webmanifest"' www/index.html
+          grep -q '"id": "./"' www/manifest.webmanifest
+          grep -q "const DASHBOARD = './index.html';" www/sw.js
+
       - name: Add CNAME and robots
         run: |
           # No custom domain by default; remove if/when one is added via repo settings.

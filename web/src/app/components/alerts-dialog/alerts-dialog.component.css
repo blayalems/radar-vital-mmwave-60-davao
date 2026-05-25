@@ -6,11 +6,12 @@
 .alerts-filter {
   display: flex;
   margin: 0 0 16px;
+  overflow-x: auto;
   width: 100%;
 }
 
 .alerts-filter mat-button-toggle {
-  flex: 1;
+  flex: 1 0 auto;
 }
 
 .alert-actions {

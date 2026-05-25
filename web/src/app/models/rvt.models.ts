@@ -1,7 +1,8 @@
 export type ThemeId = 'light' | 'dark' | 'night' | 'hc';
 export type DensityId = 'comfortable' | 'compact';
 export type HapticMode = 'on' | 'off' | 'auto';
-export type AlertSeverity = 'warn' | 'critical';
+export type AlertSeverity = 'info' | 'warn' | 'critical';
+export type StorageScope = 'demo' | 'live' | 'legacy-unclassified';
 
 export interface ControlStatus {
   ok: boolean;
@@ -35,8 +36,33 @@ export interface AlertEvent {
   ts: number;
   msg: string;
   severity: AlertSeverity;
+  source?: string;
+  seekTimestamp?: number;
   dismissed?: boolean;
   snoozedUntil?: number;
+}
+
+export interface SessionNotesPayload {
+  schema_version?: string;
+  session_id: string;
+  review_summary: string;
+  notes?: Array<Record<string, unknown>>;
+  updated_at?: string;
+}
+
+export interface SessionSignoff {
+  schema_version?: string;
+  session_id: string;
+  operator_name: string;
+  initials: string;
+  validation_comment: string;
+  signed_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface SerialPortRecord {
+  device: string;
+  label?: string;
 }
 
 export interface SnapshotRecord {

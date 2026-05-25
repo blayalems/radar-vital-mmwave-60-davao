@@ -38,10 +38,13 @@
           <mat-hint>Leave blank when the dashboard is served by the trainer.</mat-hint>
         </mat-form-field>
         <mat-form-field appearance="outline" class="form-field-full">
-          <mat-label>Pairing token for LAN mode</mat-label>
-          <input matInput type="password" [ngModel]="tokenInput()" (ngModelChange)="tokenInput.set($event)" autocomplete="off">
-          <mat-hint>Stored for this browser tab only.</mat-hint>
+          <mat-label>Six-digit LAN pairing PIN</mat-label>
+          <input matInput type="password" inputmode="numeric" maxlength="6" [ngModel]="pinInput()" (ngModelChange)="pinInput.set($event)" autocomplete="one-time-code">
+          <mat-hint>Scan the trainer QR code or enter its one-time PIN. The issued token stays in this browser tab only.</mat-hint>
         </mat-form-field>
+        <button mat-stroked-button type="button" (click)="pairWithPin()" [disabled]="connectionBusy() || pinInput().length !== 6">
+          <mat-icon>qr_code_2</mat-icon>Pair with PIN
+        </button>
         <button mat-flat-button type="button" (click)="reconnectTrainer()" [disabled]="connectionBusy()">
           <mat-icon>link</mat-icon>{{ connectionBusy() ? 'Connecting...' : 'Connect to trainer' }}
         </button>

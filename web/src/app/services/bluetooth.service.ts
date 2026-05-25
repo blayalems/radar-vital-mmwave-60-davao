@@ -11,6 +11,8 @@ export interface BleDevice {
   providedIn: 'root'
 })
 export class BluetoothService {
+  private readonly ailinkServiceUuid = '0000ffe0-0000-1000-8000-00805f9b34fb';
+  private readonly ailinkNotifyUuid = '0000ffe2-0000-1000-8000-00805f9b34fb';
   private activeDevice: BleDevice | null = null;
 
   isSupported(): boolean {
@@ -39,10 +41,10 @@ export class BluetoothService {
   }
 
   private async requestDeviceWebBluetooth(): Promise<BleDevice> {
-    const filters = [{ services: [0xffe0] }]; // AiLink standard Service UUID filter
+    const filters = [{ services: [this.ailinkServiceUuid] }];
     const dev = await (navigator as any).bluetooth.requestDevice({
       filters,
-      optionalServices: [0xffe0]
+      optionalServices: [this.ailinkServiceUuid]
     });
     return {
       id: dev.id,
@@ -58,7 +60,7 @@ export class BluetoothService {
     
     await ble.initialize();
     const result = await ble.requestDevice({
-      services: ['0000ffe0-0000-1000-8000-00805f9b34fb']
+      services: [this.ailinkServiceUuid]
     });
     
     return {
@@ -69,7 +71,10 @@ export class BluetoothService {
   }
 
   private async requestDeviceTauri(): Promise<BleDevice> {
-    throw new Error('Tauri BLE not yet implemented');
+    const devices = await this.tauriInvoke<Array<{ id: string; name?: string }>>('native_ble_scan', { timeoutMs: 3000 });
+    const selected = devices[0];
+    if (!selected) throw new Error('No Radar Vital BLE device found.');
+    return { id: selected.id, name: selected.name, nativeHandle: selected };
   }
 
   async connect(device: BleDevice): Promise<any> {
@@ -82,6 +87,9 @@ export class BluetoothService {
     if (cap?.isNativePlatform?.()) {
       const ble = cap.Plugins?.BluetoothLe || (window as any).BluetoothLe;
       return ble.connect({ deviceId: device.id });
+    }
+    if (this.isTauri()) {
+      return this.tauriInvoke('native_ble_connect', { deviceId: device.id });
     }
     return Promise.resolve();
   }
@@ -100,18 +108,23 @@ export class BluetoothService {
       if (cap?.isNativePlatform?.()) {
         const ble = cap.Plugins?.BluetoothLe || (window as any).BluetoothLe;
         await ble.disconnect({ deviceId: device.id });
+        return;
+      }
+      if (this.isTauri()) {
+        await this.tauriInvoke('native_ble_disconnect', { deviceId: device.id });
       }
     } catch (_) {}
   }
 
   async startNotifications(svcUUID: string, charUUID: string, callback: (data: DataView) => void) {
     if (!this.activeDevice) throw new Error('No active device connected');
+    const profile = this.requireNotificationProfile(svcUUID, charUUID);
     const device = this.activeDevice;
 
     if (device.gatt) {
       const server = device.gatt.connected ? device.gatt : await device.gatt.connect();
-      const service = await server.getPrimaryService(svcUUID);
-      const characteristic = await service.getCharacteristic(charUUID);
+      const service = await server.getPrimaryService(profile.service);
+      const characteristic = await service.getCharacteristic(profile.characteristic);
       
       characteristic.addEventListener('characteristicvaluechanged', (ev: any) => {
         callback(ev.target.value);
@@ -125,8 +138,8 @@ export class BluetoothService {
       const ble = cap.Plugins?.BluetoothLe || (window as any).BluetoothLe;
       await ble.startNotifications({
         deviceId: device.id,
-        service: svcUUID,
-        characteristic: charUUID
+        service: profile.service,
+        characteristic: profile.characteristic
       }, (value: any) => {
         // value.value is base64 encoded
         if (value?.value) {
@@ -138,6 +151,54 @@ export class BluetoothService {
           callback(new DataView(bytes.buffer));
         }
       });
+      return;
     }
+
+    if (this.isTauri()) {
+      const tauri = (window as any).__TAURI__;
+      const unlisten = await tauri?.event?.listen?.('rvt-ble-notification', (event: any) => {
+        if (event?.payload?.device_id !== device.id || !event?.payload?.data_base64) return;
+        const raw = atob(event.payload.data_base64);
+        const bytes = Uint8Array.from(raw, char => char.charCodeAt(0));
+        callback(new DataView(bytes.buffer));
+      });
+      try {
+        await this.tauriInvoke('native_ble_start_notifications', {
+          deviceId: device.id,
+          serviceUuid: profile.service,
+          characteristicUuid: profile.characteristic
+        });
+      } catch (error) {
+        if (typeof unlisten === 'function') unlisten();
+        throw error;
+      }
+    }
+  }
+
+  private requireNotificationProfile(serviceUuid: string, characteristicUuid: string): { service: string; characteristic: string } {
+    const service = this.canonicalBluetoothUuid(serviceUuid);
+    const characteristic = this.canonicalBluetoothUuid(characteristicUuid);
+    if (service !== this.ailinkServiceUuid || characteristic !== this.ailinkNotifyUuid) {
+      throw new Error('Only the configured AiLink notification profile is permitted.');
+    }
+    return { service, characteristic };
+  }
+
+  private canonicalBluetoothUuid(value: string): string {
+    const normalized = value.trim().toLowerCase();
+    const shortUuid = normalized.startsWith('0x') ? normalized.slice(2) : normalized;
+    return /^[0-9a-f]{4}$/.test(shortUuid)
+      ? `0000${shortUuid}-0000-1000-8000-00805f9b34fb`
+      : normalized;
+  }
+
+  private isTauri(): boolean {
+    return !!((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__);
+  }
+
+  private tauriInvoke<T = unknown>(command: string, args: Record<string, unknown>): Promise<T> {
+    const invoke = (window as any).__TAURI__?.core?.invoke;
+    if (!invoke) throw new Error('Tauri native BLE bridge unavailable.');
+    return invoke(command, args) as Promise<T>;
   }
 }

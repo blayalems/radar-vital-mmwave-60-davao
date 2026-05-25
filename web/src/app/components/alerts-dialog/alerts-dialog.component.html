@@ -2,6 +2,8 @@
 <mat-dialog-content class="alerts-content">
   <mat-button-toggle-group class="alerts-filter" [value]="filter()" (change)="filter.set($event.value)" aria-label="Alert filters">
     <mat-button-toggle value="active">Active</mat-button-toggle>
+    <mat-button-toggle value="info">Info</mat-button-toggle>
+    <mat-button-toggle value="warn">Warn</mat-button-toggle>
     <mat-button-toggle value="critical">Critical</mat-button-toggle>
     <mat-button-toggle value="pinned">Pinned</mat-button-toggle>
     <mat-button-toggle value="all">History</mat-button-toggle>
@@ -12,15 +14,23 @@
         <div mat-list-item class="alert-row">
           <mat-icon matListItemIcon [class.critical]="alert.severity === 'critical'">{{ alert.severity === 'critical' ? 'error' : 'warning' }}</mat-icon>
           <span matListItemTitle>{{ alert.msg }}</span>
-          <span matListItemLine>{{ alert.ts | date:'mediumTime' }} @if (alert.snoozedUntil) { | Snoozed }</span>
+          <span matListItemLine>{{ alert.source || 'telemetry' }} | {{ alert.ts | date:'mediumTime' }} @if (alert.snoozedUntil) { | Snoozed }</span>
           <div matListItemMeta class="alert-actions">
+            <button mat-icon-button type="button" (click)="jumpToWaveform(alert)" aria-label="Jump to waveform at alert time">
+              <mat-icon>show_chart</mat-icon>
+            </button>
             <button mat-icon-button type="button" (click)="state.toggleAlertPin(alert.id)"
               [attr.aria-label]="state.alertPins().includes(alert.id) ? 'Unpin alert' : 'Pin alert'">
               <mat-icon>{{ state.alertPins().includes(alert.id) ? 'push_pin' : 'keep' }}</mat-icon>
             </button>
-            <button mat-icon-button type="button" (click)="snooze(alert)" aria-label="Snooze alert for ten minutes">
+            <button mat-icon-button type="button" [matMenuTriggerFor]="snoozeMenu" aria-label="Snooze alert">
               <mat-icon>schedule</mat-icon>
             </button>
+            <mat-menu #snoozeMenu="matMenu">
+              <button mat-menu-item type="button" (click)="snooze(alert, 5)">Snooze 5 minutes</button>
+              <button mat-menu-item type="button" (click)="snooze(alert, 15)">Snooze 15 minutes</button>
+              <button mat-menu-item type="button" (click)="snooze(alert, 60)">Snooze 60 minutes</button>
+            </mat-menu>
             <button mat-icon-button type="button" (click)="dismiss(alert)" aria-label="Dismiss alert">
               <mat-icon>close</mat-icon>
             </button>

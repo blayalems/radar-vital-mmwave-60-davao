@@ -156,6 +156,22 @@
           }
         </div>
 
+        @if (bluetooth.isSupported()) {
+        <div class="native-ble-probe span-full">
+          <div>
+            <strong>Native BLE acceptance probe</strong>
+            <p>Checks one local AiLink FFE0/FFE2 GATT notification for APK/EXE validation. The trainer remains the recorded session data source.</p>
+          </div>
+          <button mat-stroked-button type="button" (click)="validateNativeBleReference()" [disabled]="isValidatingNativeBle">
+            <mat-icon>{{ isValidatingNativeBle ? 'sync' : 'bluetooth_searching' }}</mat-icon>
+            {{ isValidatingNativeBle ? 'Validating...' : 'Validate native GATT' }}
+          </button>
+          @if (nativeBleProbeStatus) {
+          <p class="native-ble-result" role="status">{{ nativeBleProbeStatus }}</p>
+          }
+        </div>
+        }
+
         <div class="setup-field">
           <mat-form-field appearance="outline" class="form-field-full">
             <mat-label>Subject Profile</mat-label>

@@ -168,6 +168,7 @@ def test_native_ble_commands_allowlist_reference_gatt_profile():
     workflow = text(EXE_WORKFLOW)
 
     assert "requireNotificationProfile" in bluetooth
+    assert "validateReferenceNotification" in bluetooth
     assert "Only the configured AiLink notification profile is permitted." in bluetooth
     assert "0000ffe0-0000-1000-8000-00805f9b34fb" in bluetooth
     assert "0000ffe2-0000-1000-8000-00805f9b34fb" in bluetooth

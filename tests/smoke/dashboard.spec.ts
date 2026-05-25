@@ -325,6 +325,38 @@ test.describe('Dashboard smoke', () => {
     expect(legacyKeys).toEqual([]);
   });
 
+  test('exposes the native BLE acceptance probe and receives an allowlisted Tauri notification', async ({ page }) => {
+    await page.addInitScript(() => {
+      let notify: ((event: { payload: { device_id: string; data_base64: string } }) => void) | null = null;
+      (window as any).__TAURI_INTERNALS__ = {};
+      (window as any).__TAURI__ = {
+        core: {
+          invoke: async (command: string) => {
+            if (command === 'native_ble_scan') return [{ id: 'native-ailink', name: 'AiLink QA' }];
+            if (command === 'native_ble_start_notifications') {
+              setTimeout(() => notify?.({ payload: { device_id: 'native-ailink', data_base64: 'AQI=' } }), 0);
+              return null;
+            }
+            if (command === 'native_pair_request') {
+              return { status: 503, data: { error: 'trainer unavailable in native probe test' } };
+            }
+            return null;
+          }
+        },
+        event: {
+          listen: async (_event: string, listener: typeof notify) => {
+            notify = listener;
+            return () => { notify = null; };
+          }
+        }
+      };
+    });
+    await page.goto('/home', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /Validate native GATT/ }).click();
+    await expect(page.getByRole('status')).toContainText(/Native GATT verified: received 2 bytes from AiLink QA/);
+    await expect(page.getByRole('status')).toContainText(/trainer telemetry remains the session source/i);
+  });
+
   test('exchanges a one-time pairing PIN without exposing a raw token input', async ({ page }) => {
     await page.addInitScript(() => {
       const originalFetch = window.fetch.bind(window);

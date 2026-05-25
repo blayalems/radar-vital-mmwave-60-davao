@@ -13,9 +13,13 @@ use tauri::{AppHandle, Emitter, State};
 use url::Url;
 use uuid::Uuid;
 
+const AILINK_SERVICE_UUID: &str = "0000ffe0-0000-1000-8000-00805f9b34fb";
+const AILINK_NOTIFY_UUID: &str = "0000ffe2-0000-1000-8000-00805f9b34fb";
+
 #[derive(Default)]
 struct NativeState {
     paired_origin: Mutex<Option<String>>,
+    active_ble_device: Mutex<Option<String>>,
 }
 
 #[derive(Deserialize)]
@@ -67,6 +71,29 @@ fn validate_origin(origin: &str) -> Result<String, String> {
         return Err("Trainer origin must be a plain HTTP(S) origin.".to_string());
     }
     Ok(url.origin().ascii_serialization())
+}
+
+fn ailink_service_uuid() -> Result<Uuid, String> {
+    Uuid::parse_str(AILINK_SERVICE_UUID).map_err(|error| error.to_string())
+}
+
+fn allowed_notification_profile(service_uuid: &str, characteristic_uuid: &str) -> Result<(Uuid, Uuid), String> {
+    let service = Uuid::parse_str(service_uuid).map_err(|_| "Invalid BLE service UUID.".to_string())?;
+    let characteristic = Uuid::parse_str(characteristic_uuid).map_err(|_| "Invalid BLE characteristic UUID.".to_string())?;
+    let approved_service = ailink_service_uuid()?;
+    let approved_characteristic = Uuid::parse_str(AILINK_NOTIFY_UUID).map_err(|error| error.to_string())?;
+    if service != approved_service || characteristic != approved_characteristic {
+        return Err("Native BLE permits only the configured AiLink notification profile.".to_string());
+    }
+    Ok((service, characteristic))
+}
+
+fn require_active_ble_device(device_id: &str, state: &State<'_, NativeState>) -> Result<(), String> {
+    let active = state.active_ble_device.lock().map_err(|_| "Native BLE state is unavailable.".to_string())?;
+    if active.as_deref() != Some(device_id) {
+        return Err("Connect to the approved BLE device before using this command.".to_string());
+    }
+    Ok(())
 }
 
 fn target_url(request: &NativeRequest, paired_origin: Option<&str>) -> Result<String, String> {
@@ -154,13 +181,17 @@ async fn find_peripheral(device_id: &str) -> Result<Peripheral, String> {
 #[tauri::command]
 async fn native_ble_scan(timeout_ms: Option<u64>) -> Result<Vec<NativeBleDevice>, String> {
     let adapter = first_adapter().await?;
+    let service_uuid = ailink_service_uuid()?;
     adapter.start_scan(ScanFilter {
-        services: vec![Uuid::parse_str("0000ffe0-0000-1000-8000-00805f9b34fb").map_err(|error| error.to_string())?],
+        services: vec![service_uuid],
     }).await.map_err(|error| error.to_string())?;
     tokio::time::sleep(Duration::from_millis(timeout_ms.unwrap_or(3000).min(10_000))).await;
     let mut devices = Vec::new();
     for peripheral in adapter.peripherals().await.map_err(|error| error.to_string())? {
         if let Some(properties) = peripheral.properties().await.map_err(|error| error.to_string())? {
+            if !properties.services.contains(&service_uuid) {
+                continue;
+            }
             devices.push(NativeBleDevice {
                 id: peripheral.id().to_string(),
                 name: properties.local_name.unwrap_or_else(|| "Radar Vital BLE device".to_string()),
@@ -173,29 +204,40 @@ async fn native_ble_scan(timeout_ms: Option<u64>) -> Result<Vec<NativeBleDevice>
 }
 
 #[tauri::command]
-async fn native_ble_connect(device_id: String) -> Result<(), String> {
+async fn native_ble_connect(device_id: String, state: State<'_, NativeState>) -> Result<(), String> {
     let peripheral = find_peripheral(&device_id).await?;
     if !peripheral.is_connected().await.map_err(|error| error.to_string())? {
         peripheral.connect().await.map_err(|error| error.to_string())?;
     }
-    peripheral.discover_services().await.map_err(|error| error.to_string())
+    peripheral.discover_services().await.map_err(|error| error.to_string())?;
+    let service_uuid = ailink_service_uuid()?;
+    if !peripheral.services().iter().any(|service| service.uuid == service_uuid) {
+        let _ = peripheral.disconnect().await;
+        return Err("Connected device does not expose the approved AiLink BLE service.".to_string());
+    }
+    *state.active_ble_device.lock().map_err(|_| "Native BLE state is unavailable.".to_string())? = Some(device_id);
+    Ok(())
 }
 
 #[tauri::command]
-async fn native_ble_disconnect(device_id: String) -> Result<(), String> {
-    find_peripheral(&device_id).await?.disconnect().await.map_err(|error| error.to_string())
+async fn native_ble_disconnect(device_id: String, state: State<'_, NativeState>) -> Result<(), String> {
+    require_active_ble_device(&device_id, &state)?;
+    find_peripheral(&device_id).await?.disconnect().await.map_err(|error| error.to_string())?;
+    *state.active_ble_device.lock().map_err(|_| "Native BLE state is unavailable.".to_string())? = None;
+    Ok(())
 }
 
 #[tauri::command]
 async fn native_ble_start_notifications(
     app: AppHandle,
+    state: State<'_, NativeState>,
     device_id: String,
     service_uuid: String,
     characteristic_uuid: String,
 ) -> Result<(), String> {
+    require_active_ble_device(&device_id, &state)?;
     let peripheral = find_peripheral(&device_id).await?;
-    let service = Uuid::parse_str(&service_uuid).map_err(|error| error.to_string())?;
-    let characteristic = Uuid::parse_str(&characteristic_uuid).map_err(|error| error.to_string())?;
+    let (service, characteristic) = allowed_notification_profile(&service_uuid, &characteristic_uuid)?;
     let target = peripheral.characteristics().into_iter()
         .find(|item| item.service_uuid == service && item.uuid == characteristic)
         .ok_or_else(|| "Requested BLE notification characteristic was not found.".to_string())?;
@@ -210,6 +252,18 @@ async fn native_ble_start_notifications(
         }
     });
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn permits_only_the_ailink_notification_profile() {
+        assert!(allowed_notification_profile(AILINK_SERVICE_UUID, AILINK_NOTIFY_UUID).is_ok());
+        assert!(allowed_notification_profile(AILINK_SERVICE_UUID, "0000ffe1-0000-1000-8000-00805f9b34fb").is_err());
+        assert!(allowed_notification_profile("8b1d0000-7d4c-4a3f-9a2b-7f2d4c8b1000", AILINK_NOTIFY_UUID).is_err());
+    }
 }
 
 fn main() {

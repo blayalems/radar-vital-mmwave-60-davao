@@ -10,6 +10,7 @@ APP = ROOT / "web" / "src" / "app" / "app.ts"
 LAYOUT = ROOT / "web" / "src" / "app" / "components" / "layout" / "layout.component.html"
 API = ROOT / "web" / "src" / "app" / "services" / "api.service.ts"
 TELEMETRY = ROOT / "web" / "src" / "app" / "services" / "telemetry.service.ts"
+BLUETOOTH = ROOT / "web" / "src" / "app" / "services" / "bluetooth.service.ts"
 STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
@@ -19,6 +20,8 @@ STYLES = ROOT / "web" / "src" / "styles.scss"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
 PAGES_WORKFLOW = ROOT / ".github" / "workflows" / "pages.yml"
 PLAYWRIGHT_WORKFLOW = ROOT / ".github" / "workflows" / "playwright.yml"
+EXE_WORKFLOW = ROOT / ".github" / "workflows" / "build-exe.yml"
+TAURI_MAIN = ROOT / "src-tauri" / "src" / "main.rs"
 VISUAL_SNAPSHOTS = ROOT / "tests" / "visual" / "rvt-v12.spec.ts-snapshots"
 
 
@@ -157,6 +160,23 @@ def test_firmware_ble_contract():
     assert "delay(500)" not in ino
     assert "hrsValid = validHr" in ino
     assert "hrBpm >= 1.0f && hrBpm <= 254.0f" in ino
+
+
+def test_native_ble_commands_allowlist_reference_gatt_profile():
+    bluetooth = text(BLUETOOTH)
+    rust = text(TAURI_MAIN)
+    workflow = text(EXE_WORKFLOW)
+
+    assert "requireNotificationProfile" in bluetooth
+    assert "Only the configured AiLink notification profile is permitted." in bluetooth
+    assert "0000ffe0-0000-1000-8000-00805f9b34fb" in bluetooth
+    assert "0000ffe2-0000-1000-8000-00805f9b34fb" in bluetooth
+    assert 'const AILINK_SERVICE_UUID: &str = "0000ffe0-0000-1000-8000-00805f9b34fb";' in rust
+    assert 'const AILINK_NOTIFY_UUID: &str = "0000ffe2-0000-1000-8000-00805f9b34fb";' in rust
+    assert "allowed_notification_profile" in rust
+    assert "require_active_ble_device" in rust
+    assert "permits_only_the_ailink_notification_profile" in rust
+    assert "cargo test --manifest-path src-tauri/Cargo.toml --verbose" in workflow
 
 
 def test_frozen_serial_protocol_contract():

@@ -366,7 +366,7 @@ export class ApiService {
       { id: 'python_env', label: 'Python Runtime environment', status: 'good', description: 'Browser sandbox runtime ready.' },
       { id: 'firmware_file_present', label: 'Firmware contract checks', status: 'good', description: 'Firmware contract fixture loaded for UI review.' },
       { id: 'serial_port_list', label: 'Serial ports discovery', status: 'good', description: "ports=['COM10','COM11','COM12']" },
-      { id: 'session_folder_writable', label: 'Storage write access', status: 'good', description: 'Session history writes to localStorage in sandbox mode.' },
+      { id: 'session_folder_writable', label: 'Storage write access', status: 'good', description: 'Demo session history is isolated in scoped IndexedDB storage.' },
       { id: 'disk_space', label: 'Free space validation', status: 'good', description: 'Browser storage is available for sample sessions.' },
       { id: 'schema_hash_consistency', label: 'Vitals Schema contract verification', status: 'good', description: 'Expected v11.0/v15.0 schema hash present.' },
       { id: 'clock_monotonic_sanity', label: 'System clock monotonic integrity', status: 'good', description: 'Local clock appears monotonic for this preview.' },

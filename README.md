@@ -88,7 +88,7 @@ npm run build:web
 cargo tauri build                     # produces src-tauri/target/release/*.exe
 ```
 
-Tauri uses Microsoft Edge WebView2 and keeps WebView network policy at `connect-src 'self'`. Paired LAN API/download calls run through native Rust commands pinned to the explicitly paired origin; native BLE commands expose the GATT acceptance path while firmware BLE remains disabled by default. Windows 11 ships WebView2 preinstalled; the installer uses `downloadBootstrapper` for other systems.
+Tauri uses Microsoft Edge WebView2 and keeps WebView network policy at `connect-src 'self'`. Paired LAN API/download calls run through native Rust commands pinned to the explicitly paired origin. Native BLE reference commands allowlist the configured AiLink oximeter notify profile (`FFE0` service / `FFE2` characteristic); the separate radar-firmware GATT path remains disabled by default pending physical acceptance. Windows 11 ships WebView2 preinstalled; the installer uses `downloadBootstrapper` for other systems.
 
 CI: [`.github/workflows/build-exe.yml`](./.github/workflows/build-exe.yml) cross-compiles the EXE on `windows-latest`.
 

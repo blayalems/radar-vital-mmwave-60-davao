@@ -288,6 +288,34 @@
   gap: 8px;
 }
 
+.native-ble-probe {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: 12px;
+  background: var(--md-sys-color-surface-container-low, #f8fafc);
+}
+
+.native-ble-probe strong {
+  font-size: 0.9rem;
+}
+
+.native-ble-probe p {
+  margin: 4px 0 0;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.native-ble-probe button {
+  justify-self: start;
+}
+
+.native-ble-result {
+  color: var(--md-sys-color-on-surface, #1e293b) !important;
+}
+
 .form-field-full {
   width: 100%;
 }

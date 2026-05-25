@@ -9,12 +9,12 @@
 
 | Workstream | Source-of-truth | Current state | Owner / last touched |
 |---|---|---|---|
-| Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material source of truth; scoped IndexedDB, PIN pairing, report sign-off, alert diagnosis, mobile commands and dark inverse HC remediation implemented | codex/mobile-first-dashboard-upABy |
+| Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material source of truth; scoped IndexedDB, PIN pairing, report sign-off, alert diagnosis, mobile commands, dark inverse HC and native BLE qualification UI implemented | codex/mobile-first-dashboard-upABy |
 | Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 partial extraction continues; monolith now denies generic static reads, protects LAN telemetry reads/SSE and exposes serial/notes/sign-off contracts | codex/mobile-first-dashboard-upABy |
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Public URL serves the Angular shell; current branch enforces Angular-only Pages artifacts and direct-route shell fallback while its updated SW awaits deployment | codex/mobile-first-dashboard-upABy |
-| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | `cap:sync` and local `assembleDebug` produced `app-debug.apk` on 2026-05-24; real paired-LAN/GATT acceptance remains open | codex/mobile-first-dashboard-upABy |
-| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | Native paired-origin HTTP and BLE bridge compiles; local NSIS build produced `Radar Vital_12.0.0-alpha.1_x64-setup.exe`; hardware acceptance remains open | codex/mobile-first-dashboard-upABy |
-| Smoke + visual tests | `tests/` | 38 Python contracts, 116 four-viewport smoke/API checks, affected Home visuals and the prior full Win32 visual suite pass locally; fresh native CI follows the BLE boundary correction | codex/mobile-first-dashboard-upABy |
+| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | CI built the debug APK from `a74c4e1`; local BLE qualification is now reachable in UI, while real paired-LAN/GATT acceptance remains open | codex/mobile-first-dashboard-upABy |
+| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | CI built the NSIS installer and passed Rust native tests from `a74c4e1`; Home now reaches the bounded GATT probe; hardware acceptance remains open | codex/mobile-first-dashboard-upABy |
+| Smoke + visual tests | `tests/` | 38 Python contracts, 120 four-viewport smoke/API checks and 16 affected Home visuals pass locally; prior-head CI full visual/native/package workflows passed | codex/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows
 
@@ -61,10 +61,15 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-25 - Expose bounded native BLE qualification probe
+- Completion re-audit found that the allowlisted Angular/Tauri BLE command path had no connected-flow notification consumer: normal Home BLE discovery correctly remained trainer-side, but native acceptance could not be exercised from the packaged dashboard.
+- Home now conditionally exposes a five-second **Native BLE acceptance probe** on Bluetooth-capable clients. It validates one configured AiLink `FFE0`/`FFE2` notification through the Angular adapter, disconnects and removes transient Tauri listeners, and states explicitly that trainer telemetry remains the recorded session source.
+- Verification: `npm run build:check`; `python -m pytest -q tests` (38 passed); trainer `compileall` and `python -m rvt_trainer --help`; `cargo test --manifest-path src-tauri/Cargo.toml --verbose` (1 passed); Playwright smoke/API (120 passed across four projects, including mocked Tauri notification receipt); affected Home visual coverage (16 passed). The advisory Angular initial-bundle warning is now 18.18 kB above 2 MB; removing the legacy patch import was rejected after changing 52,371 desktop Home pixels. Physical APK/EXE GATT and paired-session acceptance remain open.
+
 ### 2026-05-25 - Enforce native BLE reference GATT allowlist
 - Completion re-audit identified that the Tauri notification command still accepted caller-supplied service/characteristic UUIDs despite the native allowlist contract; the current native reference path is the configured AiLink oximeter `FFE0`/`FFE2` profile, separate from default-off radar firmware BLE.
 - Angular and Rust now reject unapproved notification UUIDs; Rust permits notification/disconnect only for an active device whose approved service was validated after connect, filters cached scan results, and exposes a unit-test gate in the Windows EXE workflow. Sandbox preflight wording now reflects scoped IndexedDB rather than legacy `localStorage`.
-- Verification: `cargo test --manifest-path src-tauri/Cargo.toml --verbose` (1 passed); `npm run build:check`; `python -m pytest -q tests` (38 passed); Playwright smoke/API (116 passed); affected Home visual coverage (16 passed). The Angular advisory initial-bundle warning is now 14.73 kB above the 2 MB budget; fresh native/PR CI follows this commit.
+- Verification: `cargo test --manifest-path src-tauri/Cargo.toml --verbose` (1 passed); `npm run build:check`; `python -m pytest -q tests` (38 passed); Playwright smoke/API (116 passed); affected Home visual coverage (16 passed). PR workflow runs for this head subsequently passed for Pages artifact validation, APK, EXE/native tests, and Playwright functional/visual checks. The Angular advisory initial-bundle warning was 14.73 kB above the 2 MB budget.
 
 ### 2026-05-25 - Close inverse-HC Home surface leak and stabilize visual fixtures
 - PR #21 visual run `26367439592` exposed moving Home preview/preflight captures; inspection also confirmed migrated Home card rules still rendered white surfaces under dark inverse HC.

@@ -68,6 +68,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   preflightError = '';
   isScanningPorts = false;
   isScanningBle = false;
+  isValidatingNativeBle = false;
+  nativeBleProbeStatus = '';
   isPreflightRunning = false;
   selectedDuration = 30;
 
@@ -182,6 +184,36 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.triggerHaptic('warn');
     } finally {
       this.isScanningBle = false;
+    }
+  }
+
+  async validateNativeBleReference(): Promise<void> {
+    this.isValidatingNativeBle = true;
+    this.nativeBleProbeStatus = '';
+    this.state.triggerHaptic('tap');
+    try {
+      const result = await this.bluetooth.validateReferenceNotification();
+      const device = result.device.name || result.device.id;
+      if (result.notificationBytes !== null) {
+        this.nativeBleProbeStatus =
+          `Native GATT verified: received ${result.notificationBytes} byte${result.notificationBytes === 1 ? '' : 's'} from ${device}. ` +
+          'This probe validates local BLE only; trainer telemetry remains the session source.';
+        this.snackBar.open('Native BLE reference notification received.', 'Dismiss', { duration: 5000 });
+        this.state.triggerHaptic('success');
+      } else {
+        this.nativeBleProbeStatus =
+          `Connected to ${device}, but no AiLink notification arrived within five seconds. ` +
+          'Do not approve this client for live BLE validation yet.';
+        this.snackBar.open('Native BLE connected without reference data.', 'Dismiss', { duration: 6000 });
+        this.state.triggerHaptic('warn');
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Native BLE validation failed.';
+      this.nativeBleProbeStatus = `Native GATT validation failed: ${message}`;
+      this.snackBar.open(this.nativeBleProbeStatus, 'Dismiss', { duration: 7000 });
+      this.state.triggerHaptic('reject');
+    } finally {
+      this.isValidatingNativeBle = false;
     }
   }
 

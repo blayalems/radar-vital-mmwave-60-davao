@@ -7,6 +7,11 @@ export interface BleDevice {
   nativeHandle?: any;
 }
 
+export interface BleReferenceProbeResult {
+  device: BleDevice;
+  notificationBytes: number | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -14,6 +19,7 @@ export class BluetoothService {
   private readonly ailinkServiceUuid = '0000ffe0-0000-1000-8000-00805f9b34fb';
   private readonly ailinkNotifyUuid = '0000ffe2-0000-1000-8000-00805f9b34fb';
   private activeDevice: BleDevice | null = null;
+  private notificationCleanup: (() => void) | null = null;
 
   isSupported(): boolean {
     if (typeof window === 'undefined') return false;
@@ -95,7 +101,10 @@ export class BluetoothService {
   }
 
   async disconnect() {
-    if (!this.activeDevice) return;
+    if (!this.activeDevice) {
+      this.clearNotificationListener();
+      return;
+    }
     const device = this.activeDevice;
     this.activeDevice = null;
 
@@ -113,7 +122,10 @@ export class BluetoothService {
       if (this.isTauri()) {
         await this.tauriInvoke('native_ble_disconnect', { deviceId: device.id });
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      this.clearNotificationListener();
+    }
   }
 
   async startNotifications(svcUUID: string, charUUID: string, callback: (data: DataView) => void) {
@@ -162,6 +174,9 @@ export class BluetoothService {
         const bytes = Uint8Array.from(raw, char => char.charCodeAt(0));
         callback(new DataView(bytes.buffer));
       });
+      if (typeof unlisten === 'function') {
+        this.notificationCleanup = unlisten;
+      }
       try {
         await this.tauriInvoke('native_ble_start_notifications', {
           deviceId: device.id,
@@ -169,10 +184,42 @@ export class BluetoothService {
           characteristicUuid: profile.characteristic
         });
       } catch (error) {
-        if (typeof unlisten === 'function') unlisten();
+        this.clearNotificationListener();
         throw error;
       }
     }
+  }
+
+  async validateReferenceNotification(timeoutMs = 5000): Promise<BleReferenceProbeResult> {
+    const device = await this.requestDevice();
+    await this.connect(device);
+    try {
+      return await new Promise<BleReferenceProbeResult>((resolve, reject) => {
+        let settled = false;
+        let timer: ReturnType<typeof setTimeout>;
+        const complete = (notificationBytes: number | null) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve({ device, notificationBytes });
+        };
+        timer = setTimeout(() => complete(null), timeoutMs);
+
+        this.startNotifications(this.ailinkServiceUuid, this.ailinkNotifyUuid, value => {
+          complete(value.byteLength);
+        }).catch(error => {
+          clearTimeout(timer);
+          reject(error);
+        });
+      });
+    } finally {
+      await this.disconnect();
+    }
+  }
+
+  private clearNotificationListener(): void {
+    this.notificationCleanup?.();
+    this.notificationCleanup = null;
   }
 
   private requireNotificationProfile(serviceUuid: string, characteristicUuid: string): { service: string; characteristic: string } {

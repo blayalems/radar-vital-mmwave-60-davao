@@ -5,7 +5,6 @@
   .bottom-nav,
   .topbar-actions,
   .topbar-status,
-  #demoBanner,
   .rail-collapse-btn,
   .scroll-to-top-fab,
   .initial-loading-overlay,
@@ -22,6 +21,26 @@
   .category-chips,
   .search-toolbar-inner {
     display: none !important;
+  }
+
+  #demoBanner {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    position: static !important;
+    background: #fef08a !important; /* light yellow */
+    color: #854d0e !important; /* dark yellow/brown text */
+    border: 2px solid #eab308 !important; /* yellow border */
+    text-align: center !important;
+    font-weight: bold !important;
+    padding: 12px !important;
+    margin-bottom: 24px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    border-radius: 8px !important;
+    page-break-after: avoid !important;
+    font-size: 14px !important;
   }
 
   /* Reset main layouts for full width printer pages */

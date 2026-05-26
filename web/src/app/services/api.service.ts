@@ -271,11 +271,18 @@ export class ApiService {
   // Detect control mode / connect
   async detectControlMode(): Promise<boolean> {
     try {
-      const r = await this.request<ControlStatus>('/api/status', undefined, true);
+      // 4-second timeout wrapper to prevent locking out layout UI on stale LAN endpoints
+      const statusPromise = this.request<ControlStatus>('/api/status', undefined, true);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Connection detection timeout')), 4000)
+      );
+      const r = await Promise.race([statusPromise, timeoutPromise]);
+
       this.state.ctlOn.set(true);
       this.state.autoDemoActive.set(false);
       this.state.ctlStatus.set({ ...r, mode: r.mode === 'sandbox' ? 'sandbox' : 'live' });
-      const activeSession = r.active_session || r.session;
+      const activeSession = r.active_session;
+      this.state.sessionActive.set(!!activeSession);
       this.state.currentSessionId.set(activeSession?.session_id || null);
       return true;
     } catch (error: unknown) {
@@ -294,6 +301,7 @@ export class ApiService {
       reason
     });
     this.sandboxLoadSessions();
+    this.connectionLoading.set(false);
   }
 
   // --- LOCAL SANDBOX / MOCK ENDPOINTS ---
@@ -401,6 +409,7 @@ export class ApiService {
     const sid = 'sandbox_' + new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15);
     
     this.state.currentSessionId.set(sid);
+    this.state.sessionActive.set(true);
     this.state.ctlStopPending.set(false);
 
     const currentSession = {
@@ -458,6 +467,7 @@ export class ApiService {
     this.sandboxSaveSessions(items);
 
     this.state.currentSessionId.set(null);
+    this.state.sessionActive.set(false);
     this.state.ctlStatus.set({
       ok: true,
       mode: 'sandbox',

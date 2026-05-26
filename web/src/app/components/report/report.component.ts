@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, ViewChild, ElementRef, AfterViewInit, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -40,6 +40,13 @@ export class ReportComponent implements OnInit, AfterViewInit {
   protected readonly state = inject(StateService);
   protected readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
+
+  constructor() {
+    effect(() => {
+      this.state.theme();
+      setTimeout(() => this.drawReportTrends(), 50);
+    });
+  }
 
   @ViewChild('hrReportCanvas', { static: false }) hrReportCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('rrReportCanvas', { static: false }) rrReportCanvas!: ElementRef<HTMLCanvasElement>;

@@ -61,6 +61,13 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-26 - Remediate connection lockout, active guard history leak, canvas theme repaints, and print disclosure (PR #24 Review)
+- Resolved the initial connection lockout by wrapping `/api/status` requests inside a 4-second timeout promise inside `ApiService.detectControlMode()`. Added a manual "Bypass to Sandbox Mode" action button inside the initial loading overlay and ensured loading spinner dismisses cleanly on sandbox fallback.
+- Corrected the printed sandbox disclosure by styling `#demoBanner` specifically in `print.css` to print as a premium alert banner at the top of report prints rather than hiding it, fully preserving simulated vitals provenance truthfulness.
+- Resolved active-session guard navigation confusion with reviewed history by introducing a dedicated `sessionActive` signal in `StateService`. Decoupled active captures from `currentSessionId` so that selecting a historical session for review does not falsely trigger active-session warnings or enable the Stop button on `/live`.
+- Repaired canvas idle repainting by declaring dependencies on the `state.theme` signal inside the canvas effects of `home.component.ts`, `live.component.ts`, and `report.component.ts`, triggering immediate dynamic canvas redraws when theme styles are cycled.
+- Verification: `npm run build:web` and `npm run build:check` completed successfully (`OK: web/ ↔ monolith round-trip is clean.`); Vitest unit suite passed completely (**16/16** passing); pytest back-end suite passed completely (**40/40** passing).
+
 ### 2026-05-26 - Resolve Help/Live Angular compilation, duplicate methods, and canvas theme-awareness
 - Cleaned up `help.component.ts` imports by removing `KeyboardShortcutsDialogComponent` (since it is opened programmatically via `MatDialog` and doesn't need to be declared in the template imports), resolving template compiler alerts.
 - Removed the duplicated and incomplete `drawTrends()` method body in `live.component.ts` (lines 610-625) to secure a clean Angular build.

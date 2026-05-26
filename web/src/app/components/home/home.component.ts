@@ -68,6 +68,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.lastPayload();
       this.state.spark();
       this.state.ctlStatus();
+      this.state.theme(); // Redraw on theme change
       this.requestCanvasDraw();
     });
   }
@@ -372,6 +373,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
       if (r && r.session_id) {
         this.state.currentSessionId.set(r.session_id);
+        this.state.sessionActive.set(true);
         this.state.ctlOn.set(true);
         this.audio.speakAlert('Session started. Please sit still.', 'ok', true);
         this.router.navigate(['/live']);

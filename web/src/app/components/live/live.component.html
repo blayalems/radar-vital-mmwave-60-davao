@@ -34,7 +34,7 @@
         </button>
 
         <!-- STOP RECORDING -->
-        <button mat-flat-button color="warn" (click)="stopSession()" [disabled]="state.ctlStopPending() || !state.currentSessionId()" class="cmd-btn stop-btn">
+        <button mat-flat-button color="warn" (click)="stopSession()" [disabled]="state.ctlStopPending() || !state.sessionActive()" class="cmd-btn stop-btn">
           <mat-icon>stop</mat-icon>
           Stop Session
         </button>

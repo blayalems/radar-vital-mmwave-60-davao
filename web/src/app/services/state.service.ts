@@ -135,6 +135,7 @@ export class StateService {
   sessionSignoffs = signal<Record<string, SessionSignoff>>({});
   sessionItems = signal<SessionRecord[]>([]);
   currentSessionId = signal<string | null>(null);
+  sessionActive = signal<boolean>(false);
 
   // Sparkline buffer for live KPIs
   spark = signal<{ hr: number[]; rr: number[]; fps: number[]; dist: number[] }>({

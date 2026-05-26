@@ -10,6 +10,9 @@
   <div class="initial-loading-overlay">
     <mat-spinner diameter="48"></mat-spinner>
     <p>Detecting trainer connection...</p>
+    <button mat-stroked-button (click)="api.enableSandboxControlMode('Initial connection bypassed by operator')" style="margin-top: 16px;">
+      Bypass to Sandbox Mode
+    </button>
   </div>
 } @else {
 <mat-sidenav-container class="app" [class.rail-collapsed]="railCollapsed">

@@ -105,6 +105,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.lastPayload();
       this.state.spark();
       this.state.kpiThresholds();
+      this.state.theme(); // Redraw on theme change
       this.requestCanvasDraw();
     });
   }
@@ -168,6 +169,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         });
         if (r && r.ok) {
           this.state.currentSessionId.set(null);
+          this.state.sessionActive.set(false);
           this.audio.speakAlert('Session completed successfully.', 'ok', true);
           this.router.navigate(['/report']);
         }

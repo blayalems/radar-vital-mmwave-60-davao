@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect, HostListener, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect, HostListener, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -459,7 +459,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     return value === null ? 'SQI waiting for signal' : `SQI ${(value * 100).toFixed(0)}%`;
   }
 
-  computedFps(): string {
+  protected readonly computedFps = computed(() => {
     const direct = this.metricNumber('fps_hz');
     if (direct !== null) return direct.toFixed(1);
     const timestamps = this.seriesNumbers('ts', 't');
@@ -469,9 +469,9 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     deltas.sort((a, b) => a - b);
     const median = deltas[Math.floor(deltas.length / 2)];
     return median > 0 ? (1 / median).toFixed(1) : '--';
-  }
+  });
 
-  hrBiasBuckets(): BiasBucket[] {
+  protected readonly hrBiasBuckets = computed(() => {
     const raw = this.seriesNumbers('raw_hr_uncorrected', 'raw_hr');
     const reference = this.seriesNumbers('ref_hr', 'ble_hr');
     const count = Math.min(raw.length, reference.length);
@@ -498,9 +498,9 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         width: Math.max(4, Math.abs(bias) / maxBias * 100)
       };
     });
-  }
+  });
 
-  rrWarnings(): string[] {
+  protected readonly rrWarnings = computed(() => {
     const warnings: string[] = [];
     if (this.metricState('rr_anchor_fresh') === 'No') warnings.push('RR anchor is stale; publish values may rely on aged state.');
     const age = this.metricNumber('candidate_rr_age_ms');
@@ -510,7 +510,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     }
     if (this.state.telemetryStale()) warnings.push('Live telemetry payload is stale.');
     return warnings;
-  }
+  });
 
   analysisMetric(key: string): string {
     const analysis = this.state.lastPayload()?.analysis;

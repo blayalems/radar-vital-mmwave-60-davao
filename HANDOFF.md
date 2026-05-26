@@ -14,7 +14,7 @@
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Public URL serves the Angular shell; current branch enforces Angular-only Pages artifacts and direct-route shell fallback while its updated SW awaits deployment | codex/mobile-first-dashboard-upABy |
 | APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | CI built the debug APK from `a74c4e1`; local BLE qualification is now reachable in UI, while real paired-LAN/GATT acceptance remains open | codex/mobile-first-dashboard-upABy |
 | EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | CI built the NSIS installer and passed Rust native tests from `a74c4e1`; Home now reaches the bounded GATT probe; hardware acceptance remains open | codex/mobile-first-dashboard-upABy |
-| Smoke + visual tests | `tests/` | 38 Python contracts, 120 four-viewport smoke/API checks and 16 affected Home visuals pass locally; prior-head CI full visual/native/package workflows passed | codex/mobile-first-dashboard-upABy |
+| Smoke + visual tests | `tests/` | 40 Python contracts, 156 four-viewport smoke/API checks and 16 affected Live visuals pass locally; prior-head CI full visual/native/package workflows passed | codex/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows
 
@@ -60,6 +60,12 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-26 - Restore readable Live Overview sparkline sizing
+- Increased Angular Live Overview graph tracks from a cramped 48 px slot to a responsive 72-88 px reserved region, preserving enough card height for trend curves and footer context.
+- Kept the persistent mobile update prompt above the fixed bottom navigation without leaving an intercepting overlay pane behind, and allowed report navigation after an operator-confirmed session stop while its stop request is pending.
+- Added browser smoke coverage that requires all four Overview graph tracks to retain legible rendered height before regenerating the committed monolith.
+- Verification: `npm run build:check`; `npm --prefix web run test:ci` (16 passed); trainer `compileall`/help; `python -m pytest -q tests` (40 passed); `npm test` (156 passed); affected Live visual comparison (16 passed).
 
 ### 2026-05-27 - Finalize PR #24 visual fixes, restore and stabilize robust test suite
 - Restored full integration test coverage in `tests/smoke/dashboard.spec.ts` to assert against paired PIN exchange, custom reports, native BLE probes, and offline PWA registry behaviors.

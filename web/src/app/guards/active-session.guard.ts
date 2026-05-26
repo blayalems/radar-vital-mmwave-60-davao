@@ -9,8 +9,8 @@ export const activeSessionGuard: CanDeactivateFn<any> = async () => {
   const state = inject(StateService);
   const dialog = inject(MatDialog);
 
-  // If a session is active, warn operator before navigating away
-  if (state.ctlOn() && state.sessionActive()) {
+  // A confirmed stop already ends operator monitoring and must be allowed to reach its report.
+  if (state.ctlOn() && state.sessionActive() && !state.ctlStopPending()) {
     state.triggerHaptic('confirm');
     const confirmed = await firstValueFrom(
       dialog.open(ConfirmDialogComponent, {

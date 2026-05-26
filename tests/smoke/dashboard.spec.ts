@@ -205,6 +205,18 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('body')).toHaveClass(/zen-mode/);
   });
 
+  test('allocates legible height to Live overview graphs', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
+    await page.goto('/live', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+
+    const graphHeights = await page.locator('.kpi-card-spark').evaluateAll(elements =>
+      elements.map(element => element.getBoundingClientRect().height)
+    );
+    expect(graphHeights).toHaveLength(4);
+    expect(Math.min(...graphHeights)).toBeGreaterThanOrEqual(72);
+  });
+
   test('keeps primary navigation available in simple view and collapses the desktop rail', async ({ page }) => {
     if ((page.viewportSize()?.width || 0) >= 1024) {
       await page.setViewportSize({ width: 1280, height: 720 });
@@ -629,6 +641,8 @@ test.describe('Dashboard smoke', () => {
   });
 
   test('stopping through the command palette clears the active-session navigation guard', async ({ page }) => {
+    // Keep this component-flow test on browser fetch; PWA routing is covered separately.
+    await page.route('**/sw.js', route => route.abort());
     await page.route('**/api/status', route => route.fulfill({
       status: 200,
       contentType: 'application/json',

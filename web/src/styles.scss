@@ -268,6 +268,10 @@ body[data-view='home'] app-home .home-stat-card {
   body.zen-mode .bottom-nav {
     display: block !important;
   }
+
+  .cdk-overlay-pane:has(.rvt-update-snackbar) {
+    transform: translateY(calc(-1 * (var(--rvt-mobile-bottom-nav-h, 74px) + 12px)));
+  }
 }
 
 body.zen-mode app-topbar .topbar {

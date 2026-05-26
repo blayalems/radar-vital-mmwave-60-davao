@@ -1,5 +1,7 @@
+<a class="skip-link" href="#mainContent">Skip to main content</a>
+
 <!-- DEMO BANNER -->
-<div id="demoBanner" role="status" aria-live="assertive" [hidden]="!state.demoMode() && !state.autoDemoActive()">
+<div id="demoBanner" role="alert" aria-live="assertive" [hidden]="!state.demoMode() && !state.autoDemoActive()">
   <span class="material-symbols-rounded" aria-hidden="true">warning</span>
   DEMO MODE - simulated vitals only; do not use for a live subject.
 </div>
@@ -84,13 +86,13 @@
         <span class="r-ic"><span class="material-symbols-rounded">search</span></span>Command
       </button>
       
-      <div class="operator" title="Edit operator and station" routerLink="/home">
+      <a class="operator" title="Edit operator and station" routerLink="/home" aria-label="Edit operator and station">
         <div class="op-avatar">{{ state.setup().operator_label ? state.setup().operator_label.substring(0, 2).toUpperCase() : 'OP' }}</div>
         <div class="op-meta">
           <div class="op-name">{{ state.setup().operator_label || 'Operator A' }}</div>
           <div class="op-role">{{ state.setup().station_label || 'Lab · Station 3' }}</div>
         </div>
-      </div>
+      </a>
     </div>
   </mat-sidenav>
 
@@ -98,7 +100,7 @@
   <mat-sidenav-content class="main-wrapper">
     <app-topbar></app-topbar>
     
-    <main class="main-content-scroll">
+    <main class="main-content-scroll" id="mainContent" tabindex="-1">
       <router-outlet></router-outlet>
     </main>
 

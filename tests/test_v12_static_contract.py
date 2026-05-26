@@ -40,7 +40,11 @@ def test_dashboard_pwa_contract():
     assert "interactive-widget=resizes-content" in html
     assert '<link rel="manifest" href="./manifest.webmanifest">' in html
     assert "register('./sw.js')" in app
+    assert "Dashboard update available. Refresh when monitoring is paused." in app
+    assert "onAction()" in app
     assert 'id="demoBanner"' in layout
+    assert 'role="alert"' in layout
+    assert 'href="#mainContent"' in layout
     assert "rvt-pair-token" in api
     assert "X-RVT-Auth" in api
     assert "/api/events/subscribe" in telemetry
@@ -128,6 +132,9 @@ def test_trainer_routes_and_security_contract():
     
     auth_py = text(ROOT / "rvt_trainer" / "api" / "auth.py")
     assert "_PIN_TTL_S = 300" in auth_py
+    assert "_PAIR_FAILURE_LIMIT = 5" in auth_py
+    assert "PAIRING_RATE_LIMITED" in auth_py
+    assert "_exchange_pair_pin(self.server, str(body.get(\"pin\") or \"\"), client_ip)" in py
     
     assert "Content-Security-Policy" in py
     assert "http: https:" not in py

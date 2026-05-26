@@ -42,7 +42,7 @@ By default the trainer binds `127.0.0.1` so nothing leaks to the network. Opt in
 python3 radar_vital_trainer_v12_for_v16_0.py serve --bind lan
 ```
 
-`--bind lan` generates a six-digit PIN (five-minute TTL, single-use), prints the pairing page URL, and supplies a QR link encoding `http://<lan-ip>:8765/?pair=<PIN>`. The Angular Settings view consumes a QR PIN or manual PIN and keeps the issued `X-RVT-Auth` token in session storage only.
+`--bind lan` generates a six-digit PIN (five-minute TTL, single-use), prints the pairing page URL, and supplies a QR link encoding `http://<lan-ip>:8765/?pair=<PIN>`. The Angular Settings view consumes a QR PIN or manual PIN and keeps the issued `X-RVT-Auth` token in session storage only. Five invalid PIN exchanges from one client within a minute trigger a one-minute pairing cooldown; reopen the pairing flow after the cooldown or mint a new PIN if an operator mistyped repeatedly.
 
 | Endpoint set | Auth | Examples |
 |---|---|---|

@@ -84,6 +84,9 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('overviewDistSpark', { static: false }) overviewDistSpark!: ElementRef<HTMLCanvasElement>;
 
   private animeFrameId: number | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private viewReady = false;
+  private readonly onVisibilityChange = () => this.requestCanvasDraw();
   
   // Local active tab selector
   activeTabIndex = 0;
@@ -99,6 +102,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       if (idx !== -1) {
         this.activeTabIndex = idx;
       }
+      this.state.lastPayload();
+      this.state.spark();
+      this.state.kpiThresholds();
+      this.requestCanvasDraw();
     });
   }
 
@@ -107,13 +114,25 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit() {
-    this.initCanvasDrawing();
+    this.viewReady = true;
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.requestCanvasDraw());
+      [
+        this.breathCanvas, this.heartCanvas, this.hrTrendCanvas, this.rrTrendCanvas,
+        this.targetCanvas, this.overviewHrSpark, this.overviewRrSpark,
+        this.overviewFpsSpark, this.overviewDistSpark
+      ].filter(Boolean).forEach(ref => this.resizeObserver?.observe(ref.nativeElement));
+    }
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    this.requestCanvasDraw();
   }
 
   ngOnDestroy() {
-    if (this.animeFrameId) {
+    if (this.animeFrameId !== null) {
       cancelAnimationFrame(this.animeFrameId);
     }
+    this.resizeObserver?.disconnect();
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   onTabChange(event: MatTabChangeEvent) {
@@ -121,6 +140,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     this.activeTabIndex = event.index;
     this.state.activeTab.set(tabs[event.index]);
     this.state.triggerHaptic('tap');
+    this.requestCanvasDraw();
   }
 
   togglePause() {
@@ -287,12 +307,14 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   setTrendRange(range: TrendRange): void {
     this.trendRange.set(range);
     this.state.triggerHaptic('tap');
+    this.requestCanvasDraw();
   }
 
   resetTrendRange(): void {
     this.trendRange.set(120);
     this.snackBar.open('Chart window reset to 120 seconds.', 'Dismiss', { duration: 2500 });
     this.state.triggerHaptic('tap');
+    this.requestCanvasDraw();
   }
 
   trendRangeLabel(): string {
@@ -308,6 +330,35 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   metricText(key: string, decimals = 1, suffix = ''): string {
     const value = this.metricNumber(key);
     return value === null ? '--' : `${value.toFixed(decimals)}${suffix}`;
+  }
+
+  readingLabel(label: string, key: string, unit: string): string {
+    const value = this.metricNumber(key);
+    return value === null ? `${label}: not available.` : `${label}: ${Math.round(value)} ${unit}.`;
+  }
+
+  frameRateLabel(): string {
+    const fps = this.computedFps();
+    return fps === '--' ? 'Frame rate: not available.' : `Frame rate: ${fps} hertz.`;
+  }
+
+  chartLabel(label: string, key: string, unit: string): string {
+    return `${label} chart. ${this.readingLabel('Latest reading', key, unit)}`;
+  }
+
+  liveAlertAnnouncement(): string {
+    const alerts: string[] = [];
+    const thresholds = this.state.kpiThresholds();
+    const hr = this.metricNumber('reported_hr');
+    const rr = this.metricNumber('reported_rr');
+    if (this.state.telemetryStale()) alerts.push('Live telemetry is stale. Do not treat displayed values as current.');
+    if (hr !== null && (hr < thresholds.hrLow || hr > thresholds.hrHigh)) {
+      alerts.push(`Heart rate outside threshold at ${Math.round(hr)} beats per minute.`);
+    }
+    if (rr !== null && (rr < thresholds.rrLow || rr > thresholds.rrHigh)) {
+      alerts.push(`Respiration outside threshold at ${Math.round(rr)} breaths per minute.`);
+    }
+    return alerts.join(' ');
   }
 
   metricLabel(key: string): string {
@@ -486,15 +537,15 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   // --- Real-time Waveforms & Trends Canvas plots ---
-  private initCanvasDrawing() {
-    const renderLoop = () => {
+  private requestCanvasDraw(): void {
+    if (!this.viewReady || document.visibilityState === 'hidden' || this.animeFrameId !== null) return;
+    this.animeFrameId = requestAnimationFrame(() => {
+      this.animeFrameId = null;
       this.drawWaves();
       this.drawTrends();
       this.drawOverviewSparklines();
       this.drawTargetPosition();
-      this.animeFrameId = requestAnimationFrame(renderLoop);
-    };
-    this.animeFrameId = requestAnimationFrame(renderLoop);
+    });
   }
 
   private drawWaves() {
@@ -614,11 +665,12 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       ctx.stroke();
     };
 
+    const thresholds = this.state.kpiThresholds();
     if (this.activeTabIndex === 2 && this.hrTrendCanvas) {
-      plotTrend(this.hrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_hr', 'hr')), 'rgba(0, 164, 150, 0.95)', 40, 160);
+      plotTrend(this.hrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_hr', 'hr')), 'rgba(0, 164, 150, 0.95)', Math.max(0, thresholds.hrLow - 20), thresholds.hrHigh + 20);
     }
     if (this.activeTabIndex === 3 && this.rrTrendCanvas) {
-      plotTrend(this.rrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_rr', 'rr')), 'rgba(97, 105, 198, 0.95)', 5, 35);
+      plotTrend(this.rrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_rr', 'rr')), 'rgba(97, 105, 198, 0.95)', Math.max(0, thresholds.rrLow - 5), thresholds.rrHigh + 5);
     }
   }
 

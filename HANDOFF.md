@@ -61,6 +61,11 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-26 - Close accessible-live, update safety and pairing abuse gaps
+- Added keyboard-reachable main navigation, editable-field shortcut guards, screen-reader live KPI/threshold/stale announcements and chart labels; Live canvases now redraw from data/resize/visibility/tab changes with configured threshold ranges rather than running a continuous frame loop.
+- Replaced automatic service-worker activation reloads with an operator-confirmed Material refresh prompt, repaired the stale Angular scaffold unit test and made the Playwright workflow execute the Angular unit suite.
+- Applied a dedicated per-client PIN exchange cooldown after repeated invalid attempts, documented the LAN pairing behavior, and added auth/static/browser coverage. Verification: `npm run build:check`; `npm run test:unit:web` (2 passed); trainer `compileall`/`python -m rvt_trainer --help`; `python -m pytest -q tests` (40 passed); desktop smoke/API (31 passed); new a11y/keyboard smoke coverage across four projects (4 passed); affected Live visuals across four themes/viewports (16 passed). The full unfiltered four-project smoke command timed out locally without returning results; CI remains the complete matrix gate. The advisory Angular bundle warning is now 22.38 kB above 2 MB; architectural bundle splitting remains deferred because the current single-file packaging contract rejects lazy chunks.
+
 ### 2026-05-25 - Expose bounded native BLE qualification probe
 - Completion re-audit found that the allowlisted Angular/Tauri BLE command path had no connected-flow notification consumer: normal Home BLE discovery correctly remained trainer-side, but native acceptance could not be exercised from the packaged dashboard.
 - Home now conditionally exposes a five-second **Native BLE acceptance probe** on Bluetooth-capable clients. It validates one configured AiLink `FFE0`/`FFE2` notification through the Angular adapter, disconnects and removes transient Tauri listeners, and states explicitly that trainer telemetry remains the recorded session source.

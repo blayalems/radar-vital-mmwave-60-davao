@@ -1,16 +1,17 @@
-import { Component, signal, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-
-let reloading = false;
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, MatSnackBarModule],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
 export class App implements OnInit {
-  protected readonly title = signal('web');
+  private readonly snackBar = inject(MatSnackBar);
+  private applyingUpdate = false;
+  private updatePromptShown = false;
 
   ngOnInit() {
     this.installServiceWorker();
@@ -19,18 +20,16 @@ export class App implements OnInit {
   private installServiceWorker() {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
 
-    // Track active controller presence on load to guarantee first install never triggers a reload
-    const hasController = !!navigator.serviceWorker.controller;
-
-    // Register service worker ./sw.js
     navigator.serviceWorker.register('./sw.js').then(reg => {
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        this.promptForUpdate(reg.waiting);
+      }
       reg.addEventListener('updatefound', () => {
         const w = reg.installing;
         if (!w) return;
         w.addEventListener('statechange', () => {
           if (w.state === 'installed' && navigator.serviceWorker.controller) {
-            console.log('New service worker version available. Triggering skipWaiting.');
-            w.postMessage({ type: 'SKIP_WAITING' });
+            this.promptForUpdate(w);
           }
         });
       });
@@ -38,14 +37,24 @@ export class App implements OnInit {
       console.warn('Service worker registration failed', err);
     });
 
-    // Double-reload guard: During worker updates, the browser may fire controllerchange
-    // and statechange in quick succession. Gating reloads with hasController and reloading
-    // ensures we reload exactly once, and only on actual updates.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!hasController) return; // First install does not reload
-      if (reloading) return;
-      reloading = true;
-      location.reload();
+      if (this.applyingUpdate) location.reload();
+    });
+  }
+
+  private promptForUpdate(worker: ServiceWorker): void {
+    if (this.updatePromptShown) return;
+    this.updatePromptShown = true;
+    const prompt = this.snackBar.open(
+      'Dashboard update available. Refresh when monitoring is paused.',
+      'Refresh'
+    );
+    prompt.onAction().subscribe(() => {
+      this.applyingUpdate = true;
+      worker.postMessage({ type: 'SKIP_WAITING' });
+    });
+    prompt.afterDismissed().subscribe(() => {
+      if (!this.applyingUpdate) this.updatePromptShown = false;
     });
   }
 }

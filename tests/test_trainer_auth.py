@@ -13,6 +13,8 @@ import time
 import pytest
 
 from rvt_trainer.api.auth import (
+    _PAIR_FAILURE_LIMIT,
+    _PAIR_LOCKOUT_S,
     _PIN_MAX,
     _PIN_TTL_S,
     exchange_pair_pin,
@@ -28,6 +30,7 @@ class _StubServer:
         self.auth_tokens: set = set()
         self.active_pin: str = ""
         self.active_pin_expires_at: float = 0.0
+        self.pair_exchange_failures: dict = {}
 
 
 def test_make_pair_pin_format():
@@ -65,6 +68,31 @@ def test_exchange_unknown_pin_returns_410():
     status, body = exchange_pair_pin(server, "999999")
     assert status == 410
     assert body["error"]["code"] == "PIN_EXPIRED_OR_USED"
+
+
+def test_repeated_invalid_exchange_locks_out_client_without_consuming_valid_pin():
+    server = _StubServer()
+    pin = make_pair_pin(server)
+    for _ in range(_PAIR_FAILURE_LIMIT - 1):
+        status, _ = exchange_pair_pin(server, "999999", "phone-a")
+        assert status == 410
+
+    status, body = exchange_pair_pin(server, "999999", "phone-a")
+    assert status == 429
+    assert body["error"]["code"] == "PAIRING_RATE_LIMITED"
+    assert body["error"]["retry_after_s"] == int(_PAIR_LOCKOUT_S)
+
+    status, _ = exchange_pair_pin(server, pin, "phone-a")
+    assert status == 429
+    assert pin in server.pair_pins
+
+
+def test_successful_exchange_clears_client_failure_history():
+    server = _StubServer()
+    pin = make_pair_pin(server)
+    assert exchange_pair_pin(server, "999999", "phone-a")[0] == 410
+    assert exchange_pair_pin(server, pin, "phone-a")[0] == 200
+    assert "phone-a" not in server.pair_exchange_failures
 
 
 def test_expired_pin_returns_410_and_clears_entry():

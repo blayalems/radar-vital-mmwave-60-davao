@@ -75,6 +75,10 @@ export class LayoutComponent implements OnInit {
   }
 
   onKeyboardShortcut(event: KeyboardEvent) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('input, textarea, select, [contenteditable], [role="textbox"]')) {
+      return;
+    }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       this.openPalette();

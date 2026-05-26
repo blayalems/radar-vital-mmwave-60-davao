@@ -6863,7 +6863,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         body = self._read_body()
         if path == "/api/auth/exchange":
-            status, payload = _exchange_pair_pin(self.server, str(body.get("pin") or ""))
+            client_ip = (self.client_address[0] if self.client_address else "") or "unknown"
+            status, payload = _exchange_pair_pin(self.server, str(body.get("pin") or ""), client_ip)
             self._send_json(status, payload, cache_control="no-store")
             return
         if path.startswith("/api/") and not self._require_control_auth():
@@ -7112,6 +7113,7 @@ class _ControlServer:
         self.httpd.advertised_host = _guess_lan_ip() if bind_mode == "lan" else "127.0.0.1"
         self.httpd.auth_tokens = set()
         self.httpd.pair_pins = {}
+        self.httpd.pair_exchange_failures = {}
         self.httpd.active_pin = ""
         self.httpd.active_pin_expires_at = 0.0
         if bind_mode == "lan":

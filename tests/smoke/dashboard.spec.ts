@@ -48,12 +48,8 @@ test.describe('Dashboard smoke', () => {
   });
 
   test('service worker registers and reaches activated state', async ({ page }) => {
-    // The dashboard's controllerchange listener triggers location.reload() when a new SW
-    // takes control — that's the production update flow. The test must tolerate the
-    // post-install navigation by waiting for it before sampling SW state.
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
-    // Allow up to one post-install reload to complete.
     await page.waitForTimeout(1500);
     await page.waitForLoadState('domcontentloaded').catch(() => {});
 
@@ -63,8 +59,7 @@ test.describe('Dashboard smoke', () => {
         result = await page.evaluate(async () => {
           if (!('serviceWorker' in navigator)) return { supported: false };
           try {
-            // Use registration() not ready — ready awaits the controller, which can race
-            // with the page reload triggered by controllerchange.
+            // Use registration() rather than waiting for controller activation.
             const reg = await Promise.race([
               navigator.serviceWorker.getRegistration(),
               new Promise((resolve) => setTimeout(() => resolve(null), 10_000))
@@ -153,6 +148,26 @@ test.describe('Dashboard smoke', () => {
     await expect(page.getByRole('dialog')).toContainText('Command Palette');
     await page.getByRole('button', { name: /Operator playbook/ }).click();
     await expect(page).toHaveURL(/\/help$/);
+  });
+
+  test('exposes keyboard navigation and live status semantics without stealing text input shortcuts', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    const skipLink = page.getByRole('link', { name: 'Skip to main content' });
+    await skipLink.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#mainContent')).toBeFocused();
+
+    await page.evaluate(() => localStorage.setItem('rvt-demo-mode', '1'));
+    await page.goto('/live', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.kpi-hr')).toHaveAttribute('role', 'status');
+    await expect(page.locator('.kpi-hr')).toHaveAttribute('aria-live', 'polite');
+    await expect(page.locator('.kpi-hr canvas')).toHaveAttribute('role', 'img');
+    await expect(page.locator('app-live [role="alert"]')).toHaveCount(1);
+
+    const notes = page.getByLabel('Operator observations');
+    await notes.focus();
+    await page.keyboard.press('Control+K');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 
   test('restores Material icons and the blurred command palette backdrop', async ({ page }) => {

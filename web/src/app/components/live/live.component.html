@@ -51,8 +51,9 @@
         
         <!-- KPI METRICS SUMMARY BOARD -->
         <div class="kpi-grid">
+          <p class="sr-only" role="alert" aria-atomic="true">{{ liveAlertAnnouncement() }}</p>
           <!-- HEART RATE CARD -->
-          <div class="kpi-metric-card kpi-hr" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
+          <div class="kpi-metric-card kpi-hr" role="status" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Heart rate', 'reported_hr', 'beats per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
             <div class="kpi-card-header">
               <span>Heart Rate</span>
               <mat-icon>ecg_heart</mat-icon>
@@ -62,7 +63,7 @@
               <small>bpm</small>
             </div>
             <div class="kpi-card-spark">
-              <canvas #overviewHrSpark class="sparkline-canvas"></canvas>
+              <canvas #overviewHrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Heart rate recent trend', 'reported_hr', 'beats per minute')"></canvas>
             </div>
             <div class="kpi-card-footer">
               Ref: {{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : 'no reference' }}
@@ -70,7 +71,7 @@
           </div>
 
           <!-- RESPIRATORY RATE CARD -->
-          <div class="kpi-metric-card kpi-rr" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
+          <div class="kpi-metric-card kpi-rr" role="status" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Respiration', 'reported_rr', 'breaths per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
             <div class="kpi-card-header">
               <span>Respiration</span>
               <mat-icon>air</mat-icon>
@@ -80,7 +81,7 @@
               <small>br/min</small>
             </div>
             <div class="kpi-card-spark">
-              <canvas #overviewRrSpark class="sparkline-canvas"></canvas>
+              <canvas #overviewRrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Respiration recent trend', 'reported_rr', 'breaths per minute')"></canvas>
             </div>
             <div class="kpi-card-footer">
               Ref: {{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : 'no reference' }}
@@ -88,7 +89,7 @@
           </div>
 
           <!-- FRAME RATE CARD -->
-          <div class="kpi-metric-card">
+          <div class="kpi-metric-card" role="status" aria-live="polite" aria-atomic="true" [attr.aria-label]="frameRateLabel()">
             <div class="kpi-card-header">
               <span>Frame Rate</span>
               <mat-icon>speed</mat-icon>
@@ -98,13 +99,13 @@
               <small>Hz</small>
             </div>
             <div class="kpi-card-spark">
-              <canvas #overviewFpsSpark class="sparkline-canvas"></canvas>
+              <canvas #overviewFpsSpark class="sparkline-canvas" role="img" [attr.aria-label]="frameRateLabel() + ' Recent trend chart.'"></canvas>
             </div>
             <div class="kpi-card-footer">DSP Loop Speed</div>
           </div>
 
           <!-- RANGE DISTANCE CARD -->
-          <div class="kpi-metric-card">
+          <div class="kpi-metric-card" role="status" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Target range', 'distance_cm', 'centimetres')">
             <div class="kpi-card-header">
               <span>Target Range</span>
               <mat-icon>radar</mat-icon>
@@ -114,7 +115,7 @@
               <small>cm</small>
             </div>
             <div class="kpi-card-spark">
-              <canvas #overviewDistSpark class="sparkline-canvas"></canvas>
+              <canvas #overviewDistSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Target range recent trend', 'distance_cm', 'centimetres')"></canvas>
             </div>
             <div class="kpi-card-footer">Placement distance</div>
           </div>
@@ -183,7 +184,7 @@
                   Target: {{ metricLabel('num_targets') }}
                 </span>
               </div>
-              <canvas #targetCanvas class="target-canvas" aria-label="Target position radar scope"></canvas>
+              <canvas #targetCanvas class="target-canvas" role="img" aria-label="Target position radar scope. Text measurements are listed beside this chart."></canvas>
             </div>
             <div class="target-details-grid">
               <div class="spatial-kpis">
@@ -330,7 +331,7 @@
                 </button>
               </div>
               <div class="canvas-plot-container bg-pink-tint">
-                <canvas #breathCanvas class="waveform-canvas"></canvas>
+                <canvas #breathCanvas class="waveform-canvas" role="img" [attr.aria-label]="chartLabel('Breathing waveform', 'reported_rr', 'breaths per minute')"></canvas>
               </div>
               <mat-progress-bar mode="determinate" [value]="qualityPercent('pqi_breath')" class="quality-bar rr-quality"></mat-progress-bar>
               <span class="quality-label">{{ qualityLabel('pqi_breath') }}</span>
@@ -344,7 +345,7 @@
                 </button>
               </div>
               <div class="canvas-plot-container bg-teal-tint">
-                <canvas #heartCanvas class="waveform-canvas"></canvas>
+                <canvas #heartCanvas class="waveform-canvas" role="img" [attr.aria-label]="chartLabel('Heartbeat waveform', 'reported_hr', 'beats per minute')"></canvas>
               </div>
               <mat-progress-bar mode="determinate" [value]="qualityPercent('pqi_heart')" class="quality-bar hr-quality"></mat-progress-bar>
               <span class="quality-label">{{ qualityLabel('pqi_heart') }}</span>
@@ -377,7 +378,7 @@
           <mat-card-content class="trend-large-content">
             <div class="range-caption">Viewing {{ trendRangeLabel() }}</div>
             <div class="large-canvas-container">
-              <canvas #hrTrendCanvas class="large-trend-canvas"></canvas>
+              <canvas #hrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="chartLabel('Heart rate trend', 'reported_hr', 'beats per minute')"></canvas>
             </div>
           </mat-card-content>
         </mat-card>
@@ -455,7 +456,7 @@
           </mat-card-header>
           <mat-card-content class="trend-large-content">
             <div class="large-canvas-container">
-              <canvas #rrTrendCanvas class="large-trend-canvas"></canvas>
+              <canvas #rrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="chartLabel('Respiration trend', 'reported_rr', 'breaths per minute')"></canvas>
             </div>
           </mat-card-content>
         </mat-card>

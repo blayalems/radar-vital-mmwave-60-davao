@@ -540,6 +540,16 @@
   min-width: 0;
 }
 
+.sr-only {
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 .command-strip-card {
   background:
     linear-gradient(104deg, color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 11%, transparent), transparent 42%),

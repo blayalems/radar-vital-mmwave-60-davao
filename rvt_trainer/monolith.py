@@ -6372,9 +6372,20 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if "no-cache" in cache_control or "no-store" in cache_control:
             self.send_header("Pragma", "no-cache")
             self.send_header("Expires", "0")
-        self.send_header("Access-Control-Allow-Origin", getattr(self.server, "cors_origin", "*"))
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Radar-Vital-Token, X-RVT-Token, X-RVT-Auth")
+
+        req_origin = self.headers.get("Origin", "")
+        cors_origin = str(getattr(self.server, "cors_origin", ""))
+
+        if cors_origin == "*":
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Radar-Vital-Token, X-RVT-Token, X-RVT-Auth")
+        elif cors_origin and req_origin == cors_origin:
+            self.send_header("Access-Control-Allow-Origin", cors_origin)
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Radar-Vital-Token, X-RVT-Token, X-RVT-Auth")
+            self.send_header("Vary", "Origin")
+
         csp = getattr(self.server, "content_security_policy", "")
         if csp:
             self.send_header("Content-Security-Policy", csp)
@@ -7085,7 +7096,7 @@ class _ControlServer:
         host: str,
         port: int,
         sessions_root: str,
-        cors_origin: str = "*",
+        cors_origin: str = "",
         mock: bool = False,
         bind_mode: str = "local",
         tls_cert: Optional[str] = None,
@@ -7181,7 +7192,10 @@ def _start_control_server(args):
     host = requested_host or ("0.0.0.0" if bind_mode == "lan" else "127.0.0.1")
     port_arg = getattr(args, "control_port", 8765)
     start_port = int(8765 if port_arg is None else port_arg)
-    cors_origin = str(getattr(args, "cors_origin", "*") or "*")
+    cors_origin = str(getattr(args, "cors_origin", "") or "")
+    if bind_mode == "lan" and cors_origin == "*":
+        print(_yellow("[WARN] Control server is bound to LAN interfaces with a wildcard CORS origin."))
+        print(_yellow("       This allows cross-origin requests from any website opened on your browser."))
     mock = bool(getattr(args, "mock", False))
     tls_arg = getattr(args, "tls", None)
     tls_cert = None
@@ -13782,8 +13796,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="send HSTS only when --tls uses a CA-trusted certificate")
     p_srv.add_argument("--sessions-root", default="sessions",
                        help="sessions root served by the control server (default: sessions)")
-    p_srv.add_argument("--cors-origin", default="*",
-                       help="Access-Control-Allow-Origin value for local dashboard requests (default: *)")
+    p_srv.add_argument("--cors-origin", default="",
+                       help="Access-Control-Allow-Origin value for local dashboard requests (default: \"\", no wildcards by default)")
     p_srv.add_argument("--mock", action="store_true",
                        help="serve an integrated virtual radar stream over the live APIs and SSE")
     p_srv.add_argument("--no-browser", action="store_true",
@@ -13983,7 +13997,7 @@ def _run_self_tests() -> int:
     tmp = tempfile.mkdtemp(prefix="rvt-selftest-")
     server = None
     try:
-        args = argparse.Namespace(host="127.0.0.1", control_port=0, sessions_root=tmp, no_browser=True, cors_origin="*", mock=True, bind="local", tls=None, tls_trusted=False)
+        args = argparse.Namespace(host="127.0.0.1", control_port=0, sessions_root=tmp, no_browser=True, cors_origin="", mock=True, bind="local", tls=None, tls_trusted=False)
         server = _start_control_server(args)
         server.start()
         base = f"http://127.0.0.1:{server.httpd.server_port}"

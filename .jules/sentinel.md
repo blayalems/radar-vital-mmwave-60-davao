@@ -1,0 +1,4 @@
+## 2025-05-26 - Overly Permissive CORS Default
+**Vulnerability:** The local control server was configured to emit `Access-Control-Allow-Origin: *` for all responses by default. In local or LAN bind mode, this could allow an attacker controlling a malicious webpage loaded by the operator to make cross-origin requests to control trainer APIs without authorization.
+**Learning:** Default configurations in CLI applications that expose local HTTP servers must default to restrictive CORS and avoid wildcards. It's easy for permissive defaults to slip into local CLI dashboards for ease-of-use but they introduce critical cross-origin risks.
+**Prevention:** Audit all `Access-Control-*` header emission in local HTTP servers to verify they either default to disabled (empty) or explicitly match `Origin` headers instead of blindly reflecting or returning `*`. Add explicit security tests validating cross-origin restrictions.

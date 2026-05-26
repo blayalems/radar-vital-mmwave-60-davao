@@ -2,6 +2,8 @@ name: Release APK and EXE
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -23,10 +25,46 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  release_metadata:
+    name: Resolve release version
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
+      release_name: ${{ steps.version.outputs.release_name }}
+      release_version: ${{ steps.version.outputs.release_version }}
+      android_version_code: ${{ steps.version.outputs.android_version_code }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve release tag and embedded native version
+        id: version
+        shell: bash
+        env:
+          REQUESTED_TAG: ${{ inputs.tag_name }}
+        run: |
+          base_version="$(node -p "require('./src-tauri/tauri.conf.json').version.split('-')[0]")"
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            release_tag="v${base_version}-main.${GITHUB_RUN_NUMBER}"
+          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            release_tag="$REQUESTED_TAG"
+          else
+            release_tag="$GITHUB_REF_NAME"
+          fi
+          release_version="${release_tag#v}"
+          if [[ ! "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag must carry a semantic version, received: ${release_tag}" >&2
+            exit 1
+          fi
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          echo "release_name=Radar Vital ${release_tag}" >> "$GITHUB_OUTPUT"
+          echo "release_version=${release_version}" >> "$GITHUB_OUTPUT"
+          echo "android_version_code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
   android:
     name: Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    needs: release_metadata
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +92,16 @@ jobs:
           npx cap add android || echo "android platform already exists"
           npx cap sync android
           node scripts/patch-android-shell.mjs
+
+      - name: Stamp Android release version
+        working-directory: android
+        env:
+          RELEASE_VERSION: ${{ needs.release_metadata.outputs.release_version }}
+          ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}
+        run: |
+          sed -i -E "s/versionCode [0-9]+/versionCode ${ANDROID_VERSION_CODE}/" app/build.gradle
+          sed -i -E "s/versionName \"[^\"]+\"/versionName \"${RELEASE_VERSION}\"/" app/build.gradle
+          grep -E 'version(Code|Name)' app/build.gradle
 
       - name: Decode Android signing key
         id: android_signing
@@ -105,6 +153,7 @@ jobs:
     name: Windows EXE
     runs-on: windows-latest
     timeout-minutes: 50
+    needs: release_metadata
     steps:
       - uses: actions/checkout@v4
 
@@ -127,6 +176,17 @@ jobs:
 
       - name: Build www/
         run: npm run build:web
+
+      - name: Stamp Windows release version
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.release_metadata.outputs.release_version }}
+        run: |
+          $configPath = "src-tauri/tauri.conf.json"
+          $config = Get-Content $configPath -Raw | ConvertFrom-Json
+          $config.version = $env:RELEASE_VERSION
+          $config | ConvertTo-Json -Depth 100 | Set-Content $configPath
+          Write-Host "Tauri installer version: $($config.version)"
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version '^2.0' --locked
@@ -178,6 +238,7 @@ jobs:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
     needs:
+      - release_metadata
       - android
       - windows
     steps:
@@ -191,9 +252,16 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
-          name: Radar Vital ${{ github.event.inputs.tag_name || github.ref_name }}
-          prerelease: ${{ github.event.inputs.prerelease || startsWith(github.ref_name, 'v12.0.0-alpha') }}
+          tag_name: ${{ needs.release_metadata.outputs.release_tag }}
+          name: ${{ needs.release_metadata.outputs.release_name }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || startsWith(github.ref_name, 'v12.0.0-alpha') }}
+          make_latest: false
+          generate_release_notes: true
+          body: |
+            Installable APK and Windows EXE generated from `${{ github.sha }}`.
+
+            Automated `main` releases use a monotonically increasing `v<app-version>-main.<workflow-run>` version. GitHub-generated release notes below are the changelog for this build.
           fail_on_unmatched_files: true
           files: |
             release-assets/**/*.apk

@@ -5,8 +5,19 @@
 The `Release APK and EXE` workflow publishes permanent GitHub Release assets
 when either of these happens:
 
+- A pull request merge or other accepted update is pushed to `main`.
 - A tag matching `v*` is pushed.
 - The workflow is manually dispatched with a `tag_name`.
+
+Every `main` publication is an automated prerelease tagged
+`v<app-version>-main.<workflow-run>`, for example `v12.0.0-main.42`. The
+workflow run number increases on each release workflow invocation, so each
+published main build receives a new version. All release routes require a
+semantic-version tag and stamp that tag's version into the APK `versionName`
+and Tauri installer version. The APK `versionCode` uses the increasing
+workflow-run value so later signed APKs can upgrade earlier ones.
+GitHub-generated release notes are enabled for every publication and serve as
+the build changelog.
 
 The release attaches:
 

@@ -77,7 +77,7 @@ npx cap open android                  # opens Android Studio for signing/release
 
 LAN HTTP traffic in the APK routes through the Capacitor native HTTP stack (via `CapacitorHttp` configuration in `capacitor.config.ts`) so the WebView's mixed-content rules never apply. Telemetry-derived offline records are segregated by `demo` versus `live` IndexedDB scope. Where local Bluetooth is available, Home exposes a **Native BLE acceptance probe** that validates one allowlisted AiLink notification; it is a hardware qualification check and does not replace trainer-side reference capture for a recorded session.
 
-CI: [`.github/workflows/build-apk.yml`](./.github/workflows/build-apk.yml) produces an unsigned debug APK on every push and attaches it to the workflow artifacts.
+CI: [`.github/workflows/build-apk.yml`](./.github/workflows/build-apk.yml) produces an unsigned debug APK for validation. After each accepted push to `main`, [`.github/workflows/release-artifacts.yml`](./.github/workflows/release-artifacts.yml) publishes a versioned GitHub prerelease with an APK asset and generated changelog; every release stamps its semantic version and increasing Android version code into the APK, using signing secrets when configured.
 
 ### Windows EXE — Tauri v2
 
@@ -90,7 +90,7 @@ cargo tauri build                     # produces src-tauri/target/release/*.exe
 
 Tauri uses Microsoft Edge WebView2 and keeps WebView network policy at `connect-src 'self'`. Paired LAN API/download calls run through native Rust commands pinned to the explicitly paired origin. Native BLE reference commands allowlist the configured AiLink oximeter notify profile (`FFE0` service / `FFE2` characteristic); Home's bounded Native BLE acceptance probe consumes that command path and reports whether a notification was received without claiming it supplied session telemetry. The separate radar-firmware GATT path remains disabled by default pending physical acceptance. Windows 11 ships WebView2 preinstalled; the installer uses `downloadBootstrapper` for other systems.
 
-CI: [`.github/workflows/build-exe.yml`](./.github/workflows/build-exe.yml) cross-compiles the EXE on `windows-latest`.
+CI: [`.github/workflows/build-exe.yml`](./.github/workflows/build-exe.yml) builds the EXE on `windows-latest`. After each accepted push to `main`, [`.github/workflows/release-artifacts.yml`](./.github/workflows/release-artifacts.yml) attaches the NSIS installer to the versioned GitHub prerelease and generated changelog; every release stamps the same semantic version into the EXE and signs it when certificate secrets are configured.
 
 ---
 

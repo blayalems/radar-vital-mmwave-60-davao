@@ -12,8 +12,8 @@
 | Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material source of truth; scoped IndexedDB, PIN pairing, report sign-off, alert diagnosis, mobile commands, dark inverse HC and native BLE qualification UI implemented | codex/mobile-first-dashboard-upABy |
 | Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 partial extraction continues; monolith now denies generic static reads, protects LAN telemetry reads/SSE and exposes serial/notes/sign-off contracts | codex/mobile-first-dashboard-upABy |
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Public URL serves the Angular shell; current branch enforces Angular-only Pages artifacts and direct-route shell fallback while its updated SW awaits deployment | codex/mobile-first-dashboard-upABy |
-| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | CI built the debug APK from `a74c4e1`; local BLE qualification is now reachable in UI, while real paired-LAN/GATT acceptance remains open | codex/mobile-first-dashboard-upABy |
-| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | CI built the NSIS installer and passed Rust native tests from `a74c4e1`; Home now reaches the bounded GATT probe; hardware acceptance remains open | codex/mobile-first-dashboard-upABy |
+| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | CI built the debug APK from `a74c4e1`; each accepted `main` push now publishes a versioned APK prerelease with generated changelog once merged | codex/mobile-first-dashboard-upABy |
+| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | CI built the NSIS installer and passed Rust native tests from `a74c4e1`; each accepted `main` push now publishes a versioned EXE prerelease with generated changelog once merged | codex/mobile-first-dashboard-upABy |
 | Smoke + visual tests | `tests/` | 40 Python contracts, 156 four-viewport smoke/API checks and 16 affected Live visuals pass locally; prior-head CI full visual/native/package workflows passed | codex/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows
@@ -60,6 +60,12 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-27 - Publish versioned APK and EXE prereleases after main updates
+- Extended `release-artifacts.yml` to build and publish Android and Windows installable assets after every accepted push to `main`, including merged pull requests.
+- Automated main releases now use incrementing `v<app-version>-main.<workflow-run>` prerelease tags and GitHub-generated release notes as the changelog; all publication paths stamp the semantic release version into APK/EXE assets plus an increasing APK version code.
+- Documented release triggering, signing fallback behavior and version/changelog policy in `README.md` and `docs/release-and-protection.md`.
+- Verification: `npm run build:check`; `npm --prefix web run test:ci` (16 passed); trainer `compileall`/`python -m rvt_trainer --help`; `python -m pytest -q tests` (40 passed); version-stamping simulation; desktop API smoke (9 passed). Full four-device smoke completed 155/156 with one iPhone skip-link focus failure that passed on isolated rerun.
 
 ### 2026-05-26 - Restore readable Live Overview sparkline sizing
 - Increased Angular Live Overview graph tracks from a cramped 48 px slot to a responsive 72-88 px reserved region, preserving enough card height for trend curves and footer context.

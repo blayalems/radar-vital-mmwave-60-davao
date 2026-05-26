@@ -38,6 +38,7 @@ export class ApiService {
 
   private readonly API_BASE_KEY = 'rvt-api-base';
   private readonly TOKEN_KEY = 'rvt-pair-token';
+  private connectionAttempt = 0;
 
   public readonly connectionLoading = signal(true);
 
@@ -270,13 +271,16 @@ export class ApiService {
 
   // Detect control mode / connect
   async detectControlMode(): Promise<boolean> {
+    const attempt = ++this.connectionAttempt;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       // 4-second timeout wrapper to prevent locking out layout UI on stale LAN endpoints
       const statusPromise = this.request<ControlStatus>('/api/status', undefined, true);
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Connection detection timeout')), 4000)
-      );
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Connection detection timeout')), 4000);
+      });
       const r = await Promise.race([statusPromise, timeoutPromise]);
+      if (attempt !== this.connectionAttempt) return false;
 
       this.state.ctlOn.set(true);
       this.state.autoDemoActive.set(false);
@@ -286,14 +290,21 @@ export class ApiService {
       this.state.currentSessionId.set(activeSession?.session_id || null);
       return true;
     } catch (error: unknown) {
+      if (attempt !== this.connectionAttempt) return false;
       const message = error instanceof Error ? error.message : 'Control API unavailable';
       this.enableSandboxControlMode(message);
       return false;
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
     }
   }
 
   enableSandboxControlMode(reason: string) {
+    // Explicit fallback wins over any slower in-flight live detection attempt.
+    this.connectionAttempt++;
     this.state.ctlOn.set(true);
+    this.state.sessionActive.set(false);
+    this.state.ctlStopPending.set(false);
     this.state.autoDemoActive.set(true);
     this.state.ctlStatus.set({
       ok: true,

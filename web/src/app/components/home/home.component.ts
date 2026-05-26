@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, HostListener, ViewChild, AfterViewInit, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -94,6 +94,22 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.loadSubjectProfiles();
     this.loadSessions();
     this.runPreflight();
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onKeyboardShortcut(event: KeyboardEvent): void {
+    if (event.defaultPrevented || this.state.currentView() !== 'home' || event.repeat) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('input, textarea, select, [contenteditable], [role="textbox"]')) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    const key = event.key.toLowerCase();
+    if (key === 'q') {
+      event.preventDefault();
+      void this.runPreflight();
+    } else if (key === 'n') {
+      event.preventDefault();
+      void this.startSession();
+    }
   }
 
   ngAfterViewInit() {
@@ -431,26 +447,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     const onSurfaceVariant = styles.getPropertyValue('--md-sys-color-on-surface-variant').trim() || '#64748b';
     const onSurface = styles.getPropertyValue('--md-sys-color-on-surface').trim() || '#94a3b8';
 
-    const parseColorToRgb = (colorStr: string, fallback: { r: number; g: number; b: number }) => {
-      colorStr = colorStr.trim();
-      if (colorStr.startsWith('rgb')) {
-        const matches = colorStr.match(/\d+/g);
-        if (matches && matches.length >= 3) {
-          return `${matches[0]}, ${matches[1]}, ${matches[2]}`;
-        }
-      }
-      let hex = colorStr.replace('#', '');
-      if (hex.length === 3) {
-        hex = hex.split('').map(c => c + c).join('');
-      }
-      const num = parseInt(hex, 16);
-      if (isNaN(num)) return `${fallback.r}, ${fallback.g}, ${fallback.b}`;
-      return `${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}`;
-    };
-
-    const primaryRGB = parseColorToRgb(primaryColor, { r: 0, g: 97, b: 164 });
-    const tertiaryRGB = parseColorToRgb(tertiaryColor, { r: 0, g: 164, b: 150 });
-    const secondaryRGB = parseColorToRgb(secondaryColor, { r: 97, g: 105, b: 198 });
+    const primaryRGB = this.parseColorToRgb(primaryColor, { r: 0, g: 97, b: 164 });
+    const tertiaryRGB = this.parseColorToRgb(tertiaryColor, { r: 0, g: 164, b: 150 });
+    const secondaryRGB = this.parseColorToRgb(secondaryColor, { r: 97, g: 105, b: 198 });
 
     // Draw scanning circles
     ctx.strokeStyle = `rgba(${primaryRGB}, 0.15)`;
@@ -543,25 +542,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     const outlineColor = styles.getPropertyValue('--md-sys-color-outline-variant').trim() || '#e2e8f0';
     const onSurface = styles.getPropertyValue('--md-sys-color-on-surface').trim() || '#94a3b8';
 
-    const parseColorToRgb = (colorStr: string, fallback: { r: number; g: number; b: number }) => {
-      colorStr = colorStr.trim();
-      if (colorStr.startsWith('rgb')) {
-        const matches = colorStr.match(/\d+/g);
-        if (matches && matches.length >= 3) {
-          return `${matches[0]}, ${matches[1]}, ${matches[2]}`;
-        }
-      }
-      let hex = colorStr.replace('#', '');
-      if (hex.length === 3) {
-        hex = hex.split('').map(c => c + c).join('');
-      }
-      const num = parseInt(hex, 16);
-      if (isNaN(num)) return `${fallback.r}, ${fallback.g}, ${fallback.b}`;
-      return `${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}`;
-    };
-
-    const tertiaryRGB = parseColorToRgb(tertiaryColor, { r: 0, g: 164, b: 150 });
-    const secondaryRGB = parseColorToRgb(secondaryColor, { r: 97, g: 105, b: 198 });
+    const tertiaryRGB = this.parseColorToRgb(tertiaryColor, { r: 0, g: 164, b: 150 });
+    const secondaryRGB = this.parseColorToRgb(secondaryColor, { r: 97, g: 105, b: 198 });
 
     if (!hrs.length) {
       ctx.fillStyle = onSurface;
@@ -615,5 +597,22 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     drawLine(hrs, `rgba(${tertiaryRGB}, 0.85)`, 40, 160);
     // Plot RR using the secondary chart accent.
     drawLine(rrs, `rgba(${secondaryRGB}, 0.85)`, 5, 35);
+  }
+
+  private parseColorToRgb(color: string, fallback: { r: number; g: number; b: number }): string {
+    const value = color.trim();
+    if (value.startsWith('rgb')) {
+      const matches = value.match(/\d+/g);
+      if (matches && matches.length >= 3) {
+        return `${matches[0]}, ${matches[1]}, ${matches[2]}`;
+      }
+    }
+    let hex = value.replace('#', '');
+    if (hex.length === 3) {
+      hex = hex.split('').map(channel => channel + channel).join('');
+    }
+    const numeric = parseInt(hex, 16);
+    if (Number.isNaN(numeric)) return `${fallback.r}, ${fallback.g}, ${fallback.b}`;
+    return `${(numeric >> 16) & 255}, ${(numeric >> 8) & 255}, ${numeric & 255}`;
   }
 }

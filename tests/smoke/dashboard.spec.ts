@@ -1,6 +1,14 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
+
+async function leaveActiveSessionIfPrompted(page: Page): Promise<void> {
+  const dialog = page.getByRole('dialog').filter({ hasText: 'Leave active session?' });
+  const prompted = await dialog.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
+  if (prompted) {
+    await dialog.getByRole('button', { name: /Leave view/ }).click();
+  }
+}
 
 test.describe('Dashboard smoke', () => {
   test('loads without console errors', async ({ page }) => {
@@ -147,6 +155,7 @@ test.describe('Dashboard smoke', () => {
     await page.keyboard.press('Control+K');
     await expect(page.getByRole('dialog')).toContainText('Command Palette');
     await page.getByRole('button', { name: /Operator playbook/ }).click();
+    await leaveActiveSessionIfPrompted(page);
     await expect(page).toHaveURL(/\/help$/);
   });
 
@@ -168,6 +177,116 @@ test.describe('Dashboard smoke', () => {
     await notes.focus();
     await page.keyboard.press('Control+K');
     await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('restores v11 live keyboard workflows in the Angular operator console', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
+    await page.goto('/live', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+
+    await page.keyboard.press('?');
+    await expect(page.getByRole('dialog')).toContainText('Tag motion, cough, speaking or baseline');
+    await page.keyboard.press('Escape');
+
+    await page.keyboard.press('m');
+    await expect(page.getByLabel('Operator observations')).toHaveValue(/\[\d{2}:\d{2}:\d{2}\] Motion/);
+    await page.keyboard.press('p');
+    await page.keyboard.press('Alt+5');
+    await expect(page.locator('.snap-card')).toHaveCount(1);
+
+    await page.keyboard.press('Alt+3');
+    await page.keyboard.press('Alt+8');
+    await expect(page.getByText('Viewing 60 seconds')).toBeVisible();
+
+    const initialTheme = await page.locator('html').getAttribute('data-theme');
+    await page.keyboard.press('t');
+    await expect.poll(() => page.locator('html').getAttribute('data-theme')).not.toBe(initialTheme);
+    await page.keyboard.press('Shift+F');
+    await expect(page.locator('body')).toHaveClass(/zen-mode/);
+  });
+
+  test('keeps primary navigation available in simple view and collapses the desktop rail', async ({ page }) => {
+    if ((page.viewportSize()?.width || 0) >= 1024) {
+      await page.setViewportSize({ width: 1280, height: 720 });
+    }
+    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
+    await page.goto('/live', { waitUntil: 'domcontentloaded' });
+
+    const viewportWidth = page.viewportSize()?.width || 0;
+    const simpleView = page.getByTitle('Simple view');
+    if (await simpleView.isVisible()) {
+      await simpleView.click();
+      await expect(page.locator('body')).toHaveClass(/zen-mode/);
+    }
+
+    if (viewportWidth >= 1024) {
+      const rail = page.locator('.rail');
+      await expect(rail).toBeVisible();
+      const expandedWidth = await rail.evaluate(element => element.getBoundingClientRect().width);
+      await page.getByRole('button', { name: 'Collapse sidebar' }).click();
+      await expect(page.locator('body')).toHaveAttribute('data-rail-collapsed', '1');
+      await expect(page.getByRole('button', { name: 'Expand sidebar' })).toBeVisible();
+      const collapsedWidth = await rail.evaluate(element => element.getBoundingClientRect().width);
+      expect(collapsedWidth).toBeLessThan(expandedWidth - 100);
+      await expect.poll(async () => page.evaluate(() => {
+        const railRect = document.querySelector('.rail')?.getBoundingClientRect();
+        const mainRect = document.querySelector('.main-wrapper')?.getBoundingClientRect();
+        if (!railRect || !mainRect) return false;
+        const controls = Array.from(document.querySelectorAll(
+          '.rail .brand-mark, .rail .rail-collapse-btn, .rail .r-item, .rail .operator'
+        ));
+        const contained = controls.every(control => {
+          const rect = control.getBoundingClientRect();
+          return rect.left >= railRect.left - 1 && rect.right <= railRect.right + 1;
+        });
+        const visibleIcons = Array.from(document.querySelectorAll('.rail .r-item .material-symbols-rounded'))
+          .every(icon => {
+            const rect = icon.getBoundingClientRect();
+            const centerOffset = Math.abs((rect.left + rect.width / 2) -
+              (railRect.left + railRect.width / 2));
+            return rect.width > 0 && rect.left >= railRect.left - 1 &&
+              rect.right <= railRect.right + 1 && centerOffset <= 2;
+          });
+        const hiddenLabels = Array.from(document.querySelectorAll('.rail .r-label'))
+          .every(label => getComputedStyle(label).display === 'none');
+        const railElement = document.querySelector('.rail');
+        const railInner = railElement?.querySelector('.mat-drawer-inner-container');
+        const clippedOverflow = !!railElement && !!railInner &&
+          railElement.scrollWidth <= railElement.clientWidth + 1 &&
+          railElement.scrollHeight <= railElement.clientHeight + 1 &&
+          railInner.scrollHeight <= railInner.clientHeight + 1;
+        return contained && visibleIcons && hiddenLabels && clippedOverflow &&
+          mainRect.left <= railRect.right + 1;
+      })).toBe(true);
+    } else {
+      await expect(page.locator('.bottom-nav')).toBeVisible();
+    }
+  });
+
+  test('renders desktop topbar controls without duplicate surfaces or selection indicators', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
+    await page.goto('/live', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.topbar-status')).toBeVisible();
+
+    const hasUnboxedGroups = await page.evaluate(() =>
+      ['.topbar-status', '.topbar-actions'].every(selector => {
+        const element = document.querySelector(selector);
+        if (!element) return false;
+        const style = getComputedStyle(element);
+        return style.backgroundColor === 'rgba(0, 0, 0, 0)' &&
+          style.borderTopWidth === '0px' &&
+          style.boxShadow === 'none';
+      })
+    );
+    expect(hasUnboxedGroups).toBe(true);
+    await expect(page.locator('.tb-live-mode .mat-pseudo-checkbox')).toHaveCount(0);
+    const liveModeBounds = await page.locator('.tb-live-mode').evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      return { width: rect.width, height: rect.height };
+    });
+    expect(liveModeBounds.height).toBeLessThanOrEqual(48);
+    expect(liveModeBounds.width).toBeLessThanOrEqual(125);
   });
 
   test('restores Material icons and the blurred command palette backdrop', async ({ page }) => {
@@ -195,7 +314,12 @@ test.describe('Dashboard smoke', () => {
   test('keeps Angular home cards and desktop topbar inside the visible content area', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: /Home/ }).first().click();
+    await leaveActiveSessionIfPrompted(page);
     await expect(page.getByText('Session Setup').first()).toBeVisible();
+    await expect(page.locator('.setup-config-card')).toBeVisible();
+    await expect(page.locator('.radar-scope-card')).toBeVisible();
+    await expect(page.locator('.preflight-card-stack')).toBeVisible();
+    await expect(page.locator('.sessions-history-card')).toBeVisible();
 
     const cardsContained = await page.evaluate(() => {
       const content = document.querySelector('.home-container')?.getBoundingClientRect();
@@ -222,6 +346,7 @@ test.describe('Dashboard smoke', () => {
   test('restores searchable help topics from the trainer schema', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: /Help/ }).first().click();
+    await leaveActiveSessionIfPrompted(page);
     await expect(page.getByText('Operator Playbook & Field Dictionary')).toBeVisible();
 
     const reveal = page.getByRole('button', { name: 'Browse all topics' });
@@ -240,6 +365,7 @@ test.describe('Dashboard smoke', () => {
     });
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: /Help/ }).first().click();
+    await leaveActiveSessionIfPrompted(page);
 
     for (const topic of ['Getting started', 'Hardware', 'Recovery', 'Reports', 'Firmware']) {
       await expect(page.getByRole('button', { name: new RegExp(topic, 'i') }).first()).toBeVisible();
@@ -288,6 +414,7 @@ test.describe('Dashboard smoke', () => {
   test('imports all portable Material settings with bounded values', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: /Settings/ }).first().click();
+    await leaveActiveSessionIfPrompted(page);
 
     await page.locator('input[type="file"]').setInputFiles({
       name: 'preferences.json',
@@ -325,6 +452,17 @@ test.describe('Dashboard smoke', () => {
     expect(stored.voice).toBe('1');
   });
 
+  test('applies compact density to Angular settings spacing', async ({ page }) => {
+    await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+    const settingsGrid = page.locator('.settings-grid');
+    const comfortableGap = await settingsGrid.evaluate(element => parseFloat(getComputedStyle(element).gap));
+
+    await page.getByRole('radio', { name: 'Compact' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-density', 'compact');
+    const compactGap = await settingsGrid.evaluate(element => parseFloat(getComputedStyle(element).gap));
+    expect(compactGap).toBeLessThan(comfortableGap);
+  });
+
   test('labels automatic fallback as DEMO and does not write unscoped telemetry stores', async ({ page }) => {
     await page.route('**/api/status', route => route.fulfill({ status: 503, body: '{"error":"offline"}' }));
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
@@ -338,6 +476,30 @@ test.describe('Dashboard smoke', () => {
       'rvt-sandbox-sessions'
     ].filter(key => localStorage.getItem(key) !== null));
     expect(legacyKeys).toEqual([]);
+  });
+
+  test('keeps recovery navigation available while initial status detection is pending', async ({ page }) => {
+    let releaseStatus!: () => void;
+    const statusReleased = new Promise<void>(resolve => { releaseStatus = resolve; });
+    await page.route('**/api/status', async route => {
+      await statusReleased;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, active_session: { session_id: 'late-live-session' } })
+      });
+    });
+
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#mainContent')).toBeVisible();
+    await expect(page.locator('a[aria-label="Settings"]:visible, a[aria-label="Settings view"]:visible').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Bypass to Sandbox Mode/ })).toBeVisible();
+    await page.getByRole('button', { name: /Bypass to Sandbox Mode/ }).click();
+    await expect(page.locator('#demoBanner')).toBeVisible();
+
+    releaseStatus();
+    await page.waitForTimeout(100);
+    await expect(page.locator('#demoBanner')).toBeVisible();
   });
 
   test('exposes the native BLE acceptance probe and receives an allowlisted Tauri notification', async ({ page }) => {
@@ -412,6 +574,14 @@ test.describe('Dashboard smoke', () => {
     await expect(page.getByText(/Signed/).first()).toBeVisible();
   });
 
+  test('keeps simulated provenance visible when printing a demo report', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
+    await page.goto('/report', { waitUntil: 'domcontentloaded' });
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('#demoBanner')).toBeVisible();
+    await expect(page.locator('#demoBanner')).toContainText('simulated vitals only');
+  });
+
   test('exposes command search in the condensed mobile action menu', async ({ page }) => {
     if ((page.viewportSize()?.width || 0) > 760) return;
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
@@ -448,12 +618,37 @@ test.describe('Dashboard smoke', () => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('button', { name: /Stop Session/ })).toBeEnabled();
     await page.getByRole('link', { name: /Home/ }).first().click();
+    await expect(page.getByRole('dialog')).toContainText('Leave active session?');
+    await page.getByRole('dialog').getByRole('button', { name: /Leave view/ }).click();
     await expect(page.getByText('Subject A')).toBeVisible();
     await expect(page.locator('.session-verdict-badge')).toHaveText('READY');
 
     active = false;
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('button', { name: /Stop Session/ })).toBeDisabled();
+  });
+
+  test('stopping through the command palette clears the active-session navigation guard', async ({ page }) => {
+    await page.route('**/api/status', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, active_session: { session_id: 'session-active' } })
+    }));
+    await page.route('**/api/session/stop', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true })
+    }));
+
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('button', { name: /Stop Session/ })).toBeEnabled();
+    await page.keyboard.press('Control+K');
+    await page.getByLabel('Search commands').fill('Stop active session');
+    await page.getByRole('button', { name: /Stop active session/ }).click();
+    await page.getByRole('dialog').getByRole('button', { name: /Stop session/ }).click();
+
+    await expect(page).toHaveURL(/\/report$/);
+    await expect(page.getByText('Leave active session?')).toHaveCount(0);
   });
 
   test('exports alert history and audit evidence through Material actions', async ({ page }) => {

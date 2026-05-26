@@ -41,7 +41,7 @@
 
   <div class="topbar-actions" role="group" aria-label="Console actions">
     <!-- Zen/Live Mode Segment -->
-    <mat-button-toggle-group class="seg seg-sm tb-live-mode" [value]="state.zenMode() ? 'simple' : 'advanced'" aria-label="Telemetry detail">
+    <mat-button-toggle-group class="seg seg-sm tb-live-mode" [hideSingleSelectionIndicator]="true" [value]="state.zenMode() ? 'simple' : 'advanced'" aria-label="Telemetry detail">
       <mat-button-toggle value="simple" (click)="setLiveMode('simple')" title="Simple view">
         <span class="material-symbols-rounded">visibility</span>
       </mat-button-toggle>
@@ -51,7 +51,7 @@
     </mat-button-toggle-group>
 
     <!-- Density Segment -->
-    <mat-button-toggle-group class="seg seg-sm tb-density" [value]="state.density()" aria-label="Density">
+    <mat-button-toggle-group class="seg seg-sm tb-density" [hideSingleSelectionIndicator]="true" [value]="state.density()" aria-label="Density">
       <mat-button-toggle value="comfortable" (click)="setDensity('comfortable')" title="Comfortable">
         <span class="material-symbols-rounded">density_medium</span>
       </mat-button-toggle>

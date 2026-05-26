@@ -1,7 +1,7 @@
 # Angular Material v12/v16 Migration Remediation Audit
 
 Date: 2026-05-24
-Updated: 2026-05-25
+Updated: 2026-05-26
 Branch: `codex/mobile-first-dashboard-upABy`
 Baseline: v11 operator workflows preserved through Angular Material 3 source in `web/src/`.
 
@@ -40,6 +40,22 @@ Baseline: v11 operator workflows preserved through Angular Material 3 source in 
 - Native Tauri requests may bootstrap only `/api/server-info` and `/api/auth/exchange` before pairing; subsequent `/api/*` access and downloads must match the recorded paired origin.
 - Native Tauri BLE reference operations allow only the configured AiLink `FFE0`/`FFE2` notification profile and require a successfully validated active device; the dashboard probe disconnects after a notification or bounded wait and never substitutes for trainer session reference ingestion. Optional radar-firmware GATT promotion remains gated separately.
 - Firmware serial output remains frozen at 207 columns and 115200 baud; firmware BLE remains default-off until physical GATT acceptance passes.
+
+## V11 Feature Parity Recheck - 2026-05-26
+
+The archived `radar_vital_live_dashboard_v11_for_v15_0.html` feature annotations were rechecked before closing PR #24. This PR only claims behavior backed by Angular source and browser tests.
+
+| v11 contract family | Angular v12/v16 disposition |
+|---|---|
+| HOME quickcheck, failed-check retry and subject/session setup | Present in `HomeComponent`: hardware preflight pipeline, single-check rerun, subject profiles and session-start gating. |
+| LIVE tabs, notes, quick tags, snapshot pin/annotation and focused presentation | Present; PR #24 restores the keyboard paths for tabs, trend windows, timestamped observation tags, snapshots and Simple/Advanced focus mode. |
+| ALERT filtering, test alert, acknowledgement and export | Present in the Material alerts dialog, including waveform jump, pin/snooze and CSV/JSON export. |
+| REPORT verdict, executive review, sign-off, comparison and artifacts | Present in `ReportComponent`, with print truthfulness retained for DEMO output. |
+| SETTINGS theme, density, font sizing, haptics, audio/voice and import/export | Present; PR #24 repairs Compact-density layout ownership in the Angular shell. |
+| HELP search/recovery/deep links and command access | Present in `HelpComponent` and the command palette. |
+| Keyboard shortcuts | Restored for implemented Angular actions: palette/help, route and Live-tab navigation, theme/focus/rail controls, alerts/export, Home preflight/start, Live observations, snapshots and trend windows. |
+
+The following v11 feature-level items are not yet implemented as Angular equivalents and are not represented as complete by this PR: KPI click-to-zoom modal, universal undo, dedicated operator-handoff modal beyond the existing copy-brief action, idle auto-lock, canvas data-table alternatives, and snapshot compare/reorder workflows. These require dedicated UI/state contracts and regression coverage rather than CSS-only carryover.
 
 ## Remaining Release Gates
 

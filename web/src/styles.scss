@@ -257,6 +257,53 @@ body[data-view='home'] app-home .home-stat-card {
   }
 }
 
+/* Angular shell contracts that were previously keyed only to legacy markup. */
+@media (min-width: 1024px) {
+  body.zen-mode .rail.mat-drawer {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  body.zen-mode .bottom-nav {
+    display: block !important;
+  }
+}
+
+body.zen-mode app-topbar .topbar {
+  display: flex !important;
+}
+
+html[data-density='compact'] .main-content-scroll {
+  padding-block: 10px;
+}
+
+html[data-density='compact'] app-home .home-container,
+html[data-density='compact'] app-live .live-container,
+html[data-density='compact'] app-report .report-container,
+html[data-density='compact'] app-help .help-container {
+  gap: 12px;
+  padding-bottom: 24px;
+}
+
+html[data-density='compact'] app-live .tab-content-grid {
+  gap: 12px;
+  padding-top: 12px;
+}
+
+html[data-density='compact'] app-settings .settings-container {
+  gap: 1rem;
+}
+
+html[data-density='compact'] app-settings .settings-grid {
+  gap: 0.75rem;
+}
+
+html[data-density='compact'] app-settings mat-card-content {
+  gap: 0.75rem;
+  padding: 1rem !important;
+}
+
 /* Dark inverse high-contrast surfaces must not inherit light legacy button fills. */
 html[data-theme='hc'] {
   --md-sys-color-primary-container: #000 !important;

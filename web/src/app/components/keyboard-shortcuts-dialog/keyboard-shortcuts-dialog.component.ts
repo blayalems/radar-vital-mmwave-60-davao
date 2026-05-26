@@ -14,42 +14,15 @@ import { MatIconModule } from '@angular/material/icon';
     </h2>
     <mat-dialog-content class="shortcuts-content">
       <mat-list>
+        @for (shortcut of shortcuts; track shortcut.description) {
         <mat-list-item>
-          <span class="shortcut-key"><kbd>Ctrl</kbd> + <kbd>K</kbd></span>
-          <span class="shortcut-desc">Open Command Palette</span>
+          <span class="shortcut-key"><kbd>{{ shortcut.keys }}</kbd></span>
+          <span class="shortcut-desc">
+            {{ shortcut.description }}
+            @if (shortcut.context) { <small>{{ shortcut.context }}</small> }
+          </span>
         </mat-list-item>
-        <mat-list-item>
-          <span class="shortcut-key"><kbd>Ctrl</kbd> + <kbd>/</kbd> or <kbd>?</kbd></span>
-          <span class="shortcut-desc">Show Keyboard Shortcuts</span>
-        </mat-list-item>
-        <mat-list-item>
-          <span class="shortcut-key"><kbd>Alt</kbd> + <kbd>1</kbd></span>
-          <span class="shortcut-desc">Switch to Live Overview</span>
-        </mat-list-item>
-        <mat-list-item>
-          <span class="shortcut-key"><kbd>Alt</kbd> + <kbd>2</kbd></span>
-          <span class="shortcut-desc">Switch to Live Waves</span>
-        </mat-list-item>
-        <mat-list-item>
-          <span class="shortcut-key"><kbd>Alt</kbd> + <kbd>3</kbd></span>
-          <span class="shortcut-desc">Switch to HR Funnel</span>
-        </mat-list-item>
-        <mat-list-item>
-          <span class="shortcut-key"><kbd>Alt</kbd> + <kbd>4</kbd></span>
-          <span class="shortcut-desc">Switch to RR Funnel</span>
-        </mat-list-item>
-        <mat-list-item>
-          <span class="shortcut-key"><kbd>Alt</kbd> + <kbd>5</kbd></span>
-          <span class="shortcut-desc">Switch to Snapshots</span>
-        </mat-list-item>
-        <mat-list-item>
-          <span class="shortcut-key"><kbd>Alt</kbd> + <kbd>6</kbd></span>
-          <span class="shortcut-desc">Switch to Audit Log</span>
-        </mat-list-item>
-        <mat-list-item>
-          <span class="shortcut-key"><kbd>Esc</kbd></span>
-          <span class="shortcut-desc">Close dialogs and overlays</span>
-        </mat-list-item>
+        }
       </mat-list>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
@@ -66,6 +39,7 @@ import { MatIconModule } from '@angular/material/icon';
       font-family: 'Inter', 'Roboto', sans-serif;
     }
     .shortcuts-content {
+      max-height: min(70vh, 660px);
       padding: 8px 24px 24px !important;
     }
     mat-list-item {
@@ -84,8 +58,14 @@ import { MatIconModule } from '@angular/material/icon';
       flex-shrink: 0;
     }
     .shortcut-desc {
+      display: inline-flex;
+      flex-direction: column;
       font-family: 'Inter', 'Roboto', sans-serif;
       color: var(--md-sys-color-on-surface-variant, #64748b);
+    }
+    .shortcut-desc small {
+      font-size: 11px;
+      opacity: .8;
     }
     kbd {
       background-color: var(--md-sys-color-surface-container-high, #f1f5f9);
@@ -102,4 +82,25 @@ import { MatIconModule } from '@angular/material/icon';
 })
 export class KeyboardShortcutsDialogComponent {
   readonly dialogRef = inject(MatDialogRef<KeyboardShortcutsDialogComponent>);
+  readonly shortcuts = [
+    { keys: 'Ctrl+K or /', description: 'Open command palette' },
+    { keys: '?', description: 'Show keyboard shortcuts' },
+    { keys: 'Ctrl+Shift+C', description: 'Copy operator summary' },
+    { keys: '1 - 5', description: 'Go to Home, Live, Report, Help or Settings' },
+    { keys: 'H / L / R / W / S', description: 'View aliases', context: 'S opens Settings outside Live.' },
+    { keys: 'Alt+1 - Alt+6', description: 'Switch Live tabs' },
+    { keys: 'Alt+7 / 8 / 9 / 0', description: 'Select 30s / 60s / 120s / Max trend window', context: 'Live only.' },
+    { keys: '[ / Alt+\\', description: 'Collapse or expand desktop sidebar' },
+    { keys: 'T', description: 'Cycle light, dark, night and high contrast themes' },
+    { keys: 'Shift+F', description: 'Toggle Simple and Advanced live presentation' },
+    { keys: 'Space', description: 'Pause or resume the telemetry display', context: 'Live only.' },
+    { keys: 'A', description: 'Open alerts review' },
+    { keys: 'E / X', description: 'Export current payload JSON' },
+    { keys: 'Q / N', description: 'Run preflight / start a session', context: 'Home only.' },
+    { keys: 'M / C / S / B', description: 'Tag motion, cough, speaking or baseline', context: 'Live only; tags include timestamps.' },
+    { keys: 'P / I', description: 'Pin a snapshot / annotate the latest snapshot', context: 'Live only.' },
+    { keys: 'O / V / Z', description: 'Overview / Waves / reset trend window', context: 'Live only.' },
+    { keys: 'B / V', description: 'Toggle audio / voice alerts', context: 'Outside Live; Live reserves these keys for observations and Waves.' },
+    { keys: 'Esc', description: 'Close dialogs and overlays' }
+  ];
 }

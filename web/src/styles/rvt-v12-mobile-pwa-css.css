@@ -353,9 +353,6 @@ input:focus, textarea:focus, select:focus {
   body[data-rail-collapsed="1"] .r-item .r-ic {
     margin: 0 !important;
   }
-  body[data-rail-collapsed="1"] .r-item span:not(.r-ic):not(.material-symbols-rounded) {
-    display: none !important;
-  }
   body[data-rail-collapsed="1"] .r-item .nav-kbd {
     display: none !important;
   }

@@ -582,6 +582,10 @@
   flex-wrap: wrap;
 }
 
+:host ::ng-deep .section-header-row > .mat-mdc-card-header-text {
+  display: none;
+}
+
 .section-title-group {
   align-items: center;
   display: flex;
@@ -590,8 +594,16 @@
 }
 
 .header-avatar-ic {
+  align-items: center;
+  background: var(--md-sys-color-primary-container, #d5e3ff);
+  border-radius: 12px;
   color: var(--md-sys-color-primary, #0061a4);
+  display: inline-flex;
   flex: 0 0 auto;
+  font-size: 26px;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
 }
 
 .custom-tag-toolbar {

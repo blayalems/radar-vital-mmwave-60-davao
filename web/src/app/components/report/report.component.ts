@@ -260,9 +260,6 @@ export class ReportComponent implements OnInit, AfterViewInit {
     anchor.click();
     URL.revokeObjectURL(href);
   }
-
-
-
   // Only render recorded or currently streamed series; never invent report data.
   private drawReportTrends() {
     if (!this.hrReportCanvas || !this.rrReportCanvas) return;

@@ -415,7 +415,7 @@ export class StateService {
     if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return;
 
     const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const sessionActive = this.ctlOn() && !this.ctlStopPending();
+    const sessionActive = this.sessionActive() && !this.ctlStopPending();
 
     // Skip haptics during session except critical ones (destructiveAccept added to whitelist)
     if (sessionActive && !['safety', 'confirm-stop', 'reject', 'destructiveAccept'].includes(kind)) return;

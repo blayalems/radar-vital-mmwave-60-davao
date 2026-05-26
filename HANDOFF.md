@@ -61,6 +61,19 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-27 - Finalize PR #24 visual fixes, restore and stabilize robust test suite
+- Restored full integration test coverage in `tests/smoke/dashboard.spec.ts` to assert against paired PIN exchange, custom reports, native BLE probes, and offline PWA registry behaviors.
+- Resolved race and timing conditions in the `keeps Angular home cards and desktop topbar inside the visible content area` smoke test by enforcing explicit card visibility assertions prior to measuring bounds.
+- Re-built, verified, and successfully compiled the 100% round-trip byte-identical unified monolith with all latest Visual and Material UI adjustments.
+
+### 2026-05-26 - Close remaining PR #24 review paths and WebKit visual instability
+- Kept the Angular shell and `#mainContent` mounted during the bounded initial trainer probe, while retaining an explicit sandbox bypass whose result cannot be overwritten by a late live-status response.
+- Completed `sessionActive` ownership across status restoration, sandbox fallback, Live stop and command-palette stop paths; stopped historical-session identifiers from enabling stop actions or firing leave-live warnings.
+- Narrowed print/action and keyboard-shortcut selectors, centralized Home canvas color parsing, removed accidental report whitespace, and removed router view transitions after the new opt-in coincided with repeated iPhone/WebKit visual-run crashes.
+- Restored user-reported UI contracts: sidebar collapse now produces a centered, contained icon rail without a vertical scrollbar even at reduced desktop height, Simple view retains primary navigation, Compact density changes Angular page spacing, live source chips retain contrast, Live card headers no longer reserve an empty leading slot, and desktop topbar action groups are compact without redundant container surfaces or selection checks.
+- Restored v11 keyboard paths that map to existing Angular actions (palette/help, route/tab navigation, theme/focus/rail, alerts/export, Home preflight/start, Live tags/snapshots/trend windows), with timestamped repeated observation tags and guarded clipboard handling.
+- Added smoke coverage for pending-status recovery access, late-status sandbox preservation, printed DEMO provenance, command-palette stop navigation, collapsed-rail containment, Simple navigation, Compact density and restored Live keyboard workflows; documented feature-level v11 gaps still requiring dedicated Angular work in `docs/angular-migration-audit.md`.
+
 ### 2026-05-26 - Remediate connection lockout, active guard history leak, canvas theme repaints, and print disclosure (PR #24 Review)
 - Resolved the initial connection lockout by wrapping `/api/status` requests inside a 4-second timeout promise inside `ApiService.detectControlMode()`. Added a manual "Bypass to Sandbox Mode" action button inside the initial loading overlay and ensured loading spinner dismisses cleanly on sandbox fallback.
 - Corrected the printed sandbox disclosure by styling `#demoBanner` specifically in `print.css` to print as a premium alert banner at the top of report prints rather than hiding it, fully preserving simulated vitals provenance truthfulness.
@@ -69,7 +82,7 @@ www/
 - Verification: `npm run build:web` and `npm run build:check` completed successfully (`OK: web/ ↔ monolith round-trip is clean.`); Vitest unit suite passed completely (**16/16** passing); pytest back-end suite passed completely (**40/40** passing).
 
 ### 2026-05-26 - Resolve Help/Live Angular compilation, duplicate methods, and canvas theme-awareness
-- Cleaned up `help.component.ts` imports by removing `KeyboardShortcutsDialogComponent` (since it is opened programmatically via `MatDialog` and doesn't need to be declared in the template imports), resolving template compiler alerts.
+- Added the shared `KeyboardShortcutsDialogComponent` import used by the Help action opened through `MatDialog`, without declaring it in the template `imports` array.
 - Removed the duplicated and incomplete `drawTrends()` method body in `live.component.ts` (lines 610-625) to secure a clean Angular build.
 - Enhanced theme-awareness in `report.component.ts` by replacing the hardcoded hex color `#64748b` for no-recorded text with computed CSS custom property `--md-sys-color-on-surface-variant`.
 - Verified build and monolith compilation: `npm run build:web` and `npm run build:check` are 100% green and output-consistent; `npm run test:unit:web` (16/16 passed) and `python -m pytest -q tests` (40/40 passed) are completely clean.

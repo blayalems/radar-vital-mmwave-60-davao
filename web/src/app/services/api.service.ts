@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import {
   BleScanDevice,
   ControlStatus,
@@ -38,14 +38,19 @@ export class ApiService {
 
   private readonly API_BASE_KEY = 'rvt-api-base';
   private readonly TOKEN_KEY = 'rvt-pair-token';
+  private connectionAttempt = 0;
+
+  public readonly connectionLoading = signal(true);
 
   constructor() {
     void this.initializeConnection();
   }
 
   private async initializeConnection(): Promise<void> {
+    this.connectionLoading.set(true);
     await this.consumePairPinFromUrl();
     await this.detectControlMode();
+    this.connectionLoading.set(false);
   }
 
   // Retrieve current API base address
@@ -266,23 +271,40 @@ export class ApiService {
 
   // Detect control mode / connect
   async detectControlMode(): Promise<boolean> {
+    const attempt = ++this.connectionAttempt;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
-      const r = await this.request<ControlStatus>('/api/status', undefined, true);
+      // 4-second timeout wrapper to prevent locking out layout UI on stale LAN endpoints
+      const statusPromise = this.request<ControlStatus>('/api/status', undefined, true);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Connection detection timeout')), 4000);
+      });
+      const r = await Promise.race([statusPromise, timeoutPromise]);
+      if (attempt !== this.connectionAttempt) return false;
+
       this.state.ctlOn.set(true);
       this.state.autoDemoActive.set(false);
       this.state.ctlStatus.set({ ...r, mode: r.mode === 'sandbox' ? 'sandbox' : 'live' });
-      const activeSession = r.active_session || r.session;
+      const activeSession = r.active_session;
+      this.state.sessionActive.set(!!activeSession);
       this.state.currentSessionId.set(activeSession?.session_id || null);
       return true;
     } catch (error: unknown) {
+      if (attempt !== this.connectionAttempt) return false;
       const message = error instanceof Error ? error.message : 'Control API unavailable';
       this.enableSandboxControlMode(message);
       return false;
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
     }
   }
 
   enableSandboxControlMode(reason: string) {
+    // Explicit fallback wins over any slower in-flight live detection attempt.
+    this.connectionAttempt++;
     this.state.ctlOn.set(true);
+    this.state.sessionActive.set(false);
+    this.state.ctlStopPending.set(false);
     this.state.autoDemoActive.set(true);
     this.state.ctlStatus.set({
       ok: true,
@@ -290,6 +312,7 @@ export class ApiService {
       reason
     });
     this.sandboxLoadSessions();
+    this.connectionLoading.set(false);
   }
 
   // --- LOCAL SANDBOX / MOCK ENDPOINTS ---
@@ -397,6 +420,7 @@ export class ApiService {
     const sid = 'sandbox_' + new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15);
     
     this.state.currentSessionId.set(sid);
+    this.state.sessionActive.set(true);
     this.state.ctlStopPending.set(false);
 
     const currentSession = {
@@ -454,6 +478,7 @@ export class ApiService {
     this.sandboxSaveSessions(items);
 
     this.state.currentSessionId.set(null);
+    this.state.sessionActive.set(false);
     this.state.ctlStatus.set({
       ok: true,
       mode: 'sandbox',

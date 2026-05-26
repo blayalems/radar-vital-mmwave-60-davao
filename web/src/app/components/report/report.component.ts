@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, ViewChild, ElementRef, AfterViewInit, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -40,6 +40,13 @@ export class ReportComponent implements OnInit, AfterViewInit {
   protected readonly state = inject(StateService);
   protected readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
+
+  constructor() {
+    effect(() => {
+      this.state.theme();
+      setTimeout(() => this.drawReportTrends(), 50);
+    });
+  }
 
   @ViewChild('hrReportCanvas', { static: false }) hrReportCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('rrReportCanvas', { static: false }) rrReportCanvas!: ElementRef<HTMLCanvasElement>;
@@ -253,7 +260,6 @@ export class ReportComponent implements OnInit, AfterViewInit {
     anchor.click();
     URL.revokeObjectURL(href);
   }
-
   // Only render recorded or currently streamed series; never invent report data.
   private drawReportTrends() {
     if (!this.hrReportCanvas || !this.rrReportCanvas) return;
@@ -276,7 +282,7 @@ export class ReportComponent implements OnInit, AfterViewInit {
       ctx.clearRect(0, 0, w, h);
 
       if (!Array.isArray(points) || points.length < 2) {
-        ctx.fillStyle = '#64748b';
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-on-surface-variant').trim() || '#64748b';
         ctx.font = '12px Inter, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('No recorded series in this summary.', w / 2, h / 2);
@@ -289,7 +295,8 @@ export class ReportComponent implements OnInit, AfterViewInit {
       const count = points.length;
 
       // Draw gridlines
-      ctx.strokeStyle = '#f1f5f9';
+      const outlineColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-outline-variant').trim() || '#f1f5f9';
+      ctx.strokeStyle = outlineColor;
       ctx.lineWidth = 1;
       for (let i = 0; i <= 3; i++) {
         const y = pad + (innerH * i / 3);

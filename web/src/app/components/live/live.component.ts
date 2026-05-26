@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect, HostListener, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -105,6 +105,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.lastPayload();
       this.state.spark();
       this.state.kpiThresholds();
+      this.state.theme(); // Redraw on theme change
       this.requestCanvasDraw();
     });
   }
@@ -143,6 +144,56 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     this.requestCanvasDraw();
   }
 
+  @HostListener('document:keydown', ['$event'])
+  onKeyboardShortcut(event: KeyboardEvent): void {
+    if (event.defaultPrevented || this.state.currentView() !== 'live' || event.repeat) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('input, textarea, select, [contenteditable], [role="textbox"]')) return;
+
+    const key = event.key.toLowerCase();
+    if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+      const ranges: Record<string, TrendRange> = { '7': 30, '8': 60, '9': 120, '0': 'max' };
+      const range = ranges[key];
+      if (range !== undefined) {
+        event.preventDefault();
+        this.setTrendRange(range);
+      }
+      return;
+    }
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+
+    const tags: Record<string, string> = {
+      m: 'Motion',
+      c: 'Cough',
+      s: 'Speaking',
+      b: 'Baseline'
+    };
+    if (tags[key]) {
+      event.preventDefault();
+      this.addQuickTag(tags[key]);
+      return;
+    }
+    if (key === 'p') {
+      event.preventDefault();
+      this.captureSnapshot();
+      return;
+    }
+    if (key === 'i') {
+      event.preventDefault();
+      this.annotateLatestSnapshot();
+      return;
+    }
+    if (key === 'o' || key === 'v') {
+      event.preventDefault();
+      this.openLiveTab(key === 'o' ? 'tab-overview' : 'tab-waves');
+      return;
+    }
+    if (key === 'z') {
+      event.preventDefault();
+      this.resetTrendRange();
+    }
+  }
+
   togglePause() {
     this.state.paused.set(!this.state.paused());
     this.state.triggerHaptic('tap');
@@ -168,6 +219,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         });
         if (r && r.ok) {
           this.state.currentSessionId.set(null);
+          this.state.sessionActive.set(false);
           this.audio.speakAlert('Session completed successfully.', 'ok', true);
           this.router.navigate(['/report']);
         }
@@ -240,10 +292,11 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   addQuickTag(tag: string) {
     this.state.triggerHaptic('tap');
-    const stamp = new RegExp('\\b' + tag + '\\b', 'i');
-    if (stamp.test(this.sessionNotesInput)) return;
-
-    const next = this.sessionNotesInput ? `${this.sessionNotesInput}, ${tag}` : tag;
+    const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+    const entry = `[${time}] ${tag}`;
+    const next = this.sessionNotesInput.trim()
+      ? `${this.sessionNotesInput.trimEnd()}\n${entry}`
+      : entry;
     this.saveSessionNotes(next);
   }
 
@@ -263,6 +316,24 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       this.sessionNotesInput.trim() || 'No operator notes recorded.'
     ].join('\n');
     this.downloadText(content, `session-notes-${session}.txt`, 'text/plain');
+  }
+
+  private openLiveTab(tab: string): void {
+    const tabs = ['tab-overview', 'tab-waves', 'tab-hr', 'tab-rr', 'tab-snaps', 'tab-audit'];
+    this.state.activeTab.set(tab);
+    this.activeTabIndex = Math.max(0, tabs.indexOf(tab));
+    this.requestCanvasDraw();
+  }
+
+  private annotateLatestSnapshot(): void {
+    if (this.state.snaps().length === 0) this.captureSnapshot();
+    const latest = this.state.snaps().at(-1);
+    if (!latest) return;
+    this.state.activeSnapNoteId.set(latest.id);
+    this.openLiveTab('tab-snaps');
+    queueMicrotask(() => {
+      document.querySelector<HTMLInputElement>(`.snap-card[data-snapshot-id="${latest.id}"] input`)?.focus();
+    });
   }
 
   async recordObservation(): Promise<void> {
@@ -636,7 +707,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       const count = data.length;
 
       // Draw gridlines
-      ctx.strokeStyle = '#e2e8f0';
+      const outlineColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-outline-variant').trim() || '#e2e8f0';
+      ctx.strokeStyle = outlineColor;
       ctx.lineWidth = 1;
       for (let i = 0; i <= 4; i++) {
         const y = pad + (innerH * i / 4);

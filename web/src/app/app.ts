@@ -47,7 +47,8 @@ export class App implements OnInit {
     this.updatePromptShown = true;
     const prompt = this.snackBar.open(
       'Dashboard update available. Refresh when monitoring is paused.',
-      'Refresh'
+      'Refresh',
+      { panelClass: 'rvt-update-snackbar' }
     );
     prompt.onAction().subscribe(() => {
       this.applyingUpdate = true;

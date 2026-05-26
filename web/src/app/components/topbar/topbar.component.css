@@ -38,6 +38,63 @@
   flex: 0 0 auto;
 }
 
+:host #modeBadge.live {
+  background: var(--md-sys-color-tertiary-container, #ccfbf1) !important;
+  border-color: color-mix(in srgb, var(--md-sys-color-tertiary, #0f766e) 44%, transparent) !important;
+  color: var(--md-sys-color-on-tertiary-container, #064e3b) !important;
+}
+
+:host #modeBadge.live :is(.material-symbols-rounded, .status-txt, .status-sub) {
+  color: var(--md-sys-color-on-tertiary-container, #064e3b) !important;
+  opacity: 1 !important;
+}
+
+:host #modeBadge.live .status-dot {
+  background: var(--md-sys-color-tertiary, #0f766e) !important;
+}
+
+@media (min-width: 761px) {
+  :host .topbar-status,
+  :host .topbar-actions {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  :host ::ng-deep .tb-live-mode.seg {
+    border-radius: 24px !important;
+    height: 48px !important;
+    padding: 2px !important;
+  }
+
+  :host ::ng-deep .tb-live-mode .mat-button-toggle {
+    height: 42px !important;
+    min-width: 50px !important;
+  }
+
+  :host ::ng-deep .tb-live-mode .mat-button-toggle-button {
+    align-items: center !important;
+    display: flex !important;
+    height: 42px !important;
+    padding: 0 !important;
+  }
+
+  :host ::ng-deep .tb-live-mode .mat-button-toggle-label-content {
+    align-items: center !important;
+    display: flex !important;
+    height: 42px !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    padding: 0 14px !important;
+  }
+
+  :host ::ng-deep .tb-live-mode .material-symbols-rounded {
+    font-size: 20px !important;
+  }
+}
+
 .tb-more {
   display: none;
 }

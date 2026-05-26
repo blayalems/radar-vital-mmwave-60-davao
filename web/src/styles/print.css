@@ -1,0 +1,87 @@
+@media print {
+  /* Hide navigation, toolbars, and action buttons */
+  .rail,
+  #bottomNav,
+  .bottom-nav,
+  .topbar-actions,
+  .topbar-status,
+  .rail-collapse-btn,
+  .scroll-to-top-fab,
+  .initial-loading-overlay,
+  a.mat-mdc-button-base,
+  button.mat-mdc-button-base,
+  mat-chip-set,
+  mat-slide-toggle,
+  .header-controls,
+  .recovery-actions-list,
+  .support-column,
+  .reference-gateway,
+  .topic-links,
+  .category-chips,
+  .search-toolbar-inner {
+    display: none !important;
+  }
+
+  #demoBanner {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    position: static !important;
+    background: #fef08a !important; /* light yellow */
+    color: #854d0e !important; /* dark yellow/brown text */
+    border: 2px solid #eab308 !important; /* yellow border */
+    text-align: center !important;
+    font-weight: bold !important;
+    padding: 12px !important;
+    margin-bottom: 24px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    border-radius: 8px !important;
+    page-break-after: avoid !important;
+    font-size: 14px !important;
+  }
+
+  /* Reset main layouts for full width printer pages */
+  html,
+  body,
+  app-root,
+  .app,
+  .main-wrapper,
+  .main-content-scroll,
+  main {
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .main-content-scroll {
+    display: block !important;
+    padding: 24px !important;
+  }
+
+  /* Force white background cards and dark ink */
+  mat-card,
+  .faq-panel,
+  .wide-help-card {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+    margin-bottom: 24px !important;
+    page-break-inside: avoid !important;
+  }
+
+  canvas {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    max-width: 100% !important;
+    page-break-inside: avoid !important;
+  }
+}

@@ -135,6 +135,7 @@ export class StateService {
   sessionSignoffs = signal<Record<string, SessionSignoff>>({});
   sessionItems = signal<SessionRecord[]>([]);
   currentSessionId = signal<string | null>(null);
+  sessionActive = signal<boolean>(false);
 
   // Sparkline buffer for live KPIs
   spark = signal<{ hr: number[]; rr: number[]; fps: number[]; dist: number[] }>({
@@ -414,7 +415,7 @@ export class StateService {
     if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return;
 
     const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const sessionActive = this.ctlOn() && !this.ctlStopPending();
+    const sessionActive = this.sessionActive() && !this.ctlStopPending();
 
     // Skip haptics during session except critical ones (destructiveAccept added to whitelist)
     if (sessionActive && !['safety', 'confirm-stop', 'reject', 'destructiveAccept'].includes(kind)) return;

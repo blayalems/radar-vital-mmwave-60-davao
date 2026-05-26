@@ -101,7 +101,7 @@ export class CommandPaletteComponent {
       keywords: 'stop finish end record',
       group: 'Live Session',
       icon: 'stop_circle',
-      disabledReason: () => this.state.currentSessionId() ? null : 'No active session is recorded.',
+      disabledReason: () => this.state.sessionActive() ? null : 'No active session is running.',
       action: () => this.stopSession()
     },
     {
@@ -333,6 +333,7 @@ export class CommandPaletteComponent {
       });
       if (response.ok) {
         this.state.currentSessionId.set(null);
+        this.state.sessionActive.set(false);
         await this.router.navigate(['/report']);
       }
     } catch (error: unknown) {

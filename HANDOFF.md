@@ -14,7 +14,7 @@
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Public URL serves the Angular shell; current branch enforces Angular-only Pages artifacts and direct-route shell fallback while its updated SW awaits deployment | codex/mobile-first-dashboard-upABy |
 | APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | CI built the debug APK from `a74c4e1`; local BLE qualification is now reachable in UI, while real paired-LAN/GATT acceptance remains open | codex/mobile-first-dashboard-upABy |
 | EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | CI built the NSIS installer and passed Rust native tests from `a74c4e1`; Home now reaches the bounded GATT probe; hardware acceptance remains open | codex/mobile-first-dashboard-upABy |
-| Smoke + visual tests | `tests/` | 38 Python contracts, 120 four-viewport smoke/API checks and 16 affected Home visuals pass locally; prior-head CI full visual/native/package workflows passed | codex/mobile-first-dashboard-upABy |
+| Smoke + visual tests | `tests/` | 40 Python contracts, 156 four-viewport smoke/API checks and 16 affected Live visuals pass locally; prior-head CI full visual/native/package workflows passed | codex/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows
 
@@ -60,6 +60,38 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-05-26 - Restore readable Live Overview sparkline sizing
+- Increased Angular Live Overview graph tracks from a cramped 48 px slot to a responsive 72-88 px reserved region, preserving enough card height for trend curves and footer context.
+- Kept the persistent mobile update prompt above the fixed bottom navigation without leaving an intercepting overlay pane behind, and allowed report navigation after an operator-confirmed session stop while its stop request is pending.
+- Added browser smoke coverage that requires all four Overview graph tracks to retain legible rendered height before regenerating the committed monolith.
+- Verification: `npm run build:check`; `npm --prefix web run test:ci` (16 passed); trainer `compileall`/help; `python -m pytest -q tests` (40 passed); `npm test` (156 passed); affected Live visual comparison (16 passed).
+
+### 2026-05-27 - Finalize PR #24 visual fixes, restore and stabilize robust test suite
+- Restored full integration test coverage in `tests/smoke/dashboard.spec.ts` to assert against paired PIN exchange, custom reports, native BLE probes, and offline PWA registry behaviors.
+- Resolved race and timing conditions in the `keeps Angular home cards and desktop topbar inside the visible content area` smoke test by enforcing explicit card visibility assertions prior to measuring bounds.
+- Re-built, verified, and successfully compiled the 100% round-trip byte-identical unified monolith with all latest Visual and Material UI adjustments.
+
+### 2026-05-26 - Close remaining PR #24 review paths and WebKit visual instability
+- Kept the Angular shell and `#mainContent` mounted during the bounded initial trainer probe, while retaining an explicit sandbox bypass whose result cannot be overwritten by a late live-status response.
+- Completed `sessionActive` ownership across status restoration, sandbox fallback, Live stop and command-palette stop paths; stopped historical-session identifiers from enabling stop actions or firing leave-live warnings.
+- Narrowed print/action and keyboard-shortcut selectors, centralized Home canvas color parsing, removed accidental report whitespace, and removed router view transitions after the new opt-in coincided with repeated iPhone/WebKit visual-run crashes.
+- Restored user-reported UI contracts: sidebar collapse now produces a centered, contained icon rail without a vertical scrollbar even at reduced desktop height, Simple view retains primary navigation, Compact density changes Angular page spacing, live source chips retain contrast, Live card headers no longer reserve an empty leading slot, and desktop topbar action groups are compact without redundant container surfaces or selection checks.
+- Restored v11 keyboard paths that map to existing Angular actions (palette/help, route/tab navigation, theme/focus/rail, alerts/export, Home preflight/start, Live tags/snapshots/trend windows), with timestamped repeated observation tags and guarded clipboard handling.
+- Added smoke coverage for pending-status recovery access, late-status sandbox preservation, printed DEMO provenance, command-palette stop navigation, collapsed-rail containment, Simple navigation, Compact density and restored Live keyboard workflows; documented feature-level v11 gaps still requiring dedicated Angular work in `docs/angular-migration-audit.md`.
+
+### 2026-05-26 - Remediate connection lockout, active guard history leak, canvas theme repaints, and print disclosure (PR #24 Review)
+- Resolved the initial connection lockout by wrapping `/api/status` requests inside a 4-second timeout promise inside `ApiService.detectControlMode()`. Added a manual "Bypass to Sandbox Mode" action button inside the initial loading overlay and ensured loading spinner dismisses cleanly on sandbox fallback.
+- Corrected the printed sandbox disclosure by styling `#demoBanner` specifically in `print.css` to print as a premium alert banner at the top of report prints rather than hiding it, fully preserving simulated vitals provenance truthfulness.
+- Resolved active-session guard navigation confusion with reviewed history by introducing a dedicated `sessionActive` signal in `StateService`. Decoupled active captures from `currentSessionId` so that selecting a historical session for review does not falsely trigger active-session warnings or enable the Stop button on `/live`.
+- Repaired canvas idle repainting by declaring dependencies on the `state.theme` signal inside the canvas effects of `home.component.ts`, `live.component.ts`, and `report.component.ts`, triggering immediate dynamic canvas redraws when theme styles are cycled.
+- Verification: `npm run build:web` and `npm run build:check` completed successfully (`OK: web/ ↔ monolith round-trip is clean.`); Vitest unit suite passed completely (**16/16** passing); pytest back-end suite passed completely (**40/40** passing).
+
+### 2026-05-26 - Resolve Help/Live Angular compilation, duplicate methods, and canvas theme-awareness
+- Added the shared `KeyboardShortcutsDialogComponent` import used by the Help action opened through `MatDialog`, without declaring it in the template `imports` array.
+- Removed the duplicated and incomplete `drawTrends()` method body in `live.component.ts` (lines 610-625) to secure a clean Angular build.
+- Enhanced theme-awareness in `report.component.ts` by replacing the hardcoded hex color `#64748b` for no-recorded text with computed CSS custom property `--md-sys-color-on-surface-variant`.
+- Verified build and monolith compilation: `npm run build:web` and `npm run build:check` are 100% green and output-consistent; `npm run test:unit:web` (16/16 passed) and `python -m pytest -q tests` (40/40 passed) are completely clean.
 
 ### 2026-05-26 - Close accessible-live, update safety and pairing abuse gaps
 - Added keyboard-reachable main navigation, editable-field shortcut guards, screen-reader live KPI/threshold/stale announcements and chart labels; Live canvases now redraw from data/resize/visibility/tab changes with configured threshold ranges rather than running a continuous frame loop.

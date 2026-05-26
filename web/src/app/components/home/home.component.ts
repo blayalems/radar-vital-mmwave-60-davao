@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, HostListener, ViewChild, AfterViewInit, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -59,6 +59,19 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   private animeFrameId: number | null = null;
   private canvasCtx: CanvasRenderingContext2D | null = null;
   private trendCtx: CanvasRenderingContext2D | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private viewReady = false;
+  private readonly onVisibilityChange = () => this.requestCanvasDraw();
+
+  constructor() {
+    effect(() => {
+      this.state.lastPayload();
+      this.state.spark();
+      this.state.ctlStatus();
+      this.state.theme(); // Redraw on theme change
+      this.requestCanvasDraw();
+    });
+  }
 
   // Local form model binding
   radarPorts: string[] = ['COM3', 'COM10', 'COM11', 'COM12', '/dev/ttyUSB0', '/dev/ttyUSB1'];
@@ -83,14 +96,45 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.runPreflight();
   }
 
+  @HostListener('document:keydown', ['$event'])
+  onKeyboardShortcut(event: KeyboardEvent): void {
+    if (event.defaultPrevented || this.state.currentView() !== 'home' || event.repeat) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('input, textarea, select, [contenteditable], [role="textbox"]')) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    const key = event.key.toLowerCase();
+    if (key === 'q') {
+      event.preventDefault();
+      void this.runPreflight();
+    } else if (key === 'n') {
+      event.preventDefault();
+      void this.startSession();
+    }
+  }
+
   ngAfterViewInit() {
-    this.initCanvasDrawing();
+    this.viewReady = true;
+    if (this.radarCanvas) {
+      this.canvasCtx = this.radarCanvas.nativeElement.getContext('2d');
+    }
+    if (this.trendCanvas) {
+      this.trendCtx = this.trendCanvas.nativeElement.getContext('2d');
+    }
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.requestCanvasDraw());
+      if (this.radarCanvas) this.resizeObserver.observe(this.radarCanvas.nativeElement);
+      if (this.trendCanvas) this.resizeObserver.observe(this.trendCanvas.nativeElement);
+    }
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    this.requestCanvasDraw();
   }
 
   ngOnDestroy() {
     if (this.animeFrameId) {
       cancelAnimationFrame(this.animeFrameId);
     }
+    this.resizeObserver?.disconnect();
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   async refreshDefaults() {
@@ -345,6 +389,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
       if (r && r.session_id) {
         this.state.currentSessionId.set(r.session_id);
+        this.state.sessionActive.set(true);
         this.state.ctlOn.set(true);
         this.audio.speakAlert('Session started. Please sit still.', 'ok', true);
         this.router.navigate(['/live']);
@@ -363,20 +408,13 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   // --- Premium Canvas Drawing Animations ---
-  private initCanvasDrawing() {
-    if (this.radarCanvas) {
-      this.canvasCtx = this.radarCanvas.nativeElement.getContext('2d');
-    }
-    if (this.trendCanvas) {
-      this.trendCtx = this.trendCanvas.nativeElement.getContext('2d');
-    }
-
-    const drawLoop = () => {
+  private requestCanvasDraw(): void {
+    if (!this.viewReady || document.visibilityState === 'hidden' || this.animeFrameId !== null) return;
+    this.animeFrameId = requestAnimationFrame(() => {
+      this.animeFrameId = null;
       this.animateRadarCanvas();
       this.animateTrendCanvas();
-      this.animeFrameId = requestAnimationFrame(drawLoop);
-    };
-    this.animeFrameId = requestAnimationFrame(drawLoop);
+    });
   }
 
   private animateRadarCanvas() {
@@ -402,10 +440,19 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     const cy = h / 2;
     const radius = Math.min(cx, cy) - 24;
 
-    const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-primary') || '#0061a4';
+    const styles = getComputedStyle(document.documentElement);
+    const primaryColor = styles.getPropertyValue('--md-sys-color-primary').trim() || '#0061a4';
+    const tertiaryColor = styles.getPropertyValue('--md-sys-color-tertiary').trim() || '#00a496';
+    const secondaryColor = styles.getPropertyValue('--md-sys-color-secondary').trim() || '#6169c6';
+    const onSurfaceVariant = styles.getPropertyValue('--md-sys-color-on-surface-variant').trim() || '#64748b';
+    const onSurface = styles.getPropertyValue('--md-sys-color-on-surface').trim() || '#94a3b8';
+
+    const primaryRGB = this.parseColorToRgb(primaryColor, { r: 0, g: 97, b: 164 });
+    const tertiaryRGB = this.parseColorToRgb(tertiaryColor, { r: 0, g: 164, b: 150 });
+    const secondaryRGB = this.parseColorToRgb(secondaryColor, { r: 97, g: 105, b: 198 });
 
     // Draw scanning circles
-    ctx.strokeStyle = 'rgba(0, 97, 164, 0.15)';
+    ctx.strokeStyle = `rgba(${primaryRGB}, 0.15)`;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -421,7 +468,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
     // Radar scanning sweep sweep line
     const angle = (Date.now() / 1500) % (Math.PI * 2);
-    ctx.strokeStyle = `rgba(0, 97, 164, 0.35)`;
+    ctx.strokeStyle = `rgba(${primaryRGB}, 0.35)`;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
@@ -440,7 +487,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       // Pulse circle representing heart rate frequency
       const hrSpeed = (Date.now() / (60000 / reportedHr)) % 1;
       const hrPulseRadius = radius * 0.33 + (radius * 0.33) * Math.sin(hrSpeed * Math.PI);
-      ctx.fillStyle = 'rgba(0, 164, 150, 0.15)';
+      ctx.fillStyle = `rgba(${tertiaryRGB}, 0.15)`;
       ctx.beginPath();
       ctx.arc(cx, cy, hrPulseRadius, 0, Math.PI * 2);
       ctx.fill();
@@ -448,19 +495,19 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       // Breathing ring ripple
       const rrSpeed = (Date.now() / (60000 / reportedRr)) % 1;
       const rrPulseRadius = radius * 0.66 + (radius * 0.25) * Math.sin(rrSpeed * Math.PI);
-      ctx.strokeStyle = 'rgba(97, 105, 198, 0.45)';
+      ctx.strokeStyle = `rgba(${secondaryRGB}, 0.45)`;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(cx, cy, rrPulseRadius, 0, Math.PI * 2);
       ctx.stroke();
 
       // Text indicators
-      ctx.fillStyle = '#64748b';
+      ctx.fillStyle = onSurfaceVariant;
       ctx.font = '10px Roboto, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(`Target: ${Math.round(range)} cm`, cx, cy + radius + 12);
     } else {
-      ctx.fillStyle = '#94a3b8';
+      ctx.fillStyle = onSurface;
       ctx.font = '11px Roboto, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Searching for subject...', cx, cy);
@@ -489,8 +536,17 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     const hrs = spark.hr;
     const rrs = spark.rr;
 
+    const styles = getComputedStyle(document.documentElement);
+    const tertiaryColor = styles.getPropertyValue('--md-sys-color-tertiary').trim() || '#00a496';
+    const secondaryColor = styles.getPropertyValue('--md-sys-color-secondary').trim() || '#6169c6';
+    const outlineColor = styles.getPropertyValue('--md-sys-color-outline-variant').trim() || '#e2e8f0';
+    const onSurface = styles.getPropertyValue('--md-sys-color-on-surface').trim() || '#94a3b8';
+
+    const tertiaryRGB = this.parseColorToRgb(tertiaryColor, { r: 0, g: 164, b: 150 });
+    const secondaryRGB = this.parseColorToRgb(secondaryColor, { r: 97, g: 105, b: 198 });
+
     if (!hrs.length) {
-      ctx.fillStyle = '#94a3b8';
+      ctx.fillStyle = onSurface;
       ctx.font = '11px Roboto, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Awaiting trend data...', w / 2, h / 2);
@@ -498,7 +554,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     }
 
     // Draw gridlines
-    ctx.strokeStyle = '#f1f5f9';
+    ctx.strokeStyle = outlineColor;
     ctx.lineWidth = 1;
     for (let i = 0; i <= 2; i++) {
       const y = 8 + (h - 16) * i / 2;
@@ -538,8 +594,25 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     };
 
     // Plot HR (green/teal) ranging roughly between 40 and 160
-    drawLine(hrs, 'rgba(0, 164, 150, 0.85)', 40, 160);
+    drawLine(hrs, `rgba(${tertiaryRGB}, 0.85)`, 40, 160);
     // Plot RR using the secondary chart accent.
-    drawLine(rrs, 'rgba(97, 105, 198, 0.85)', 5, 35);
+    drawLine(rrs, `rgba(${secondaryRGB}, 0.85)`, 5, 35);
+  }
+
+  private parseColorToRgb(color: string, fallback: { r: number; g: number; b: number }): string {
+    const value = color.trim();
+    if (value.startsWith('rgb')) {
+      const matches = value.match(/\d+/g);
+      if (matches && matches.length >= 3) {
+        return `${matches[0]}, ${matches[1]}, ${matches[2]}`;
+      }
+    }
+    let hex = value.replace('#', '');
+    if (hex.length === 3) {
+      hex = hex.split('').map(channel => channel + channel).join('');
+    }
+    const numeric = parseInt(hex, 16);
+    if (Number.isNaN(numeric)) return `${fallback.r}, ${fallback.g}, ${fallback.b}`;
+    return `${(numeric >> 16) & 255}, ${(numeric >> 8) & 255}, ${numeric & 255}`;
   }
 }

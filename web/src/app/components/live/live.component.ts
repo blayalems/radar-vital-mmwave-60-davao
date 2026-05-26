@@ -636,7 +636,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       const count = data.length;
 
       // Draw gridlines
-      ctx.strokeStyle = '#e2e8f0';
+      const outlineColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-outline-variant').trim() || '#e2e8f0';
+      ctx.strokeStyle = outlineColor;
       ctx.lineWidth = 1;
       for (let i = 0; i <= 4; i++) {
         const y = pad + (innerH * i / 4);

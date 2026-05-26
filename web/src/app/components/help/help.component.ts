@@ -12,9 +12,11 @@ import { MatListModule } from '@angular/material/list';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 import { ApiService } from '../../services/api.service';
 import { StateService } from '../../services/state.service';
+import { KeyboardShortcutsDialogComponent } from '../keyboard-shortcuts-dialog/keyboard-shortcuts-dialog.component';
 
 type HelpCategory = 'workflow' | 'vitals' | 'quality' | 'truthfulness' | 'reference' | 'troubleshooting' | 'shortcuts';
 
@@ -70,7 +72,8 @@ interface RecoveryStep {
     MatListModule,
     MatProgressBarModule,
     MatSlideToggleModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatDialogModule
   ],
   templateUrl: './help.component.html',
   styleUrl: './help.component.css',
@@ -82,6 +85,7 @@ export class HelpComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly searchQuery = signal('');
   protected readonly activeCategory = signal<HelpCategory | 'all'>('all');
@@ -255,6 +259,14 @@ export class HelpComponent implements OnInit {
       'Dismiss',
       { duration: 5000 }
     );
+  }
+
+  protected openShortcuts(): void {
+    this.state.triggerHaptic('tap');
+    this.dialog.open(KeyboardShortcutsDialogComponent, {
+      restoreFocus: true,
+      panelClass: 'm3-dialog-panel'
+    });
   }
 
   protected openPreflight(): void {

@@ -61,6 +61,12 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-26 - Resolve Help/Live Angular compilation, duplicate methods, and canvas theme-awareness
+- Cleaned up `help.component.ts` imports by removing `KeyboardShortcutsDialogComponent` (since it is opened programmatically via `MatDialog` and doesn't need to be declared in the template imports), resolving template compiler alerts.
+- Removed the duplicated and incomplete `drawTrends()` method body in `live.component.ts` (lines 610-625) to secure a clean Angular build.
+- Enhanced theme-awareness in `report.component.ts` by replacing the hardcoded hex color `#64748b` for no-recorded text with computed CSS custom property `--md-sys-color-on-surface-variant`.
+- Verified build and monolith compilation: `npm run build:web` and `npm run build:check` are 100% green and output-consistent; `npm run test:unit:web` (16/16 passed) and `python -m pytest -q tests` (40/40 passed) are completely clean.
+
 ### 2026-05-26 - Close accessible-live, update safety and pairing abuse gaps
 - Added keyboard-reachable main navigation, editable-field shortcut guards, screen-reader live KPI/threshold/stale announcements and chart labels; Live canvases now redraw from data/resize/visibility/tab changes with configured threshold ranges rather than running a continuous frame loop.
 - Replaced automatic service-worker activation reloads with an operator-confirmed Material refresh prompt, repaired the stale Angular scaffold unit test and made the Playwright workflow execute the Angular unit suite.

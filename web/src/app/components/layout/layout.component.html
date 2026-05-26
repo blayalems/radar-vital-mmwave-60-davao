@@ -6,6 +6,12 @@
   DEMO MODE - simulated vitals only; do not use for a live subject.
 </div>
 
+@if (api.connectionLoading()) {
+  <div class="initial-loading-overlay">
+    <mat-spinner diameter="48"></mat-spinner>
+    <p>Detecting trainer connection...</p>
+  </div>
+} @else {
 <mat-sidenav-container class="app" [class.rail-collapsed]="railCollapsed">
   <!-- NAVIGATION RAIL (DESKTOP) -->
   <mat-sidenav class="rail" mode="side" [opened]="showRail()" [disableClose]="true" aria-label="Primary">
@@ -100,9 +106,16 @@
   <mat-sidenav-content class="main-wrapper">
     <app-topbar></app-topbar>
     
-    <main class="main-content-scroll" id="mainContent" tabindex="-1">
+    <main class="main-content-scroll" id="mainContent" tabindex="-1" #mainContentScroll (scroll)="onMainScroll($event)">
       <router-outlet></router-outlet>
     </main>
+
+    <!-- SCROLL TO TOP FAB -->
+    @if (showScrollTop()) {
+      <button mat-fab class="scroll-to-top-fab" type="button" (click)="scrollToTop()" aria-label="Scroll to top">
+        <span class="material-symbols-rounded">arrow_upward</span>
+      </button>
+    }
 
     <!-- BOTTOM NAVIGATION (MOBILE) -->
     <mat-toolbar class="bottom-nav" id="bottomNav">
@@ -131,3 +144,4 @@
     </mat-toolbar>
   </mat-sidenav-content>
 </mat-sidenav-container>
+}

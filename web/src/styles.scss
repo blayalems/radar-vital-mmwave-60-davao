@@ -52,6 +52,7 @@ html[data-theme='hc'] .kpi-card-spark {
 @import './styles/rvt-v12-mobile-pwa-css.css';
 @import './styles/patches/legacy-patches.css';
 @import './styles/rvt-native-shell-final.css';
+@import './styles/print.css';
 
 :root {
   @include mat.theme-overrides((

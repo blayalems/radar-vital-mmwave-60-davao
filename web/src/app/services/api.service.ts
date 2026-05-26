@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import {
   BleScanDevice,
   ControlStatus,
@@ -39,13 +39,17 @@ export class ApiService {
   private readonly API_BASE_KEY = 'rvt-api-base';
   private readonly TOKEN_KEY = 'rvt-pair-token';
 
+  public readonly connectionLoading = signal(true);
+
   constructor() {
     void this.initializeConnection();
   }
 
   private async initializeConnection(): Promise<void> {
+    this.connectionLoading.set(true);
     await this.consumePairPinFromUrl();
     await this.detectControlMode();
+    this.connectionLoading.set(false);
   }
 
   // Retrieve current API base address

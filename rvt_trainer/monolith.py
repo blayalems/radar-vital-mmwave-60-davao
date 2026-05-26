@@ -60,7 +60,7 @@ import time
 import threading
 import csv
 from collections import deque
-from functools import partial
+from functools import lru_cache, partial
 from html import escape as html_escape
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -4090,6 +4090,7 @@ _DASHBOARD_HTML_FALLBACK_NAMES = (
 )
 
 
+@lru_cache(maxsize=1)
 def _dashboard_html_template_paths() -> List[Path]:
     base = _REPO_ROOT
     cwd = Path(os.getcwd())

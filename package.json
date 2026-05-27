@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.0.0",
-    "@playwright/test": "^1.55.1",
+    "@playwright/test": "^1.60.0",
     "@tauri-apps/cli": "^2.11.2",
     "typescript": "^6.0.3"
   },

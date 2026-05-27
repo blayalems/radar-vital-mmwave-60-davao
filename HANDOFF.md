@@ -61,6 +61,10 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-27 - Fix: BUG-06 speech debounce wrapper destroys utterance settings
+- Replaced the buggy `rvt-bug06-speech-debounce-js.js` logic in `web-legacy/modules/patches/legacy-patches.js` with the correct `rvt-bug06-speech-utterance-preservation-js.js` logic.
+- Deleted the redundant and misplaced `rvt-bug06-speech-utterance-preservation-js.js` block that existed further down in the file, which also fixes the secondary bug where the late patch overwrote the speech ducking wrapper applied earlier.
+
 ### 2026-05-27 - Publish versioned APK and EXE prereleases after main updates
 - Extended `release-artifacts.yml` to build and publish Android and Windows installable assets after every accepted push to `main`, including merged pull requests.
 - Automated main releases now use incrementing `v<app-version>-main.<workflow-run>` prerelease tags and GitHub-generated release notes as the changelog; all publication paths stamp the semantic release version into APK/EXE assets plus an increasing APK version code.

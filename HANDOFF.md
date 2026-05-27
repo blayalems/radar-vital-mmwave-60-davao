@@ -69,6 +69,19 @@ www/
 - Fixed duplicate toolbar/header flex rules and closed a syntax brace inside the Settings component stylesheet, and updated global dialog overlays in `styles.scss` with M3-compliant shadow variables.
 - Verification: Monolithic build succeeds (`npm run build:web`), byte-identical monolith round-trip check passes successfully (`npm run build:check`), 16/16 Vitest unit tests pass completely (`npm --prefix web run test:ci`), and trainer import compilation executes clean.
 
+### 2026-05-27 - Restore mobile WebKit skip-link focus after PR integration
+- Repaired the shell skip-link activation path so iPhone/iPad WebKit moves keyboard focus to `#mainContent` explicitly, addressing the failed post-merge smoke gate while preserving the existing accessibility assertion.
+- Verification: WebKit skip-link repeats (`5/5` iPhone and `5/5` iPad); `npm run build:check`; Angular unit tests (`18/18`); trainer `compileall`/`python -m rvt_trainer --help`; `python -m pytest -q tests` (`42/42`); Playwright smoke (`156/156`); visual regression (`96/96`).
+
+### 2026-05-27 - Integrate PRs #27-#35 against current main
+- Combined the requested security, trainer-cache/help-schema, Angular telemetry/UI, and legacy speech fixes while preserving the existing release-artifact workflow and Windows visual-baseline contract.
+- Resolved stale-branch overlap by discarding unrelated Linux snapshot/log churn, keeping the Playwright mock server non-interactive, stabilizing rapid custom-tag WebKit coverage, rebuilding the Angular-generated monolith from `web/`, and refreshing pre-existing stale Windows visual baselines.
+- Verification: `npm run build:check`; Angular unit tests (`18/18`); trainer `compileall`/`python -m rvt_trainer --help`; `python -m pytest -q tests` (`42/42`); Playwright smoke (`156/156`); iPhone diagnostic repeat stability (`5/5`); visual regression after Windows-baseline reconciliation (`96/96`). An untouched `origin/main` control run confirmed the stale visual mismatch before refresh.
+
+### 2026-05-27 - Fix: BUG-06 speech debounce wrapper destroys utterance settings
+- Replaced the buggy `rvt-bug06-speech-debounce-js.js` logic in `web-legacy/modules/patches/legacy-patches.js` with the correct `rvt-bug06-speech-utterance-preservation-js.js` logic.
+- Deleted the redundant and misplaced `rvt-bug06-speech-utterance-preservation-js.js` block that existed further down in the file, which also fixes the secondary bug where the late patch overwrote the speech ducking wrapper applied earlier.
+
 ### 2026-05-27 - M3 Expressive Angular-first Modernization
 - Completed full Material 3 Expressive UI migration: replaced simulated `mat-toolbar` bottom nav with real `MatNavigationBar`/`MatNavigationTab` components, converted `BreakpointObserver` to reactive `toSignal`, removed all `CommonModule` imports and `::ng-deep` overrides.
 - Applied semantic M3 typography tokens (`--md-sys-typescale-display-large-*`, `--md-sys-typescale-title-large-*`) to headings and live metrics; restored cyan tertiary color palette for stable physiological state indicators (`--md-sys-color-tertiary`, `--md-sys-color-tertiary-container`).

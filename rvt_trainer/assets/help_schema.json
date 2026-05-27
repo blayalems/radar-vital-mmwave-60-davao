@@ -1,0 +1,438 @@
+{
+    "glossary": [
+        {
+            "id": "heart_rate_bpm",
+            "term": "Heart rate",
+            "short": "Published heart rate in beats per minute after validity gates.",
+            "long": "This is the operator-facing HR value. Invalid or stale candidates are not promoted into the live KPI.",
+            "advanced": "Usually comes from the phase-backed HR publish path, with raw or anchor states visible in audit fields.",
+            "category": "vitals"
+        },
+        {
+            "id": "breath_rate_bpm",
+            "term": "Breath rate",
+            "short": "Published respiration rate in breaths per minute after RR gates.",
+            "long": "This is the operator-facing RR value. It can be blank when source, freshness, or policy gates fail.",
+            "advanced": "RR uses phase, raw fallback, latch, and recovery diagnostics depending on current signal state.",
+            "category": "vitals"
+        },
+        {
+            "id": "pqi_heart",
+            "term": "Heart PQI",
+            "short": "Phase quality index for the heart-rate path.",
+            "long": "Higher values mean the phase signal is more usable for HR estimation.",
+            "advanced": "A low PQI can force publish suppression or make the ML verdict a signal-hygiene failure.",
+            "category": "quality"
+        },
+        {
+            "id": "pqi_breath",
+            "term": "Breath PQI",
+            "short": "Phase quality index for the breathing path.",
+            "long": "Higher values mean the breath phase is cleaner and more stable.",
+            "advanced": "Used by RR gating and as part of signal-quality review.",
+            "category": "quality"
+        },
+        {
+            "id": "phase_stabilized",
+            "term": "Stabilized phase",
+            "short": "Phase after slow drift and DC behavior are controlled.",
+            "long": "The firmware and trainer prefer stabilized phase for robust vital-sign estimates.",
+            "advanced": "Stabilization reduces low-frequency drift before spectral/autocorrelation decisions.",
+            "category": "dsp"
+        },
+        {
+            "id": "trust_anchor",
+            "term": "Trust anchor",
+            "short": "A recently trusted value retained during short signal lapses.",
+            "long": "Anchors avoid flicker, but stale anchors are explicitly audited and can block publish.",
+            "advanced": "Anchor age and drift are separate safety checks.",
+            "category": "policy"
+        },
+        {
+            "id": "anchor_drift",
+            "term": "Anchor drift",
+            "short": "A warning that an anchor no longer agrees with current evidence.",
+            "long": "Drift can indicate stale state or a changing subject/radar setup.",
+            "advanced": "Anchor drift participates in truthfulness and review flags.",
+            "category": "policy"
+        },
+        {
+            "id": "raw_hr",
+            "term": "Raw HR",
+            "short": "Uncorrected or lightly corrected raw heart-rate candidate.",
+            "long": "Raw HR is useful for audits but is not automatically truthful enough for the main KPI.",
+            "advanced": "Raw HR can contain RR harmonics, half-rate errors, or high-bias artifacts.",
+            "category": "audit"
+        },
+        {
+            "id": "candidate_hr",
+            "term": "Candidate HR",
+            "short": "Current HR estimate before final publish policy.",
+            "long": "A candidate can exist while the published value remains blank.",
+            "advanced": "Candidate evidence is combined with PQI, freshness, anchors, and publish policy.",
+            "category": "audit"
+        },
+        {
+            "id": "reported_hr",
+            "term": "Reported HR",
+            "short": "Final radar HR candidate written to the CSV before display validity is applied.",
+            "long": "The dashboard only treats it as live when the logged-valid flag and freshness pass.",
+            "advanced": "Preserving reported_hr while hiding invalid live HR is a truthfulness requirement.",
+            "category": "truthfulness"
+        },
+        {
+            "id": "publish_reason",
+            "term": "Publish reason",
+            "short": "Why a value was published or suppressed.",
+            "long": "Publish reasons explain blank or stale-looking KPIs without hiding the underlying state.",
+            "advanced": "Names map directly to HR_PUBLISH_REASON_NAMES and RR_PUBLISH_REASON_NAMES.",
+            "category": "truthfulness"
+        },
+        {
+            "id": "gate_reason",
+            "term": "Gate reason",
+            "short": "Why a candidate passed or failed a signal gate.",
+            "long": "Gate reasons identify signal, motion, PQI, harmonic, and confidence failures.",
+            "advanced": "Names map directly to HR_GATE_REASON_NAMES and RR_GATE_REASON_NAMES.",
+            "category": "truthfulness"
+        },
+        {
+            "id": "session_phase",
+            "term": "Session phase",
+            "short": "Current session state: absent, warmup, settling, locked, post-motion, or leaving.",
+            "long": "Metrics are more trustworthy when the session is locked than during warmup/settling.",
+            "advanced": "Phase subsets are reported separately in analysis gates.",
+            "category": "workflow"
+        },
+        {
+            "id": "harmonic_mode",
+            "term": "Harmonic mode",
+            "short": "Bitmask describing possible HR/RR harmonic relationships.",
+            "long": "Harmonic contamination can make HR agree with the wrong frequency.",
+            "advanced": "Used by raw-disagree and physiology limitation diagnostics.",
+            "category": "audit"
+        },
+        {
+            "id": "raw_disagree_audit",
+            "term": "Raw-disagree audit",
+            "short": "Breakdown of raw HR disagreement causes.",
+            "long": "Helps distinguish high bias, stale phase, anchor drift, and RR harmonic contamination.",
+            "advanced": "Feeds the ML-readiness physiology limitation mapping.",
+            "category": "audit"
+        },
+        {
+            "id": "fw_truthfulness",
+            "term": "Firmware truthfulness",
+            "short": "Firmware/module/schema identity observed from logs and manifests.",
+            "long": "A mismatch is shown prominently because it can invalidate the whole contract.",
+            "advanced": "Includes sketch version, module version validity, contract length, and schema/scoring hashes.",
+            "category": "truthfulness"
+        },
+        {
+            "id": "schema_hash",
+            "term": "Schema hash",
+            "short": "Hash of the feature/schema identity used for analysis.",
+            "long": "A changed schema can make sessions incomparable until reanalysis or retraining is done.",
+            "advanced": "Compared with manifest identity for drift detection.",
+            "category": "truthfulness"
+        },
+        {
+            "id": "ble_pi",
+            "term": "BLE perfusion index",
+            "short": "Oximeter perfusion index quality signal.",
+            "long": "Low PI can make reference HR/RR unreliable even when packets arrive.",
+            "advanced": "PI below the threshold maps to a reference-quality limitation.",
+            "category": "reference"
+        },
+        {
+            "id": "ble_coverage",
+            "term": "BLE coverage",
+            "short": "Fraction of useful BLE reference packets retained for analysis.",
+            "long": "Low coverage means the reference signal may not support ML training.",
+            "advanced": "Coverage below 50 percent fails reference readiness; 70 percent is the ready target.",
+            "category": "reference"
+        },
+        {
+            "id": "rmse",
+            "term": "RMSE",
+            "short": "Root mean square error between radar and reference.",
+            "long": "Lower is better; large errors are penalized strongly.",
+            "advanced": "The primary HR gate uses RMSE below 8 bpm with correlation above 0.4.",
+            "category": "metrics"
+        },
+        {
+            "id": "mae",
+            "term": "MAE",
+            "short": "Mean absolute error between radar and reference.",
+            "long": "Lower is better and easier to interpret than RMSE.",
+            "advanced": "MAE complements RMSE because it is less dominated by large outliers.",
+            "category": "metrics"
+        },
+        {
+            "id": "bias",
+            "term": "Bias",
+            "short": "Average signed radar-minus-reference error.",
+            "long": "Positive bias means radar is high; negative bias means radar is low.",
+            "advanced": "Bias by rate bucket helps detect systematic raw-HR distortion.",
+            "category": "metrics"
+        },
+        {
+            "id": "r_pearson",
+            "term": "Pearson r",
+            "short": "Linear correlation between radar and reference.",
+            "long": "Higher is better; near-zero or negative correlation means tracking is poor.",
+            "advanced": "The primary ML gate requires r greater than 0.4.",
+            "category": "metrics"
+        },
+        {
+            "id": "ml_gate_primary",
+            "term": "Primary ML gate",
+            "short": "Training-readiness rule based on HR r and RMSE.",
+            "long": "A pass means the session is a strong candidate for ML training if reference and truthfulness checks also pass.",
+            "advanced": "Primary gate is r > 0.4 and RMSE < 8 bpm, with enough valid pairs.",
+            "category": "ml"
+        },
+        {
+            "id": "ml_gate_secondary",
+            "term": "Secondary ML gate",
+            "short": "Coverage-penalized 10-minute HR gate.",
+            "long": "This helps avoid sessions that only look good in a tiny subset.",
+            "advanced": "Used as a supporting analysis check, not a replacement for truthfulness.",
+            "category": "ml"
+        },
+        {
+            "id": "freshness",
+            "term": "Freshness",
+            "short": "How recently a telemetry value was updated.",
+            "long": "Old values are marked stale or blanked instead of being shown as live.",
+            "advanced": "The dashboard hard-stale rule is intentionally conservative.",
+            "category": "truthfulness"
+        },
+        {
+            "id": "agc_floor",
+            "term": "AGC floor",
+            "short": "Automatic-gain-control behavior that can indicate poor signal dynamics.",
+            "long": "A high AGC floor percentage is a signal hygiene warning.",
+            "advanced": "Shown in analysis audit and report signal quality.",
+            "category": "quality"
+        },
+        {
+            "id": "near_field_reflector",
+            "term": "Near-field reflector",
+            "short": "Radar reflection close enough to contaminate tracking.",
+            "long": "Move reflective objects or adjust radar placement if this appears.",
+            "advanced": "Contributes to AGC/anomaly review flags.",
+            "category": "quality"
+        },
+        {
+            "id": "skip_dsp",
+            "term": "Skip-DSP",
+            "short": "Frames where DSP was skipped or filled.",
+            "long": "Some skip-DSP is tolerable, but sustained skip-DSP reduces confidence.",
+            "advanced": "Shown in funnel and AGC anomaly summaries.",
+            "category": "dsp"
+        }
+    ],
+    "tooltips": {
+        "kpi.hr": "Published heart rate after logged-valid and freshness gates. Blank means the dashboard is refusing to make stale or invalid HR look live.",
+        "kpi.rr": "Published respiration rate after RR source, freshness, and policy gates.",
+        "kpi.fps": "Effective radar/DSP frame cadence. Very low FPS can make trend and freshness decisions less reliable.",
+        "kpi.distance": "Current target range from radar spatial telemetry.",
+        "preflight.python_env": "Checks required Python packages before hardware collection starts.",
+        "preflight.firmware_file_present": "Parses the firmware DATA header and verifies the expected v15 207-column contract.",
+        "preflight.serial_port_list": "Lists serial ports and checks whether the selected radar port is present.",
+        "preflight.serial_port_probe": "Opens the selected radar port briefly and listens passively for boot/header evidence.",
+        "preflight.ble_adapter": "Exercises the Bluetooth adapter through Bleak discovery.",
+        "preflight.ble_device_probe": "Looks for the configured oximeter address without starting a full session.",
+        "preflight.session_folder_writable": "Verifies the sessions folder can be written.",
+        "preflight.disk_space": "Warns when session storage is low.",
+        "preflight.schema_hash_consistency": "Compares scoring/schema identity against prior sessions when available.",
+        "preflight.clock_monotonic_sanity": "Checks that the monotonic clock advances normally.",
+        "verdict.ready": "Ready means the ML gate, reference coverage, and truthfulness checks are acceptable.",
+        "verdict.conditional": "Conditional means the session may be useful, but needs a longer or cleaner run before training.",
+        "verdict.not_ready": "Not ready means at least one critical signal, reference, policy, data, or truthfulness condition failed.",
+        "metric.rmse": "Root mean square error. Lower is better; large misses are penalized strongly.",
+        "metric.mae": "Mean absolute error. Lower is better and easier to interpret than RMSE.",
+        "metric.bias": "Average signed radar-minus-reference error.",
+        "metric.r": "Pearson correlation between radar and reference.",
+        "truth.sketch_fw": "Firmware sketch version observed or recorded in the session manifest.",
+        "truth.module_fw": "mmWave module firmware version observed in logs.",
+        "truth.module_valid": "Whether the module firmware identity was considered valid.",
+        "truth.schema_hash": "Feature/schema hash used by analysis. Mismatches can invalidate comparisons.",
+        "truth.scoring_weights_hash": "Hash for scoring weights used by this analysis.",
+        "reference.coverage": "Useful BLE reference coverage retained for analysis.",
+        "reference.pi": "Oximeter perfusion index. Low PI can make the reference unreliable.",
+        "reference.packet_loss": "Estimated BLE packet loss.",
+        "reference.decode_error": "BLE packets that could not be decoded cleanly.",
+        "hist.gate": "Top gate reasons. These explain why candidates were accepted or rejected.",
+        "hist.publish": "Top publish reasons. These explain why values were shown or suppressed."
+    },
+    "faq": [
+        {
+            "q": "Why is HR blank sometimes?",
+            "a": "The dashboard blanks HR when the trainer says the value is invalid, stale, or policy-blocked. The raw reported value and publish reason remain visible in Audit."
+        },
+        {
+            "q": "What is a good PQI?",
+            "a": "Higher PQI is better. Very low PQI suggests poor phase quality and can make the ML verdict a signal-hygiene failure."
+        },
+        {
+            "q": "Why does session phase matter?",
+            "a": "Warmup and settling are less reliable than locked. Reports show phase subsets so a good-looking average does not hide unstable periods."
+        },
+        {
+            "q": "What is a trust anchor?",
+            "a": "A trust anchor is a recently accepted value retained during brief lapses. It is audited for freshness and drift."
+        },
+        {
+            "q": "Why RMSE and not only MAE?",
+            "a": "RMSE penalizes large misses more strongly. MAE remains useful as a human-readable average error."
+        },
+        {
+            "q": "What happens if BLE drops?",
+            "a": "Radar collection continues, but reference coverage drops. Low coverage can make the session not ready for ML training."
+        },
+        {
+            "q": "What if firmware does not match?",
+            "a": "Treat the session as not ready. The CSV contract and interpretation may be wrong until firmware/trainer/dashboard versions are aligned."
+        }
+    ],
+    "dsp_steps": [
+        {
+            "n": 1,
+            "title": "Radar frames",
+            "summary": "The module emits radar frames and vital-sign telemetry.",
+            "detail": "Firmware logs target and phase-related fields into the fixed DATA CSV contract.",
+            "diagram": null
+        },
+        {
+            "n": 2,
+            "title": "Phase stabilization",
+            "summary": "Phase signals are stabilized before vital extraction.",
+            "detail": "Slow drift, fill-on-miss behavior, and skip-DSP state are tracked explicitly.",
+            "diagram": null
+        },
+        {
+            "n": 3,
+            "title": "Target tracking",
+            "summary": "A primary target is selected from range/spatial evidence.",
+            "detail": "Distance, point cloud, target-info, and Doppler diagnostics remain visible.",
+            "diagram": null
+        },
+        {
+            "n": 4,
+            "title": "HR candidates",
+            "summary": "Heart-rate candidates come from phase and raw/spectral evidence.",
+            "detail": "The trainer records candidate, raw, corrected raw, anchor, and final publish values.",
+            "diagram": null
+        },
+        {
+            "n": 5,
+            "title": "RR candidates",
+            "summary": "Respiration candidates come from breath phase and source selection.",
+            "detail": "RR audit fields show source, latch, recovery, and anchor state.",
+            "diagram": null
+        },
+        {
+            "n": 6,
+            "title": "PQI gates",
+            "summary": "PQI and confidence gates decide whether candidates are trustworthy.",
+            "detail": "Failed gates are kept as reason histograms rather than hidden.",
+            "diagram": null
+        },
+        {
+            "n": 7,
+            "title": "Trust anchors",
+            "summary": "Anchors bridge short lapses but are freshness-checked.",
+            "detail": "Stale anchors or anchor drift can suppress publish.",
+            "diagram": null
+        },
+        {
+            "n": 8,
+            "title": "Publish policy",
+            "summary": "Publish gates decide what the user sees.",
+            "detail": "The dashboard never turns suppressed values into live KPI values.",
+            "diagram": null
+        },
+        {
+            "n": 9,
+            "title": "BLE reference",
+            "summary": "The oximeter provides reference HR/RR/SpO2/PI.",
+            "detail": "Packet coverage, decode health, and perfusion index determine reference quality.",
+            "diagram": null
+        },
+        {
+            "n": 10,
+            "title": "Post-session analysis",
+            "summary": "Radar and reference are aligned and scored.",
+            "detail": "Reports show RMSE, MAE, bias, r, gates, histograms, truthfulness, and ML readiness.",
+            "diagram": null
+        }
+    ],
+    "troubleshooting": [
+        {
+            "id": "com10_missing",
+            "title": "COM10 not found",
+            "steps": [
+                "Check USB cable and power.",
+                "Open Device Manager and confirm the assigned COM port.",
+                "Select the detected port in the dashboard."
+            ]
+        },
+        {
+            "id": "ble_unreachable",
+            "title": "BLE device not responding",
+            "steps": [
+                "Enable Bluetooth.",
+                "Wake the oximeter.",
+                "Confirm the MAC address.",
+                "Retry BLE device probe."
+            ]
+        },
+        {
+            "id": "ble_adapter_error",
+            "title": "Bluetooth adapter error",
+            "steps": [
+                "Enable the Windows Bluetooth adapter.",
+                "Restart Bluetooth support service if needed.",
+                "Retry preflight."
+            ]
+        },
+        {
+            "id": "folder_not_writable",
+            "title": "Session folder not writable",
+            "steps": [
+                "Choose a writable workspace.",
+                "Close programs holding files in the sessions folder.",
+                "Retry preflight."
+            ]
+        },
+        {
+            "id": "firmware_contract_mismatch",
+            "title": "Firmware contract mismatch",
+            "steps": [
+                "Use the v15.0.0 firmware source beside the trainer.",
+                "Reflash if the device emits a different header.",
+                "Do not train from mismatched sessions."
+            ]
+        },
+        {
+            "id": "warmup_wait",
+            "title": "No DATA rows during warmup",
+            "steps": [
+                "Wait for the roughly 60 second calibration window.",
+                "Watch for BOOT and SENSOR lines.",
+                "Do not treat warmup silence as a hard failure by itself."
+            ]
+        },
+        {
+            "id": "dashboard_waiting",
+            "title": "Dashboard stuck waiting",
+            "steps": [
+                "Confirm the control server is running.",
+                "Check active session status.",
+                "Open the session folder and inspect live_dashboard.json."
+            ]
+        }
+    ]
+}

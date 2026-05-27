@@ -86,6 +86,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   isValidatingNativeBle = false;
   nativeBleProbeStatus = '';
   isPreflightRunning = false;
+  isStartingSession = false;
   selectedDuration = 30;
 
   sessionFilter: 'all' | 'pass' | 'warn' | 'fail' | 'tagged' = 'all';
@@ -364,6 +365,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async startSession() {
     this.state.triggerHaptic('sessionStart');
+    this.isStartingSession = true;
     try {
       await this.runPreflight();
       if (!this.canStartSession()) {
@@ -400,6 +402,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       const message = error instanceof Error ? error.message : String(error);
       this.snackBar.open(`Could not start session: ${message}`, 'Dismiss', { duration: 7000 });
       this.state.triggerHaptic('reject');
+    } finally {
+      this.isStartingSession = false;
     }
   }
 

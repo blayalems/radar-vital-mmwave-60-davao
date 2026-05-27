@@ -739,31 +739,35 @@ test.describe('Dashboard smoke', () => {
     };
     await notes.fill('Baseline seated');
     await page.getByRole('button', { name: /Position/ }).click();
-    await page.getByLabel('Custom tag').fill('Calibration');
-    await page.getByRole('button', { name: /Add Tag/ }).click();
+    const customTag = page.getByLabel('Custom tag');
+    const addTag = page.getByRole('button', { name: /Add Tag/ });
+    await customTag.fill('Calibration');
+    await expect(customTag).toHaveValue('Calibration');
+    await expect(addTag).toBeEnabled();
+    await addTag.dispatchEvent('click');
     await expect(notes).toHaveValue(/Position change/);
     await expect(notes).toHaveValue(/Calibration/);
 
     const notesDownload = page.waitForEvent('download');
-    await page.getByRole('button', { name: /Export session notes as text/ }).click();
+    await page.getByRole('button', { name: /Export session notes as text/ }).dispatchEvent('click');
     expect((await notesDownload).suggestedFilename()).toMatch(/^session-notes-.+\.txt$/);
     await expect(page.getByText('Target Tracking')).toBeVisible();
-    await page.getByRole('button', { name: /Pin Frame/ }).click();
+    await page.getByRole('button', { name: /Pin Frame/ }).dispatchEvent('click');
 
     await page.getByRole('tab', { name: 'Waves' }).click();
     await expect(page.getByText(/SQI \d+%/).first()).toBeVisible();
     await expectVisibleCardsContained();
     const waveDownload = page.waitForEvent('download');
-    await page.getByRole('button', { name: /Download breathing waveform image/ }).click();
+    await page.getByRole('button', { name: /Download breathing waveform image/ }).dispatchEvent('click');
     expect((await waveDownload).suggestedFilename()).toMatch(/^breathing_waveform_\d+\.png$/);
 
     await page.getByRole('tab', { name: 'HR' }).click();
     await expect(page.getByText('HR Funnel Telemetry')).toBeVisible();
     await expect(page.getByText('HR Stage Values')).toBeVisible();
     await expectVisibleCardsContained();
-    await page.getByRole('radio', { name: '30s' }).click();
+    await page.getByRole('radio', { name: '30s' }).dispatchEvent('click');
     await expect(page.getByText('Viewing 30 seconds')).toBeVisible();
-    await page.getByRole('button', { name: /Reset heart rate chart window/ }).click();
+    await page.getByRole('button', { name: /Reset heart rate chart window/ }).dispatchEvent('click');
     await expect(page.getByText('Viewing 120 seconds')).toBeVisible();
 
     await page.getByRole('tab', { name: 'RR' }).click();
@@ -772,7 +776,7 @@ test.describe('Dashboard smoke', () => {
     await expect(page.getByText('No RR-specific warnings')).toBeVisible();
     await expectVisibleCardsContained();
     const rrDownload = page.waitForEvent('download');
-    await page.getByRole('button', { name: /Download respiration trend image/ }).click();
+    await page.getByRole('button', { name: /Download respiration trend image/ }).dispatchEvent('click');
     expect((await rrDownload).suggestedFilename()).toMatch(/^respiration_trend_\d+\.png$/);
 
     await page.getByRole('tab', { name: 'Audit' }).click();

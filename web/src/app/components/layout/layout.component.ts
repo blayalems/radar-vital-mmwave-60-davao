@@ -207,14 +207,7 @@ export class LayoutComponent implements OnInit {
     }
   }
 
-  skipToMain(event: Event) {
-    event.preventDefault();
-    const main = document.getElementById('mainContent');
-    if (main) {
-      main.focus();
-      main.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }
+
 
   scrollToTop() {
     this.state.triggerHaptic('tap');
@@ -224,6 +217,11 @@ export class LayoutComponent implements OnInit {
         behavior: 'smooth'
       });
     }
+  }
+
+  skipToMainContent(event: Event): void {
+    event.preventDefault();
+    this.mainContentScroll?.nativeElement.focus();
   }
 
   openShortcuts() {

@@ -216,9 +216,16 @@
       </mat-card-content>
 
       <mat-card-actions class="setup-card-actions">
-        <button mat-flat-button color="primary" class="start-session-btn" (click)="startSession()" [disabled]="!canStartSession()">
-          <mat-icon>play_arrow</mat-icon>
-          Start Telemetry Session
+        <button mat-flat-button color="primary" class="start-session-btn" (click)="startSession()" [disabled]="!canStartSession() || isStartingSession">
+          @if (isStartingSession) {
+            <mat-spinner diameter="20" style="margin-right: 8px;"></mat-spinner>
+            Starting...
+          } @else {
+            <ng-container>
+              <mat-icon>play_arrow</mat-icon>
+              Start Telemetry Session
+            </ng-container>
+          }
         </button>
       </mat-card-actions>
     </mat-card>
@@ -345,7 +352,7 @@
           <span class="session-summary-col">
             {{ state.sessionNotes()[session.session_id] || session.summary || 'No operator summary recorded.' }}
           </span>
-          <button mat-icon-button color="primary" (click)="reviewSession(session.session_id)">
+          <button mat-icon-button color="primary" aria-label="Review session" (click)="reviewSession(session.session_id)">
             <mat-icon>open_in_new</mat-icon>
           </button>
         </div>

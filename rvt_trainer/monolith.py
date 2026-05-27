@@ -60,7 +60,7 @@ import time
 import threading
 import csv
 from collections import deque
-from functools import partial
+from functools import lru_cache, partial
 from html import escape as html_escape
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -4090,6 +4090,7 @@ _DASHBOARD_HTML_FALLBACK_NAMES = (
 )
 
 
+@lru_cache(maxsize=1)
 def _dashboard_html_template_paths() -> List[Path]:
     base = _REPO_ROOT
     cwd = Path(os.getcwd())
@@ -4124,7 +4125,9 @@ if _dashboard_template_path is not None:
         pass
 _DASHBOARD_TEMPLATE_EMBEDDED = _DASHBOARD_TEMPLATE_EMBEDDED.replace("v13.8.0 / v8.4.0", "v15 / v11")
 
+@lru_cache(maxsize=1)
 def _load_dashboard_template_text() -> str:
+    """Load and cache the dashboard HTML template."""
     for path in _dashboard_html_template_paths():
         if path.exists():
             try:
@@ -6091,10 +6094,6 @@ def _build_report_export_html(session_dir: str, out_dir: Optional[str] = None) -
     )
 
 
-def _help_entry(entry_id: str, term: str, short: str, long: str = "", advanced: str = "", category: str = "general") -> Dict[str, str]:
-    return {"id": entry_id, "term": term, "short": short, "long": long or short, "advanced": advanced or long or short, "category": category}
-
-
 def _reason_tooltips(prefix: str, names: Dict[int, str], noun: str) -> Dict[str, str]:
     out = {}
     for code, name in names.items():
@@ -6103,71 +6102,14 @@ def _reason_tooltips(prefix: str, names: Dict[int, str], noun: str) -> Dict[str,
 
 
 def _build_help_schema() -> Dict[str, object]:
-    glossary = [
-        _help_entry("heart_rate_bpm", "Heart rate", "Published heart rate in beats per minute after validity gates.", "This is the operator-facing HR value. Invalid or stale candidates are not promoted into the live KPI.", "Usually comes from the phase-backed HR publish path, with raw or anchor states visible in audit fields.", "vitals"),
-        _help_entry("breath_rate_bpm", "Breath rate", "Published respiration rate in breaths per minute after RR gates.", "This is the operator-facing RR value. It can be blank when source, freshness, or policy gates fail.", "RR uses phase, raw fallback, latch, and recovery diagnostics depending on current signal state.", "vitals"),
-        _help_entry("pqi_heart", "Heart PQI", "Phase quality index for the heart-rate path.", "Higher values mean the phase signal is more usable for HR estimation.", "A low PQI can force publish suppression or make the ML verdict a signal-hygiene failure.", "quality"),
-        _help_entry("pqi_breath", "Breath PQI", "Phase quality index for the breathing path.", "Higher values mean the breath phase is cleaner and more stable.", "Used by RR gating and as part of signal-quality review.", "quality"),
-        _help_entry("phase_stabilized", "Stabilized phase", "Phase after slow drift and DC behavior are controlled.", "The firmware and trainer prefer stabilized phase for robust vital-sign estimates.", "Stabilization reduces low-frequency drift before spectral/autocorrelation decisions.", "dsp"),
-        _help_entry("trust_anchor", "Trust anchor", "A recently trusted value retained during short signal lapses.", "Anchors avoid flicker, but stale anchors are explicitly audited and can block publish.", "Anchor age and drift are separate safety checks.", "policy"),
-        _help_entry("anchor_drift", "Anchor drift", "A warning that an anchor no longer agrees with current evidence.", "Drift can indicate stale state or a changing subject/radar setup.", "Anchor drift participates in truthfulness and review flags.", "policy"),
-        _help_entry("raw_hr", "Raw HR", "Uncorrected or lightly corrected raw heart-rate candidate.", "Raw HR is useful for audits but is not automatically truthful enough for the main KPI.", "Raw HR can contain RR harmonics, half-rate errors, or high-bias artifacts.", "audit"),
-        _help_entry("candidate_hr", "Candidate HR", "Current HR estimate before final publish policy.", "A candidate can exist while the published value remains blank.", "Candidate evidence is combined with PQI, freshness, anchors, and publish policy.", "audit"),
-        _help_entry("reported_hr", "Reported HR", "Final radar HR candidate written to the CSV before display validity is applied.", "The dashboard only treats it as live when the logged-valid flag and freshness pass.", "Preserving reported_hr while hiding invalid live HR is a truthfulness requirement.", "truthfulness"),
-        _help_entry("publish_reason", "Publish reason", "Why a value was published or suppressed.", "Publish reasons explain blank or stale-looking KPIs without hiding the underlying state.", "Names map directly to HR_PUBLISH_REASON_NAMES and RR_PUBLISH_REASON_NAMES.", "truthfulness"),
-        _help_entry("gate_reason", "Gate reason", "Why a candidate passed or failed a signal gate.", "Gate reasons identify signal, motion, PQI, harmonic, and confidence failures.", "Names map directly to HR_GATE_REASON_NAMES and RR_GATE_REASON_NAMES.", "truthfulness"),
-        _help_entry("session_phase", "Session phase", "Current session state: absent, warmup, settling, locked, post-motion, or leaving.", "Metrics are more trustworthy when the session is locked than during warmup/settling.", "Phase subsets are reported separately in analysis gates.", "workflow"),
-        _help_entry("harmonic_mode", "Harmonic mode", "Bitmask describing possible HR/RR harmonic relationships.", "Harmonic contamination can make HR agree with the wrong frequency.", "Used by raw-disagree and physiology limitation diagnostics.", "audit"),
-        _help_entry("raw_disagree_audit", "Raw-disagree audit", "Breakdown of raw HR disagreement causes.", "Helps distinguish high bias, stale phase, anchor drift, and RR harmonic contamination.", "Feeds the ML-readiness physiology limitation mapping.", "audit"),
-        _help_entry("fw_truthfulness", "Firmware truthfulness", "Firmware/module/schema identity observed from logs and manifests.", "A mismatch is shown prominently because it can invalidate the whole contract.", "Includes sketch version, module version validity, contract length, and schema/scoring hashes.", "truthfulness"),
-        _help_entry("schema_hash", "Schema hash", "Hash of the feature/schema identity used for analysis.", "A changed schema can make sessions incomparable until reanalysis or retraining is done.", "Compared with manifest identity for drift detection.", "truthfulness"),
-        _help_entry("ble_pi", "BLE perfusion index", "Oximeter perfusion index quality signal.", "Low PI can make reference HR/RR unreliable even when packets arrive.", "PI below the threshold maps to a reference-quality limitation.", "reference"),
-        _help_entry("ble_coverage", "BLE coverage", "Fraction of useful BLE reference packets retained for analysis.", "Low coverage means the reference signal may not support ML training.", "Coverage below 50 percent fails reference readiness; 70 percent is the ready target.", "reference"),
-        _help_entry("rmse", "RMSE", "Root mean square error between radar and reference.", "Lower is better; large errors are penalized strongly.", "The primary HR gate uses RMSE below 8 bpm with correlation above 0.4.", "metrics"),
-        _help_entry("mae", "MAE", "Mean absolute error between radar and reference.", "Lower is better and easier to interpret than RMSE.", "MAE complements RMSE because it is less dominated by large outliers.", "metrics"),
-        _help_entry("bias", "Bias", "Average signed radar-minus-reference error.", "Positive bias means radar is high; negative bias means radar is low.", "Bias by rate bucket helps detect systematic raw-HR distortion.", "metrics"),
-        _help_entry("r_pearson", "Pearson r", "Linear correlation between radar and reference.", "Higher is better; near-zero or negative correlation means tracking is poor.", "The primary ML gate requires r greater than 0.4.", "metrics"),
-        _help_entry("ml_gate_primary", "Primary ML gate", "Training-readiness rule based on HR r and RMSE.", "A pass means the session is a strong candidate for ML training if reference and truthfulness checks also pass.", "Primary gate is r > 0.4 and RMSE < 8 bpm, with enough valid pairs.", "ml"),
-        _help_entry("ml_gate_secondary", "Secondary ML gate", "Coverage-penalized 10-minute HR gate.", "This helps avoid sessions that only look good in a tiny subset.", "Used as a supporting analysis check, not a replacement for truthfulness.", "ml"),
-        _help_entry("freshness", "Freshness", "How recently a telemetry value was updated.", "Old values are marked stale or blanked instead of being shown as live.", "The dashboard hard-stale rule is intentionally conservative.", "truthfulness"),
-        _help_entry("agc_floor", "AGC floor", "Automatic-gain-control behavior that can indicate poor signal dynamics.", "A high AGC floor percentage is a signal hygiene warning.", "Shown in analysis audit and report signal quality.", "quality"),
-        _help_entry("near_field_reflector", "Near-field reflector", "Radar reflection close enough to contaminate tracking.", "Move reflective objects or adjust radar placement if this appears.", "Contributes to AGC/anomaly review flags.", "quality"),
-        _help_entry("skip_dsp", "Skip-DSP", "Frames where DSP was skipped or filled.", "Some skip-DSP is tolerable, but sustained skip-DSP reduces confidence.", "Shown in funnel and AGC anomaly summaries.", "dsp"),
-    ]
-    tooltips = {
-        "kpi.hr": "Published heart rate after logged-valid and freshness gates. Blank means the dashboard is refusing to make stale or invalid HR look live.",
-        "kpi.rr": "Published respiration rate after RR source, freshness, and policy gates.",
-        "kpi.fps": "Effective radar/DSP frame cadence. Very low FPS can make trend and freshness decisions less reliable.",
-        "kpi.distance": "Current target range from radar spatial telemetry.",
-        "preflight.python_env": "Checks required Python packages before hardware collection starts.",
-        "preflight.firmware_file_present": "Parses the firmware DATA header and verifies the expected v15 207-column contract.",
-        "preflight.serial_port_list": "Lists serial ports and checks whether the selected radar port is present.",
-        "preflight.serial_port_probe": "Opens the selected radar port briefly and listens passively for boot/header evidence.",
-        "preflight.ble_adapter": "Exercises the Bluetooth adapter through Bleak discovery.",
-        "preflight.ble_device_probe": "Looks for the configured oximeter address without starting a full session.",
-        "preflight.session_folder_writable": "Verifies the sessions folder can be written.",
-        "preflight.disk_space": "Warns when session storage is low.",
-        "preflight.schema_hash_consistency": "Compares scoring/schema identity against prior sessions when available.",
-        "preflight.clock_monotonic_sanity": "Checks that the monotonic clock advances normally.",
-        "verdict.ready": "Ready means the ML gate, reference coverage, and truthfulness checks are acceptable.",
-        "verdict.conditional": "Conditional means the session may be useful, but needs a longer or cleaner run before training.",
-        "verdict.not_ready": "Not ready means at least one critical signal, reference, policy, data, or truthfulness condition failed.",
-        "metric.rmse": "Root mean square error. Lower is better; large misses are penalized strongly.",
-        "metric.mae": "Mean absolute error. Lower is better and easier to interpret than RMSE.",
-        "metric.bias": "Average signed radar-minus-reference error.",
-        "metric.r": "Pearson correlation between radar and reference.",
-        "truth.sketch_fw": "Firmware sketch version observed or recorded in the session manifest.",
-        "truth.module_fw": "mmWave module firmware version observed in logs.",
-        "truth.module_valid": "Whether the module firmware identity was considered valid.",
-        "truth.schema_hash": "Feature/schema hash used by analysis. Mismatches can invalidate comparisons.",
-        "truth.scoring_weights_hash": "Hash for scoring weights used by this analysis.",
-        "reference.coverage": "Useful BLE reference coverage retained for analysis.",
-        "reference.pi": "Oximeter perfusion index. Low PI can make the reference unreliable.",
-        "reference.packet_loss": "Estimated BLE packet loss.",
-        "reference.decode_error": "BLE packets that could not be decoded cleanly.",
-        "hist.gate": "Top gate reasons. These explain why candidates were accepted or rejected.",
-        "hist.publish": "Top publish reasons. These explain why values were shown or suppressed.",
-    }
+    import json
+    import os
+
+    schema_path = os.path.join(os.path.dirname(__file__), "assets", "help_schema.json")
+    with open(schema_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    tooltips = data.get("tooltips", {})
     tooltips.update(_reason_tooltips("gate.hr", HR_GATE_REASON_NAMES, "HR gate reason"))
     tooltips.update(_reason_tooltips("gate.rr", RR_GATE_REASON_NAMES, "RR gate reason"))
     tooltips.update(_reason_tooltips("publish.hr", HR_PUBLISH_REASON_NAMES, "HR publish reason"))
@@ -6176,37 +6118,10 @@ def _build_help_schema() -> Dict[str, object]:
     tooltips.update(_reason_tooltips("source_reject.rr", RR_SOURCE_REJECT_REASON_NAMES, "RR source reject reason"))
     tooltips.update(_reason_tooltips("block.publish", PUBLISH_BLOCK_STAGE_NAMES, "Publish block stage"))
     tooltips.update(_reason_tooltips("subreason.hr_raw_disagree", HR_RAW_DISAGREE_SUBREASON_NAMES, "HR raw-disagree subreason"))
-    faq = [
-        {"q": "Why is HR blank sometimes?", "a": "The dashboard blanks HR when the trainer says the value is invalid, stale, or policy-blocked. The raw reported value and publish reason remain visible in Audit."},
-        {"q": "What is a good PQI?", "a": "Higher PQI is better. Very low PQI suggests poor phase quality and can make the ML verdict a signal-hygiene failure."},
-        {"q": "Why does session phase matter?", "a": "Warmup and settling are less reliable than locked. Reports show phase subsets so a good-looking average does not hide unstable periods."},
-        {"q": "What is a trust anchor?", "a": "A trust anchor is a recently accepted value retained during brief lapses. It is audited for freshness and drift."},
-        {"q": "Why RMSE and not only MAE?", "a": "RMSE penalizes large misses more strongly. MAE remains useful as a human-readable average error."},
-        {"q": "What happens if BLE drops?", "a": "Radar collection continues, but reference coverage drops. Low coverage can make the session not ready for ML training."},
-        {"q": "What if firmware does not match?", "a": "Treat the session as not ready. The CSV contract and interpretation may be wrong until firmware/trainer/dashboard versions are aligned."},
-    ]
-    dsp_steps = [
-        {"n": 1, "title": "Radar frames", "summary": "The module emits radar frames and vital-sign telemetry.", "detail": "Firmware logs target and phase-related fields into the fixed DATA CSV contract.", "diagram": None},
-        {"n": 2, "title": "Phase stabilization", "summary": "Phase signals are stabilized before vital extraction.", "detail": "Slow drift, fill-on-miss behavior, and skip-DSP state are tracked explicitly.", "diagram": None},
-        {"n": 3, "title": "Target tracking", "summary": "A primary target is selected from range/spatial evidence.", "detail": "Distance, point cloud, target-info, and Doppler diagnostics remain visible.", "diagram": None},
-        {"n": 4, "title": "HR candidates", "summary": "Heart-rate candidates come from phase and raw/spectral evidence.", "detail": "The trainer records candidate, raw, corrected raw, anchor, and final publish values.", "diagram": None},
-        {"n": 5, "title": "RR candidates", "summary": "Respiration candidates come from breath phase and source selection.", "detail": "RR audit fields show source, latch, recovery, and anchor state.", "diagram": None},
-        {"n": 6, "title": "PQI gates", "summary": "PQI and confidence gates decide whether candidates are trustworthy.", "detail": "Failed gates are kept as reason histograms rather than hidden.", "diagram": None},
-        {"n": 7, "title": "Trust anchors", "summary": "Anchors bridge short lapses but are freshness-checked.", "detail": "Stale anchors or anchor drift can suppress publish.", "diagram": None},
-        {"n": 8, "title": "Publish policy", "summary": "Publish gates decide what the user sees.", "detail": "The dashboard never turns suppressed values into live KPI values.", "diagram": None},
-        {"n": 9, "title": "BLE reference", "summary": "The oximeter provides reference HR/RR/SpO2/PI.", "detail": "Packet coverage, decode health, and perfusion index determine reference quality.", "diagram": None},
-        {"n": 10, "title": "Post-session analysis", "summary": "Radar and reference are aligned and scored.", "detail": "Reports show RMSE, MAE, bias, r, gates, histograms, truthfulness, and ML readiness.", "diagram": None},
-    ]
-    troubleshooting = [
-        {"id": "com10_missing", "title": "COM10 not found", "steps": ["Check USB cable and power.", "Open Device Manager and confirm the assigned COM port.", "Select the detected port in the dashboard."]},
-        {"id": "ble_unreachable", "title": "BLE device not responding", "steps": ["Enable Bluetooth.", "Wake the oximeter.", "Confirm the MAC address.", "Retry BLE device probe."]},
-        {"id": "ble_adapter_error", "title": "Bluetooth adapter error", "steps": ["Enable the Windows Bluetooth adapter.", "Restart Bluetooth support service if needed.", "Retry preflight."]},
-        {"id": "folder_not_writable", "title": "Session folder not writable", "steps": ["Choose a writable workspace.", "Close programs holding files in the sessions folder.", "Retry preflight."]},
-        {"id": "firmware_contract_mismatch", "title": "Firmware contract mismatch", "steps": ["Use the v15.0.0 firmware source beside the trainer.", "Reflash if the device emits a different header.", "Do not train from mismatched sessions."]},
-        {"id": "warmup_wait", "title": "No DATA rows during warmup", "steps": ["Wait for the roughly 60 second calibration window.", "Watch for BOOT and SENSOR lines.", "Do not treat warmup silence as a hard failure by itself."]},
-        {"id": "dashboard_waiting", "title": "Dashboard stuck waiting", "steps": ["Confirm the control server is running.", "Check active session status.", "Open the session folder and inspect live_dashboard.json."]},
-    ]
-    return {"version": VERSION, "glossary": glossary, "tooltips": tooltips, "faq": faq, "dsp_steps": dsp_steps, "troubleshooting": troubleshooting}
+
+    data["tooltips"] = tooltips
+    data["version"] = VERSION
+    return data
 
 
 HELP_SCHEMA = _build_help_schema()
@@ -6372,9 +6287,20 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if "no-cache" in cache_control or "no-store" in cache_control:
             self.send_header("Pragma", "no-cache")
             self.send_header("Expires", "0")
-        self.send_header("Access-Control-Allow-Origin", getattr(self.server, "cors_origin", "*"))
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Radar-Vital-Token, X-RVT-Token, X-RVT-Auth")
+
+        req_origin = self.headers.get("Origin", "")
+        cors_origin = str(getattr(self.server, "cors_origin", ""))
+
+        if cors_origin == "*":
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Radar-Vital-Token, X-RVT-Token, X-RVT-Auth")
+        elif cors_origin and req_origin == cors_origin:
+            self.send_header("Access-Control-Allow-Origin", cors_origin)
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Radar-Vital-Token, X-RVT-Token, X-RVT-Auth")
+            self.send_header("Vary", "Origin")
+
         csp = getattr(self.server, "content_security_policy", "")
         if csp:
             self.send_header("Content-Security-Policy", csp)
@@ -7094,7 +7020,7 @@ class _ControlServer:
         host: str,
         port: int,
         sessions_root: str,
-        cors_origin: str = "*",
+        cors_origin: str = "",
         mock: bool = False,
         bind_mode: str = "local",
         tls_cert: Optional[str] = None,
@@ -7190,7 +7116,10 @@ def _start_control_server(args):
     host = requested_host or ("0.0.0.0" if bind_mode == "lan" else "127.0.0.1")
     port_arg = getattr(args, "control_port", 8765)
     start_port = int(8765 if port_arg is None else port_arg)
-    cors_origin = str(getattr(args, "cors_origin", "*") or "*")
+    cors_origin = str(getattr(args, "cors_origin", "") or "")
+    if bind_mode == "lan" and cors_origin == "*":
+        print(_yellow("[WARN] Control server is bound to LAN interfaces with a wildcard CORS origin."))
+        print(_yellow("       This allows cross-origin requests from any website opened on your browser."))
     mock = bool(getattr(args, "mock", False))
     tls_arg = getattr(args, "tls", None)
     tls_cert = None
@@ -13791,8 +13720,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="send HSTS only when --tls uses a CA-trusted certificate")
     p_srv.add_argument("--sessions-root", default="sessions",
                        help="sessions root served by the control server (default: sessions)")
-    p_srv.add_argument("--cors-origin", default="*",
-                       help="Access-Control-Allow-Origin value for local dashboard requests (default: *)")
+    p_srv.add_argument("--cors-origin", default="",
+                       help="Access-Control-Allow-Origin value for local dashboard requests (default: \"\", no wildcards by default)")
     p_srv.add_argument("--mock", action="store_true",
                        help="serve an integrated virtual radar stream over the live APIs and SSE")
     p_srv.add_argument("--no-browser", action="store_true",
@@ -13992,7 +13921,7 @@ def _run_self_tests() -> int:
     tmp = tempfile.mkdtemp(prefix="rvt-selftest-")
     server = None
     try:
-        args = argparse.Namespace(host="127.0.0.1", control_port=0, sessions_root=tmp, no_browser=True, cors_origin="*", mock=True, bind="local", tls=None, tls_trusted=False)
+        args = argparse.Namespace(host="127.0.0.1", control_port=0, sessions_root=tmp, no_browser=True, cors_origin="", mock=True, bind="local", tls=None, tls_trusted=False)
         server = _start_control_server(args)
         server.start()
         base = f"http://127.0.0.1:{server.httpd.server_port}"

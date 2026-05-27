@@ -78,22 +78,7 @@
 }
 
 @media (min-width: 1024px) {
-  :host ::ng-deep .app.rail-collapsed .rail .mat-drawer-inner-container {
-    display: flex !important;
-    flex-direction: column !important;
-    overflow: hidden !important;
-  }
-
-  :host ::ng-deep .app.rail-collapsed .rail .r-item .mdc-list-item__content,
-  :host ::ng-deep .app.rail-collapsed .rail .r-item .mat-mdc-list-item-unscoped-content {
-    align-items: center !important;
-    display: flex !important;
-    height: 100% !important;
-    inset: 0 !important;
-    justify-content: center !important;
-    position: absolute !important;
-    width: auto !important;
-  }
+  /* Deprecated ::ng-deep overrides moved to global styles.scss as non-encapsulated rules */
 
   .app.rail-collapsed .rail .brand {
     align-items: center !important;
@@ -201,78 +186,68 @@
 
 @media (max-width: 760px) {
   .main-content-scroll {
-    padding: 12px 12px 80px; /* Space for bottom nav */
+    padding: 12px 12px 96px; /* Space for bottom nav */
   }
 
   .bottom-nav {
     background: var(--md-sys-color-surface-container);
     border-top: 1px solid var(--md-sys-color-outline-variant);
     bottom: 0;
-    display: block;
-    height: calc(68px + env(safe-area-inset-bottom, 0px));
+    display: flex !important;
+    height: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
     padding-bottom: env(safe-area-inset-bottom, 0px);
     position: sticky;
     z-index: 800;
-  }
-
-  .bottom-nav-inner {
-    align-items: stretch;
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    height: 68px;
-    width: 100%;
-  }
-
-  .bn-item {
-    align-content: center;
-    display: grid;
-    font-size: 12px;
-    justify-items: center;
-    min-width: 0;
   }
 }
 
 @media (min-width: 761px) and (max-width: 1023px) {
   .main-content-scroll {
-    padding-bottom: 80px;
+    padding-bottom: 96px;
   }
 
   .bottom-nav {
     background: var(--md-sys-color-surface-container);
     border-top: 1px solid var(--md-sys-color-outline-variant);
-    display: block;
-    height: 68px;
+    display: flex !important;
+    height: 80px !important;
     position: sticky;
     z-index: 800;
-  }
-
-  .bottom-nav-inner {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    height: 68px;
-    width: 100%;
-  }
-
-  .bn-item {
-    align-content: center;
-    display: grid;
-    justify-items: center;
   }
 }
 
 :host-context(html[data-theme='hc']) .bottom-nav {
   background: #000 !important;
-  border-color: #fff !important;
+  border-top: 2px solid #fff !important;
 }
 
-:host-context(html[data-theme='hc']) .bottom-nav .bn-item {
+:host-context(html[data-theme='hc']) a[mat-navigation-tab] {
   color: #fff !important;
-  opacity: 1 !important;
+  opacity: 0.7;
 }
 
-:host-context(html[data-theme='hc']) .bottom-nav .bn-item .material-symbols-rounded {
-  color: #fff !important;
+:host-context(html[data-theme='hc']) a[mat-navigation-tab].active {
   opacity: 1 !important;
+  color: #fff !important;
+}
+
+:host-context(html[data-theme='hc']) a[mat-navigation-tab].active .mat-navigation-tab-pill {
+  background-color: #fff !important;
+  opacity: 1 !important;
+  transform: scaleX(1) !important;
+}
+
+:host-context(html[data-theme='hc']) a[mat-navigation-tab].active .mat-navigation-tab-icon-container {
+  color: #000 !important;
+}
+
+:host-context(html[data-theme='hc']) a[mat-navigation-tab].active .mat-navigation-tab-icon-container .material-symbols-rounded {
+  color: #000 !important;
+}
+
+:host-context(html[data-theme='hc']) a[mat-navigation-tab].active .mat-navigation-tab-label {
+  color: #fff !important;
+  font-weight: 900 !important;
 }
 
 /* Scroll-to-top FAB */

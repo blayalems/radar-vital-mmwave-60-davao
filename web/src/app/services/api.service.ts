@@ -1,4 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import {
   BleScanDevice,
   ControlStatus,
@@ -35,6 +37,7 @@ interface TauriBridge {
 })
 export class ApiService {
   private state = inject(StateService);
+  private http = inject(HttpClient);
 
   private readonly API_BASE_KEY = 'rvt-api-base';
   private readonly TOKEN_KEY = 'rvt-pair-token';
@@ -138,7 +141,7 @@ export class ApiService {
     }
   }
 
-  // Low-level HTTP requests with native Tauri/Capacitor plugins fallback
+  // Low-level HTTP requests utilizing HttpClient under the hood
   async request<T = unknown>(path: string, init?: RequestInit, bypassSandbox = false): Promise<T> {
     const isSandbox = !bypassSandbox && (
       this.state.autoDemoActive()
@@ -153,44 +156,16 @@ export class ApiService {
     const base = this.currentApiBase();
     const target = /^[a-z][a-z0-9+.-]*:\/\//i.test(String(path)) ? String(path) : base + String(path);
 
-    const headers = new Headers(init?.headers || {});
-    // Security design decision: We keep the pairing auth token in sessionStorage.
-    // This is intentional so that it does not persist across separate browser tabs or survive
-    // browser session closure, preventing authentication leaks on shared operator workstations.
-    const tok = this.pairToken();
-    if (tok) {
-      headers.set('X-RVT-Auth', tok);
-    }
-
-    const tauri = (window as Window & { __TAURI__?: TauriBridge }).__TAURI__?.core;
-    if (tauri?.invoke && base) {
-      const method = String(init?.method || 'GET').toUpperCase();
-      const headerObj: Record<string, string> = {};
-      headers.forEach((value, key) => { headerObj[key] = value; });
-      const command = path === '/api/auth/exchange' || path === '/api/server-info'
-        ? 'native_pair_request'
-        : 'native_http_request';
-      const resp = await tauri.invoke<{ status: number; data: unknown }>(command, {
-        request: {
-          origin: base,
-          path: String(path),
-          method,
-          headers: headerObj,
-          body: typeof init?.body === 'string' ? init.body : null
-        }
-      });
-      if (resp.status < 200 || resp.status >= 300) {
-        throw new Error(this.errorMessage(resp.data, `HTTP ${resp.status}`));
-      }
-      return resp.data as T;
-    }
+    const method = String(init?.method || 'GET').toUpperCase();
 
     // Try Capacitor native Http wrapper
     const cap = (window as Window & { Capacitor?: CapacitorBridge }).Capacitor;
     const http = cap?.Plugins?.CapacitorHttp || cap?.Plugins?.Http;
     if (cap?.isNativePlatform?.() && http?.request) {
       try {
-        const method = String(init?.method || 'GET').toUpperCase();
+        const headers = new Headers(init?.headers || {});
+        const tok = this.pairToken();
+        if (tok) headers.set('X-RVT-Auth', tok);
         const headerObj: Record<string, string> = {};
         headers.forEach((v, k) => { headerObj[k] = v; });
 
@@ -215,27 +190,23 @@ export class ApiService {
       }
     }
 
-    // Standard browser fetch
-    const opts = {
-      cache: 'no-store' as const,
-      ...init,
-      headers
-    };
-
-    const res = await fetch(target, opts);
-    const text = await res.text();
-    let data: unknown = {};
+    // Standard and Tauri path utilizing HttpClient
     try {
-      data = JSON.parse(text);
-    } catch (_) {
-      data = { text };
+      const httpHeaders = new HttpHeaders(init?.headers as any || {});
+      const body = init?.body;
+      const response = this.http.request<T>(method, target, {
+        body,
+        headers: httpHeaders,
+        responseType: 'json',
+        observe: 'body'
+      });
+      return await firstValueFrom(response);
+    } catch (err: any) {
+      if (err && typeof err === 'object' && 'status' in err) {
+        throw new Error(this.errorMessage(err.error, `HTTP ${err.status}`));
+      }
+      throw new Error(err.message || 'HTTP Request failed');
     }
-
-    if (!res.ok) {
-      throw new Error(this.errorMessage(data, `HTTP ${res.status}`));
-    }
-
-    return data as T;
   }
 
   async download(path: string, filename: string): Promise<void> {

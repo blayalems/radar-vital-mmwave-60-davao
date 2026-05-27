@@ -1,4 +1,4 @@
-import { Injectable, signal, effect, inject } from '@angular/core';
+import { Injectable, effect, inject } from '@angular/core';
 import {
   AlertEvent,
   AlertSeverity,
@@ -10,9 +10,15 @@ import {
   SetupState,
   SnapshotRecord,
   SessionSignoff,
-  ThemeId
+  ThemeId,
+  StorageScope
 } from '../models/rvt.models';
-import { PersistenceService, StorageScope } from './persistence.service';
+import { PersistenceService } from './persistence.service';
+import { DynamicColorService } from './dynamic-color.service';
+import { UiStore } from './stores/ui.store';
+import { SessionStore } from './stores/session.store';
+import { AlertStore } from './stores/alert.store';
+import { TelemetryStore } from './stores/telemetry.store';
 
 export interface SubjectProfile {
   label: string;
@@ -65,89 +71,78 @@ export const DEFAULT_SUBJECT_PROFILES: Record<string, SubjectProfile> = {
 })
 export class StateService {
   private readonly persistence = inject(PersistenceService);
+  private readonly dynamicColor = inject(DynamicColorService);
+  private readonly uiStore = inject(UiStore);
+  private readonly sessionStore = inject(SessionStore);
+  private readonly alertStore = inject(AlertStore);
+  private readonly telemetryStore = inject(TelemetryStore);
+
   private activeStorageScope: StorageScope | '' = '';
   private scopedHydrated = false;
   private hydrationGeneration = 0;
+
   // Global View & Navigation State
-  currentView = signal<string>('live');
-  activeTab = signal<string>('tab-overview');
-  commandPaletteOpen = signal<boolean>(false);
-  alertsOpen = signal<boolean>(false);
+  currentView = this.uiStore.currentView;
+  activeTab = this.uiStore.activeTab;
+  commandPaletteOpen = this.uiStore.commandPaletteOpen;
+  alertsOpen = this.uiStore.alertsOpen;
 
   // Connection/Control states
-  ctlOn = signal<boolean>(false);
-  ctlStatus = signal<ControlStatus | null>(null);
-  ctlStopPending = signal<boolean>(false);
-  paused = signal<boolean>(false);
+  ctlOn = this.sessionStore.ctlOn;
+  ctlStatus = this.sessionStore.ctlStatus;
+  ctlStopPending = this.sessionStore.ctlStopPending;
+  paused = this.sessionStore.paused;
   
   // Theme & Accessibility
-  theme = signal<ThemeId>('dark');
-  density = signal<DensityId>('comfortable');
-  fontScale = signal<number>(1);
-  zenMode = signal<boolean>(false);
+  theme = this.uiStore.theme;
+  density = this.uiStore.density;
+  fontScale = this.uiStore.fontScale;
+  zenMode = this.uiStore.zenMode;
 
   // Audio Alerts
-  audioAlertsEnabled = signal<boolean>(false);
-  audioVolume = signal<number>(0.7);
-  voiceAlertsEnabled = signal<boolean>(false);
+  audioAlertsEnabled = this.alertStore.audioAlertsEnabled;
+  audioVolume = this.alertStore.audioVolume;
+  voiceAlertsEnabled = this.alertStore.voiceAlertsEnabled;
 
   // Buffer & Performance
-  liveBufferSeconds = signal<number>(60);
-  maxChartPoints = signal<number>(3600);
+  liveBufferSeconds = this.telemetryStore.liveBufferSeconds;
+  maxChartPoints = this.telemetryStore.maxChartPoints;
 
   // Demo & Stale Settings
-  demoMode = signal<boolean>(false);
-  autoDemoOnDisconnect = signal<boolean>(false);
-  autoDemoActive = signal<boolean>(false);
-  freezeOnStale = signal<boolean>(true);
+  demoMode = this.uiStore.demoMode;
+  autoDemoOnDisconnect = this.uiStore.autoDemoOnDisconnect;
+  autoDemoActive = this.uiStore.autoDemoActive;
+  freezeOnStale = this.alertStore.freezeOnStale;
 
   // KPI Thresholds & Profiles
-  kpiThresholds = signal<KpiThresholds>({ ...DEFAULT_KPI_THRESHOLDS });
-  activeSubjectProfileId = signal<string>('adult_default');
+  kpiThresholds = this.alertStore.kpiThresholds;
+  activeSubjectProfileId = this.sessionStore.activeSubjectProfileId;
 
   // Setup Details
-  setup = signal<SetupState>({
-    duration_s: 30,
-    customDuration: 30,
-    customUnit: 's',
-    radar_port: 'COM10',
-    ble_address: '10:22:33:9E:8F:63',
-    ble_profile: 'ailink_oximeter',
-    notify_char: '0000ffe2-0000-1000-8000-00805f9b34fb',
-    subject_label: '',
-    operator_label: '',
-    station_label: 'Lab · Station 3',
-    subject_profile_id: 'adult_default',
-    skip_countdown: false
-  });
+  setup = this.sessionStore.setup;
 
   // Data variables
-  lastPayload = signal<LivePayload | null>(null);
-  lastLivePayload = signal<LivePayload | null>(null);
-  liveReceivedAt = signal<number | null>(null);
-  telemetryStale = signal<boolean>(true);
-  snaps = signal<SnapshotRecord[]>([]);
-  snapNotes = signal<Record<string, string>>({});
-  activeSnapNoteId = signal<string | null>(null);
-  alertHistory = signal<AlertEvent[]>([]);
-  alertPins = signal<string[]>([]);
-  sessionNotes = signal<Record<string, string>>({});
-  sessionSignoffs = signal<Record<string, SessionSignoff>>({});
-  sessionItems = signal<SessionRecord[]>([]);
-  currentSessionId = signal<string | null>(null);
-  sessionActive = signal<boolean>(false);
+  lastPayload = this.telemetryStore.lastPayload;
+  lastLivePayload = this.telemetryStore.lastLivePayload;
+  liveReceivedAt = this.telemetryStore.liveReceivedAt;
+  telemetryStale = this.telemetryStore.telemetryStale;
+  snaps = this.telemetryStore.snaps;
+  snapNotes = this.telemetryStore.snapNotes;
+  activeSnapNoteId = this.telemetryStore.activeSnapNoteId;
+  alertHistory = this.alertStore.alertHistory;
+  alertPins = this.alertStore.alertPins;
+  sessionNotes = this.sessionStore.sessionNotes;
+  sessionSignoffs = this.sessionStore.sessionSignoffs;
+  sessionItems = this.sessionStore.sessionItems;
+  currentSessionId = this.sessionStore.currentSessionId;
+  sessionActive = this.sessionStore.sessionActive;
 
   // Sparkline buffer for live KPIs
-  spark = signal<{ hr: number[]; rr: number[]; fps: number[]; dist: number[] }>({
-    hr: [],
-    rr: [],
-    fps: [],
-    dist: []
-  });
+  spark = this.telemetryStore.spark;
 
   // Haptic feedback mode
-  hxMode = signal<HapticMode>('auto');
-  waveformSeekAt = signal<number | null>(null);
+  hxMode = this.uiStore.hxMode;
+  waveformSeekAt = this.telemetryStore.waveformSeekAt;
 
   constructor() {
     this.loadFromStorage();
@@ -165,6 +160,8 @@ export class StateService {
     effect(() => {
       localStorage.setItem('rvt-theme', this.theme());
       document.documentElement.dataset['theme'] = this.theme();
+      // Re-apply dynamic color when base theme changes (light ↔ dark)
+      this.dynamicColor.reapply();
     });
 
     effect(() => {
@@ -375,82 +372,26 @@ export class StateService {
   }
 
   pushAlert(message: string, severity: AlertSeverity = 'warn', source = 'telemetry', seekTimestamp?: number) {
-    const now = Date.now();
-    const latest = this.alertHistory()[0];
-    if (latest?.msg === message && now - latest.ts < 15_000) return;
-    this.alertHistory.update(items => [
-      { id: `alert_${now}`, ts: now, msg: message, severity, source, seekTimestamp },
-      ...items
-    ].slice(0, 80));
+    this.alertStore.pushAlert(message, severity, source, seekTimestamp);
   }
 
   toggleAlertPin(alertId: string) {
-    this.alertPins.update(items => items.includes(alertId)
-      ? items.filter(item => item !== alertId)
-      : [...items, alertId]);
+    this.alertStore.toggleAlertPin(alertId);
   }
 
   dismissAlert(alertId: string) {
-    this.alertHistory.update(items => items.map(item => item.id === alertId
-      ? { ...item, dismissed: true }
-      : item));
-    this.alertPins.update(items => items.filter(item => item !== alertId));
+    this.alertStore.dismissAlert(alertId);
   }
 
   snoozeAlert(alertId: string, minutes = 10) {
-    const until = Date.now() + minutes * 60_000;
-    this.alertHistory.update(items => items.map(item => item.id === alertId
-      ? { ...item, snoozedUntil: until }
-      : item));
+    this.alertStore.snoozeAlert(alertId, minutes);
   }
 
   clearAlerts() {
-    this.alertHistory.set([]);
-    this.alertPins.set([]);
+    this.alertStore.clearAlerts();
   }
 
-  // Helper vibration logic
   triggerHaptic(kind: string) {
-    if (this.hxMode() === 'off') return;
-    if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return;
-
-    const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const sessionActive = this.sessionActive() && !this.ctlStopPending();
-
-    // Skip haptics during session except critical ones (destructiveAccept added to whitelist)
-    if (sessionActive && !['safety', 'confirm-stop', 'reject', 'destructiveAccept'].includes(kind)) return;
-    if (reducedMotion && kind !== 'safety') return;
-
-    try {
-      switch (kind) {
-        case 'tap':
-          navigator.vibrate(10);
-          break;
-        case 'confirm':
-          navigator.vibrate(15);
-          break;
-        case 'success':
-          navigator.vibrate([12, 40, 12]);
-          break;
-        case 'warn':
-          navigator.vibrate([8, 60, 8]);
-          break;
-        case 'safety':
-        case 'reject':
-          navigator.vibrate([20, 40, 20]);
-          break;
-        case 'destructiveAccept':
-          navigator.vibrate([40, 80, 40]);
-          break;
-        case 'sessionStart':
-          navigator.vibrate([18, 30, 18]);
-          break;
-        case 'sessionStop':
-          navigator.vibrate(22);
-          break;
-        default:
-          navigator.vibrate(10);
-      }
-    } catch (_) {}
+    this.uiStore.triggerHaptic(kind, this.sessionActive(), this.ctlStopPending());
   }
 }

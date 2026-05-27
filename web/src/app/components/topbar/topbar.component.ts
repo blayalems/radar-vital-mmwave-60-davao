@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -20,7 +19,6 @@ import { CommandPaletteComponent } from '../command-palette/command-palette.comp
 @Component({
   selector: 'app-topbar',
   imports: [
-    CommonModule,
     RouterModule,
     MatDialogModule,
     MatButtonModule,

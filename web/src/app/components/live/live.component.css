@@ -95,12 +95,15 @@
   box-shadow: none;
   position: relative;
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition: transform var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
+             border-color var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
+             box-shadow var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));
 }
 
 .kpi-metric-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   border-color: var(--md-sys-color-outline, #94a3b8);
+  box-shadow: var(--md-sys-elevation-2, 0 4px 12px rgba(0, 0, 0, 0.10));
 }
 
 .kpi-card-header {
@@ -585,9 +588,8 @@
   flex-wrap: wrap;
 }
 
-:host ::ng-deep .section-header-row > .mat-mdc-card-header-text {
-  display: none;
-}
+/* The section-header-row internal text slot is hidden via global styles.scss
+   to avoid deprecated ::ng-deep encapsulation piercing. */
 
 .section-title-group {
   align-items: center;
@@ -894,19 +896,7 @@
     flex: 1 1 0;
   }
 
-  :host ::ng-deep .live-tabs-group .mat-mdc-tab {
-    flex: 1 1 0;
-    min-width: 0;
-    padding-inline: 5px;
-  }
-
-  :host ::ng-deep .live-tabs-group .mat-mdc-tab-header-pagination {
-    display: none;
-  }
-
-  :host ::ng-deep .live-tabs-group .mat-mdc-tab-label-container {
-    overflow: visible;
-  }
+  /* Tab overrides moved to global styles.scss to avoid deprecated ::ng-deep. */
 
   .bias-row {
     grid-template-columns: 1fr;

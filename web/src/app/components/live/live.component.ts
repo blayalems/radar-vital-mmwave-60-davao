@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect, HostListener, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { DatePipe, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
@@ -18,6 +18,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { firstValueFrom } from 'rxjs';
 
 import { StateService } from '../../services/state.service';
@@ -38,7 +39,8 @@ interface BiasBucket {
 @Component({
   selector: 'app-live',
   imports: [
-    CommonModule,
+    DatePipe,
+    UpperCasePipe,
     FormsModule,
     MatCardModule,
     MatTabsModule,
@@ -52,7 +54,8 @@ interface BiasBucket {
     MatSnackBarModule,
     MatButtonToggleModule,
     MatChipsModule,
-    MatProgressBarModule
+    MatProgressBarModule,
+    MatProgressSpinnerModule
   ],
   templateUrl: './live.component.html',
   styleUrl: './live.component.css',

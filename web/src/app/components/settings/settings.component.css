@@ -51,15 +51,18 @@
 .settings-card {
   background: var(--md-sys-color-surface-container) !important;
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 16px !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: var(--md-sys-shape-corner-large, 16px) !important;
+  transition: transform var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
+             border-color var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
+             box-shadow var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));
   overflow: hidden;
 }
 
 .settings-card:hover {
   transform: translateY(-2px);
   border-color: var(--md-sys-color-primary);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 12px 1px color-mix(in srgb, var(--md-sys-color-shadow, #000) 16%, transparent),
+              0 3px 14px 2px color-mix(in srgb, var(--md-sys-color-shadow, #000) 12%, transparent);
 }
 
 .card-avatar {
@@ -261,8 +264,6 @@ mat-button-toggle {
 }
 
 .test-btn {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
-  color: white !important;
   border-radius: 20px !important;
 }
 
@@ -292,6 +293,121 @@ mat-button-toggle {
 .done-btn {
   border-radius: 20px !important;
   padding: 0 2rem !important;
-  background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%) !important;
-  color: white !important;
+}
+
+/* Material You Dynamic Color card */
+.dynamic-color-card {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--md-sys-color-tertiary, #00a496) 8%, transparent), transparent 50%),
+    var(--md-sys-color-surface-container) !important;
+}
+
+.card-avatar-dynamic {
+  color: var(--md-sys-color-tertiary) !important;
+  background: var(--md-sys-color-tertiary-container) !important;
+}
+
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.color-picker-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+}
+
+.color-preview-swatch {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--md-sys-color-outline-variant);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: transform var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.color-preview-swatch:hover {
+  transform: scale(1.1);
+}
+
+.color-input {
+  width: 48px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 0;
+}
+
+.color-input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.color-input::-webkit-color-swatch {
+  border: 2px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+}
+
+.color-input::-moz-color-swatch {
+  border: 2px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+}
+
+.preset-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.swatch-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  background: var(--swatch-color);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
+             border-color var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
+             box-shadow var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  outline: none;
+}
+
+.swatch-btn:hover {
+  transform: scale(1.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.swatch-btn:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 3px;
+}
+
+.swatch-btn.active {
+  border-color: var(--md-sys-color-on-surface);
+  box-shadow: 0 0 0 2px var(--md-sys-color-surface), 0 0 0 4px var(--md-sys-color-on-surface);
+  transform: scale(1.08);
+}
+
+.swatch-check {
+  color: #fff;
+  font-size: 20px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }

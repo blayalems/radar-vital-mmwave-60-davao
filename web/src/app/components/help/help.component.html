@@ -37,7 +37,7 @@
     </nav>
     <mat-chip-set class="category-chips" aria-label="Help categories">
       @for (category of categories; track category.id) {
-        <button mat-stroked-button type="button" [class.active]="activeCategory() === category.id" (click)="setCategory(category.id)">
+        <button mat-flat-button type="button" [class.active]="activeCategory() === category.id" (click)="setCategory(category.id)" class="mat-tonal-button">
           <mat-icon>{{ category.icon }}</mat-icon>{{ category.label }}
         </button>
       }
@@ -72,7 +72,7 @@
             <strong>Field dictionary and trainer guidance</strong>
             <span>{{ additionalTopicCount() }} additional reference topics are available from the trainer schema.</span>
           </div>
-          <button mat-stroked-button type="button" (click)="revealAllTopics()">Browse all topics</button>
+          <button mat-flat-button type="button" (click)="revealAllTopics()" class="mat-tonal-button">Browse all topics</button>
         </mat-card>
       }
       @if (!hasResults()) {
@@ -86,11 +86,11 @@
         <mat-card-content class="recovery-actions-list">
           <p>Verify source mode and preflight before relying on live readings.</p>
           <button mat-flat-button type="button" (click)="openPreflight()"><mat-icon>fact_check</mat-icon>Run preflight</button>
-          <button mat-stroked-button type="button" (click)="reconnect()"><mat-icon>sync</mat-icon>Reconnect trainer</button>
-          <button mat-stroked-button type="button" routerLink="/settings"><mat-icon>settings</mat-icon>Source settings</button>
-          <button mat-stroked-button type="button" routerLink="/report"><mat-icon>assignment</mat-icon>Open reports</button>
-          <button mat-stroked-button type="button" (click)="openShortcuts()"><mat-icon>keyboard</mat-icon>Keyboard shortcuts</button>
-          <button mat-stroked-button type="button" (click)="copySupportSummary()"><mat-icon>content_copy</mat-icon>Copy support summary</button>
+          <button mat-flat-button type="button" (click)="reconnect()" class="mat-tonal-button"><mat-icon>sync</mat-icon>Reconnect trainer</button>
+          <button mat-flat-button type="button" routerLink="/settings" class="mat-tonal-button"><mat-icon>settings</mat-icon>Source settings</button>
+          <button mat-flat-button type="button" routerLink="/report" class="mat-tonal-button"><mat-icon>assignment</mat-icon>Open reports</button>
+          <button mat-flat-button type="button" (click)="openShortcuts()" class="mat-tonal-button"><mat-icon>keyboard</mat-icon>Keyboard shortcuts</button>
+          <button mat-flat-button type="button" (click)="copySupportSummary()" class="mat-tonal-button"><mat-icon>content_copy</mat-icon>Copy support summary</button>
         </mat-card-content>
       </mat-card>
 

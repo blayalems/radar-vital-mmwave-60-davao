@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, HostListener, ViewChild, AfterViewInit, effect } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { KeyValuePipe, DatePipe, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 
@@ -25,7 +25,9 @@ import { BleScanDevice, PreflightCheck, SerialPortRecord, SessionRecord, Subject
 @Component({
   selector: 'app-home',
   imports: [
-    CommonModule,
+    KeyValuePipe,
+    DatePipe,
+    UpperCasePipe,
     FormsModule,
     RouterModule,
     MatCardModule,

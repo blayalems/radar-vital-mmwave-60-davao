@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
+export type { StorageScope } from '../models/rvt.models';
 
-export type StorageScope = 'demo' | 'live' | 'legacy-unclassified';
 export type PersistenceStore =
   | 'snapshots'
   | 'session-notes'

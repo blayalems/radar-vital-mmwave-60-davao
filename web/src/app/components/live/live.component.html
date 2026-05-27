@@ -22,13 +22,13 @@
 
       <div class="command-actions">
         <!-- PAUSE / RESUME BUTTON -->
-        <button mat-stroked-button (click)="togglePause()" class="cmd-btn">
+        <button mat-flat-button (click)="togglePause()" class="mat-tonal-button cmd-btn">
           <mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon>
           {{ state.paused() ? 'Resume Stream' : 'Pause Stream' }}
         </button>
 
         <!-- PIN SNAPSHOT -->
-        <button mat-stroked-button (click)="captureSnapshot()" [disabled]="!state.lastPayload()" class="cmd-btn">
+        <button mat-flat-button (click)="captureSnapshot()" [disabled]="!state.lastPayload()" class="mat-tonal-button cmd-btn">
           <mat-icon>bookmark_add</mat-icon>
           Pin Snapshot
         </button>
@@ -131,7 +131,7 @@
                 <mat-card-subtitle>Operator observations logged directly to the report.</mat-card-subtitle>
               </div>
             </div>
-            <button mat-stroked-button type="button" (click)="exportSessionNotes()" aria-label="Export session notes as text">
+            <button mat-flat-button type="button" (click)="exportSessionNotes()" aria-label="Export session notes as text" class="mat-tonal-button">
               <mat-icon>text_snippet</mat-icon>Export TXT
             </button>
           </mat-card-header>
@@ -144,11 +144,11 @@
             
             <div class="quick-tags-toolbar">
               <span class="toolbar-label">Quick Tags:</span>
-              <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Motion')"><mat-icon>directions_run</mat-icon>Motion</button>
-              <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Position change')"><mat-icon>accessibility</mat-icon>Position</button>
-              <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Cough')"><mat-icon>sick</mat-icon>Cough</button>
-              <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Speaking')"><mat-icon>record_voice_over</mat-icon>Speaking</button>
-              <button mat-stroked-button class="tag-btn" (click)="addQuickTag('Ref Issue')"><mat-icon>bluetooth_disabled</mat-icon>Ref Issue</button>
+              <button mat-flat-button class="mat-tonal-button tag-btn" (click)="addQuickTag('Motion')"><mat-icon>directions_run</mat-icon>Motion</button>
+              <button mat-flat-button class="mat-tonal-button tag-btn" (click)="addQuickTag('Position change')"><mat-icon>accessibility</mat-icon>Position</button>
+              <button mat-flat-button class="mat-tonal-button tag-btn" (click)="addQuickTag('Cough')"><mat-icon>sick</mat-icon>Cough</button>
+              <button mat-flat-button class="mat-tonal-button tag-btn" (click)="addQuickTag('Speaking')"><mat-icon>record_voice_over</mat-icon>Speaking</button>
+              <button mat-flat-button class="mat-tonal-button tag-btn" (click)="addQuickTag('Ref Issue')"><mat-icon>bluetooth_disabled</mat-icon>Ref Issue</button>
               <button mat-flat-button class="tag-btn" (click)="recordObservation()" [disabled]="!sessionNotesInput.trim()"><mat-icon>save</mat-icon>Record Note</button>
             </div>
             <div class="custom-tag-toolbar">
@@ -156,7 +156,7 @@
                 <mat-label>Custom tag</mat-label>
                 <input matInput [(ngModel)]="customTagInput" maxlength="80" (keyup.enter)="addCustomTag()">
               </mat-form-field>
-              <button mat-stroked-button type="button" (click)="addCustomTag()" [disabled]="!customTagInput.trim()">
+              <button mat-flat-button type="button" (click)="addCustomTag()" [disabled]="!customTagInput.trim()" class="mat-tonal-button">
                 <mat-icon>add</mat-icon>Add Tag
               </button>
             </div>
@@ -172,7 +172,7 @@
                 <mat-card-subtitle>Spatial telemetry and live vital context from the radar module.</mat-card-subtitle>
               </div>
             </div>
-            <button mat-stroked-button type="button" (click)="captureSnapshot()" [disabled]="!state.lastPayload()">
+            <button mat-flat-button type="button" (click)="captureSnapshot()" [disabled]="!state.lastPayload()" class="mat-tonal-button">
               <mat-icon>bookmark_add</mat-icon>Pin Frame
             </button>
           </mat-card-header>
@@ -317,7 +317,7 @@
               <mat-card-title>Real-Time Phase Waveforms</mat-card-title>
               <mat-card-subtitle>Live breath_phase and heart_phase outputs parsed from module telemetry feed.</mat-card-subtitle>
             </div>
-            <button mat-stroked-button type="button" (click)="resetTrendRange()">
+            <button mat-flat-button type="button" (click)="resetTrendRange()" class="mat-tonal-button">
               <mat-icon>restart_alt</mat-icon>Reset Window
             </button>
           </mat-card-header>
@@ -450,7 +450,7 @@
             </div>
             <div class="trend-actions">
               <span class="range-caption">{{ trendRangeLabel() }}</span>
-              <button mat-icon-button type="button" aria-label="Reset respiration chart window" (click)="resetTrendRange()"><mat-icon>restart_alt</mat-icon></button>
+              <button mat-flat-button type="button" aria-label="Reset respiration chart window" (click)="resetTrendRange()" class="mat-tonal-button"><mat-icon>restart_alt</mat-icon></button>
               <button mat-icon-button type="button" aria-label="Download respiration trend image" (click)="downloadChart(rrTrendCanvas, 'respiration_trend')"><mat-icon>download</mat-icon></button>
             </div>
           </mat-card-header>
@@ -539,7 +539,7 @@
                 <mat-icon>add</mat-icon>
                 Pin Current Frame
               </button>
-              <button mat-stroked-button color="warn" (click)="clearAllSnaps()" [disabled]="state.snaps().length === 0">
+              <button mat-flat-button color="warn" (click)="clearAllSnaps()" [disabled]="state.snaps().length === 0" class="mat-tonal-button">
                 <mat-icon>delete_sweep</mat-icon>
                 Clear All
               </button>
@@ -654,7 +654,7 @@
                 <mat-card-title>Active Enforcement Logs</mat-card-title>
                 <mat-card-subtitle>Real-time drops and recovery events.</mat-card-subtitle>
               </div>
-              <button mat-stroked-button type="button" [matMenuTriggerFor]="auditExportMenu">
+              <button mat-flat-button type="button" [matMenuTriggerFor]="auditExportMenu" class="mat-tonal-button">
                 <mat-icon>download</mat-icon>Export
               </button>
               <mat-menu #auditExportMenu="matMenu">

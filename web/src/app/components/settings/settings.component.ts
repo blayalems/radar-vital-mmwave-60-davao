@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -17,12 +16,12 @@ import { Router } from '@angular/router';
 import { StateService, DEFAULT_KPI_THRESHOLDS, KPI_THRESHOLD_META, KpiThresholds } from '../../services/state.service';
 import { AudioService } from '../../services/audio.service';
 import { ApiService } from '../../services/api.service';
+import { DynamicColorService } from '../../services/dynamic-color.service';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 
 @Component({
   selector: 'app-settings',
   imports: [
-    CommonModule,
     FormsModule,
     MatCardModule,
     MatSlideToggleModule,
@@ -43,6 +42,7 @@ export class SettingsComponent {
   protected readonly state = inject(StateService);
   protected readonly audio = inject(AudioService);
   protected readonly api = inject(ApiService);
+  protected readonly dynamicColor = inject(DynamicColorService);
   private readonly router = inject(Router);
   protected readonly Math = Math;
   
@@ -53,6 +53,28 @@ export class SettingsComponent {
   protected readonly endpointInput = signal(this.api.currentApiBase());
   protected readonly pinInput = signal('');
   protected readonly connectionBusy = signal(false);
+
+  // Material You preset swatches
+  protected readonly presetColors: { hex: string; name: string }[] = [
+    { hex: '#0061a4', name: 'Azure' },
+    { hex: '#6750a4', name: 'Purple' },
+    { hex: '#006c4c', name: 'Green' },
+    { hex: '#984061', name: 'Rose' },
+    { hex: '#7c5800', name: 'Gold' },
+    { hex: '#006874', name: 'Teal' },
+    { hex: '#ba1a1a', name: 'Red' },
+    { hex: '#5d5f5f', name: 'Neutral' },
+  ];
+
+  onSourceColorInput(event: Event): void {
+    const hex = (event.target as HTMLInputElement).value;
+    this.dynamicColor.setSourceColor(hex);
+  }
+
+  selectPresetColor(hex: string): void {
+    this.dynamicColor.setSourceColor(hex);
+    this.state.triggerHaptic('tap');
+  }
 
   testSound() {
     // Temporarily ensure audioAlertsEnabled is true for testing if it was off, then trigger beep
@@ -214,6 +236,8 @@ export class SettingsComponent {
       this.state.hxMode.set('auto');
       this.state.activeSubjectProfileId.set('adult_default');
       this.state.kpiThresholds.set({ ...DEFAULT_KPI_THRESHOLDS });
+      this.dynamicColor.setEnabled(false);
+      this.dynamicColor.setSourceColor('#0061a4');
       
       this.state.triggerHaptic('destructiveAccept');
     }

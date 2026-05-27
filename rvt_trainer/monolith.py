@@ -6784,11 +6784,17 @@ class _ControlHandler(SimpleHTTPRequestHandler):
 
         # Serve compiled Angular chunks and assets from www/
         clean_name = path.lstrip("/")
-        if ".." not in clean_name and not clean_name.startswith(".rvt_tls"):
-            www_target = _REPO_ROOT / "www" / clean_name
-            if www_target.is_file():
-                self._send_bytes(200, www_target.read_bytes(), _content_type_for_asset(www_target))
-                return
+        www_root = (_REPO_ROOT / "www").resolve()
+        try:
+            www_target = (www_root / clean_name).resolve()
+            www_target.relative_to(www_root)
+            is_safe = True
+        except ValueError:
+            is_safe = False
+
+        if is_safe and not clean_name.startswith(".rvt_tls") and www_target.is_file():
+            self._send_bytes(200, www_target.read_bytes(), _content_type_for_asset(www_target))
+            return
 
         self._send_json(404, {"ok": False, "error": {"code": "NOT_FOUND", "message": "public resource not found"}})
 

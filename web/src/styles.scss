@@ -562,3 +562,39 @@ app-live .section-header-row > .mat-mdc-card-header-text {
     overflow: visible;
   }
 }
+
+/* Material 3 Tonal Button implementation mapping */
+.mat-mdc-flat-button.mat-tonal-button {
+  background-color: var(--md-sys-color-secondary-container, #e8def8) !important;
+  color: var(--md-sys-color-on-secondary-container, #1d192b) !important;
+  font-family: inherit;
+  border-radius: 100px;
+}
+
+.mat-mdc-flat-button.mat-tonal-button:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--md-sys-color-secondary-container, #e8def8) 92%, var(--md-sys-color-on-secondary-container, #1d192b)) !important;
+}
+
+.mat-mdc-flat-button.mat-tonal-button:not(:disabled):focus-visible {
+  background-color: color-mix(in srgb, var(--md-sys-color-secondary-container, #e8def8) 88%, var(--md-sys-color-on-secondary-container, #1d192b)) !important;
+  outline: 2px solid var(--md-sys-color-primary, #6750a4) !important;
+}
+
+.mat-mdc-flat-button.mat-tonal-button[color="warn"] {
+  background-color: var(--md-sys-color-error-container, #f9dedc) !important;
+  color: var(--md-sys-color-on-error-container, #410e0b) !important;
+}
+
+.mat-mdc-flat-button.mat-tonal-button[color="warn"]:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--md-sys-color-error-container, #f9dedc) 92%, var(--md-sys-color-on-error-container, #410e0b)) !important;
+}
+
+.mat-mdc-flat-button.mat-tonal-button[color="primary"] {
+  background-color: var(--md-sys-color-primary-container, #eaddff) !important;
+  color: var(--md-sys-color-on-primary-container, #21005d) !important;
+}
+
+.mat-mdc-flat-button.mat-tonal-button[color="primary"]:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--md-sys-color-primary-container, #eaddff) 92%, var(--md-sys-color-on-primary-container, #21005d)) !important;
+}
+

@@ -46,15 +46,15 @@
   }
 </mat-dialog-content>
 <mat-dialog-actions align="end">
-  <button mat-tonal-button type="button" (click)="testAlert()">Test alert</button>
-  <button mat-tonal-button type="button" [matMenuTriggerFor]="alertsExportMenu" [disabled]="state.alertHistory().length === 0">
+  <button mat-flat-button type="button" (click)="testAlert()" class="mat-tonal-button">Test alert</button>
+  <button mat-flat-button type="button" [matMenuTriggerFor]="alertsExportMenu" [disabled]="state.alertHistory().length === 0" class="mat-tonal-button">
     <mat-icon>download</mat-icon>Export
   </button>
   <mat-menu #alertsExportMenu="matMenu">
     <button mat-menu-item type="button" (click)="exportHistory('json')"><mat-icon>data_object</mat-icon>Alert history JSON</button>
     <button mat-menu-item type="button" (click)="exportHistory('csv')"><mat-icon>table_view</mat-icon>Alert history CSV</button>
   </mat-menu>
-  <button mat-tonal-button type="button" (click)="acknowledgeVisible()" [disabled]="alerts().length === 0">Acknowledge visible</button>
+  <button mat-flat-button type="button" (click)="acknowledgeVisible()" [disabled]="alerts().length === 0" class="mat-tonal-button">Acknowledge visible</button>
   <button mat-button class="clear-alerts" type="button" (click)="state.clearAlerts()" [disabled]="alerts().length === 0">Clear history</button>
   <button mat-flat-button type="button" mat-dialog-close>Done</button>
 </mat-dialog-actions>

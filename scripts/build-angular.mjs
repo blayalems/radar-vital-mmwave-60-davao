@@ -90,9 +90,20 @@ async function main() {
     }
     inlinedScripts.add(jsPath);
     console.log(`Inlining JS bundle: ${jsPath}`);
-    const jsContent = await fs.readFile(path.join(WWW, jsPath), 'utf8');
+    let jsContent = '';
+    try {
+      console.log(`Bundling JS bundle with esbuild to resolve all chunks: ${jsPath}`);
+      const bundledPath = path.join(WWW, `bundled-${path.basename(jsPath)}`);
+      execSync(`npx esbuild "${path.join(WWW, jsPath)}" --bundle --allow-overwrite --outfile="${bundledPath}" --format=esm`, { cwd: ROOT, stdio: 'ignore' });
+      jsContent = await fs.readFile(bundledPath, 'utf8');
+    } catch (e) {
+      console.warn(`Esbuild bundling failed or skipped for ${jsPath}, falling back to direct read.`);
+      jsContent = await fs.readFile(path.join(WWW, jsPath), 'utf8');
+    }
     indexHtml = indexHtml.replace(fullTag, `<script type="module">\n${jsContent}\n</script>`);
   }
+  // Remove unused modulepreload link tags since all JS chunks are fully bundled by esbuild
+  indexHtml = indexHtml.replace(/<link[^>]*rel="modulepreload"[^>]*>/g, '');
 
   // Post-build validation assertions: Verify that no local un-inlined stylesheets or scripts remain in the monolith
   const remainingLinks = Array.from(indexHtml.matchAll(linkRegex)).filter(match => {

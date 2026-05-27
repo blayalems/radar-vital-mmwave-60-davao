@@ -5,6 +5,20 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-05-28 — PR blocker resolution, monolith self-containment & offline PWA fix (codex/mobile-first-dashboard-upABy)
+
+- **Resolved circular DI bootstrap**: Moved `rvtAuthInterceptor` and `rvtTauriInterceptor` to dedicated files under `web/src/app/services/interceptors/`; interceptors read `sessionStorage`/`localStorage` directly at call-time instead of injecting `ApiService`, eliminating `NullInjectorError` crashes.
+- **Secured path traversal**: Hardened `rvt_trainer/monolith.py` static asset handler with `.resolve().relative_to()` prefix validation against `www/` root.
+- **Restored monolith self-containment**: Reverted all feature routes in `app.routes.ts` from lazy `loadComponent` back to eager static imports; eliminated all external `chunk-*.js` references from the compiled monolith HTML. All routes now inline into a single self-contained document.
+- **Fixed offline PWA caching**: Added esbuild bundling step in `scripts/build-angular.mjs` to resolve and merge all Angular chunk modules into the main bundle before HTML inlining; modulepreload tags for non-existent chunks stripped. Offline load now renders `app-layout` without any chunk fetch failures.
+- **Fixed tonal buttons**: Replaced all `mat-tonal-button` directive usages with `mat-flat-button class="mat-tonal-button"` across all templates; added `.mat-mdc-flat-button.mat-tonal-button` global styles in `styles.scss`.
+- **Secured DI bootstrap**: Added `provideHttpClient()` + `provideHttpClientTesting()` to `api.service.spec.ts`.
+- **Hardened loading overlay**: 8-second hard ceiling fallback in `index.html` guards against permanent lockout; overlay fade gates on `document.fonts.ready`.
+- **Binary cleanup**: Untracked `.artifact-check/` APK/EXE/PNG artifacts from Git index; `.gitignore` updated.
+- **Verification**: Angular production build clean (zero errors); `npm run build:check` round-trip green; Vitest 18/18 passed; Playwright smoke **156/156 passed** across desktop, Pixel 7, iPhone 14, iPad viewports — including the previously-failing offline precache test on desktop and Pixel 7.
+
+
+
 ## Status snapshot
 
 | Workstream | Source-of-truth | Current state | Owner / last touched |

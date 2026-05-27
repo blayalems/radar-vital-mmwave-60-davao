@@ -36,3 +36,8 @@ sessions/
 .idea/
 *.swp
 .DS_Store
+
+# Binary build artifacts and checks
+.artifact-check/
+*.exe
+

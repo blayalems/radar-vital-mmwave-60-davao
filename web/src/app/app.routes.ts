@@ -1,5 +1,10 @@
 import { Routes } from '@angular/router';
 import { LayoutComponent } from './components/layout/layout.component';
+import { LiveComponent } from './components/live/live.component';
+import { HomeComponent } from './components/home/home.component';
+import { ReportComponent } from './components/report/report.component';
+import { HelpComponent } from './components/help/help.component';
+import { SettingsComponent } from './components/settings/settings.component';
 import { activeSessionGuard } from './guards/active-session.guard';
 
 export const routes: Routes = [
@@ -10,26 +15,27 @@ export const routes: Routes = [
       { path: '', redirectTo: 'live', pathMatch: 'full' },
       {
         path: 'home',
-        loadComponent: () => import('./components/home/home.component').then(m => m.HomeComponent)
+        component: HomeComponent
       },
       {
         path: 'live',
-        loadComponent: () => import('./components/live/live.component').then(m => m.LiveComponent),
+        component: LiveComponent,
         canDeactivate: [activeSessionGuard]
       },
       {
         path: 'report',
-        loadComponent: () => import('./components/report/report.component').then(m => m.ReportComponent)
+        component: ReportComponent
       },
       {
         path: 'help',
-        loadComponent: () => import('./components/help/help.component').then(m => m.HelpComponent)
+        component: HelpComponent
       },
       {
         path: 'settings',
-        loadComponent: () => import('./components/settings/settings.component').then(m => m.SettingsComponent)
+        component: SettingsComponent
       }
     ]
   },
   { path: '**', redirectTo: 'live' }
 ];
+

@@ -55,23 +55,31 @@
         }
       }, 150);
 
+      let removed = false;
+      function removeOverlay() {
+        if (removed) return;
+        removed = true;
+        clearInterval(interval);
+        if (loaderBar) loaderBar.style.width = '100%';
+        if (loaderStatus) loaderStatus.textContent = 'Console ready';
+        setTimeout(() => {
+          if (overlay) {
+            overlay.classList.add('fade-out');
+            setTimeout(() => {
+              if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+            }, 600);
+          }
+        }, 200);
+      }
+
       window.addEventListener('load', () => {
         Promise.all([
           document.fonts ? document.fonts.ready : Promise.resolve()
-        ]).then(() => {
-          clearInterval(interval);
-          if (loaderBar) loaderBar.style.width = '100%';
-          if (loaderStatus) loaderStatus.textContent = 'Console ready';
-          setTimeout(() => {
-            if (overlay) {
-              overlay.classList.add('fade-out');
-              setTimeout(() => {
-                if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-              }, 600);
-            }
-          }, 200);
-        });
+        ]).then(removeOverlay);
       });
+
+      // Hard fallback timeout of 8 seconds to prevent permanent lockout
+      setTimeout(removeOverlay, 8000);
     })();
   </script>
 </body>

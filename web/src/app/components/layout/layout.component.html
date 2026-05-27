@@ -10,7 +10,7 @@
   <div class="initial-loading-overlay" role="status" aria-live="polite">
     <mat-spinner diameter="28"></mat-spinner>
     <p>Detecting trainer connection...</p>
-    <button mat-tonal-button type="button" (click)="api.enableSandboxControlMode('Initial connection bypassed by operator')">
+    <button mat-flat-button type="button" (click)="api.enableSandboxControlMode('Initial connection bypassed by operator')" class="mat-tonal-button">
       Bypass to Sandbox Mode
     </button>
   </div>
@@ -93,7 +93,7 @@
     </nav>
 
     <div class="rail-foot">
-      <button mat-tonal-button class="r-item rail-action" (click)="openPalette()" aria-label="Command palette" title="Command palette (Ctrl+K)">
+      <button mat-flat-button class="mat-tonal-button r-item rail-action" (click)="openPalette()" aria-label="Command palette" title="Command palette (Ctrl+K)">
         <span class="r-ic"><span class="material-symbols-rounded">search</span></span><span class="r-label">Command</span>
       </button>
       
@@ -123,7 +123,7 @@
     }
 
     <!-- BOTTOM NAVIGATION (MOBILE) -->
-    <mat-navigation-bar class="bottom-nav" id="bottomNav" aria-label="Quick navigation">
+    <mat-navigation-bar class="bottom-nav" id="bottomNav" role="navigation" aria-label="Quick navigation">
       <a mat-navigation-tab routerLink="/home" routerLinkActive="active" aria-label="Home view">
         <span class="material-symbols-rounded" icon aria-hidden="true">home</span>
         <span label>Home</span>

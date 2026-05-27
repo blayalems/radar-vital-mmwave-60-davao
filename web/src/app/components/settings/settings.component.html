@@ -42,7 +42,7 @@
           <input matInput type="password" inputmode="numeric" maxlength="6" [ngModel]="pinInput()" (ngModelChange)="pinInput.set($event)" autocomplete="one-time-code">
           <mat-hint>Scan the trainer QR code or enter its one-time PIN. The issued token stays in this browser tab only.</mat-hint>
         </mat-form-field>
-        <button mat-tonal-button type="button" (click)="pairWithPin()" [disabled]="connectionBusy() || pinInput().length !== 6">
+        <button mat-flat-button type="button" (click)="pairWithPin()" [disabled]="connectionBusy() || pinInput().length !== 6" class="mat-tonal-button">
           <mat-icon>qr_code_2</mat-icon>Pair with PIN
         </button>
         <button mat-flat-button type="button" (click)="reconnectTrainer()" [disabled]="connectionBusy()">
@@ -183,8 +183,8 @@
       <mat-card-content>
         <p class="settings-help-text">Export or restore presentation and alert preferences. Pairing tokens and session data are excluded.</p>
         <div class="audio-actions">
-          <button mat-tonal-button type="button" (click)="exportPreferences()"><mat-icon>download</mat-icon>Export</button>
-          <button mat-tonal-button type="button" (click)="settingsFile.click()"><mat-icon>upload</mat-icon>Import</button>
+          <button mat-flat-button type="button" (click)="exportPreferences()" class="mat-tonal-button"><mat-icon>download</mat-icon>Export</button>
+          <button mat-flat-button type="button" (click)="settingsFile.click()" class="mat-tonal-button"><mat-icon>upload</mat-icon>Import</button>
           <input #settingsFile class="visually-hidden" type="file" accept="application/json" (change)="importPreferences($event)">
         </div>
       </mat-card-content>
@@ -258,7 +258,7 @@
         <p class="settings-help-text">Changes apply immediately to live KPI alerts and persist across monitoring sessions.</p>
         
         <div class="threshold-actions">
-          <button mat-tonal-button color="warn" (click)="resetThresholds()">Reset Thresholds</button>
+          <button mat-flat-button color="warn" (click)="resetThresholds()" class="mat-tonal-button">Reset Thresholds</button>
         </div>
       </mat-card-content>
     </mat-card>
@@ -323,7 +323,7 @@
   </div>
 
   <div class="settings-footer">
-    <button mat-tonal-button color="warn" (click)="resetAllDefaults()" class="reset-all-btn">Reset Dashboard Defaults</button>
+    <button mat-flat-button color="warn" (click)="resetAllDefaults()" class="mat-tonal-button reset-all-btn">Reset Dashboard Defaults</button>
     <button mat-flat-button color="primary" (click)="close()" class="done-btn">Done</button>
   </div>
 </div>

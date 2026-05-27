@@ -10,7 +10,7 @@ import { MatListModule } from '@angular/material/list';
 import { MatSidenavContainer, MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatNavigationBar, MatNavigationTab } from '@angular/material/navigation-bar';
+import { MatNavigationBar, MatNavigationTab } from '@app/navigation-bar';
 
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';

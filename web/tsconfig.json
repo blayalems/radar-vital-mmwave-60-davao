@@ -16,7 +16,7 @@
     "module": "preserve",
     "baseUrl": ".",
     "paths": {
-      "@angular/material/navigation-bar": ["src/app/navigation-bar/index.ts"]
+      "@app/navigation-bar": ["src/app/navigation-bar/index.ts"]
     }
   },
   "angularCompilerOptions": {

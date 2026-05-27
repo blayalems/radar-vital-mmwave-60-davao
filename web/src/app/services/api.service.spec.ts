@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApiService } from './api.service';
 import { StateService } from './state.service';
 import { PersistenceService } from './persistence.service';
@@ -17,6 +19,8 @@ describe('ApiService', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
         ApiService,
         StateService,
         { provide: PersistenceService, useValue: mockPersistence }

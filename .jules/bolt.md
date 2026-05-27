@@ -2,3 +2,7 @@
 ## 2024-05-18 - Template Loading Optimization
 **Learning:** Loading large static resources (like HTML templates) from disk on every request can cause significant I/O overhead (e.g., 5.7 seconds for 1000 iterations).
 **Action:** Use memory caching techniques like `@functools.lru_cache(maxsize=1)` for static or infrequently changing resources to improve performance.
+
+## 2025-02-23 - Avoid Repeated File System Access in Monolith Configuration
+**Learning:** Caching static file path resolution, especially those doing directory traversal during server requests, drastically cuts latency. Even minimal filesystem checks can accumulate latency rapidly in loops or high-frequency invocations.
+**Action:** When a path resolution or read does not change during application lifecycle, always wrap it with `functools.lru_cache(maxsize=1)` or store the result globally.

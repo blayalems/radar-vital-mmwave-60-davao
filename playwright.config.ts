@@ -27,7 +27,7 @@ export default defineConfig({
     { name: 'ipad',        use: { ...devices['iPad (gen 7)'] } }
   ],
   webServer: {
-    command: `${PYTHON} radar_vital_trainer_v12_for_v16_0.py serve --mock --control-port ${TRAINER_PORT} --host 127.0.0.1`,
+    command: `${PYTHON} radar_vital_trainer_v12_for_v16_0.py serve --mock --no-browser --control-port ${TRAINER_PORT} --host 127.0.0.1`,
     url: `${BASE_URL}/api/health`,
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe',

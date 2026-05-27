@@ -61,6 +61,15 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-27 - Integrate PRs #27-#35 against current main
+- Combined the requested security, trainer-cache/help-schema, Angular telemetry/UI, and legacy speech fixes while preserving the existing release-artifact workflow and Windows visual-baseline contract.
+- Resolved stale-branch overlap by discarding unrelated Linux snapshot/log churn, keeping the Playwright mock server non-interactive, stabilizing rapid custom-tag WebKit coverage, rebuilding the Angular-generated monolith from `web/`, and refreshing pre-existing stale Windows visual baselines.
+- Verification: `npm run build:check`; Angular unit tests (`18/18`); trainer `compileall`/`python -m rvt_trainer --help`; `python -m pytest -q tests` (`42/42`); Playwright smoke (`156/156`); iPhone diagnostic repeat stability (`5/5`); visual regression after Windows-baseline reconciliation (`96/96`). An untouched `origin/main` control run confirmed the stale visual mismatch before refresh.
+
+### 2026-05-27 - Fix: BUG-06 speech debounce wrapper destroys utterance settings
+- Replaced the buggy `rvt-bug06-speech-debounce-js.js` logic in `web-legacy/modules/patches/legacy-patches.js` with the correct `rvt-bug06-speech-utterance-preservation-js.js` logic.
+- Deleted the redundant and misplaced `rvt-bug06-speech-utterance-preservation-js.js` block that existed further down in the file, which also fixes the secondary bug where the late patch overwrote the speech ducking wrapper applied earlier.
+
 ### 2026-05-27 - Publish versioned APK and EXE prereleases after main updates
 - Extended `release-artifacts.yml` to build and publish Android and Windows installable assets after every accepted push to `main`, including merged pull requests.
 - Automated main releases now use incrementing `v<app-version>-main.<workflow-run>` prerelease tags and GitHub-generated release notes as the changelog; all publication paths stamp the semantic release version into APK/EXE assets plus an increasing APK version code.

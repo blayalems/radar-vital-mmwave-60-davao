@@ -5,7 +5,7 @@ import { StateService } from './state.service';
 import { ApiService } from './api.service';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class TelemetryService {
   private state = inject(StateService);
@@ -99,26 +99,26 @@ export class TelemetryService {
       const path = '/api/session/current/live_dashboard.json';
       const startMs = Date.now();
       const payload = await this.api.request<Partial<LivePayload>>(`${path}?t=${Date.now()}`);
-      
+
       const latency = Date.now() - startMs;
       this.applyLivePayload(payload);
-      
+
       this.httpPollFailures = 0;
-      this.state.ctlStatus.update(s => ({ ...(s ?? { ok: true }), ok: true, latency }));
+      this.state.ctlStatus.update((s) => ({ ...(s ?? { ok: true }), ok: true, latency }));
       this.scheduleNextPoll(1000);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'poll failed';
       console.warn('Telemetry poll failed', error);
       this.state.telemetryStale.set(true);
-      this.state.ctlStatus.update(s => ({ ...(s ?? { ok: false }), ok: false, error: message }));
+      this.state.ctlStatus.update((s) => ({ ...(s ?? { ok: false }), ok: false, error: message }));
       this.emitAlert(`Live connection unavailable: ${message}`, 'critical');
-      
+
       if (this.state.autoDemoOnDisconnect()) {
         this.state.autoDemoActive.set(true);
         this.scheduleNextPoll(0);
       } else {
         this.httpPollFailures++;
-        const baseDelay = Math.min(60_000, 3_000 * (2 ** Math.min(this.httpPollFailures - 1, 4)));
+        const baseDelay = Math.min(60_000, 3_000 * 2 ** Math.min(this.httpPollFailures - 1, 4));
         const jitter = Math.floor(Math.random() * 1000) - 500;
         this.scheduleNextPoll(Math.max(1000, baseDelay + jitter));
       }
@@ -138,7 +138,7 @@ export class TelemetryService {
     try {
       const base = this.api.currentApiBase();
       this.sse = new EventSource(`${base}/api/events/subscribe`);
-      
+
       this.sse.onopen = () => {
         console.log('SSE connection successfully opened.');
         this.sseMode = true;
@@ -159,9 +159,9 @@ export class TelemetryService {
 
       this.sse.onerror = () => {
         const now = Date.now();
-        this.sseErrors = this.sseErrors.filter(t => now - t < 60000);
+        this.sseErrors = this.sseErrors.filter((t) => now - t < 60000);
         this.sseErrors.push(now);
-        
+
         if (this.sseErrors.length > 3) {
           console.warn('SSE failure threshold reached. Falling back to polling.');
           this.stopSse();
@@ -180,15 +180,16 @@ export class TelemetryService {
     this.clearReconnectTimer();
 
     // Bounded backoff: 15s, 30s, 60s max
-    const backoffSeconds = this.sseReconnectAttempts === 0 ? 15
-                         : this.sseReconnectAttempts === 1 ? 30
-                         : 60;
-    
+    const backoffSeconds =
+      this.sseReconnectAttempts === 0 ? 15 : this.sseReconnectAttempts === 1 ? 30 : 60;
+
     // Random jitter +/- 1s to avoid synchronizations
     const jitterMs = Math.floor(Math.random() * 2000) - 1000;
-    const delayMs = Math.max(1000, (backoffSeconds * 1000) + jitterMs);
+    const delayMs = Math.max(1000, backoffSeconds * 1000 + jitterMs);
 
-    console.log(`SSE reconnect scheduled in ${delayMs}ms (attempt ${this.sseReconnectAttempts + 1})`);
+    console.log(
+      `SSE reconnect scheduled in ${delayMs}ms (attempt ${this.sseReconnectAttempts + 1})`,
+    );
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -212,22 +213,44 @@ export class TelemetryService {
     this.demoT += 1;
     const t = this.demoT;
     const N = 120;
-    const ts = Array.from({ length: N }, (_, i) => t - N + i);
     const hrBase = 72 + 4 * Math.sin(t / 12);
     const rrBase = 15 + 1.5 * Math.sin(t / 18 + 1);
 
-    const rep_hr = ts.map((_, i) => hrBase + 2 * Math.sin(i / 3 + t / 5) + (Math.random() - .5));
-    const can_hr = rep_hr.map(v => v + (Math.random() - .5) * 1.2);
-    const raw_hr = rep_hr.map(v => v + (Math.random() - .5) * 3.5 + 1.2);
-    const raw_hr_corrected = raw_hr.map(v => v - Math.max(0, Math.min(25, 0.4 * (v - 55))));
-    const ble_hr = rep_hr.map(v => v + (Math.random() - .5) * 0.7 - 0.3);
+    const ts = new Array(N);
+    const rep_hr = new Array(N);
+    const can_hr = new Array(N);
+    const raw_hr = new Array(N);
+    const raw_hr_corrected = new Array(N);
+    const ble_hr = new Array(N);
 
-    const rep_rr = ts.map((_, i) => rrBase + 0.4 * Math.sin(i / 4 + t / 6) + (Math.random() - .5) * .15);
-    const can_rr = rep_rr.map(v => v + (Math.random() - .5) * .3);
-    const ble_rr = rep_rr.map(v => v + (Math.random() - .5) * .2);
+    const rep_rr = new Array(N);
+    const can_rr = new Array(N);
+    const ble_rr = new Array(N);
 
-    const breath = ts.map((_, i) => Math.sin((i + t) * 0.12) + 0.1 * Math.sin((i + t) * 0.5));
-    const heart = ts.map((_, i) => Math.sin((i + t) * 0.9) * 0.6 + 0.15 * Math.sin((i + t) * 3.5));
+    const breath = new Array(N);
+    const heart = new Array(N);
+
+    for (let i = 0; i < N; i++) {
+      ts[i] = t - N + i;
+
+      const rep_hr_val = hrBase + 2 * Math.sin(i / 3 + t / 5) + (Math.random() - 0.5);
+      rep_hr[i] = rep_hr_val;
+      can_hr[i] = rep_hr_val + (Math.random() - 0.5) * 1.2;
+
+      const raw_hr_val = rep_hr_val + (Math.random() - 0.5) * 3.5 + 1.2;
+      raw_hr[i] = raw_hr_val;
+      raw_hr_corrected[i] = raw_hr_val - Math.max(0, Math.min(25, 0.4 * (raw_hr_val - 55)));
+
+      ble_hr[i] = rep_hr_val + (Math.random() - 0.5) * 0.7 - 0.3;
+
+      const rep_rr_val = rrBase + 0.4 * Math.sin(i / 4 + t / 6) + (Math.random() - 0.5) * 0.15;
+      rep_rr[i] = rep_rr_val;
+      can_rr[i] = rep_rr_val + (Math.random() - 0.5) * 0.3;
+      ble_rr[i] = rep_rr_val + (Math.random() - 0.5) * 0.2;
+
+      breath[i] = Math.sin((i + t) * 0.12) + 0.1 * Math.sin((i + t) * 0.5);
+      heart[i] = Math.sin((i + t) * 0.9) * 0.6 + 0.15 * Math.sin((i + t) * 3.5);
+    }
 
     const x = 0.35 + 0.18 * Math.sin(t / 14);
     const y = 1.85 + 0.22 * Math.cos(t / 16);
@@ -240,7 +263,7 @@ export class TelemetryService {
         // M7 dynamically calculated remaining session duration based on setup.duration_s
         remaining_s: Math.max(0, (this.state.setup().duration_s || 30) - t),
         session_dir: '/sessions/demo_2026_04_18',
-        sandbox: true
+        sandbox: true,
       },
       radar: {
         rows: 1450 + t,
@@ -300,19 +323,19 @@ export class TelemetryService {
         rr_fundamental_recovery_count: 0,
         rr_raw_seed_consistent_count: 5,
         rr_midsession_raw_reanchor_allowed: true,
-        trusted_rr_fresh: true
+        trusted_rr_fresh: true,
       },
       ble: {
         address: this.state.setup().ble_address,
         profile: this.state.setup().ble_profile,
         hr: ble_hr[ble_hr.length - 1],
         rr: ble_rr[ble_rr.length - 1],
-        connected: true
+        connected: true,
       },
       faults: [],
       events: [
         { ts: `T+${t}s`, message: 'Publish pipeline healthy' },
-        { ts: `T+${Math.max(0, t - 1)}s`, message: 'Target lock maintained' }
+        { ts: `T+${Math.max(0, t - 1)}s`, message: 'Target lock maintained' },
       ],
       series: {
         ts,
@@ -330,7 +353,7 @@ export class TelemetryService {
         breath,
         heart,
         breath_phase: breath,
-        heart_phase: heart
+        heart_phase: heart,
       },
       analysis: {
         schema_hash: 'demo-v16-material',
@@ -343,8 +366,14 @@ export class TelemetryService {
         hr_gate_reason_histogram: { OK: 120 },
         rr_gate_reason_histogram: { OK: 120 },
         agc_anomaly_flags: { gain_floor_pct: 0, near_field_pct: 0, skipdsp_pct: 0 },
-        ble_ref_quality: { status: 'good', raw_packets: 120, parsed_rows: 120, packet_loss_pct: 0, decode_error_pct: 0 }
-      }
+        ble_ref_quality: {
+          status: 'good',
+          raw_packets: 120,
+          parsed_rows: 120,
+          packet_loss_pct: 0,
+          decode_error_pct: 0,
+        },
+      },
     };
 
     this.applyLivePayload(payload);
@@ -362,7 +391,7 @@ export class TelemetryService {
       faults: Array.isArray(payload.faults) ? payload.faults : [],
       events: Array.isArray(payload.events) ? payload.events : [],
       series: payload.series || {},
-      analysis: payload.analysis || null
+      analysis: payload.analysis || null,
     };
     normalized.meta.received_at_ms = receivedAt;
     normalized.meta.stale = false;
@@ -378,21 +407,30 @@ export class TelemetryService {
     const hr = Number(normalized.radar.reported_hr);
     const rr = Number(normalized.radar.reported_rr);
     if (Number.isFinite(hr) && (hr < thresholds.hrLow || hr > thresholds.hrHigh)) {
-      this.emitAlert(`Heart rate ${Math.round(hr)} bpm outside ${thresholds.hrLow}-${thresholds.hrHigh} bpm`, 'warn', 'heart-rate');
+      this.emitAlert(
+        `Heart rate ${Math.round(hr)} bpm outside ${thresholds.hrLow}-${thresholds.hrHigh} bpm`,
+        'warn',
+        'heart-rate',
+      );
     }
     if (Number.isFinite(rr) && (rr < thresholds.rrLow || rr > thresholds.rrHigh)) {
-      this.emitAlert(`Respiration ${Math.round(rr)} br/min outside ${thresholds.rrLow}-${thresholds.rrHigh} br/min`, 'warn', 'respiration');
+      this.emitAlert(
+        `Respiration ${Math.round(rr)} br/min outside ${thresholds.rrLow}-${thresholds.rrHigh} br/min`,
+        'warn',
+        'respiration',
+      );
     }
-    normalized.faults.forEach(fault => {
+    normalized.faults.forEach((fault) => {
       const record = typeof fault === 'object' ? fault : null;
-      const message = typeof fault === 'string'
-        ? fault
-        : record?.['message'] || record?.['msg'] || record?.['code'];
+      const message =
+        typeof fault === 'string'
+          ? fault
+          : record?.['message'] || record?.['msg'] || record?.['code'];
       if (message) this.emitAlert(String(message), 'critical', 'fault');
     });
 
     // Update real-time spark data
-    this.state.spark.update(s => {
+    this.state.spark.update((s) => {
       const hr = [...s.hr, normalized.radar.reported_hr || 0].slice(-20);
       const rr = [...s.rr, normalized.radar.reported_rr || 0].slice(-20);
       const fps = [...s.fps, normalized.radar.rows || 0].slice(-20);

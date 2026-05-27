@@ -214,6 +214,11 @@ export class LayoutComponent implements OnInit {
     }
   }
 
+  skipToMainContent(event: Event): void {
+    event.preventDefault();
+    this.mainContentScroll?.nativeElement.focus();
+  }
+
   openShortcuts() {
     this.state.triggerHaptic('tap');
     this.dialog.open(KeyboardShortcutsDialogComponent, {

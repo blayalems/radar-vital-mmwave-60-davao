@@ -61,6 +61,10 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-27 - Restore mobile WebKit skip-link focus after PR integration
+- Repaired the shell skip-link activation path so iPhone/iPad WebKit moves keyboard focus to `#mainContent` explicitly, addressing the failed post-merge smoke gate while preserving the existing accessibility assertion.
+- Verification: WebKit skip-link repeats (`5/5` iPhone and `5/5` iPad); `npm run build:check`; Angular unit tests (`18/18`); trainer `compileall`/`python -m rvt_trainer --help`; `python -m pytest -q tests` (`42/42`); Playwright smoke (`156/156`); visual regression (`96/96`).
+
 ### 2026-05-27 - Integrate PRs #27-#35 against current main
 - Combined the requested security, trainer-cache/help-schema, Angular telemetry/UI, and legacy speech fixes while preserving the existing release-artifact workflow and Windows visual-baseline contract.
 - Resolved stale-branch overlap by discarding unrelated Linux snapshot/log churn, keeping the Playwright mock server non-interactive, stabilizing rapid custom-tag WebKit coverage, rebuilding the Angular-generated monolith from `web/`, and refreshing pre-existing stale Windows visual baselines.

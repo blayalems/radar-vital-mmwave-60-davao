@@ -1,9 +1,8 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, ViewChild, ElementRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { filter } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { filter, map } from 'rxjs/operators';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,6 +10,7 @@ import { MatListModule } from '@angular/material/list';
 import { MatSidenavContainer, MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatNavigationBar, MatNavigationTab } from '@angular/material/navigation-bar';
 
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
@@ -22,7 +22,6 @@ import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component'
 @Component({
   selector: 'app-layout',
   imports: [
-    CommonModule,
     RouterModule,
     TopbarComponent,
     MatButtonModule,
@@ -31,7 +30,9 @@ import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component'
     MatListModule,
     MatSidenavModule,
     MatToolbarModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatNavigationBar,
+    MatNavigationTab
   ],
   templateUrl: './layout.component.html',
   styleUrl: './layout.component.css',
@@ -53,13 +54,15 @@ export class LayoutComponent implements OnInit {
   protected readonly showScrollTop = signal(false);
 
   protected readonly railCollapsed = signal(false);
-  protected readonly showRail = signal(false);
+  protected readonly showRail = toSignal(
+    this.breakpointObserver.observe('(min-width: 1024px)').pipe(
+      map(r => r.matches)
+    ),
+    { initialValue: false }
+  );
 
   ngOnInit() {
     this.setRailCollapsed(localStorage.getItem('rvt-rail-collapsed') === '1');
-    this.breakpointObserver.observe('(min-width: 1024px)').pipe(
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe(result => this.showRail.set(result.matches));
     this.syncCurrentView(this.router.url);
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -201,6 +204,15 @@ export class LayoutComponent implements OnInit {
     const target = event.target as HTMLElement;
     if (target) {
       this.showScrollTop.set(target.scrollTop > 300);
+    }
+  }
+
+  skipToMain(event: Event) {
+    event.preventDefault();
+    const main = document.getElementById('mainContent');
+    if (main) {
+      main.focus();
+      main.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
 

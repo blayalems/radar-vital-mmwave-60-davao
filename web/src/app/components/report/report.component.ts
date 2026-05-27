@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, ViewChild, ElementRef, AfterViewInit, effect } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { DatePipe, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 // Angular Material 3 modules
@@ -20,7 +20,8 @@ import { ApiService } from '../../services/api.service';
 @Component({
   selector: 'app-report',
   imports: [
-    CommonModule,
+    DatePipe,
+    UpperCasePipe,
     FormsModule,
     MatCardModule,
     MatButtonModule,

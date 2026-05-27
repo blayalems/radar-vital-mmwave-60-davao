@@ -23,6 +23,56 @@
   <base href="./">
 </head>
 <body>
+  <div id="rvtLoadingOverlay">
+    <div class="rvt-loader-brand">
+      <div class="rvt-loader-mark"></div>
+      <span class="rvt-loader-title">Radar Vital</span>
+    </div>
+    <span class="rvt-loader-sub">Operator Console</span>
+    <div class="rvt-loader-bar-track">
+      <div class="rvt-loader-bar" id="rvtLoaderBar"></div>
+    </div>
+    <span class="rvt-loader-status" id="rvtLoaderStatus">Initializing console…</span>
+  </div>
+
   <app-root></app-root>
+
+  <script>
+    (function() {
+      const overlay = document.getElementById('rvtLoadingOverlay');
+      const loaderBar = document.getElementById('rvtLoaderBar');
+      const loaderStatus = document.getElementById('rvtLoaderStatus');
+      let progress = 10;
+      let interval = setInterval(() => {
+        if (progress < 90) {
+          progress += Math.floor(Math.random() * 15) + 5;
+          if (loaderBar) loaderBar.style.width = Math.min(progress, 90) + '%';
+          if (loaderStatus) {
+            if (progress < 30) loaderStatus.textContent = 'Loading system components…';
+            else if (progress < 60) loaderStatus.textContent = 'Initializing telemetry engine…';
+            else loaderStatus.textContent = 'Securing connection environment…';
+          }
+        }
+      }, 150);
+
+      window.addEventListener('load', () => {
+        Promise.all([
+          document.fonts ? document.fonts.ready : Promise.resolve()
+        ]).then(() => {
+          clearInterval(interval);
+          if (loaderBar) loaderBar.style.width = '100%';
+          if (loaderStatus) loaderStatus.textContent = 'Console ready';
+          setTimeout(() => {
+            if (overlay) {
+              overlay.classList.add('fade-out');
+              setTimeout(() => {
+                if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+              }, 600);
+            }
+          }, 200);
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

@@ -6855,6 +6855,15 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_bytes(200, template_path.read_bytes(), "text/html; charset=utf-8")
             return
+
+        # Serve compiled Angular chunks and assets from www/
+        clean_name = path.lstrip("/")
+        if ".." not in clean_name and not clean_name.startswith(".rvt_tls"):
+            www_target = _REPO_ROOT / "www" / clean_name
+            if www_target.is_file():
+                self._send_bytes(200, www_target.read_bytes(), _content_type_for_asset(www_target))
+                return
+
         self._send_json(404, {"ok": False, "error": {"code": "NOT_FOUND", "message": "public resource not found"}})
 
     def do_POST(self):

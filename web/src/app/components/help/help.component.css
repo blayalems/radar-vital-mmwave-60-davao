@@ -70,9 +70,8 @@
   min-width: 280px;
 }
 
-::ng-deep .search-field .mat-mdc-text-field-wrapper {
-  background: var(--md-sys-color-surface-container-low, #f8fafc) !important;
-  height: 48px;
+.search-field {
+  --mdc-filled-text-field-container-color: var(--md-sys-color-surface-container-low, #f8fafc);
 }
 
 .shortcut-tip {

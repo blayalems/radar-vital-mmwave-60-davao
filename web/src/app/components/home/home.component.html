@@ -108,11 +108,11 @@
         <div class="setup-field span-full">
           <label class="field-label">Recording Duration <span class="label-hint">how long to record</span></label>
           <div class="duration-chips">
-            <button mat-stroked-button type="button" class="duration-chip" [class.active]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
-            <button mat-stroked-button type="button" class="duration-chip" [class.active]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
-            <button mat-stroked-button type="button" class="duration-chip" [class.active]="selectedDuration === 300" (click)="selectDuration(300)">5m</button>
-            <button mat-stroked-button type="button" class="duration-chip" [class.active]="selectedDuration === 480" (click)="selectDuration(480)">8m</button>
-            <button mat-stroked-button type="button" class="duration-chip" [class.active]="selectedDuration === 1200" (click)="selectDuration(1200)">20m</button>
+            <button mat-tonal-button type="button" class="duration-chip" [class.active]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
+            <button mat-tonal-button type="button" class="duration-chip" [class.active]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
+            <button mat-tonal-button type="button" class="duration-chip" [class.active]="selectedDuration === 300" (click)="selectDuration(300)">5m</button>
+            <button mat-tonal-button type="button" class="duration-chip" [class.active]="selectedDuration === 480" (click)="selectDuration(480)">8m</button>
+            <button mat-tonal-button type="button" class="duration-chip" [class.active]="selectedDuration === 1200" (click)="selectDuration(1200)">20m</button>
           </div>
         </div>
 
@@ -127,7 +127,7 @@
                 }
               </mat-select>
             </mat-form-field>
-            <button mat-stroked-button (click)="scanSerialPorts()" [disabled]="isScanningPorts" class="icon-action-btn">
+            <button mat-tonal-button (click)="scanSerialPorts()" [disabled]="isScanningPorts" class="icon-action-btn">
               <mat-icon>{{ isScanningPorts ? 'sync' : 'refresh' }}</mat-icon>
             </button>
           </div>
@@ -140,7 +140,7 @@
             <mat-form-field appearance="outline" class="form-field-full">
               <input matInput [ngModel]="state.setup().ble_address" (ngModelChange)="updateSetup('ble_address', $event)" (blur)="onFormChange()" placeholder="e.g. 10:22:33:9E:8F:63">
             </mat-form-field>
-            <button mat-stroked-button (click)="scanBleDevices()" [disabled]="isScanningBle" class="icon-action-btn">
+            <button mat-tonal-button (click)="scanBleDevices()" [disabled]="isScanningBle" class="icon-action-btn">
               <mat-icon>{{ isScanningBle ? 'sync' : 'bluetooth' }}</mat-icon>
             </button>
           </div>
@@ -162,7 +162,7 @@
             <strong>Native BLE acceptance probe</strong>
             <p>Checks one local AiLink FFE0/FFE2 GATT notification for APK/EXE validation. The trainer remains the recorded session data source.</p>
           </div>
-          <button mat-stroked-button type="button" (click)="validateNativeBleReference()" [disabled]="isValidatingNativeBle">
+          <button mat-tonal-button type="button" (click)="validateNativeBleReference()" [disabled]="isValidatingNativeBle">
             <mat-icon>{{ isValidatingNativeBle ? 'sync' : 'bluetooth_searching' }}</mat-icon>
             {{ isValidatingNativeBle ? 'Validating...' : 'Validate native GATT' }}
           </button>
@@ -277,7 +277,7 @@
         <mat-card-title>Hardware Preflight Pipeline</mat-card-title>
         <mat-card-subtitle>Verifies serial interfaces, BLE availability, local schemas, and storage space limits.</mat-card-subtitle>
       </div>
-      <button mat-stroked-button color="primary" (click)="runPreflight()" [disabled]="isPreflightRunning">
+      <button mat-tonal-button color="primary" (click)="runPreflight()" [disabled]="isPreflightRunning">
         <mat-icon>{{ isPreflightRunning ? 'sync' : 'fact_check' }}</mat-icon>
         Re-run Preflight Pipeline
       </button>
@@ -314,11 +314,11 @@
         <mat-card-subtitle>Review quality verdict outcomes, sensor profiles, and historical charts.</mat-card-subtitle>
       </div>
       <div class="sessions-filter-chips">
-        <button mat-stroked-button type="button" class="filter-chip" [class.active]="sessionFilter === 'all'" (click)="setSessionFilter('all')">All</button>
-        <button mat-stroked-button type="button" class="filter-chip" [class.active]="sessionFilter === 'pass'" (click)="setSessionFilter('pass')">Ready</button>
-        <button mat-stroked-button type="button" class="filter-chip" [class.active]="sessionFilter === 'warn'" (click)="setSessionFilter('warn')">Conditional</button>
-        <button mat-stroked-button type="button" class="filter-chip" [class.active]="sessionFilter === 'fail'" (click)="setSessionFilter('fail')">Unready</button>
-        <button mat-stroked-button type="button" class="filter-chip" [class.active]="sessionFilter === 'tagged'" (click)="setSessionFilter('tagged')">Tagged</button>
+        <button mat-tonal-button type="button" class="filter-chip" [class.active]="sessionFilter === 'all'" (click)="setSessionFilter('all')">All</button>
+        <button mat-tonal-button type="button" class="filter-chip" [class.active]="sessionFilter === 'pass'" (click)="setSessionFilter('pass')">Ready</button>
+        <button mat-tonal-button type="button" class="filter-chip" [class.active]="sessionFilter === 'warn'" (click)="setSessionFilter('warn')">Conditional</button>
+        <button mat-tonal-button type="button" class="filter-chip" [class.active]="sessionFilter === 'fail'" (click)="setSessionFilter('fail')">Unready</button>
+        <button mat-tonal-button type="button" class="filter-chip" [class.active]="sessionFilter === 'tagged'" (click)="setSessionFilter('tagged')">Tagged</button>
       </div>
     </mat-card-header>
 

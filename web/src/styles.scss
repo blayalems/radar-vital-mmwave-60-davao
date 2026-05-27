@@ -97,8 +97,8 @@ mat-icon {
 
 .m3-dialog-panel .mat-mdc-dialog-surface {
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 28px;
-  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.36);
+  border-radius: var(--md-sys-shape-corner-extra-large, 28px);
+  box-shadow: 0 24px 48px -8px color-mix(in srgb, var(--md-sys-color-shadow, #000) 36%, transparent);
 }
 
 /* Keep legacy Home styling from hiding or over-partitioning Angular content. */
@@ -412,4 +412,153 @@ html[data-theme='hc'] body[data-view='home'] app-home :is(
   .pf-text small
 ) {
   color: #fff !important;
+}
+
+/* ==========================================================================
+   MATERIAL 3 EXPRESSIVE REDESIGN OVERRIDES
+   ========================================================================== */
+
+:root {
+  /* Emphasized Motion Curves */
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --dur-emphasized: 380ms;
+
+  /* Typography Systems (Expressive) */
+  --md-sys-typescale-display-large-font-family: 'Inter', 'Roboto', sans-serif;
+  --md-sys-typescale-display-large-font-size: 3.25rem;
+  --md-sys-typescale-display-large-font-weight: 700;
+  --md-sys-typescale-display-large-line-height: 3.75rem;
+
+  --md-sys-typescale-title-large-font-family: 'Inter', 'Roboto', sans-serif;
+  --md-sys-typescale-title-large-font-size: 1.35rem;
+  --md-sys-typescale-title-large-font-weight: 600;
+  --md-sys-typescale-title-large-line-height: 1.75rem;
+}
+
+/* Emphasized Layout Transitions */
+.rail,
+.main-content-scroll,
+.bottom-nav,
+.m3-dialog-panel,
+.mat-mdc-tab-body,
+.live-tabs-group,
+.home-stat-card,
+.scope-metric,
+.mat-navigation-tab-pill {
+  transition: all var(--dur-emphasized) var(--ease-emphasized) !important;
+}
+
+/* Typography Mappings to Headings and Metrics */
+h1, h2, h3, h4, h5, h6,
+.mat-mdc-card-title,
+.home-stat-title,
+.crumb-title,
+.section-heading,
+.nav-heading {
+  font-family: var(--md-sys-typescale-title-large-font-family) !important;
+  font-weight: var(--md-sys-typescale-title-large-font-weight) !important;
+  letter-spacing: -0.02em !important;
+}
+
+.home-stat-line strong,
+.scope-metric strong,
+.reported-hr,
+.reported-rr,
+.live-metric-value,
+.metric-text,
+.metric-line {
+  font-family: var(--md-sys-typescale-display-large-font-family) !important;
+  font-weight: var(--md-sys-typescale-display-large-font-weight) !important;
+  letter-spacing: -0.04em !important;
+}
+
+/* Restoration of Cyan Tertiary Colors for Stable Physiological Cues */
+.pf-good,
+.pf-good .pf-status-icon,
+.physio-stable,
+.physio-good,
+.state-stable,
+.status-stable,
+.verdict-pass,
+[data-verdict="pass"] {
+  color: var(--md-sys-color-tertiary, #00a496) !important;
+}
+
+.pf-good-container,
+.status-stable-container {
+  background-color: var(--md-sys-color-tertiary-container, #a5f2e9) !important;
+  color: var(--md-sys-color-on-tertiary-container, #00201d) !important;
+}
+
+/* Scoped Sidenav Rail Overrides (replacing deprecated ::ng-deep) */
+.app.rail-collapsed .rail .mat-drawer-inner-container {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.app.rail-collapsed .rail .r-item .mdc-list-item__content,
+.app.rail-collapsed .rail .r-item .mat-mdc-list-item-unscoped-content {
+  align-items: center !important;
+  display: flex !important;
+  height: 100% !important;
+  inset: 0 !important;
+  justify-content: center !important;
+  position: absolute !important;
+  width: auto !important;
+}
+
+/* Global button toggle overrides for topbar (replacing encapsulated ::ng-deep) */
+@media (min-width: 761px) {
+  body[data-view] app-topbar .tb-live-mode.seg {
+    border-radius: 24px !important;
+    height: 48px !important;
+    padding: 2px !important;
+  }
+
+  body[data-view] app-topbar .tb-live-mode .mat-button-toggle {
+    height: 42px !important;
+    min-width: 50px !important;
+  }
+
+  body[data-view] app-topbar .tb-live-mode .mat-button-toggle-button {
+    align-items: center !important;
+    display: flex !important;
+    height: 42px !important;
+    padding: 0 !important;
+  }
+
+  body[data-view] app-topbar .tb-live-mode .mat-button-toggle-label-content {
+    align-items: center !important;
+    display: flex !important;
+    height: 42px !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    padding: 0 14px !important;
+  }
+
+  body[data-view] app-topbar .tb-live-mode .material-symbols-rounded {
+    font-size: 20px !important;
+  }
+}
+
+/* Live component internal Material overrides (replacing deprecated ::ng-deep) */
+app-live .section-header-row > .mat-mdc-card-header-text {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  app-live .live-tabs-group .mat-mdc-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 5px;
+  }
+
+  app-live .live-tabs-group .mat-mdc-tab-header-pagination {
+    display: none;
+  }
+
+  app-live .live-tabs-group .mat-mdc-tab-label-container {
+    overflow: visible;
+  }
 }

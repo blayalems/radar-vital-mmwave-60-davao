@@ -668,6 +668,7 @@ test.describe('Dashboard smoke', () => {
   test('exports alert history and audit evidence through Material actions', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.keyboard.press('Control+K');
+    await expect(page.getByRole('dialog')).toBeVisible();
     await page.getByLabel('Search commands').fill('Open alerts');
     await page.getByRole('button', { name: /Open alerts/ }).click();
     await page.getByRole('button', { name: 'Test alert' }).click();

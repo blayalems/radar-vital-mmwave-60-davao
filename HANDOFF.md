@@ -61,6 +61,33 @@ www/
 
 ## Refactor progress log (newest first)
 
+### 2026-05-27 - M3 Expressive UI/UX Optimization and Dynamic Theme Hardening
+- Modernized bottom navigation container `.bottom-nav` overrides in `layout.component.css` to use proper M3 `display: flex !important` and `height: calc(80px + env(safe-area-inset-bottom, 0px)) !important` metrics.
+- Polished bottom navigation active states for High Contrast (`hc`) theme, providing clear legibility by color-coding the active indicator pill, icon, and text labels.
+- Standardized card shape corner borders (`--md-sys-shape-corner-large`) and dynamic color-mix shadows (`--md-sys-color-shadow`) on hover states for `.settings-card` classes in `settings.component.css`.
+- Preserved strict High Contrast (`hc`) accessibility rules in `DynamicColorService` (`dynamic-color.service.ts`), ensuring custom dynamic palettes bypass and clear gracefully in HC mode.
+- Fixed duplicate toolbar/header flex rules and closed a syntax brace inside the Settings component stylesheet, and updated global dialog overlays in `styles.scss` with M3-compliant shadow variables.
+- Verification: Monolithic build succeeds (`npm run build:web`), byte-identical monolith round-trip check passes successfully (`npm run build:check`), 16/16 Vitest unit tests pass completely (`npm --prefix web run test:ci`), and trainer import compilation executes clean.
+
+### 2026-05-27 - M3 Expressive Angular-first Modernization
+- Completed full Material 3 Expressive UI migration: replaced simulated `mat-toolbar` bottom nav with real `MatNavigationBar`/`MatNavigationTab` components, converted `BreakpointObserver` to reactive `toSignal`, removed all `CommonModule` imports and `::ng-deep` overrides.
+- Applied semantic M3 typography tokens (`--md-sys-typescale-display-large-*`, `--md-sys-typescale-title-large-*`) to headings and live metrics; restored cyan tertiary color palette for stable physiological state indicators (`--md-sys-color-tertiary`, `--md-sys-color-tertiary-container`).
+- Replaced outlined `mat-stroked-button` actions with `mat-tonal-button` for secondary priority controls across Live, Layout, and session management surfaces.
+- Wrapped Waves, HR, RR, Snaps, and Audit tab content in `@defer (on viewport)` blocks with `@placeholder` spinners to defer heavy DOM/chart instantiation.
+- Added M3 emphasized transition curves (`cubic-bezier(0.2, 0, 0, 1)` at 380ms) for layout/navigation/tab transitions.
+- Gated the loading overlay fade-out on `document.fonts.ready` to prevent FOUT during icon font hydration.
+- Verification: `npm --prefix web run build` (zero errors, budget warning at 1.72 MB vs 1.2 MB); `npm run build:check` (monolith round-trip clean); `npm --prefix web run test:ci` (16/16 passed); `loads without console errors` smoke test green across all 4 device projects; full Playwright suite running.
+
+### 2026-05-27 - Split StateService to Focused Signal Stores, configure HttpClient and Lazy Routing
+- Split `StateService` into highly focused, single-responsibility signals and actions stores (`UiStore`, `SessionStore`, `AlertStore`, `TelemetryStore`) under `web/src/app/services/stores/`.
+- Refactored `StateService` (`state.service.ts`) to inject the new stores and delegate to them, ensuring 100% backward compatibility for all caller imports and component signatures.
+- Cleanly resolved `StorageScope` double declaration by exporting it using `export type { StorageScope }` from `persistence.service.ts`.
+- Registered `provideHttpClient` in `app.config.ts` using custom functional interceptors `rvtAuthInterceptor` for `X-RVT-Auth` token injection and `rvtTauriInterceptor` for routing native Tauri HTTP requests via Rust IPC commands.
+- Rewrote the low-level request layers of `ApiService` (`api.service.ts`) to utilize `HttpClient` under the hood while maintaining standard Capacitor fallbacks and exact public signatures.
+- Updated `app.routes.ts` to lazy-load the core feature routes (`Home`, `Live`, `Report`, `Help`, `Settings`) while keeping layout eagerly loaded, and configured scroll restoration and input bindings.
+- Added development and production environment configuration files (`environment.ts`, `environment.prod.ts`) mapped via `fileReplacements` in `angular.json`, and tightened budget warning and error limits.
+- Verification: unit tests (`npm run test:unit:web`) passed completely (**16/16** passing); root monolith build check (`npm run build:check`) successfully compiled the self-contained dashboard.
+
 ### 2026-05-27 - Publish versioned APK and EXE prereleases after main updates
 - Extended `release-artifacts.yml` to build and publish Android and Windows installable assets after every accepted push to `main`, including merged pull requests.
 - Automated main releases now use incrementing `v<app-version>-main.<workflow-run>` prerelease tags and GitHub-generated release notes as the changelog; all publication paths stamp the semantic release version into APK/EXE assets plus an increasing APK version code.

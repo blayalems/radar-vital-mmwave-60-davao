@@ -1,4 +1,4 @@
-<a class="skip-link" href="#mainContent">Skip to main content</a>
+<a class="skip-link" href="#mainContent" (click)="skipToMain($event)">Skip to main content</a>
 
 <!-- DEMO BANNER -->
 <div id="demoBanner" role="alert" aria-live="assertive" [hidden]="!state.demoMode() && !state.autoDemoActive()">
@@ -10,7 +10,7 @@
   <div class="initial-loading-overlay" role="status" aria-live="polite">
     <mat-spinner diameter="28"></mat-spinner>
     <p>Detecting trainer connection...</p>
-    <button mat-stroked-button type="button" (click)="api.enableSandboxControlMode('Initial connection bypassed by operator')">
+    <button mat-tonal-button type="button" (click)="api.enableSandboxControlMode('Initial connection bypassed by operator')">
       Bypass to Sandbox Mode
     </button>
   </div>
@@ -93,7 +93,7 @@
     </nav>
 
     <div class="rail-foot">
-      <button mat-stroked-button class="r-item rail-action" (click)="openPalette()" aria-label="Command palette" title="Command palette (Ctrl+K)">
+      <button mat-tonal-button class="r-item rail-action" (click)="openPalette()" aria-label="Command palette" title="Command palette (Ctrl+K)">
         <span class="r-ic"><span class="material-symbols-rounded">search</span></span><span class="r-label">Command</span>
       </button>
       
@@ -123,29 +123,27 @@
     }
 
     <!-- BOTTOM NAVIGATION (MOBILE) -->
-    <mat-toolbar class="bottom-nav" id="bottomNav">
-      <nav class="bottom-nav-inner" aria-label="Quick navigation">
-        <a mat-button class="bn-item bn-view" routerLink="/home" routerLinkActive="active" aria-label="Home view">
-          <span class="material-symbols-rounded" aria-hidden="true">home</span>
-          <span>Home</span>
-        </a>
-        <a mat-button class="bn-item bn-view" routerLink="/live" routerLinkActive="active" aria-label="Live view">
-          <span class="material-symbols-rounded" aria-hidden="true">monitoring</span>
-          <span>Live</span>
-        </a>
-        <a mat-button class="bn-item bn-view" routerLink="/report" routerLinkActive="active" aria-label="Report view">
-          <span class="material-symbols-rounded" aria-hidden="true">summarize</span>
-          <span>Report</span>
-        </a>
-        <a mat-button class="bn-item bn-view" routerLink="/help" routerLinkActive="active" aria-label="Help view">
-          <span class="material-symbols-rounded" aria-hidden="true">help</span>
-          <span>Help</span>
-        </a>
-        <a mat-button class="bn-item bn-view" routerLink="/settings" routerLinkActive="active" aria-label="Settings view">
-          <span class="material-symbols-rounded" aria-hidden="true">settings</span>
-          <span>Settings</span>
-        </a>
-      </nav>
-    </mat-toolbar>
+    <mat-navigation-bar class="bottom-nav" id="bottomNav" aria-label="Quick navigation">
+      <a mat-navigation-tab routerLink="/home" routerLinkActive="active" aria-label="Home view">
+        <span class="material-symbols-rounded" icon aria-hidden="true">home</span>
+        <span label>Home</span>
+      </a>
+      <a mat-navigation-tab routerLink="/live" routerLinkActive="active" aria-label="Live view">
+        <span class="material-symbols-rounded" icon aria-hidden="true">sensors</span>
+        <span label>Live</span>
+      </a>
+      <a mat-navigation-tab routerLink="/report" routerLinkActive="active" aria-label="Report view">
+        <span class="material-symbols-rounded" icon aria-hidden="true">assignment</span>
+        <span label>Report</span>
+      </a>
+      <a mat-navigation-tab routerLink="/help" routerLinkActive="active" aria-label="Help view">
+        <span class="material-symbols-rounded" icon aria-hidden="true">help</span>
+        <span label>Help</span>
+      </a>
+      <a mat-navigation-tab routerLink="/settings" routerLinkActive="active" aria-label="Settings view">
+        <span class="material-symbols-rounded" icon aria-hidden="true">settings</span>
+        <span label>Settings</span>
+      </a>
+    </mat-navigation-bar>
   </mat-sidenav-content>
 </mat-sidenav-container>

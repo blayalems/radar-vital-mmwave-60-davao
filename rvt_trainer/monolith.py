@@ -60,7 +60,7 @@ import time
 import threading
 import csv
 from collections import deque
-from functools import partial
+from functools import partial, lru_cache
 from html import escape as html_escape
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -4124,7 +4124,9 @@ if _dashboard_template_path is not None:
         pass
 _DASHBOARD_TEMPLATE_EMBEDDED = _DASHBOARD_TEMPLATE_EMBEDDED.replace("v13.8.0 / v8.4.0", "v15 / v11")
 
+@lru_cache(maxsize=1)
 def _load_dashboard_template_text() -> str:
+    """Load and cache the dashboard HTML template."""
     for path in _dashboard_html_template_paths():
         if path.exists():
             try:

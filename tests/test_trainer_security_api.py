@@ -21,6 +21,50 @@ def _request(base: str, path: str, method: str = "GET", token: str = "", payload
         return error.code, json.loads(error.read().decode("utf-8"))
 
 
+def _request_raw(base: str, path: str, method: str = "GET", headers: dict = None):
+    request = urllib.request.Request(base + path, headers=headers or {}, method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response
+    except urllib.error.HTTPError as error:
+        return error
+
+
+def test_cors_headers_are_restricted_by_default(tmp_path: Path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    # By default, cors_origin is empty. We test if it emits no Access-Control-Allow-Origin
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True, cors_origin="")
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    try:
+        response = _request_raw(base, "/api/health", headers={"Origin": "http://malicious.com"})
+        assert response.status == 200
+        assert "Access-Control-Allow-Origin" not in response.headers
+    finally:
+        server.stop()
+
+
+def test_cors_headers_are_emitted_when_origin_matches(tmp_path: Path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    # When explicitly allowed:
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True, cors_origin="http://allowed.com")
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    try:
+        response = _request_raw(base, "/api/health", headers={"Origin": "http://allowed.com"})
+        assert response.status == 200
+        assert response.headers.get("Access-Control-Allow-Origin") == "http://allowed.com"
+        assert response.headers.get("Vary") == "Origin"
+
+        response_bad = _request_raw(base, "/api/health", headers={"Origin": "http://malicious.com"})
+        assert response_bad.status == 200
+        assert "Access-Control-Allow-Origin" not in response_bad.headers
+    finally:
+        server.stop()
+
+
 def test_lan_sensitive_reads_require_token_and_public_shell_remains_available(tmp_path: Path):
     sessions = tmp_path / "sessions"
     sessions.mkdir()

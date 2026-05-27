@@ -26,6 +26,7 @@ import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+import { KpiZoomDialogComponent } from '../kpi-zoom-dialog/kpi-zoom-dialog.component';
 
 type TrendRange = 30 | 60 | 120 | 'max';
 
@@ -233,6 +234,41 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         this.state.ctlStopPending.set(false);
       }
     }
+  }
+
+  openKpiZoomDialog(metricKey: 'hr' | 'rr' | 'fps' | 'dist'): void {
+    this.state.triggerHaptic('tap');
+    let title = '';
+    let unit = '';
+    let color = '';
+
+    switch (metricKey) {
+      case 'hr':
+        title = 'Heart Rate';
+        unit = 'bpm';
+        color = 'rgba(0, 164, 150, 0.95)';
+        break;
+      case 'rr':
+        title = 'Respiration';
+        unit = 'br/min';
+        color = 'rgba(97, 105, 198, 0.95)';
+        break;
+      case 'fps':
+        title = 'Frame Rate';
+        unit = 'Hz';
+        color = 'rgba(100, 116, 139, 0.95)';
+        break;
+      case 'dist':
+        title = 'Target Range';
+        unit = 'cm';
+        color = 'rgba(14, 165, 233, 0.95)';
+        break;
+    }
+
+    this.dialog.open(KpiZoomDialogComponent, {
+      data: { metric: metricKey, title, unit, color },
+      restoreFocus: true
+    });
   }
 
   captureSnapshot() {

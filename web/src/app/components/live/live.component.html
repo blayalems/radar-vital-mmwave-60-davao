@@ -53,7 +53,7 @@
         <div class="kpi-grid">
           <p class="sr-only" role="alert" aria-atomic="true">{{ liveAlertAnnouncement() }}</p>
           <!-- HEART RATE CARD -->
-          <div class="kpi-metric-card kpi-hr" role="status" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Heart rate', 'reported_hr', 'beats per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
+          <div class="kpi-metric-card kpi-hr cursor-pointer" role="button" tabindex="0" aria-haspopup="dialog" (click)="openKpiZoomDialog('hr')" (keydown.enter)="openKpiZoomDialog('hr')" (keydown.space)="openKpiZoomDialog('hr')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Heart rate (click to zoom)', 'reported_hr', 'beats per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
             <div class="kpi-card-header">
               <span>Heart Rate</span>
               <mat-icon>ecg_heart</mat-icon>
@@ -71,7 +71,7 @@
           </div>
 
           <!-- RESPIRATORY RATE CARD -->
-          <div class="kpi-metric-card kpi-rr" role="status" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Respiration', 'reported_rr', 'breaths per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
+          <div class="kpi-metric-card kpi-rr cursor-pointer" role="button" tabindex="0" aria-haspopup="dialog" (click)="openKpiZoomDialog('rr')" (keydown.enter)="openKpiZoomDialog('rr')" (keydown.space)="openKpiZoomDialog('rr')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Respiration (click to zoom)', 'reported_rr', 'breaths per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
             <div class="kpi-card-header">
               <span>Respiration</span>
               <mat-icon>air</mat-icon>
@@ -89,7 +89,7 @@
           </div>
 
           <!-- FRAME RATE CARD -->
-          <div class="kpi-metric-card" role="status" aria-live="polite" aria-atomic="true" [attr.aria-label]="frameRateLabel()">
+          <div class="kpi-metric-card cursor-pointer" role="button" tabindex="0" aria-haspopup="dialog" (click)="openKpiZoomDialog('fps')" (keydown.enter)="openKpiZoomDialog('fps')" (keydown.space)="openKpiZoomDialog('fps')" aria-live="polite" aria-atomic="true" [attr.aria-label]="frameRateLabel() + ' Click to zoom.'">
             <div class="kpi-card-header">
               <span>Frame Rate</span>
               <mat-icon>speed</mat-icon>
@@ -105,7 +105,7 @@
           </div>
 
           <!-- RANGE DISTANCE CARD -->
-          <div class="kpi-metric-card" role="status" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Target range', 'distance_cm', 'centimetres')">
+          <div class="kpi-metric-card cursor-pointer" role="button" tabindex="0" aria-haspopup="dialog" (click)="openKpiZoomDialog('dist')" (keydown.enter)="openKpiZoomDialog('dist')" (keydown.space)="openKpiZoomDialog('dist')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Target range (click to zoom)', 'distance_cm', 'centimetres')">
             <div class="kpi-card-header">
               <span>Target Range</span>
               <mat-icon>radar</mat-icon>

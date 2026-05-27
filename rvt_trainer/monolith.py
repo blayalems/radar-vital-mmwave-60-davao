@@ -6369,71 +6369,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def _send_sse(self, session_id_hint: Optional[str] = None):
-        if not FEATURE_FLAGS.get("enable_sse", True):
-            self._send_json(404, {"ok": False, "error": {"code": "SSE_DISABLED", "message": "SSE is disabled by feature flag"}})
-            return
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
-        self.end_headers()
-        last_mtime = None
-        seq = 0
-        last_emit_monotonic = time.monotonic()
-        had_active_session = False
-        ping_interval_s = 5.0
-        last_session_id = None
-
-        def write_event(name: str, data: Dict[str, object]):
-            nonlocal seq, last_emit_monotonic
-            seq += 1
-            payload = dict(data)
-            payload.setdefault("schema_version", LIVE_EVENT_SCHEMA_VERSION)
-            payload.setdefault("seq", seq)
-            raw = f"event: {name}\ndata: {json.dumps(nan_safe(payload), allow_nan=False)}\n\n".encode("utf-8")
-            self.wfile.write(raw)
-            self.wfile.flush()
-            last_emit_monotonic = time.monotonic()
-
-        try:
-            write_event("ping", {"at": _iso_now()})
-            deadline = time.monotonic() + 60 * 60
-            while time.monotonic() < deadline:
-                if getattr(self.server, "mock", False):
-                    write_event("live", _mock_live_payload(seq))
-                    time.sleep(1.0)
-                    continue
-                cur = self.server.supervisor.current()
-                if cur:
-                    had_active_session = True
-                    live_path = Path(str(cur.get("session_dir", ""))) / "live_dashboard.json"
-                    current_sid = str(cur.get("session_id") or "")
-                    if current_sid:
-                        last_session_id = current_sid
-                    if session_id_hint and current_sid and session_id_hint != current_sid:
-                        write_event("stopped", {"reason": "different_active_session", "session_id": session_id_hint, "active_session_id": current_sid})
-                        return
-                    if live_path.exists():
-                        mtime = live_path.stat().st_mtime_ns
-                        if mtime != last_mtime:
-                            last_mtime = mtime
-                            payload = _read_json_if_exists(str(live_path)) or {}
-                            if isinstance(payload, dict):
-                                payload.setdefault("session_id", cur.get("session_id"))
-                                payload.setdefault("revision", mtime)
-                            write_event("live", payload if isinstance(payload, dict) else {"payload": payload})
-                            write_event("data_update", {"session_id": cur.get("session_id"), "revision": mtime})
-                elif session_id_hint and not had_active_session and last_mtime is None:
-                    write_event("stopped", {"reason": "session_not_active", "session_id": session_id_hint})
-                    return
-                elif had_active_session or last_mtime is not None:
-                    write_event("stopped", {"reason": "no_active_session", "session_id": session_id_hint or last_session_id})
-                    return
-                if (time.monotonic() - last_emit_monotonic) >= ping_interval_s:
-                    write_event("ping", {"at": _iso_now(), "session_id": session_id_hint})
-                time.sleep(1.0)
-        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
-            return
+        from rvt_trainer.api.sse import handle_sse_subscription
+        handle_sse_subscription(self, session_id_hint=session_id_hint)
 
     def _send_json(self, status: int, obj, cache_control: Optional[str] = None, content_type: str = "application/json; charset=utf-8"):
         data = _json_safe_response(_schema_wrap(obj) if isinstance(obj, dict) else obj)

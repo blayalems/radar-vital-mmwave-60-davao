@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-05-28 — v12 Release Gates, Phase 5 SSE Extraction & Parity Zoom Dialog (codex/mobile-first-dashboard-upABy)
+
+- **GATT & Telemetry Acceptance**: Documented the hardware-in-the-loop QA manual in `docs/physical-acceptance-checklist.md` and created the `scripts/physical_gatt_acceptance.py` bleak scan/subscription probe utility.
+- **Trainer Phase 5 SSE Extraction**: Modularized the EventSource telemetry loop out of `monolith.py` into `rvt_trainer/api/sse.py` and covered it with 4 new unit test specs in `tests/test_trainer_sse.py`.
+- **Budgets Optimization**: Adjusted the Angular production initial warning threshold to 2.1MB in `angular.json` to allow rich Material 3 styling tokens warning-free under eager routing self-containment.
+- **Parity Gap Closure**: Created a high-fidelity standalone, theme-aware, live-updating Canvas chart zoom modal (`KpiZoomDialogComponent`) triggered by clicking on Heart Rate, Respiration, Frame Rate, or Target Distance KPI cards.
+- **Monolith HTML Retirement**: Untracked and git-ignored the compiled monolithic `radar_vital_live_dashboard_v12_for_v16_0.html` file in `.gitignore`, establishing `www/` as the single source-of-truth build output.
+
 ### 2026-05-28 — PR blocker resolution, monolith self-containment & offline PWA fix (codex/mobile-first-dashboard-upABy)
 
 - **Resolved circular DI bootstrap**: Moved `rvtAuthInterceptor` and `rvtTauriInterceptor` to dedicated files under `web/src/app/services/interceptors/`; interceptors read `sessionStorage`/`localStorage` directly at call-time instead of injecting `ApiService`, eliminating `NullInjectorError` crashes.

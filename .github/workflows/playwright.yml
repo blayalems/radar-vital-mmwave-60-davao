@@ -59,7 +59,7 @@ jobs:
       - name: Run Playwright smoke + API tests across supported viewports
         run: npx playwright test tests/smoke
         env:
-          PYTHON: python33
+          PYTHON: python3
           RVT_TEST_PORT: 8989
 
       - name: Upload Playwright report on failure
@@ -71,8 +71,8 @@ jobs:
           retention-days: 7
 
   visual:
-    name: Visual regression (committed Linux baselines)
-    runs-on: ubuntu-latest
+    name: Visual regression (committed Windows baselines)
+    runs-on: windows-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -108,7 +108,7 @@ jobs:
       - name: Run visual regression across themes and supported viewports
         run: npx playwright test tests/visual
         env:
-          PYTHON: python3
+          PYTHON: python
           RVT_TEST_PORT: 8990
 
       - name: Upload Playwright report on failure

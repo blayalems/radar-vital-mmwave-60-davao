@@ -22,14 +22,16 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ENTRYPOINT = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
+ENTRYPOINT = ROOT / "rvt_trainer" / "sidecar_entry.py"
 BIN_DIR = ROOT / "src-tauri" / "binaries"
 WORK_DIR = ROOT / ".artifact-check" / "pyinstaller-work"
 SPEC_DIR = ROOT / ".artifact-check" / "pyinstaller-spec"
 
+# Keep this list runtime-only. Do not add web/, because CI installs
+# web/node_modules before this script runs and PyInstaller would recursively
+# bundle the whole Angular source/dependency tree.
 ADD_DATA = [
     ROOT / "assets",
-    ROOT / "web",
     ROOT / "www",
     ROOT / "radar_vital_v16_0_0.ino",
     ROOT / "requirements-v12.txt",
@@ -111,7 +113,6 @@ def pyinstaller_command(target_name: str, onefile: bool) -> list[str]:
         cmd.extend(["--collect-all", package])
     for item in ADD_DATA:
         if item.exists():
-            # PyInstaller uses ';' as the Windows separator and ':' elsewhere.
             separator = ";" if platform.system().lower() == "windows" else ":"
             destination = item.name
             cmd.extend(["--add-data", f"{item}{separator}{destination}"])
@@ -130,7 +131,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not ENTRYPOINT.exists():
-        raise SystemExit(f"Trainer entrypoint not found: {ENTRYPOINT}")
+        raise SystemExit(f"Trainer sidecar entrypoint not found: {ENTRYPOINT}")
 
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     WORK_DIR.mkdir(parents=True, exist_ok=True)

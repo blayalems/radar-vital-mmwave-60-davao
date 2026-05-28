@@ -281,6 +281,7 @@ export class DynamicColorService {
         htmlEl.style.setProperty(property, hexFromArgb(argbValue));
       }
       htmlEl.dataset['dynamicColor'] = '1';
+      this.updateNativeStatusBar();
     } catch (e) {
       console.warn('[DynamicColor] Failed to apply theme:', e);
     }
@@ -310,6 +311,46 @@ export class DynamicColorService {
       htmlEl.style.removeProperty(token);
     }
     delete htmlEl.dataset['dynamicColor'];
+    this.updateNativeStatusBar();
+  }
+
+  updateNativeStatusBar(): void {
+    try {
+      const cap = (window as any).Capacitor;
+      if (cap?.isNativePlatform?.()) {
+        const statusBar = cap?.Plugins?.StatusBar;
+        if (statusBar) {
+          const htmlEl = document.documentElement;
+          const currentTheme = htmlEl.dataset['theme'] || 'dark';
+          
+          let bgColor = '#f8f9ff';
+          let style = 'LIGHT'; // 'LIGHT' means dark icons on light theme
+
+          if (currentTheme === 'light') {
+            style = 'LIGHT'; // Use dark icons on light themes
+          } else {
+            style = 'DARK'; // Use light icons on dark/night/hc themes
+          }
+
+          if (currentTheme === 'dark') {
+            bgColor = '#0f1318';
+          } else if (currentTheme === 'night' || currentTheme === 'hc') {
+            bgColor = '#000000';
+          }
+
+          // If dynamic color is active, read the current computed property --md-sys-color-surface
+          if (htmlEl.dataset['dynamicColor'] === '1') {
+            const computedBg = getComputedStyle(htmlEl).getPropertyValue('--md-sys-color-surface').trim();
+            if (computedBg && (computedBg.startsWith('#') || computedBg.startsWith('rgb'))) {
+              bgColor = computedBg;
+            }
+          }
+
+          void statusBar.setBackgroundColor?.({ color: bgColor })?.catch(() => {});
+          void statusBar.setStyle?.({ style })?.catch(() => {});
+        }
+      }
+    } catch (_) {}
   }
 
   reapply(): void {

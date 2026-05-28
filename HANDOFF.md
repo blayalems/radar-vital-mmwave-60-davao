@@ -1,10 +1,23 @@
 # HANDOFF — Refactor & Packaging Progress
-
+ 
 > **Mandatory:** Every AI agent (and human) that pushes work to this repo updates
 > the relevant table row below in the same commit. Drift between code and this
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
-
+ 
+### 2026-05-28 — PR #41: M3 Expressive & Android API 12–16 Audit Closure (codex/mobile-first-dashboard-upABy)
+ 
+- **Closed Android API 12–16 Manifest Gaps**: Declared split BLE permissions with `neverForLocation` flag (`AndroidManifest.xml`), added predictive back gestures `android:enableOnBackInvokedCallback="true"`, and added foreground service connected device declarations pre-emptively (A3, A5, A6, A8).
+- **Integrated Native SplashScreen API**: Installed `@capacitor/splash-screen` plugin, disabled autohide in `capacitor.config.ts`, and programmatically dismissed it inside `index.html` `removeOverlay` handler when fonts are hydrated (A1).
+- **Enforced Edge-to-Edge WebView**: Configured `overlaysWebView: true` in `capacitor.config.ts` and set responsive media breakpoints to `600px` to map BreakpointObserver directly to standard M3 WindowSizeClasses (Compact vs Medium/Expanded), allowing landscape foldables and tablets to reflow to the sidebar navigation rail dynamically (A2, A10).
+- **Automated Dynamic status bar Theme Matching**: Eliminated hardcoded status bar settings, implementing dynamic computed `--md-sys-color-surface` and `'LIGHT'`/`'DARK'` icon style switching inside the `state.service.ts` theme effect using the `DynamicColorService` updater bridge (A4).
+- **Created Monochrome Vector Adaptive Icons**: Wrote concentric radar-vital path vector drawable `ic_launcher_monochrome.xml` and referenced it in the adaptive launcher layers (A7).
+- **Wired Native Back Gesture Callback**: Listened to Capacitor `App` plugin's native `backButton` event inside the layout controller to cleanly navigate browser history or exit at the home root (A5).
+- **Bridged Native Haptic Feedback**: Installed `@capacitor/haptics` and routed triggers in `UiStore` dynamically behind `Capacitor.isNativePlatform()` checks (A9).
+- **Polished M3 Expressive Motion and Gaps**: Defined standard M3 motion and typography tokens, mapped transitions to spring physics easings, implemented a matching node sequence `clip-path: path(...)` morph transition on active navigation indicators, and mapped semantic cards to standard container elevations (M1, M2, M3, M4, M6, M7, M8).
+- **Remediated Connection Lockout Hangs**: Hardened the route `connectionGuard` by introducing a 1.5-second fallback timeout and letting the parent `LayoutComponent` mount, ensuring the recovery overlay and sandbox bypass button render if the status API is pending.
+- **Verification**: Built and verified monolithic round-trip compiles clean (`npm run build:check`), 46/46 pytest test cases passed, and 156/156 Playwright multi-viewport smoke tests passed completely.
+ 
 ### 2026-05-28 — PR #39 Review Resolutions, Blocker Fixes & Native Safety Hardening (codex/mobile-first-dashboard-upABy)
 
 - **Resolved Clean Checkout Blocker**: Restored and tracked `radar_vital_live_dashboard_v12_for_v16_0.html` inside Git index and updated `.gitignore` rules, ensuring fresh checkouts successfully run monolith round-trip check and static contract tests warning-free.

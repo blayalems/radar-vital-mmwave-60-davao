@@ -62,6 +62,17 @@
         clearInterval(interval);
         if (loaderBar) loaderBar.style.width = '100%';
         if (loaderStatus) loaderStatus.textContent = 'Console ready';
+        
+        // Hide Capacitor SplashScreen dynamically (A1)
+        try {
+          const cap = window.Capacitor;
+          if (cap && cap.isNativePlatform() && cap.Plugins && cap.Plugins.SplashScreen) {
+            cap.Plugins.SplashScreen.hide();
+          }
+        } catch (e) {
+          console.warn('[SplashScreen] Failed to hide:', e);
+        }
+
         setTimeout(() => {
           if (overlay) {
             overlay.classList.add('fade-out');

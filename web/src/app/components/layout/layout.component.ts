@@ -57,11 +57,28 @@ export class LayoutComponent implements OnInit {
   protected readonly showScrollTop = signal(false);
 
   protected readonly railCollapsed = signal(false);
+
+  // Map BreakpointObserver outputs to M3 WindowSizeClasses (A10)
+  protected readonly windowSizeClass = toSignal(
+    this.breakpointObserver.observe([
+      '(max-width: 599.98px)',
+      '(min-width: 600px) and (max-width: 839.98px)',
+      '(min-width: 840px)'
+    ]).pipe(
+      map(result => {
+        if (result.breakpoints['(max-width: 599.98px)']) return 'Compact';
+        if (result.breakpoints['(min-width: 600px) and (max-width: 839.98px)']) return 'Medium';
+        return 'Expanded';
+      })
+    ),
+    { initialValue: 'Expanded' }
+  );
+
   protected readonly showRail = toSignal(
-    this.breakpointObserver.observe('(min-width: 1024px)').pipe(
+    this.breakpointObserver.observe('(min-width: 600px)').pipe(
       map(r => r.matches)
     ),
-    { initialValue: false }
+    { initialValue: true }
   );
 
   ngOnInit() {
@@ -73,6 +90,23 @@ export class LayoutComponent implements OnInit {
     ).subscribe(event => {
       this.syncCurrentView(event.urlAfterRedirects);
     });
+
+    // Wire up Capacitor App backButton listener to Router navigation for back gesture (A5)
+    try {
+      const cap = (window as any).Capacitor;
+      if (cap?.isNativePlatform?.()) {
+        const appPlugin = cap?.Plugins?.App;
+        if (appPlugin) {
+          appPlugin.addListener('backButton', ({ canGoBack }: { canGoBack: boolean }) => {
+            if (canGoBack) {
+              window.history.back();
+            } else {
+              appPlugin.exitApp?.();
+            }
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   toggleRailCollapse() {

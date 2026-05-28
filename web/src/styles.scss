@@ -471,8 +471,29 @@ html[data-theme='hc'] body[data-view='home'] app-home :is(
 
 :root {
   /* Emphasized Motion Curves */
-  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
-  --dur-emphasized: 380ms;
+  --ease-emphasized: var(--md-sys-motion-easing-emphasized);
+  --dur-emphasized: var(--md-sys-motion-duration-long2);
+
+  /* Motion scale tokens - M3 Expressive (M2) */
+  --md-sys-motion-duration-short1: 50ms;
+  --md-sys-motion-duration-short2: 100ms;
+  --md-sys-motion-duration-medium1: 200ms;
+  --md-sys-motion-duration-medium2: 250ms;
+  --md-sys-motion-duration-long1: 300ms;
+  --md-sys-motion-duration-long2: 350ms;
+  --md-sys-motion-duration-extra-long1: 400ms;
+  --md-sys-motion-duration-extra-long2: 500ms;
+
+  --md-sys-motion-easing-linear: cubic-bezier(0, 0, 1, 1);
+  --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-decelerated: cubic-bezier(0, 0, 0, 1);
+  --md-sys-motion-easing-accelerated: cubic-bezier(0.3, 0, 1, 1);
+  --md-sys-motion-easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Spring physics animations (M1) */
+  --ease-spring: var(--md-sys-motion-easing-spring);
+  --dur-spring: var(--md-sys-motion-duration-extra-long2);
 
   /* Typography Systems (Expressive) */
   --md-sys-typescale-display-large-font-family: 'Inter', 'Roboto', sans-serif;
@@ -484,6 +505,50 @@ html[data-theme='hc'] body[data-view='home'] app-home :is(
   --md-sys-typescale-title-large-font-size: 1.35rem;
   --md-sys-typescale-title-large-font-weight: 600;
   --md-sys-typescale-title-large-line-height: 1.75rem;
+
+  /* Typography scale completeness (M7) */
+  --md-sys-typescale-body-large-size: 1rem;
+  --md-sys-typescale-body-large-weight: 400;
+  --md-sys-typescale-body-large-line-height: 1.5rem;
+  
+  --md-sys-typescale-body-medium-size: 0.875rem;
+  --md-sys-typescale-body-medium-weight: 400;
+  --md-sys-typescale-body-medium-line-height: 1.25rem;
+
+  --md-sys-typescale-body-small-size: 0.75rem;
+  --md-sys-typescale-body-small-weight: 400;
+  --md-sys-typescale-body-small-line-height: 1rem;
+
+  --md-sys-typescale-label-large-size: 0.875rem;
+  --md-sys-typescale-label-large-weight: 500;
+  --md-sys-typescale-label-large-line-height: 1.25rem;
+
+  --md-sys-typescale-label-medium-size: 0.75rem;
+  --md-sys-typescale-label-medium-weight: 500;
+  --md-sys-typescale-label-medium-line-height: 1rem;
+
+  --md-sys-typescale-label-small-size: 0.6875rem;
+  --md-sys-typescale-label-small-weight: 500;
+  --md-sys-typescale-label-small-line-height: 1rem;
+}
+
+/* M4 & M8: Card semantic depth container background classes */
+.m3-card-filled {
+  background-color: var(--md-sys-color-surface-container) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+}
+.m3-card-outlined {
+  background-color: var(--md-sys-color-surface) !important;
+  border: 1px solid var(--md-sys-color-outline) !important;
+}
+.m3-card-elevated {
+  background-color: var(--md-sys-color-surface-container-low) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+}
+.m3-card-elevated:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+  background-color: var(--md-sys-color-surface-container-high) !important;
 }
 
 /* Emphasized Layout Transitions */

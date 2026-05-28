@@ -1,4 +1,6 @@
 import { Injectable, signal } from '@angular/core';
+import { Capacitor } from '@capacitor/core';
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { ThemeId, DensityId, HapticMode } from '../../models/rvt.models';
 
 @Injectable({
@@ -23,13 +25,51 @@ export class UiStore {
 
   triggerHaptic(kind: string, sessionActive: boolean, ctlStopPending: boolean) {
     if (this.hxMode() === 'off') return;
-    if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return;
 
     const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const active = sessionActive && !ctlStopPending;
 
     if (active && !['safety', 'confirm-stop', 'reject', 'destructiveAccept'].includes(kind)) return;
     if (reducedMotion && kind !== 'safety') return;
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        switch (kind) {
+          case 'tap':
+            void Haptics.impact({ style: ImpactStyle.Light });
+            break;
+          case 'confirm':
+            void Haptics.impact({ style: ImpactStyle.Light });
+            break;
+          case 'success':
+            void Haptics.notification({ type: NotificationType.Success });
+            break;
+          case 'warn':
+            void Haptics.notification({ type: NotificationType.Warning });
+            break;
+          case 'safety':
+          case 'reject':
+            void Haptics.notification({ type: NotificationType.Error });
+            break;
+          case 'destructiveAccept':
+            void Haptics.impact({ style: ImpactStyle.Heavy });
+            break;
+          case 'sessionStart':
+            void Haptics.impact({ style: ImpactStyle.Medium });
+            break;
+          case 'sessionStop':
+            void Haptics.impact({ style: ImpactStyle.Medium });
+            break;
+          default:
+            void Haptics.impact({ style: ImpactStyle.Light });
+        }
+        return;
+      } catch (e) {
+        console.warn('[Haptics] Capacitor haptics failed:', e);
+      }
+    }
+
+    if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return;
 
     try {
       switch (kind) {

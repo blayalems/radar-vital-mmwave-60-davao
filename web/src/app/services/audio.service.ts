@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, effect, inject } from '@angular/core';
 import { AlertEvent } from '../models/rvt.models';
 import { StateService } from './state.service';
 
@@ -16,6 +16,14 @@ export class AudioService {
   private utteranceQueue: { u: SpeechSynthesisUtterance; severity: 'ok' | 'warn' | 'bad' }[] = [];
   private isSpeaking = false;
   private duckTimeout: any = null;
+
+  constructor() {
+    effect(() => {
+      if (!this.state.voiceAlertsEnabled()) {
+        this.cancelVoiceAnnouncements();
+      }
+    });
+  }
 
   private getAudioCtx(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -55,7 +63,6 @@ export class AudioService {
       const volume = this.state.audioVolume();
       let targetGain = (type === 'bad' ? 0.08 : 0.055) * volume;
 
-      // Apply 20% ducking if voice alerts are active
       if (this.isDuckingActive) {
         targetGain *= 0.2;
       }
@@ -80,7 +87,6 @@ export class AudioService {
     if (this.duckTimeout) {
       clearTimeout(this.duckTimeout);
     }
-    // Safeguard fallback: automatically restore normal volume level after 15 seconds
     this.duckTimeout = setTimeout(() => {
       this.restore();
     }, 15000);
@@ -94,10 +100,25 @@ export class AudioService {
     }
   }
 
+  private cancelVoiceAnnouncements() {
+    this.utteranceQueue = [];
+    this.isSpeaking = false;
+    this.restore();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (_) {}
+    }
+  }
+
   private processQueue() {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
-    // Self-healing: if we think we are speaking but the browser is actually idle, reset
+    if (!this.state.voiceAlertsEnabled()) {
+      this.cancelVoiceAnnouncements();
+      return;
+    }
+
     if (this.isSpeaking && !window.speechSynthesis.speaking) {
       this.isSpeaking = false;
       this.restore();
@@ -110,7 +131,12 @@ export class AudioService {
     const next = this.utteranceQueue.shift();
     if (!next) return;
 
-    const { u, severity } = next;
+    if (!this.state.voiceAlertsEnabled()) {
+      this.cancelVoiceAnnouncements();
+      return;
+    }
+
+    const { u } = next;
     this.isSpeaking = true;
     this.duck();
 
@@ -124,7 +150,6 @@ export class AudioService {
       if (typeof prevOnEnd === 'function') {
         try { prevOnEnd.call(u, ev); } catch (_) {}
       }
-      // Natural phrasing delay of 400ms before starting next speech in queue
       setTimeout(() => this.processQueue(), 400);
     };
 
@@ -145,7 +170,10 @@ export class AudioService {
 
   speakAlert(text: string, severity: 'ok' | 'warn' | 'bad' = 'warn', force = false) {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    if (!this.state.voiceAlertsEnabled() && !force) return;
+    if (!this.state.voiceAlertsEnabled() && !force) {
+      this.cancelVoiceAnnouncements();
+      return;
+    }
 
     const cleanText = (text || '').trim();
     if (!cleanText) return;
@@ -164,21 +192,19 @@ export class AudioService {
       u.volume = Math.max(0.2, Math.min(1, this.state.audioVolume()));
 
       if (force || severity === 'bad') {
-        // High priority / forced alert: preemptively clear queue and cancel current speech
         this.utteranceQueue = [];
         window.speechSynthesis.cancel();
         this.isSpeaking = false;
         this.restore();
 
-        // Briefly wait 100ms for cancel to complete then speak immediately
         setTimeout(() => {
+          if (!this.state.voiceAlertsEnabled() && !force) return;
           this.utteranceQueue.push({ u, severity });
           this.processQueue();
         }, 100);
         return;
       }
 
-      // Normal severity alerts: enqueue to serialize naturally
       this.utteranceQueue.push({ u, severity });
       this.processQueue();
     } catch (_) {}
@@ -191,4 +217,3 @@ export class AudioService {
     this.speakAlert(`Alert: ${top.msg}`, top.severity === 'critical' ? 'bad' : 'warn');
   }
 }
-

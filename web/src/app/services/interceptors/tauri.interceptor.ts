@@ -40,15 +40,18 @@ async function resolveTauriApiBase(tauri: any): Promise<string> {
   const status = await (tauri.invoke as (cmd: string) => Promise<NativeTrainerStatus>)('native_trainer_status');
   const localOrigin = normalizeHttpOrigin(String(status?.origin || ''));
 
-  // A running bundled trainer wins over stale LAN origins in packaged EXE mode.
-  // External LAN trainers are still selectable after startup through Settings,
-  // which calls native_set_paired_origin before protected requests.
-  if (localOrigin && status?.running !== false && (stored !== localOrigin)) {
-    try { localStorage.setItem(API_BASE_KEY, localOrigin); } catch (_) {}
-    return localOrigin;
+  // Preserve an explicit trainer origin selected in Settings. Re-assert it into
+  // native state before protected requests so stale Rust-side pairing to the
+  // bundled sidecar cannot reject a valid external LAN trainer.
+  if (stored) {
+    try {
+      await (tauri.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<unknown>)('native_set_paired_origin', { origin: stored });
+    } catch (_) {}
+    return stored;
   }
 
-  if (stored) return stored;
+  // First-run packaged EXE path: use the dynamic sidecar origin allocated by
+  // Rust and persist it for non-HttpClient helpers such as downloads.
   if (localOrigin) {
     try { localStorage.setItem(API_BASE_KEY, localOrigin); } catch (_) {}
     return localOrigin;

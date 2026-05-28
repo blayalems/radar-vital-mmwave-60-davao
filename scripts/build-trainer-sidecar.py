@@ -79,9 +79,13 @@ def rust_target_triple() -> str:
     return "x86_64-unknown-linux-gnu"
 
 
-def target_filename(triple: str) -> str:
+def target_stem(triple: str) -> str:
+    return f"rvt-trainer-{triple}"
+
+
+def target_path(triple: str) -> Path:
     suffix = ".exe" if "windows" in triple else ""
-    return f"rvt-trainer-{triple}{suffix}"
+    return BIN_DIR / f"{target_stem(triple)}{suffix}"
 
 
 def pyinstaller_command(target_name: str, onefile: bool) -> list[str]:
@@ -136,18 +140,16 @@ def main() -> int:
         run([sys.executable, "-m", "pip", "install", "-r", "requirements-v12.txt", "pyinstaller>=6.0,<7.0"])
 
     triple = rust_target_triple()
-    name = target_filename(triple)
-    out_path = BIN_DIR / name
+    name = target_stem(triple)
+    out_path = target_path(triple)
     if out_path.exists():
         out_path.unlink()
     if not args.onefile:
-        shutil.rmtree(out_path.with_suffix(""), ignore_errors=True)
+        shutil.rmtree(BIN_DIR / name, ignore_errors=True)
 
     run(pyinstaller_command(name, args.onefile))
 
     if not out_path.exists():
-        # PyInstaller keeps the exact --name. On Windows, ensure the expected exe
-        # extension exists even if a caller supplied a non-standard target name.
         candidates = sorted(BIN_DIR.glob(f"{name}*"))
         raise SystemExit(f"Expected sidecar not produced at {out_path}; candidates={candidates}")
 

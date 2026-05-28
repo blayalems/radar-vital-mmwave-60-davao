@@ -29,9 +29,10 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "externalBin": ["binaries/rvt-trainer"],
     "publisher": "Radar Vital",
     "shortDescription": "Mobile-first console for mmWave 60 GHz radar vital-sign monitoring.",
-    "longDescription": "Operator console for the Radar Vital trainer that connects to a local Python trainer or a LAN-paired trainer to monitor vitals at 1 Hz, run preflight checks, and review ML-readiness verdicts.",
+    "longDescription": "Standalone Windows operator console for the Radar Vital trainer. The installer bundles the Python trainer as a local Tauri sidecar, starts it on loopback, and connects the dashboard to the local API without requiring a manual Python launch. APK builds remain LAN companion clients.",
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"

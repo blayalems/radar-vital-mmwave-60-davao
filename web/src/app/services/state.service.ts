@@ -164,28 +164,8 @@ export class StateService {
       // Re-apply dynamic color when base theme changes (light ↔ dark)
       this.dynamicColor.reapply();
 
-      // Reactively sync native status bar background and style on Capacitor
-      try {
-        const cap = (window as any).Capacitor;
-        if (cap?.isNativePlatform?.()) {
-          const statusBar = cap?.Plugins?.StatusBar;
-          if (statusBar) {
-            let bgColor = '#f4f6fb';
-            let style = 'LIGHT';
-
-            if (currentTheme === 'dark') {
-              bgColor = '#0f172a';
-              style = 'DARK';
-            } else if (currentTheme === 'night' || currentTheme === 'hc') {
-              bgColor = '#000000';
-              style = 'DARK';
-            }
-
-            void statusBar.setBackgroundColor?.({ color: bgColor })?.catch(() => {});
-            void statusBar.setStyle?.({ style })?.catch(() => {});
-          }
-        }
-      } catch (_) {}
+      // Reactively sync native status bar background and style on Capacitor dynamically via DynamicColorService (A4)
+      this.dynamicColor.updateNativeStatusBar();
     });
 
     effect(() => {

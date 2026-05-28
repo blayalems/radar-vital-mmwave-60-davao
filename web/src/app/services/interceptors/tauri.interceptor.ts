@@ -1,6 +1,7 @@
 import { HttpInterceptorFn, HttpResponse, HttpErrorResponse } from '@angular/common/http';
 import { from } from 'rxjs';
 
+const API_BASE_KEY = 'rvt-api-base';
 const TAURI_LOCAL_TRAINER_ORIGIN = 'http://127.0.0.1:8765';
 
 interface TauriInvokeRequest {
@@ -16,11 +17,13 @@ export const rvtTauriInterceptor: HttpInterceptorFn = (req, next) => {
 
   // Retrieve current API base without injecting ApiService directly.
   // In the packaged Windows EXE, the bundled trainer sidecar is owned by Tauri
-  // and exposed on loopback. Use that as the native default so /api/status does
-  // not resolve against the WebView asset origin and incorrectly enter sandbox.
+  // and exposed on loopback. Use and persist that as the native default so
+  // /api/status does not resolve against the WebView asset origin and
+  // incorrectly enter sandbox. Persisting also fixes raw fetch/download helpers
+  // that do not pass through Angular's HTTP interceptor.
   let base = '';
   try {
-    const storedBase = localStorage.getItem('rvt-api-base');
+    const storedBase = localStorage.getItem(API_BASE_KEY);
     const raw = String(storedBase || '').trim().replace(/\/+$/, '');
     if (raw) {
       const u = new URL(raw, window.location.href);
@@ -28,8 +31,13 @@ export const rvtTauriInterceptor: HttpInterceptorFn = (req, next) => {
         base = u.origin;
       }
     }
-  } catch (_) {}
-  if (!base && tauri?.invoke) base = TAURI_LOCAL_TRAINER_ORIGIN;
+    if (!base && tauri?.invoke) {
+      base = TAURI_LOCAL_TRAINER_ORIGIN;
+      localStorage.setItem(API_BASE_KEY, base);
+    }
+  } catch (_) {
+    if (!base && tauri?.invoke) base = TAURI_LOCAL_TRAINER_ORIGIN;
+  }
 
   const isApi = req.url.startsWith('/api/') || (base && req.url.startsWith(base));
 

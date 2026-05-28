@@ -88,10 +88,7 @@ export class TelemetryService {
       return;
     }
 
-    // If SSE is active, standard HTTP poll is stopped entirely (no-op treadmill eliminated)
-    if (this.sseMode) {
-      return;
-    }
+    if (this.sseMode) return;
 
     this.state.ctlStatus.set(this.state.ctlStatus() || { ok: true, mode: 'loading' });
 
@@ -99,10 +96,8 @@ export class TelemetryService {
       const path = '/api/session/current/live_dashboard.json';
       const startMs = Date.now();
       const payload = await this.api.request<Partial<LivePayload>>(`${path}?t=${Date.now()}`);
-
       const latency = Date.now() - startMs;
       this.applyLivePayload(payload);
-
       this.httpPollFailures = 0;
       this.state.ctlStatus.update((s) => ({ ...(s ?? { ok: true }), ok: true, latency }));
       this.scheduleNextPoll(1000);
@@ -129,7 +124,6 @@ export class TelemetryService {
     if (typeof EventSource === 'undefined') return;
     if (this.state.demoMode() || this.state.autoDemoActive()) return;
     if (!this.running) return;
-    // EventSource cannot attach the LAN pairing header; authenticated links use polling.
     if (this.api.hasPairToken()) {
       this.scheduleNextPoll(0);
       return;
@@ -144,7 +138,7 @@ export class TelemetryService {
         this.sseMode = true;
         this.sseErrors = [];
         this.sseReconnectAttempts = 0;
-        this.clearPollTimer(); // Stop the polling no-op treadmill
+        this.clearPollTimer();
         this.clearReconnectTimer();
       };
 
@@ -157,15 +151,30 @@ export class TelemetryService {
         }
       });
 
+      this.sse.addEventListener('session_warning', (ev: MessageEvent) => {
+        const payload = this.parseSseJson(ev);
+        const message = this.eventMessage(payload, 'Session warning from telemetry stream.');
+        this.emitAlert(message, 'warn', 'sse-session-warning');
+      });
+
+      this.sse.addEventListener('stopped', (ev: MessageEvent) => {
+        const payload = this.parseSseJson(ev);
+        const message = this.eventMessage(payload, 'Telemetry session stopped.');
+        this.reconcileStoppedEvent(payload, message);
+      });
+
+      this.sse.addEventListener('data_update', () => {
+        this.state.ctlStatus.update((s) => ({ ...(s ?? { ok: true }), ok: true, last_data_update_ms: Date.now() }));
+      });
+
       this.sse.onerror = () => {
         const now = Date.now();
         this.sseErrors = this.sseErrors.filter((t) => now - t < 60000);
         this.sseErrors.push(now);
-
         if (this.sseErrors.length > 3) {
           console.warn('SSE failure threshold reached. Falling back to polling.');
           this.stopSse();
-          this.scheduleNextPoll(0); // Fallback to HTTP polling
+          this.scheduleNextPoll(0);
           this.scheduleSseReconnect();
         }
       };
@@ -175,22 +184,48 @@ export class TelemetryService {
     }
   }
 
+  private parseSseJson(ev: MessageEvent): Record<string, unknown> {
+    try {
+      const parsed = JSON.parse(ev.data || '{}');
+      return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  private eventMessage(payload: Record<string, unknown>, fallback: string): string {
+    return String(payload['message'] || payload['msg'] || payload['reason'] || payload['code'] || fallback);
+  }
+
+  private reconcileStoppedEvent(payload: Record<string, unknown>, message: string): void {
+    const serverSessionId = String(payload['session_id'] || payload['active_session_id'] || '');
+    const currentSessionId = this.state.currentSessionId();
+    const serverDeclaresDifferentSession = Boolean(serverSessionId && currentSessionId && serverSessionId !== currentSessionId);
+
+    this.state.sessionActive.set(false);
+    this.state.currentSessionId.set(null);
+    this.state.telemetryStale.set(true);
+    this.state.ctlStopPending.set(false);
+    this.state.ctlStatus.update((s) => ({
+      ...(s ?? { ok: true }),
+      ok: true,
+      session: null,
+      active_session: null,
+      last_stop_reason: message,
+      last_stop_ms: Date.now(),
+      replaced_session: serverDeclaresDifferentSession
+    }));
+    this.emitAlert(message, serverDeclaresDifferentSession ? 'critical' : 'warn', 'sse-stopped');
+    this.stopSse();
+    this.scheduleNextPoll(0);
+  }
+
   private scheduleSseReconnect() {
     if (!this.running) return;
     this.clearReconnectTimer();
-
-    // Bounded backoff: 15s, 30s, 60s max
-    const backoffSeconds =
-      this.sseReconnectAttempts === 0 ? 15 : this.sseReconnectAttempts === 1 ? 30 : 60;
-
-    // Random jitter +/- 1s to avoid synchronizations
+    const backoffSeconds = this.sseReconnectAttempts === 0 ? 15 : this.sseReconnectAttempts === 1 ? 30 : 60;
     const jitterMs = Math.floor(Math.random() * 2000) - 1000;
     const delayMs = Math.max(1000, backoffSeconds * 1000 + jitterMs);
-
-    console.log(
-      `SSE reconnect scheduled in ${delayMs}ms (attempt ${this.sseReconnectAttempts + 1})`,
-    );
-
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       if (!this.running) return;
@@ -215,39 +250,31 @@ export class TelemetryService {
     const N = 120;
     const hrBase = 72 + 4 * Math.sin(t / 12);
     const rrBase = 15 + 1.5 * Math.sin(t / 18 + 1);
-
-    const ts = new Array(N);
-    const rep_hr = new Array(N);
-    const can_hr = new Array(N);
-    const raw_hr = new Array(N);
-    const raw_hr_corrected = new Array(N);
-    const ble_hr = new Array(N);
-
-    const rep_rr = new Array(N);
-    const can_rr = new Array(N);
-    const ble_rr = new Array(N);
-
-    const breath = new Array(N);
-    const heart = new Array(N);
+    const ts: number[] = [];
+    const rep_hr: number[] = [];
+    const can_hr: number[] = [];
+    const raw_hr: number[] = [];
+    const raw_hr_corrected: number[] = [];
+    const ble_hr: number[] = [];
+    const rep_rr: number[] = [];
+    const can_rr: number[] = [];
+    const ble_rr: number[] = [];
+    const breath: number[] = [];
+    const heart: number[] = [];
 
     for (let i = 0; i < N; i++) {
       ts[i] = t - N + i;
-
-      const rep_hr_val = hrBase + 2 * Math.sin(i / 3 + t / 5) + (Math.random() - 0.5);
-      rep_hr[i] = rep_hr_val;
-      can_hr[i] = rep_hr_val + (Math.random() - 0.5) * 1.2;
-
-      const raw_hr_val = rep_hr_val + (Math.random() - 0.5) * 3.5 + 1.2;
-      raw_hr[i] = raw_hr_val;
-      raw_hr_corrected[i] = raw_hr_val - Math.max(0, Math.min(25, 0.4 * (raw_hr_val - 55)));
-
-      ble_hr[i] = rep_hr_val + (Math.random() - 0.5) * 0.7 - 0.3;
-
-      const rep_rr_val = rrBase + 0.4 * Math.sin(i / 4 + t / 6) + (Math.random() - 0.5) * 0.15;
-      rep_rr[i] = rep_rr_val;
-      can_rr[i] = rep_rr_val + (Math.random() - 0.5) * 0.3;
-      ble_rr[i] = rep_rr_val + (Math.random() - 0.5) * 0.2;
-
+      const repHrVal = hrBase + 2 * Math.sin(i / 3 + t / 5) + (Math.random() - 0.5);
+      rep_hr[i] = repHrVal;
+      can_hr[i] = repHrVal + (Math.random() - 0.5) * 1.2;
+      const rawHrVal = repHrVal + (Math.random() - 0.5) * 3.5 + 1.2;
+      raw_hr[i] = rawHrVal;
+      raw_hr_corrected[i] = rawHrVal - Math.max(0, Math.min(25, 0.4 * (rawHrVal - 55)));
+      ble_hr[i] = repHrVal + (Math.random() - 0.5) * 0.7 - 0.3;
+      const repRrVal = rrBase + 0.4 * Math.sin(i / 4 + t / 6) + (Math.random() - 0.5) * 0.15;
+      rep_rr[i] = repRrVal;
+      can_rr[i] = repRrVal + (Math.random() - 0.5) * 0.3;
+      ble_rr[i] = repRrVal + (Math.random() - 0.5) * 0.2;
       breath[i] = Math.sin((i + t) * 0.12) + 0.1 * Math.sin((i + t) * 0.5);
       heart[i] = Math.sin((i + t) * 0.9) * 0.6 + 0.15 * Math.sin((i + t) * 3.5);
     }
@@ -255,12 +282,10 @@ export class TelemetryService {
     const x = 0.35 + 0.18 * Math.sin(t / 14);
     const y = 1.85 + 0.22 * Math.cos(t / 16);
     const distCm = Math.hypot(x, y) * 100;
-
     const payload = {
       meta: {
         status: this.state.currentSessionId() ? 'running' : 'waiting',
         elapsed_s: t,
-        // M7 dynamically calculated remaining session duration based on setup.duration_s
         remaining_s: Math.max(0, (this.state.setup().duration_s || 30) - t),
         session_dir: '/sessions/demo_2026_04_18',
         sandbox: true,
@@ -268,13 +293,13 @@ export class TelemetryService {
       radar: {
         rows: 1450 + t,
         fps_hz: 20,
-        reported_hr: rep_hr[rep_hr.length - 1],
-        reported_rr: rep_rr[rep_rr.length - 1],
-        candidate_hr: can_hr[can_hr.length - 1],
-        candidate_rr: can_rr[can_rr.length - 1],
-        raw_hr: raw_hr[raw_hr.length - 1],
-        raw_hr_uncorrected: raw_hr[raw_hr.length - 1],
-        raw_hr_corrected: raw_hr_corrected[raw_hr_corrected.length - 1],
+        reported_hr: rep_hr.at(-1),
+        reported_rr: rep_rr.at(-1),
+        candidate_hr: can_hr.at(-1),
+        candidate_rr: can_rr.at(-1),
+        raw_hr: raw_hr.at(-1),
+        raw_hr_uncorrected: raw_hr.at(-1),
+        raw_hr_corrected: raw_hr_corrected.at(-1),
         distance_cm: distCm,
         motion: 0.1 * Math.sin(t / 5) + 0.05,
         human: true,
@@ -287,49 +312,14 @@ export class TelemetryService {
         target_info_ok: true,
         pqi_heart: 0.82 + 0.05 * Math.sin(t / 10),
         pqi_breath: 0.88,
-        hr_arbiter_corrected: false,
-        hr_rejectphase_rejected: false,
         trusted_hr_fresh: true,
-        hr_agree_err_bpm: 0.4,
-        hr_zc_bpm: hrBase,
-        hr_zc_conf: 0.7,
-        hr_spec_bpm: hrBase + 0.3,
-        hr_spec_mag: 0.0032,
-        hr_trusted_anchor_value: hrBase,
-        hr_anchor_err_bpm: 0.4,
-        hr_publish_reason_name: 'published',
-        hr_pre_rejectphase: hrBase + 0.7,
-        hr_post_rejectphase: hrBase + 0.4,
-        hr_post_blend: hrBase + 0.2,
-        hr_post_coherence: hrBase,
-        hr_final_publish_candidate: rep_hr[rep_hr.length - 1],
-        hr_raw_high_bias_suspect: false,
-        rr_anchor_fresh: true,
-        rr_raw_agree_ok: true,
-        rr_fundamental_recovery_triggered: false,
-        rr_gate_reason_name: 'OK',
-        rr_publish_reason_name: 'published',
-        rr_zc_bpm: rrBase,
-        rr_zc_conf: 0.82,
-        rr_spec_bpm: rrBase + 0.1,
-        rr_spec_conf: 0.81,
-        rr_raw_anchor_err_bpm: 0.12,
-        rr_pre_acceptphase: rrBase + 0.2,
-        rr_post_acceptphase: rrBase + 0.1,
-        rr_post_blend: rrBase,
-        rr_post_kalman: rrBase,
-        rr_final_publish_candidate: rep_rr[rep_rr.length - 1],
-        rr_anchor_confidence: 0.83,
-        rr_fundamental_recovery_count: 0,
-        rr_raw_seed_consistent_count: 5,
-        rr_midsession_raw_reanchor_allowed: true,
         trusted_rr_fresh: true,
       },
       ble: {
         address: this.state.setup().ble_address,
         profile: this.state.setup().ble_profile,
-        hr: ble_hr[ble_hr.length - 1],
-        rr: ble_rr[ble_rr.length - 1],
+        hr: ble_hr.at(-1),
+        rr: ble_rr.at(-1),
         connected: true,
       },
       faults: [],
@@ -366,22 +356,14 @@ export class TelemetryService {
         hr_gate_reason_histogram: { OK: 120 },
         rr_gate_reason_histogram: { OK: 120 },
         agc_anomaly_flags: { gain_floor_pct: 0, near_field_pct: 0, skipdsp_pct: 0 },
-        ble_ref_quality: {
-          status: 'good',
-          raw_packets: 120,
-          parsed_rows: 120,
-          packet_loss_pct: 0,
-          decode_error_pct: 0,
-        },
+        ble_ref_quality: { status: 'good', raw_packets: 120, parsed_rows: 120, packet_loss_pct: 0, decode_error_pct: 0 },
       },
     };
-
     this.applyLivePayload(payload);
   }
 
   private applyLivePayload(payload: Partial<LivePayload>) {
     if (!payload) return;
-
     const receivedAt = Date.now();
     const normalized: LivePayload = {
       meta: payload.meta || {},
@@ -395,7 +377,6 @@ export class TelemetryService {
     };
     normalized.meta.received_at_ms = receivedAt;
     normalized.meta.stale = false;
-
     this.state.lastPayload.set(normalized);
     this.state.lastLivePayload.set(normalized);
     this.state.liveReceivedAt.set(receivedAt);
@@ -407,55 +388,46 @@ export class TelemetryService {
     const hr = Number(normalized.radar.reported_hr);
     const rr = Number(normalized.radar.reported_rr);
     if (Number.isFinite(hr) && (hr < thresholds.hrLow || hr > thresholds.hrHigh)) {
-      this.emitAlert(
-        `Heart rate ${Math.round(hr)} bpm outside ${thresholds.hrLow}-${thresholds.hrHigh} bpm`,
-        'warn',
-        'heart-rate',
-      );
+      this.emitAlert(`Heart rate ${Math.round(hr)} bpm outside ${thresholds.hrLow}-${thresholds.hrHigh} bpm`, 'warn', 'heart-rate');
     }
     if (Number.isFinite(rr) && (rr < thresholds.rrLow || rr > thresholds.rrHigh)) {
-      this.emitAlert(
-        `Respiration ${Math.round(rr)} br/min outside ${thresholds.rrLow}-${thresholds.rrHigh} br/min`,
-        'warn',
-        'respiration',
-      );
+      this.emitAlert(`Respiration ${Math.round(rr)} br/min outside ${thresholds.rrLow}-${thresholds.rrHigh} br/min`, 'warn', 'respiration');
     }
     normalized.faults.forEach((fault) => {
       const record = typeof fault === 'object' ? fault : null;
-      const message =
-        typeof fault === 'string'
-          ? fault
-          : record?.['message'] || record?.['msg'] || record?.['code'];
+      const message = typeof fault === 'string' ? fault : record?.['message'] || record?.['msg'] || record?.['code'];
       if (message) this.emitAlert(String(message), 'critical', 'fault');
     });
 
-    // Update real-time spark data
     this.state.spark.update((s) => {
-      const hr = [...s.hr, normalized.radar.reported_hr || 0].slice(-20);
-      const rr = [...s.rr, normalized.radar.reported_rr || 0].slice(-20);
-      
-      const directFps = normalized.radar['fps_hz'] ?? normalized.radar['fps'];
-      let calculatedFps = directFps !== undefined && directFps !== null ? Number(directFps) : null;
-      if (calculatedFps === null) {
-        const series = normalized.series as Record<string, unknown> | undefined;
-        const timestamps = (series?.['ts'] ?? series?.['t']) as number[] | undefined;
-        if (timestamps && Array.isArray(timestamps) && timestamps.length >= 3) {
-          const numTimestamps = timestamps.map(t => Number(t)).filter(Number.isFinite);
-          const deltas = numTimestamps.slice(1).map((val, idx) => val - numTimestamps[idx]).filter(val => val > 0);
-          if (deltas.length > 0) {
-            deltas.sort((a, b) => a - b);
-            const median = deltas[Math.floor(deltas.length / 2)];
-            if (median > 0) {
-              calculatedFps = 1 / median;
-            }
-          }
-        }
-      }
-      const fpsVal = calculatedFps !== null ? calculatedFps : 20.0;
-      const fps = [...s.fps, fpsVal].slice(-20);
-      const dist = [...s.dist, normalized.radar.distance_cm || 0].slice(-20);
-      return { hr, rr, fps, dist };
+      const hrSeries = this.appendFinite(s.hr, normalized.radar.reported_hr);
+      const rrSeries = this.appendFinite(s.rr, normalized.radar.reported_rr);
+      const fpsSeries = this.appendFinite(s.fps, this.resolveFps(normalized));
+      const distSeries = this.appendFinite(s.dist, normalized.radar.distance_cm);
+      return { hr: hrSeries, rr: rrSeries, fps: fpsSeries, dist: distSeries };
     });
+  }
+
+  private appendFinite(series: number[], value: unknown): number[] {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? [...series, numeric].slice(-20) : series.slice(-20);
+  }
+
+  private resolveFps(payload: LivePayload): number | null {
+    const directFps = payload.radar['fps_hz'] ?? payload.radar['fps'];
+    if (directFps !== undefined && directFps !== null) {
+      const numeric = Number(directFps);
+      if (Number.isFinite(numeric)) return numeric;
+    }
+    const series = payload.series as Record<string, unknown> | undefined;
+    const timestamps = (series?.['ts'] ?? series?.['t']) as number[] | undefined;
+    if (!Array.isArray(timestamps) || timestamps.length < 3) return null;
+    const numTimestamps = timestamps.map(t => Number(t)).filter(Number.isFinite);
+    const deltas = numTimestamps.slice(1).map((val, idx) => val - numTimestamps[idx]).filter(val => val > 0);
+    if (!deltas.length) return null;
+    deltas.sort((a, b) => a - b);
+    const median = deltas[Math.floor(deltas.length / 2)];
+    return median > 0 ? 1 / median : null;
   }
 
   private emitAlert(message: string, severity: 'warn' | 'critical', source = 'telemetry'): void {

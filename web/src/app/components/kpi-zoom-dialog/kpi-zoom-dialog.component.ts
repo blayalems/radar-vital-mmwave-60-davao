@@ -211,7 +211,22 @@ export class KpiZoomDialogComponent implements AfterViewInit, OnDestroy {
     switch (this.data.metric) {
       case 'hr': return payload.radar?.reported_hr ? Math.round(payload.radar.reported_hr).toString() : '--';
       case 'rr': return payload.radar?.reported_rr ? Math.round(payload.radar.reported_rr).toString() : '--';
-      case 'fps': return payload.radar?.fps ? payload.radar.fps.toFixed(1) : '--';
+      case 'fps': {
+        const direct = payload.radar?.fps_hz ?? payload.radar?.fps;
+        if (direct !== undefined && direct !== null) return Number(direct).toFixed(1);
+        const series = payload?.series as Record<string, unknown> | undefined;
+        const timestamps = (series?.['ts'] ?? series?.['t']) as number[] | undefined;
+        if (timestamps && Array.isArray(timestamps) && timestamps.length >= 3) {
+          const numTimestamps = timestamps.map(t => Number(t)).filter(Number.isFinite);
+          const deltas = numTimestamps.slice(1).map((val, idx) => val - numTimestamps[idx]).filter(val => val > 0);
+          if (deltas.length > 0) {
+            deltas.sort((a, b) => a - b);
+            const median = deltas[Math.floor(deltas.length / 2)];
+            if (median > 0) return (1 / median).toFixed(1);
+          }
+        }
+        return '--';
+      }
       case 'dist': return payload.radar?.distance_cm ? Math.round(payload.radar.distance_cm).toString() : '--';
     }
   }

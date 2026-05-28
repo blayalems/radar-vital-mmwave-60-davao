@@ -11,6 +11,7 @@ import {
   SubjectProfileRecord
 } from '../models/rvt.models';
 import { StateService } from './state.service';
+import { API_BASE_KEY, TOKEN_KEY } from './rvt-storage-keys';
 
 interface NativeHttpPlugin {
   request(options: {
@@ -39,8 +40,8 @@ export class ApiService {
   private state = inject(StateService);
   private http = inject(HttpClient);
 
-  private readonly API_BASE_KEY = 'rvt-api-base';
-  private readonly TOKEN_KEY = 'rvt-pair-token';
+  private readonly API_BASE_KEY = API_BASE_KEY;
+  private readonly TOKEN_KEY = TOKEN_KEY;
   private connectionAttempt = 0;
 
   public readonly connectionLoading = signal(true);

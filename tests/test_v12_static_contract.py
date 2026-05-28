@@ -45,7 +45,7 @@ def test_dashboard_pwa_contract():
     assert 'id="demoBanner"' in layout
     assert 'role="alert"' in layout
     assert 'href="#mainContent"' in layout
-    assert "rvt-pair-token" in api
+    assert "rvt-pair-token" in api or "rvt-pair-token" in text(ROOT / "web" / "src" / "app" / "services" / "rvt-storage-keys.ts")
     assert "X-RVT-Auth" in api
     assert "/api/events/subscribe" in telemetry
     assert "new EventSource" in telemetry

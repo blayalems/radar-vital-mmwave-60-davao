@@ -1,15 +1,16 @@
 import { HttpInterceptorFn } from '@angular/common/http';
+import { API_BASE_KEY, TOKEN_KEY } from '../rvt-storage-keys';
 
 export const rvtAuthInterceptor: HttpInterceptorFn = (req, next) => {
   let token = '';
   try {
-    token = sessionStorage.getItem('rvt-pair-token') || '';
+    token = sessionStorage.getItem(TOKEN_KEY) || '';
   } catch (_) {}
 
   // Retrieve current API base without injecting ApiService directly
   let base = '';
   try {
-    const storedBase = localStorage.getItem('rvt-api-base');
+    const storedBase = localStorage.getItem(API_BASE_KEY);
     const raw = String(storedBase || '').trim().replace(/\/+$/, '');
     if (raw) {
       const u = new URL(raw, window.location.href);

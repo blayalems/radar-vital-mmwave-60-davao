@@ -112,6 +112,17 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.theme(); // Redraw on theme change
       this.requestCanvasDraw();
     });
+
+    effect(() => {
+      const sid = this.state.currentSessionId();
+      const globalNotes = this.state.sessionNotes();
+      if (sid) {
+        const note = globalNotes[sid] || '';
+        if (this.sessionNotesInput !== note) {
+          this.sessionNotesInput = note;
+        }
+      }
+    });
   }
 
   ngOnInit() {

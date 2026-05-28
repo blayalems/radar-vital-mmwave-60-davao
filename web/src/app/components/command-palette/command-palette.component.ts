@@ -227,10 +227,21 @@ export class CommandPaletteComponent {
       keywords: 'clear snaps delete snapshots sweep',
       group: 'Live Session',
       icon: 'delete_sweep',
-      action: () => {
-        this.state.snaps.set([]);
-        this.state.snapNotes.set({});
-        this.snackBar.open('All pinned snapshots cleared.', 'Dismiss', { duration: 3000 });
+      action: async () => {
+        this.state.triggerHaptic('destructiveAccept');
+        const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+          data: {
+            title: 'Clear all snapshots?',
+            message: 'This removes the pinned frames and their notes from this dashboard.',
+            confirmLabel: 'Clear snapshots'
+          },
+          restoreFocus: true
+        }).afterClosed());
+        if (confirmed) {
+          this.state.snaps.set([]);
+          this.state.snapNotes.set({});
+          this.snackBar.open('All pinned snapshots cleared.', 'Dismiss', { duration: 3000 });
+        }
       }
     },
     {

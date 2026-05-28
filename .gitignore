@@ -41,6 +41,3 @@ sessions/
 .artifact-check/
 *.exe
 
-# Monolithic HTML compiled artifact (retired from git tracking)
-radar_vital_live_dashboard_v12_for_v16_0.html
-

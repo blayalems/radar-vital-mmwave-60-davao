@@ -433,7 +433,26 @@ export class TelemetryService {
     this.state.spark.update((s) => {
       const hr = [...s.hr, normalized.radar.reported_hr || 0].slice(-20);
       const rr = [...s.rr, normalized.radar.reported_rr || 0].slice(-20);
-      const fps = [...s.fps, normalized.radar.rows || 0].slice(-20);
+      
+      const directFps = normalized.radar['fps_hz'] ?? normalized.radar['fps'];
+      let calculatedFps = directFps !== undefined && directFps !== null ? Number(directFps) : null;
+      if (calculatedFps === null) {
+        const series = normalized.series as Record<string, unknown> | undefined;
+        const timestamps = (series?.['ts'] ?? series?.['t']) as number[] | undefined;
+        if (timestamps && Array.isArray(timestamps) && timestamps.length >= 3) {
+          const numTimestamps = timestamps.map(t => Number(t)).filter(Number.isFinite);
+          const deltas = numTimestamps.slice(1).map((val, idx) => val - numTimestamps[idx]).filter(val => val > 0);
+          if (deltas.length > 0) {
+            deltas.sort((a, b) => a - b);
+            const median = deltas[Math.floor(deltas.length / 2)];
+            if (median > 0) {
+              calculatedFps = 1 / median;
+            }
+          }
+        }
+      }
+      const fpsVal = calculatedFps !== null ? calculatedFps : 20.0;
+      const fps = [...s.fps, fpsVal].slice(-20);
       const dist = [...s.dist, normalized.radar.distance_cm || 0].slice(-20);
       return { hr, rr, fps, dist };
     });

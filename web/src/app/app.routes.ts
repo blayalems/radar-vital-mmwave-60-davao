@@ -6,6 +6,7 @@ import { ReportComponent } from './components/report/report.component';
 import { HelpComponent } from './components/help/help.component';
 import { SettingsComponent } from './components/settings/settings.component';
 import { activeSessionGuard } from './guards/active-session.guard';
+import { connectionGuard } from './guards/connection.guard';
 
 export const routes: Routes = [
   {
@@ -20,6 +21,7 @@ export const routes: Routes = [
       {
         path: 'live',
         component: LiveComponent,
+        canActivate: [connectionGuard],
         canDeactivate: [activeSessionGuard]
       },
       {

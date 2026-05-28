@@ -12,9 +12,10 @@ export class AudioService {
   private lastSpokenText = '';
   private lastSpokenAt = 0;
   private lastEndAt = 0;
-  private queuedUtterance: SpeechSynthesisUtterance | null = null;
-  private queueTimer: any = null;
   private isDuckingActive = false;
+  private utteranceQueue: { u: SpeechSynthesisUtterance; severity: 'ok' | 'warn' | 'bad' }[] = [];
+  private isSpeaking = false;
+  private duckTimeout: any = null;
 
   private getAudioCtx(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -76,39 +77,65 @@ export class AudioService {
 
   private duck() {
     this.isDuckingActive = true;
+    if (this.duckTimeout) {
+      clearTimeout(this.duckTimeout);
+    }
+    // Safeguard fallback: automatically restore normal volume level after 15 seconds
+    this.duckTimeout = setTimeout(() => {
+      this.restore();
+    }, 15000);
   }
 
   private restore() {
     this.isDuckingActive = false;
+    if (this.duckTimeout) {
+      clearTimeout(this.duckTimeout);
+      this.duckTimeout = null;
+    }
   }
 
-  private emitUtterance(u: SpeechSynthesisUtterance, severity: 'ok' | 'warn' | 'bad') {
-    this.queuedUtterance = null;
-    if (this.queueTimer) {
-      clearTimeout(this.queueTimer);
-      this.queueTimer = null;
+  private processQueue() {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    // Self-healing: if we think we are speaking but the browser is actually idle, reset
+    if (this.isSpeaking && !window.speechSynthesis.speaking) {
+      this.isSpeaking = false;
+      this.restore();
     }
 
+    if (this.isSpeaking || window.speechSynthesis.speaking || this.utteranceQueue.length === 0) {
+      return;
+    }
+
+    const next = this.utteranceQueue.shift();
+    if (!next) return;
+
+    const { u, severity } = next;
+    this.isSpeaking = true;
     this.duck();
-    window.speechSynthesis.cancel();
 
     const prevOnEnd = u.onend;
     const prevOnError = u.onerror;
 
     u.onend = (ev) => {
       this.lastEndAt = Date.now();
+      this.isSpeaking = false;
       this.restore();
       if (typeof prevOnEnd === 'function') {
         try { prevOnEnd.call(u, ev); } catch (_) {}
       }
+      // Natural phrasing delay of 400ms before starting next speech in queue
+      setTimeout(() => this.processQueue(), 400);
     };
 
     u.onerror = (ev) => {
       this.lastEndAt = Date.now();
+      this.isSpeaking = false;
       this.restore();
       if (typeof prevOnError === 'function') {
         try { prevOnError.call(u, ev); } catch (_) {}
       }
+      setTimeout(() => this.processQueue(), 400);
     };
 
     this.lastSpokenText = u.text;
@@ -137,23 +164,23 @@ export class AudioService {
       u.volume = Math.max(0.2, Math.min(1, this.state.audioVolume()));
 
       if (force || severity === 'bad') {
-        this.emitUtterance(u, severity);
+        // High priority / forced alert: preemptively clear queue and cancel current speech
+        this.utteranceQueue = [];
+        window.speechSynthesis.cancel();
+        this.isSpeaking = false;
+        this.restore();
+
+        // Briefly wait 100ms for cancel to complete then speak immediately
+        setTimeout(() => {
+          this.utteranceQueue.push({ u, severity });
+          this.processQueue();
+        }, 100);
         return;
       }
 
-      const wait = Math.max(0, 1000 - (now - this.lastEndAt));
-      if (wait > 0) {
-        if (this.queueTimer) clearTimeout(this.queueTimer);
-        this.queuedUtterance = u;
-        this.queueTimer = setTimeout(() => {
-          if (this.queuedUtterance === u) {
-            this.emitUtterance(u, severity);
-          }
-        }, wait);
-        return;
-      }
-
-      this.emitUtterance(u, severity);
+      // Normal severity alerts: enqueue to serialize naturally
+      this.utteranceQueue.push({ u, severity });
+      this.processQueue();
     } catch (_) {}
   }
 
@@ -164,3 +191,4 @@ export class AudioService {
     this.speakAlert(`Alert: ${top.msg}`, top.severity === 'critical' ? 'bad' : 'warn');
   }
 }
+

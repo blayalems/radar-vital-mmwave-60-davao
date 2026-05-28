@@ -56,8 +56,18 @@ def handle_sse_subscription(handler, session_id_hint: Optional[str] = None):
 
     try:
         write_event("ping", {"at": _iso_now()})
-        deadline = time.monotonic() + 60 * 60
+        deadline = time.monotonic() + 12 * 60 * 60  # 12 hr — hard kill
+        warn_before_s = 60
+        warned = False
         while time.monotonic() < deadline:
+            time_remaining = deadline - time.monotonic()
+            if time_remaining <= warn_before_s and not warned:
+                write_event("session_warning", {
+                    "reason": "deadline_approaching",
+                    "seconds_remaining": int(time_remaining)
+                })
+                warned = True
+
             if getattr(handler.server, "mock", False):
                 write_event("live", _mock_live_payload(seq))
                 time.sleep(1.0)

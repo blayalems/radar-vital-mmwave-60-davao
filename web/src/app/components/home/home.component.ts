@@ -20,7 +20,7 @@ import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
 import { BluetoothService } from '../../services/bluetooth.service';
-import { BleScanDevice, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord } from '../../models/rvt.models';
+import { BleScanDevice, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
 
 @Component({
   selector: 'app-home',
@@ -403,15 +403,12 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       let points = this.sparklineCache[sessionId];
       if (!points) {
         try {
-          const response = await this.api.request<{ data?: Record<string, unknown>[] }>(`/api/sessions/${encodeURIComponent(sessionId)}/data?points=20`);
-          const rows = response.data || [];
+          const response = await this.api.request<SessionDataPayload>(`/api/sessions/${encodeURIComponent(sessionId)}/data?points=20`);
+          const rows = response.rows || [];
           points = rows.map(r => Number(r['reported_hr'])).filter(Number.isFinite);
-          if (!points.length) {
-            points = [70, 72, 75, 71, 74, 76, 73, 75, 77, 74];
-          }
           this.sparklineCache[sessionId] = points;
         } catch (_) {
-          points = [70, 72, 75, 71, 74, 76, 73, 75, 77, 74];
+          points = [];
         }
       }
 
@@ -434,7 +431,18 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
 
-    if (points.length < 2) return;
+    if (points.length < 2) {
+      // Draw a light dashed line signifying empty/no-data state truthfully
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.moveTo(4, h / 2);
+      ctx.lineTo(w - 4, h / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      return;
+    }
 
     const minV = Math.min(...points);
     const maxV = Math.max(...points);

@@ -2,7 +2,6 @@ import { HttpInterceptorFn, HttpResponse, HttpErrorResponse } from '@angular/com
 import { from } from 'rxjs';
 
 const API_BASE_KEY = 'rvt-api-base';
-const TAURI_LOCAL_TRAINER_ORIGIN = 'http://127.0.0.1:8765';
 
 interface TauriInvokeRequest {
   origin: string;
@@ -12,39 +11,67 @@ interface TauriInvokeRequest {
   body: string | null;
 }
 
+interface NativeTrainerStatus {
+  enabled?: boolean;
+  running?: boolean;
+  ready?: boolean;
+  origin?: string | null;
+  error?: string | null;
+  sessions_root?: string | null;
+}
+
+function normalizeHttpOrigin(value: string): string {
+  const raw = String(value || '').trim().replace(/\/+$/, '');
+  if (!raw) return '';
+  try {
+    const u = new URL(raw, window.location.href);
+    return /^https?:$/.test(u.protocol) ? u.origin : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+async function resolveTauriApiBase(tauri: any): Promise<string> {
+  let stored = '';
+  try {
+    stored = normalizeHttpOrigin(localStorage.getItem(API_BASE_KEY) || '');
+  } catch (_) {}
+
+  const status = await (tauri.invoke as (cmd: string) => Promise<NativeTrainerStatus>)('native_trainer_status');
+  const localOrigin = normalizeHttpOrigin(String(status?.origin || ''));
+
+  // A running bundled trainer wins over stale LAN origins in packaged EXE mode.
+  // External LAN trainers are still selectable after startup through Settings,
+  // which calls native_set_paired_origin before protected requests.
+  if (localOrigin && status?.running !== false && (stored !== localOrigin)) {
+    try { localStorage.setItem(API_BASE_KEY, localOrigin); } catch (_) {}
+    return localOrigin;
+  }
+
+  if (stored) return stored;
+  if (localOrigin) {
+    try { localStorage.setItem(API_BASE_KEY, localOrigin); } catch (_) {}
+    return localOrigin;
+  }
+  return '';
+}
+
 export const rvtTauriInterceptor: HttpInterceptorFn = (req, next) => {
   const tauri = (window as any).__TAURI__?.core;
 
-  // Retrieve current API base without injecting ApiService directly.
-  // In the packaged Windows EXE, the bundled trainer sidecar is owned by Tauri
-  // and exposed on loopback. Use and persist that as the native default so
-  // /api/status does not resolve against the WebView asset origin and
-  // incorrectly enter sandbox. Persisting also fixes raw fetch/download helpers
-  // that do not pass through Angular's HTTP interceptor.
-  let base = '';
-  try {
-    const storedBase = localStorage.getItem(API_BASE_KEY);
-    const raw = String(storedBase || '').trim().replace(/\/+$/, '');
-    if (raw) {
-      const u = new URL(raw, window.location.href);
-      if (/^https?:$/.test(u.protocol)) {
-        base = u.origin;
-      }
-    }
-    if (!base && tauri?.invoke) {
-      base = TAURI_LOCAL_TRAINER_ORIGIN;
-      localStorage.setItem(API_BASE_KEY, base);
-    }
-  } catch (_) {
-    if (!base && tauri?.invoke) base = TAURI_LOCAL_TRAINER_ORIGIN;
+  if (!tauri?.invoke) {
+    return next(req);
   }
 
-  const isApi = req.url.startsWith('/api/') || (base && req.url.startsWith(base));
+  const invokePromise = (async (): Promise<HttpResponse<any>> => {
+    const base = await resolveTauriApiBase(tauri);
+    const isApi = req.url.startsWith('/api/') || (base && req.url.startsWith(base));
+    if (!base || !isApi) {
+      throw new Error('RVT_TAURI_PASS_THROUGH');
+    }
 
-  if (tauri?.invoke && base && isApi) {
     const parsedUrl = new URL(req.url, base);
     const path = parsedUrl.pathname + parsedUrl.search;
-
     const method = req.method.toUpperCase();
     const headersObj: Record<string, string> = {};
     req.headers.keys().forEach(key => {
@@ -69,33 +96,44 @@ export const rvtTauriInterceptor: HttpInterceptorFn = (req, next) => {
       body: bodyStr
     };
 
-    const invokePromise = (tauri.invoke as (cmd: string, args: { request: TauriInvokeRequest }) => Promise<any>)(command, {
+    const resp = await (tauri.invoke as (cmd: string, args: { request: TauriInvokeRequest }) => Promise<any>)(command, {
       request: requestPayload
-    }).then((resp: any): HttpResponse<any> => {
-      if (resp.status < 200 || resp.status >= 300) {
-        let errMsg = `HTTP ${resp.status}`;
-        if (resp.data && typeof resp.data === 'object') {
-          const errPayload = resp.data as { error?: string | { message?: string } };
-          if (typeof errPayload.error === 'string') errMsg = errPayload.error;
-          else if (errPayload.error?.message) errMsg = errPayload.error.message;
-        }
-        throw new HttpErrorResponse({
-          status: resp.status,
-          statusText: errMsg,
-          error: resp.data,
-          url: req.url
-        });
-      }
-      return new HttpResponse({
-        body: resp.data,
-        status: resp.status,
-        statusText: 'OK',
-        url: req.url
-      });
     });
 
-    return from(invokePromise);
-  }
+    if (resp.status < 200 || resp.status >= 300) {
+      let errMsg = `HTTP ${resp.status}`;
+      if (resp.data && typeof resp.data === 'object') {
+        const errPayload = resp.data as { error?: string | { message?: string } };
+        if (typeof errPayload.error === 'string') errMsg = errPayload.error;
+        else if (errPayload.error?.message) errMsg = errPayload.error.message;
+      }
+      throw new HttpErrorResponse({
+        status: resp.status,
+        statusText: errMsg,
+        error: resp.data,
+        url: req.url
+      });
+    }
 
-  return next(req);
+    return new HttpResponse({
+      body: resp.data,
+      status: resp.status,
+      statusText: 'OK',
+      url: req.url
+    });
+  })().catch(error => {
+    if (error instanceof Error && error.message === 'RVT_TAURI_PASS_THROUGH') {
+      return new Promise<HttpResponse<any>>((resolve, reject) => {
+        next(req).subscribe({
+          next: event => {
+            if (event instanceof HttpResponse) resolve(event);
+          },
+          error: reject
+        });
+      });
+    }
+    throw error;
+  });
+
+  return from(invokePromise);
 };

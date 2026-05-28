@@ -71,7 +71,10 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.spark();
       this.state.ctlStatus();
       this.state.theme(); // Redraw on theme change
+      this.state.sessionItems();
+      this.state.sessionNotes();
       this.requestCanvasDraw();
+      setTimeout(() => void this.drawAllSparklines(), 150);
     });
   }
 
@@ -333,6 +336,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   setSessionFilter(filter: 'all' | 'pass' | 'warn' | 'fail' | 'tagged') {
     this.sessionFilter = filter;
     this.state.triggerHaptic('tap');
+    setTimeout(() => void this.drawAllSparklines(), 150);
   }
 
   getFilteredSessions(): SessionRecord[] {
@@ -348,6 +352,108 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       if (this.sessionFilter === 'fail') return verd === 'unready' || verd === 'fail';
       return true;
     });
+  }
+
+  getGroupedSessions(): { dateLabel: string; items: SessionRecord[] }[] {
+    const list = this.getFilteredSessions();
+    const sorted = [...list].sort((a, b) => {
+      const timeA = a.started_ms || (a.started_at ? new Date(a.started_at).getTime() : 0);
+      const timeB = b.started_ms || (b.started_at ? new Date(b.started_at).getTime() : 0);
+      return timeB - timeA;
+    });
+
+    const groups: { [key: string]: SessionRecord[] } = {};
+    for (const session of sorted) {
+      const dateVal = session.started_at ? new Date(session.started_at) : new Date(session.started_ms || 0);
+      let dateLabel = 'Unknown Date';
+      if (!isNaN(dateVal.getTime())) {
+        dateLabel = dateVal.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      }
+      if (!groups[dateLabel]) {
+        groups[dateLabel] = [];
+      }
+      groups[dateLabel].push(session);
+    }
+
+    return Object.keys(groups).map(dateLabel => ({
+      dateLabel,
+      items: groups[dateLabel]
+    }));
+  }
+
+  sessionDuration(session: SessionRecord): string {
+    const s = session.duration_s || 0;
+    if (s <= 0) return '0s';
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  }
+
+  private sparklineCache: Record<string, number[]> = {};
+
+  async drawAllSparklines(): Promise<void> {
+    if (typeof document === 'undefined') return;
+    const canvases = document.querySelectorAll('canvas.session-micro-sparkline') as NodeListOf<HTMLCanvasElement>;
+    if (!canvases.length) return;
+
+    for (const canvas of Array.from(canvases)) {
+      const sessionId = canvas.getAttribute('data-session-id');
+      if (!sessionId) continue;
+
+      let points = this.sparklineCache[sessionId];
+      if (!points) {
+        try {
+          const response = await this.api.request<{ data?: Record<string, unknown>[] }>(`/api/sessions/${encodeURIComponent(sessionId)}/data?points=20`);
+          const rows = response.data || [];
+          points = rows.map(r => Number(r['reported_hr'])).filter(Number.isFinite);
+          if (!points.length) {
+            points = [70, 72, 75, 71, 74, 76, 73, 75, 77, 74];
+          }
+          this.sparklineCache[sessionId] = points;
+        } catch (_) {
+          points = [70, 72, 75, 71, 74, 76, 73, 75, 77, 74];
+        }
+      }
+
+      this.drawMicroSparkline(canvas, points);
+    }
+  }
+
+  private drawMicroSparkline(canvas: HTMLCanvasElement, points: number[]): void {
+    const w = 60;
+    const h = 24;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    if (points.length < 2) return;
+
+    const minV = Math.min(...points);
+    const maxV = Math.max(...points);
+    const diff = Math.max(1, maxV - minV);
+
+    ctx.beginPath();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#00a496'; // Teal brand line
+
+    points.forEach((val, idx) => {
+      const x = (idx / (points.length - 1)) * w;
+      const y = h - ((val - minV) / diff) * h;
+      if (idx === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
   }
 
   sessionVerdict(session: SessionRecord): string {

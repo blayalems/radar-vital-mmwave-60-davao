@@ -219,7 +219,78 @@ export class CommandPaletteComponent {
     },
     this.rangeCommand(30),
     this.rangeCommand(60),
-    this.rangeCommand(120)
+    this.rangeCommand(120),
+    {
+      id: 'clear-snapshots',
+      label: 'Clear all snapshots',
+      description: 'Remove all pinned frames and annotations',
+      keywords: 'clear snaps delete snapshots sweep',
+      group: 'Live Session',
+      icon: 'delete_sweep',
+      action: () => {
+        this.state.snaps.set([]);
+        this.state.snapNotes.set({});
+        this.snackBar.open('All pinned snapshots cleared.', 'Dismiss', { duration: 3000 });
+      }
+    },
+    {
+      id: 'tag-motion',
+      label: 'Tag observation: Motion',
+      description: 'Append [HH:MM:SS] Motion to the active session notes',
+      keywords: 'tag motion observation quick active',
+      group: 'Live Session',
+      icon: 'tag',
+      disabledReason: () => this.state.sessionActive() ? null : 'No active session is running.',
+      action: () => this.appendSessionTag('Motion')
+    },
+    {
+      id: 'tag-cough',
+      label: 'Tag observation: Cough',
+      description: 'Append [HH:MM:SS] Cough to the active session notes',
+      keywords: 'tag cough observation quick active',
+      group: 'Live Session',
+      icon: 'tag',
+      disabledReason: () => this.state.sessionActive() ? null : 'No active session is running.',
+      action: () => this.appendSessionTag('Cough')
+    },
+    {
+      id: 'tag-speaking',
+      label: 'Tag observation: Speaking',
+      description: 'Append [HH:MM:SS] Speaking to the active session notes',
+      keywords: 'tag speaking observation quick active',
+      group: 'Live Session',
+      icon: 'tag',
+      disabledReason: () => this.state.sessionActive() ? null : 'No active session is running.',
+      action: () => this.appendSessionTag('Speaking')
+    },
+    {
+      id: 'tag-baseline',
+      label: 'Tag observation: Baseline',
+      description: 'Append [HH:MM:SS] Baseline to the active session notes',
+      keywords: 'tag baseline observation quick active',
+      group: 'Live Session',
+      icon: 'tag',
+      disabledReason: () => this.state.sessionActive() ? null : 'No active session is running.',
+      action: () => this.appendSessionTag('Baseline')
+    },
+    {
+      id: 'export-csv',
+      label: 'Export session CSV',
+      description: 'Download the complete 207-column telemetry CSV',
+      keywords: 'download csv data export telemetry columns',
+      group: 'Export',
+      icon: 'table_view',
+      action: () => this.downloadSessionCsvCommand()
+    },
+    {
+      id: 'export-audit',
+      label: 'Export audit JSON',
+      description: 'Download the history of alerts as a JSON file',
+      keywords: 'download json audit export logs telemetry',
+      group: 'Export',
+      icon: 'download',
+      action: () => this.downloadAuditJsonCommand()
+    }
   ];
 
   protected readonly filteredCommands = computed(() => {
@@ -418,6 +489,113 @@ export class CommandPaletteComponent {
         'Dismiss',
         { duration: 6000 }
       );
+    }
+  }
+
+  private appendSessionTag(tag: string): void {
+    const sid = this.state.currentSessionId();
+    if (!sid) return;
+    const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+    const entry = `[${time}] ${tag}`;
+    const currentNotes = this.state.sessionNotes()[sid] || '';
+    const next = currentNotes.trim()
+      ? `${currentNotes.trimEnd()}\n${entry}`
+      : entry;
+    this.state.sessionNotes.update(notes => ({ ...notes, [sid]: next }));
+    
+    const mode = this.state.ctlStatus()?.mode;
+    if (mode && mode !== 'sandbox') {
+      void this.api.request(`/api/sessions/${encodeURIComponent(sid)}/notes`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_summary: next })
+      }).catch(err => console.error('Failed to save tagged note', err));
+    }
+    
+    this.snackBar.open(`Observation tagged: ${tag}`, 'Dismiss', { duration: 3000 });
+  }
+
+  private async downloadSessionCsvCommand(): Promise<void> {
+    const sid = this.state.currentSessionId() || this.state.sessionItems()[0]?.session_id;
+    if (!sid) {
+      this.snackBar.open('No session is available for export.', 'Dismiss', { duration: 3000 });
+      return;
+    }
+    const mode = this.state.ctlStatus()?.mode;
+    if (mode === 'sandbox') {
+      try {
+        const response = await this.api.request<{ data: Record<string, unknown>[] }>(`/api/sessions/${encodeURIComponent(sid)}/data`);
+        const rows = response.data || [];
+        if (!rows.length) {
+          this.snackBar.open('No telemetry data recorded for this session yet.', 'Dismiss', { duration: 3000 });
+          return;
+        }
+        const fields = Array.from(new Set(rows.flatMap(row => Object.keys(row))));
+        const content = [
+          fields.map(field => `"${String(field).replaceAll('"', '""')}"`).join(','),
+          ...rows.map(row => fields.map(field => `"${String(row[field] ?? '').replaceAll('"', '""')}"`).join(','))
+        ].join('\n');
+        
+        const href = URL.createObjectURL(new Blob([content], { type: 'text/csv' }));
+        const anchor = document.createElement('a');
+        anchor.href = href;
+        anchor.download = `session_data_${sid}.csv`;
+        anchor.click();
+        URL.revokeObjectURL(href);
+        this.state.triggerHaptic('success');
+      } catch (error: unknown) {
+        this.snackBar.open('Failed to build client-side CSV in sandbox.', 'Dismiss', { duration: 3000 });
+      }
+    } else {
+      try {
+        await this.api.download(
+          `/api/sessions/${encodeURIComponent(sid)}/files/radar.csv`,
+          `session_data_${sid}.csv`
+        );
+        this.state.triggerHaptic('success');
+      } catch (error: unknown) {
+        this.snackBar.open(
+          error instanceof Error ? error.message : 'Telemetry CSV download failed.',
+          'Dismiss',
+          { duration: 4000 }
+        );
+      }
+    }
+  }
+
+  private async downloadAuditJsonCommand(): Promise<void> {
+    const sid = this.state.currentSessionId() || this.state.sessionItems()[0]?.session_id;
+    if (!sid) {
+      this.snackBar.open('No session is available for export.', 'Dismiss', { duration: 3000 });
+      return;
+    }
+    const mode = this.state.ctlStatus()?.mode;
+    if (mode === 'sandbox') {
+      const alertHistory = this.state.alertHistory() || [];
+      const href = URL.createObjectURL(new Blob([JSON.stringify(alertHistory, null, 2)], { type: 'application/json' }));
+      const anchor = document.createElement('a');
+      anchor.href = href;
+      anchor.download = `session_audit_${sid}.json`;
+      anchor.click();
+      URL.revokeObjectURL(href);
+      this.state.triggerHaptic('success');
+    } else {
+      try {
+        await this.api.download(
+          `/api/sessions/${encodeURIComponent(sid)}/files/audit.json`,
+          `session_audit_${sid}.json`
+        );
+        this.state.triggerHaptic('success');
+      } catch (error: unknown) {
+        const alertHistory = this.state.alertHistory() || [];
+        const href = URL.createObjectURL(new Blob([JSON.stringify(alertHistory, null, 2)], { type: 'application/json' }));
+        const anchor = document.createElement('a');
+        anchor.href = href;
+        anchor.download = `session_audit_${sid}.json`;
+        anchor.click();
+        URL.revokeObjectURL(href);
+        this.state.triggerHaptic('success');
+      }
     }
   }
 }

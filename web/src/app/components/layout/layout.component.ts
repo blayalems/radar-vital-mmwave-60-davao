@@ -10,6 +10,7 @@ import { MatListModule } from '@angular/material/list';
 import { MatSidenavContainer, MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatNavigationBar, MatNavigationTab } from '@app/navigation-bar';
 
 import { StateService } from '../../services/state.service';
@@ -31,6 +32,7 @@ import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component'
     MatSidenavModule,
     MatToolbarModule,
     MatProgressSpinnerModule,
+    MatSnackBarModule,
     MatNavigationBar,
     MatNavigationTab
   ],
@@ -46,6 +48,7 @@ export class LayoutComponent implements OnInit {
   protected readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
   private readonly destroyRef = inject(DestroyRef);
   private readonly breakpointObserver = inject(BreakpointObserver);
 
@@ -101,6 +104,24 @@ export class LayoutComponent implements OnInit {
     if (primaryModifier && event.shiftKey && key === 'c') {
       event.preventDefault();
       void this.copyOperatorSummary();
+      return;
+    }
+    if (primaryModifier && !event.altKey && !event.shiftKey && key === 'z') {
+      event.preventDefault();
+      this.state.triggerHaptic('tap');
+      this.snackBar.open('Shortcut recognized: Undo is not yet available in the modern dashboard.', 'Dismiss', { duration: 3000 });
+      return;
+    }
+    if (primaryModifier && !event.altKey && !event.shiftKey && key === 'h') {
+      event.preventDefault();
+      this.state.triggerHaptic('tap');
+      this.snackBar.open('Shortcut recognized: Operator handoff modal is not yet available. Use Ctrl+Shift+C to copy operator brief.', 'Dismiss', { duration: 4000 });
+      return;
+    }
+    if (primaryModifier && !event.altKey && !event.shiftKey && key === 'l') {
+      event.preventDefault();
+      this.state.triggerHaptic('tap');
+      this.snackBar.open('Shortcut recognized: Idle auto-lock is not yet available.', 'Dismiss', { duration: 3000 });
       return;
     }
     if (primaryModifier && !event.altKey && key === 'k') {

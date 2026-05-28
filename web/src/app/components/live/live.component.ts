@@ -728,7 +728,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     const payload = this.state.lastPayload();
     if (!payload || !payload.series) return;
 
-    const plotTrend = (canvasRef: ElementRef<HTMLCanvasElement>, data: number[], color: string, minV: number, maxV: number) => {
+    const plotTrend = (canvasRef: ElementRef<HTMLCanvasElement>, data: number[], color: string, minV: number, maxV: number, type?: 'hr' | 'rr') => {
       const canvas = canvasRef.nativeElement;
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
@@ -744,12 +744,47 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, w, h);
 
-      if (data.length < 2) return;
-
       const pad = 16;
       const innerW = w - pad * 2;
       const innerH = h - pad * 2;
       const count = data.length;
+      const diff = Math.max(1, maxV - minV);
+
+      // Render threshold breach warning bands
+      if (type) {
+        const thresholds = this.state.kpiThresholds();
+        const lowLimit = type === 'hr' ? thresholds.hrLow : thresholds.rrLow;
+        const highLimit = type === 'hr' ? thresholds.hrHigh : thresholds.rrHigh;
+
+        const yLow = pad + innerH - ((lowLimit - minV) / diff) * innerH;
+        const yHigh = pad + innerH - ((highLimit - minV) / diff) * innerH;
+
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.05)';
+        if (yLow < pad + innerH) {
+          ctx.fillRect(pad, yLow, innerW, (pad + innerH) - yLow);
+        }
+        if (yHigh > pad) {
+          ctx.fillRect(pad, pad, innerW, yHigh - pad);
+        }
+
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+
+        if (lowLimit >= minV && lowLimit <= maxV) {
+          ctx.beginPath();
+          ctx.moveTo(pad, yLow);
+          ctx.lineTo(w - pad, yLow);
+          ctx.stroke();
+        }
+        if (highLimit >= minV && highLimit <= maxV) {
+          ctx.beginPath();
+          ctx.moveTo(pad, yHigh);
+          ctx.lineTo(w - pad, yHigh);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
 
       // Draw gridlines
       const outlineColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-outline-variant').trim() || '#e2e8f0';
@@ -763,11 +798,11 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         ctx.stroke();
       }
 
+      if (data.length < 2) return;
+
       ctx.strokeStyle = color;
       ctx.lineWidth = 3;
       ctx.beginPath();
-
-      const diff = Math.max(1, maxV - minV);
 
       data.forEach((val, idx) => {
         const x = pad + (idx / (count - 1)) * innerW;
@@ -784,10 +819,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
     const thresholds = this.state.kpiThresholds();
     if (this.activeTabIndex === 2 && this.hrTrendCanvas) {
-      plotTrend(this.hrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_hr', 'hr')), 'rgba(0, 164, 150, 0.95)', Math.max(0, thresholds.hrLow - 20), thresholds.hrHigh + 20);
+      plotTrend(this.hrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_hr', 'hr')), 'rgba(0, 164, 150, 0.95)', Math.max(0, thresholds.hrLow - 20), thresholds.hrHigh + 20, 'hr');
     }
     if (this.activeTabIndex === 3 && this.rrTrendCanvas) {
-      plotTrend(this.rrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_rr', 'rr')), 'rgba(97, 105, 198, 0.95)', Math.max(0, thresholds.rrLow - 5), thresholds.rrHigh + 5);
+      plotTrend(this.rrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_rr', 'rr')), 'rgba(97, 105, 198, 0.95)', Math.max(0, thresholds.rrLow - 5), thresholds.rrHigh + 5, 'rr');
     }
   }
 

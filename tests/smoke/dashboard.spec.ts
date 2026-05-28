@@ -229,6 +229,10 @@ test.describe('Dashboard smoke', () => {
     if (await simpleView.isVisible()) {
       await simpleView.click();
       await expect(page.locator('body')).toHaveClass(/zen-mode/);
+      // Assert clean Simple View layouts hide diagnostics double column, tracking, and quad grids
+      await expect(page.locator('.tracking-card')).toHaveCount(0);
+      await expect(page.locator('.diagnostics-double-column')).toHaveCount(0);
+      await expect(page.locator('.quad-grid-diagnostics')).toHaveCount(0);
     }
 
     if (viewportWidth >= 1024) {

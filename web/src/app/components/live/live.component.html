@@ -53,7 +53,7 @@
         <div class="kpi-grid">
           <p class="sr-only" role="alert" aria-atomic="true">{{ liveAlertAnnouncement() }}</p>
           <!-- HEART RATE CARD -->
-          <div class="kpi-metric-card kpi-hr cursor-pointer" role="button" tabindex="0" aria-haspopup="dialog" (click)="openKpiZoomDialog('hr')" (keydown.enter)="openKpiZoomDialog('hr')" (keydown.space)="openKpiZoomDialog('hr')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Heart rate (click to zoom)', 'reported_hr', 'beats per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
+          <div class="kpi-metric-card kpi-hr cursor-pointer" role="status" tabindex="0" (click)="openKpiZoomDialog('hr')" (keydown.enter)="openKpiZoomDialog('hr')" (keydown.space)="openKpiZoomDialog('hr')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Heart rate (click to zoom)', 'reported_hr', 'beats per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
             <div class="kpi-card-header">
               <span>Heart Rate</span>
               <mat-icon>ecg_heart</mat-icon>
@@ -71,7 +71,7 @@
           </div>
 
           <!-- RESPIRATORY RATE CARD -->
-          <div class="kpi-metric-card kpi-rr cursor-pointer" role="button" tabindex="0" aria-haspopup="dialog" (click)="openKpiZoomDialog('rr')" (keydown.enter)="openKpiZoomDialog('rr')" (keydown.space)="openKpiZoomDialog('rr')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Respiration (click to zoom)', 'reported_rr', 'breaths per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
+          <div class="kpi-metric-card kpi-rr cursor-pointer" role="status" tabindex="0" (click)="openKpiZoomDialog('rr')" (keydown.enter)="openKpiZoomDialog('rr')" (keydown.space)="openKpiZoomDialog('rr')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Respiration (click to zoom)', 'reported_rr', 'breaths per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
             <div class="kpi-card-header">
               <span>Respiration</span>
               <mat-icon>air</mat-icon>
@@ -88,37 +88,39 @@
             </div>
           </div>
 
-          <!-- FRAME RATE CARD -->
-          <div class="kpi-metric-card cursor-pointer" role="button" tabindex="0" aria-haspopup="dialog" (click)="openKpiZoomDialog('fps')" (keydown.enter)="openKpiZoomDialog('fps')" (keydown.space)="openKpiZoomDialog('fps')" aria-live="polite" aria-atomic="true" [attr.aria-label]="frameRateLabel() + ' Click to zoom.'">
-            <div class="kpi-card-header">
-              <span>Frame Rate</span>
-              <mat-icon>speed</mat-icon>
+          @if (!state.zenMode()) {
+            <!-- FRAME RATE CARD -->
+            <div class="kpi-metric-card cursor-pointer" role="status" tabindex="0" (click)="openKpiZoomDialog('fps')" (keydown.enter)="openKpiZoomDialog('fps')" (keydown.space)="openKpiZoomDialog('fps')" aria-live="polite" aria-atomic="true" [attr.aria-label]="frameRateLabel() + ' Click to zoom.'">
+              <div class="kpi-card-header">
+                <span>Frame Rate</span>
+                <mat-icon>speed</mat-icon>
+              </div>
+              <div class="kpi-card-value">
+                <strong>{{ computedFps() }}</strong>
+                <small>Hz</small>
+              </div>
+              <div class="kpi-card-spark">
+                <canvas #overviewFpsSpark class="sparkline-canvas" role="img" [attr.aria-label]="frameRateLabel() + ' Recent trend chart.'"></canvas>
+              </div>
+              <div class="kpi-card-footer">DSP Loop Speed</div>
             </div>
-            <div class="kpi-card-value">
-              <strong>{{ computedFps() }}</strong>
-              <small>Hz</small>
-            </div>
-            <div class="kpi-card-spark">
-              <canvas #overviewFpsSpark class="sparkline-canvas" role="img" [attr.aria-label]="frameRateLabel() + ' Recent trend chart.'"></canvas>
-            </div>
-            <div class="kpi-card-footer">DSP Loop Speed</div>
-          </div>
 
-          <!-- RANGE DISTANCE CARD -->
-          <div class="kpi-metric-card cursor-pointer" role="button" tabindex="0" aria-haspopup="dialog" (click)="openKpiZoomDialog('dist')" (keydown.enter)="openKpiZoomDialog('dist')" (keydown.space)="openKpiZoomDialog('dist')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Target range (click to zoom)', 'distance_cm', 'centimetres')">
-            <div class="kpi-card-header">
-              <span>Target Range</span>
-              <mat-icon>radar</mat-icon>
+            <!-- RANGE DISTANCE CARD -->
+            <div class="kpi-metric-card cursor-pointer" role="status" tabindex="0" (click)="openKpiZoomDialog('dist')" (keydown.enter)="openKpiZoomDialog('dist')" (keydown.space)="openKpiZoomDialog('dist')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Target range (click to zoom)', 'distance_cm', 'centimetres')">
+              <div class="kpi-card-header">
+                <span>Target Range</span>
+                <mat-icon>radar</mat-icon>
+              </div>
+              <div class="kpi-card-value">
+                <strong>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) : '--' }}</strong>
+                <small>cm</small>
+              </div>
+              <div class="kpi-card-spark">
+                <canvas #overviewDistSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Target range recent trend', 'distance_cm', 'centimetres')"></canvas>
+              </div>
+              <div class="kpi-card-footer">Placement distance</div>
             </div>
-            <div class="kpi-card-value">
-              <strong>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) : '--' }}</strong>
-              <small>cm</small>
-            </div>
-            <div class="kpi-card-spark">
-              <canvas #overviewDistSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Target range recent trend', 'distance_cm', 'centimetres')"></canvas>
-            </div>
-            <div class="kpi-card-footer">Placement distance</div>
-          </div>
+          }
         </div>
 
         <!-- SESSION NOTES WITH QUICK TAGS -->
@@ -163,147 +165,149 @@
           </mat-card-content>
         </mat-card>
 
-        <mat-card class="tracking-card">
-          <mat-card-header class="section-header-row">
-            <div class="section-title-group">
-              <mat-icon class="header-avatar-ic">explore</mat-icon>
-              <div>
-                <mat-card-title>Target Tracking</mat-card-title>
-                <mat-card-subtitle>Spatial telemetry and live vital context from the radar module.</mat-card-subtitle>
-              </div>
-            </div>
-            <button mat-flat-button type="button" (click)="captureSnapshot()" [disabled]="!state.lastPayload()" class="mat-tonal-button">
-              <mat-icon>bookmark_add</mat-icon>Pin Frame
-            </button>
-          </mat-card-header>
-          <mat-card-content class="tracking-layout">
-            <div class="target-plot-panel">
-              <div class="target-status-row">
-                <span class="eyebrow">Spatial view</span>
-                <span class="status-pill" [class.live]="metricState('target_info_ok') === 'Yes'">
-                  Target: {{ metricLabel('num_targets') }}
-                </span>
-              </div>
-              <canvas #targetCanvas class="target-canvas" role="img" aria-label="Target position radar scope. Text measurements are listed beside this chart."></canvas>
-            </div>
-            <div class="target-details-grid">
-              <div class="spatial-kpis">
-                <div><span>FPS</span><strong>{{ computedFps() }}</strong></div>
-                <div class="rr-accent"><span>Breath</span><strong>{{ metricText('reported_rr', 1) }}</strong></div>
-                <div class="hr-accent"><span>Heart</span><strong>{{ metricText('reported_hr', 1) }}</strong></div>
-              </div>
-              <table class="diagnostics-table">
-                <tbody>
-                  <tr><td>Person detected</td><td>{{ metricState('human') }}</td></tr>
-                  <tr><td>Distance</td><td>{{ metricText('distance_cm', 1, ' cm') }}</td></tr>
-                  <tr><td>X position</td><td>{{ metricText('primary_x', 2, ' m') }}</td></tr>
-                  <tr><td>Y position</td><td>{{ metricText('primary_y', 2, ' m') }}</td></tr>
-                  <tr><td>Spatial source</td><td>{{ metricLabel('spatial_source') }}</td></tr>
-                  <tr><td>Spatial age</td><td>{{ metricText('spatial_age_ms', 0, ' ms') }}</td></tr>
-                  <tr><td>Doppler speed</td><td>{{ metricText('primary_dop_speed_cms', 1, ' cm/s') }}</td></tr>
-                  <tr><td>Target info live</td><td>{{ metricState('target_info_ok') }}</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </mat-card-content>
-        </mat-card>
-
-        <!-- PHYSIOLOGY & POLICY DIAGNOSTICS GRIDS -->
-        <div class="diagnostics-double-column">
-          <mat-card class="diagnostics-card">
-            <mat-card-header><mat-card-title>Physiological Integrity</mat-card-title></mat-card-header>
-            <mat-card-content class="diagnostics-table-wrap">
-              <table class="diagnostics-table">
-                <tbody>
-                  <tr><td>Human presence detected</td><td><strong>{{ state.lastPayload()?.radar?.human ? 'YES' : 'NO' }}</strong></td></tr>
-                  <tr><td>Motion index volatility</td><td><strong>{{ state.lastPayload()?.radar?.motion ? Math.round((state.lastPayload()?.radar?.motion ?? 0) * 100) / 100 : '--' }}</strong></td></tr>
-                  <tr><td>Ref perfusion index</td><td><strong>{{ state.lastPayload()?.ble?.perf ?? '--' }}</strong></td></tr>
-                  <tr><td>Subject profile</td><td><strong>{{ state.activeSubjectProfileId() }}</strong></td></tr>
-                </tbody>
-              </table>
-            </mat-card-content>
-          </mat-card>
-
-          <mat-card class="diagnostics-card">
-            <mat-card-header><mat-card-title>Publishing Policy</mat-card-title></mat-card-header>
-            <mat-card-content class="diagnostics-table-wrap">
-              <table class="diagnostics-table">
-                <tbody>
-                  <tr><td>Source mode</td><td><strong>{{ state.ctlStatus()?.mode === 'sandbox' ? 'DEMO' : (state.ctlStatus()?.ok ? 'TRAINER API' : '--') }}</strong></td></tr>
-                  <tr><td>Payload freshness</td><td><strong>{{ state.telemetryStale() ? 'STALE / WAITING' : 'LIVE' }}</strong></td></tr>
-                  <tr><td>Analysis state</td><td><strong>{{ state.lastPayload()?.analysis?.['status'] || '--' }}</strong></td></tr>
-                  <tr><td>Haptic profile</td><td><strong>{{ state.hxMode() | uppercase }}</strong></td></tr>
-                </tbody>
-              </table>
-            </mat-card-content>
-          </mat-card>
-        </div>
-
-        <!-- RADAR & BLE REFERENCE COMPARATIVE GRIDS -->
-        <div class="quad-grid-diagnostics">
-          <mat-card class="diagnostics-mini-card">
-            <mat-card-header><mat-card-title>Radar Packet</mat-card-title></mat-card-header>
-            <mat-card-content class="diagnostics-table-wrap">
-              <table class="diagnostics-table">
-                <tbody>
-                  <tr><td>Reported HR</td><td>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) + ' bpm' : '--' }}</td></tr>
-                  <tr><td>Reported RR</td><td>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) + ' br/m' : '--' }}</td></tr>
-                  <tr><td>Candidate HR</td><td>{{ state.lastPayload()?.radar?.candidate_hr ? Math.round(state.lastPayload()?.radar?.candidate_hr ?? 0) + ' bpm' : '--' }}</td></tr>
-                  <tr><td>Candidate RR</td><td>{{ state.lastPayload()?.radar?.candidate_rr ? Math.round(state.lastPayload()?.radar?.candidate_rr ?? 0) + ' br/m' : '--' }}</td></tr>
-                </tbody>
-              </table>
-            </mat-card-content>
-          </mat-card>
-
-          <mat-card class="diagnostics-mini-card">
-            <mat-card-header><mat-card-title>BLE Reference</mat-card-title></mat-card-header>
-            <mat-card-content class="diagnostics-table-wrap">
-              <table class="diagnostics-table">
-                <tbody>
-                  <tr><td>Linked device</td><td>{{ state.lastPayload()?.ble?.address || 'Not Linked' }}</td></tr>
-                  <tr><td>BLE Pulse HR</td><td>{{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : '--' }}</td></tr>
-                  <tr><td>BLE Respiration RR</td><td>{{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : '--' }}</td></tr>
-                  <tr><td>Adapter active</td><td>{{ state.lastPayload()?.ble?.connected ? 'CONNECTED' : (state.lastPayload() ? 'NOT REPORTED' : '--') }}</td></tr>
-                </tbody>
-              </table>
-            </mat-card-content>
-          </mat-card>
-
-          <mat-card class="diagnostics-mini-card">
-            <mat-card-header><mat-card-title>Mismatches / Faults</mat-card-title></mat-card-header>
-            <mat-card-content class="diagnostics-table-wrap">
-              @if ((state.lastPayload()?.faults?.length || 0) > 0) {
-                <div class="faults-list-container">
-                  @for (fault of state.lastPayload()?.faults || []; track $index) {
-                    <div class="fault-item">
-                      <mat-icon>warning</mat-icon>
-                      <span>{{ formatFault(fault) }}</span>
-                    </div>
-                  }
+        @if (!state.zenMode()) {
+          <mat-card class="tracking-card">
+            <mat-card-header class="section-header-row">
+              <div class="section-title-group">
+                <mat-icon class="header-avatar-ic">explore</mat-icon>
+                <div>
+                  <mat-card-title>Target Tracking</mat-card-title>
+                  <mat-card-subtitle>Spatial telemetry and live vital context from the radar module.</mat-card-subtitle>
                 </div>
-              } @else {
-                <div class="faults-empty">
-                  <mat-icon>verified</mat-icon>
-                  <span>No faults reported in the current payload.</span>
+              </div>
+              <button mat-flat-button type="button" (click)="captureSnapshot()" [disabled]="!state.lastPayload()" class="mat-tonal-button">
+                <mat-icon>bookmark_add</mat-icon>Pin Frame
+              </button>
+            </mat-card-header>
+            <mat-card-content class="tracking-layout">
+              <div class="target-plot-panel">
+                <div class="target-status-row">
+                  <span class="eyebrow">Spatial view</span>
+                  <span class="status-pill" [class.live]="metricState('target_info_ok') === 'Yes'">
+                    Target: {{ metricLabel('num_targets') }}
+                  </span>
                 </div>
-              }
+                <canvas #targetCanvas class="target-canvas" role="img" aria-label="Target position radar scope. Text measurements are listed beside this chart."></canvas>
+              </div>
+              <div class="target-details-grid">
+                <div class="spatial-kpis">
+                  <div><span>FPS</span><strong>{{ computedFps() }}</strong></div>
+                  <div class="rr-accent"><span>Breath</span><strong>{{ metricText('reported_rr', 1) }}</strong></div>
+                  <div class="hr-accent"><span>Heart</span><strong>{{ metricText('reported_hr', 1) }}</strong></div>
+                </div>
+                <table class="diagnostics-table">
+                  <tbody>
+                    <tr><td>Person detected</td><td>{{ metricState('human') }}</td></tr>
+                    <tr><td>Distance</td><td>{{ metricText('distance_cm', 1, ' cm') }}</td></tr>
+                    <tr><td>X position</td><td>{{ metricText('primary_x', 2, ' m') }}</td></tr>
+                    <tr><td>Y position</td><td>{{ metricText('primary_y', 2, ' m') }}</td></tr>
+                    <tr><td>Spatial source</td><td>{{ metricLabel('spatial_source') }}</td></tr>
+                    <tr><td>Spatial age</td><td>{{ metricText('spatial_age_ms', 0, ' ms') }}</td></tr>
+                    <tr><td>Doppler speed</td><td>{{ metricText('primary_dop_speed_cms', 1, ' cm/s') }}</td></tr>
+                    <tr><td>Target info live</td><td>{{ metricState('target_info_ok') }}</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="diagnostics-mini-card">
-            <mat-card-header><mat-card-title>Spatial Targets</mat-card-title></mat-card-header>
-            <mat-card-content class="diagnostics-table-wrap">
-              <table class="diagnostics-table">
-                <tbody>
-                  <tr><td>Person Detected</td><td>{{ state.lastPayload()?.radar?.human ? 'YES' : 'NO' }}</td></tr>
-                  <tr><td>Distance (cm)</td><td>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) : '--' }}</td></tr>
-                  <tr><td>Point cloud targets</td><td>{{ metricLabel('num_targets') }}</td></tr>
-                  <tr><td>Doppler cm/s</td><td>{{ metricText('primary_dop_speed_cms', 1) }}</td></tr>
-                </tbody>
-              </table>
-            </mat-card-content>
-          </mat-card>
-        </div>
+          <!-- PHYSIOLOGY & POLICY DIAGNOSTICS GRIDS -->
+          <div class="diagnostics-double-column">
+            <mat-card class="diagnostics-card">
+              <mat-card-header><mat-card-title>Physiological Integrity</mat-card-title></mat-card-header>
+              <mat-card-content class="diagnostics-table-wrap">
+                <table class="diagnostics-table">
+                  <tbody>
+                    <tr><td>Human presence detected</td><td><strong>{{ state.lastPayload()?.radar?.human ? 'YES' : 'NO' }}</strong></td></tr>
+                    <tr><td>Motion index volatility</td><td><strong>{{ state.lastPayload()?.radar?.motion ? Math.round((state.lastPayload()?.radar?.motion ?? 0) * 100) / 100 : '--' }}</strong></td></tr>
+                    <tr><td>Ref perfusion index</td><td><strong>{{ state.lastPayload()?.ble?.perf ?? '--' }}</strong></td></tr>
+                    <tr><td>Subject profile</td><td><strong>{{ state.activeSubjectProfileId() }}</strong></td></tr>
+                  </tbody>
+                </table>
+              </mat-card-content>
+            </mat-card>
+
+            <mat-card class="diagnostics-card">
+              <mat-card-header><mat-card-title>Publishing Policy</mat-card-title></mat-card-header>
+              <mat-card-content class="diagnostics-table-wrap">
+                <table class="diagnostics-table">
+                  <tbody>
+                    <tr><td>Source mode</td><td><strong>{{ state.ctlStatus()?.mode === 'sandbox' ? 'DEMO' : (state.ctlStatus()?.ok ? 'TRAINER API' : '--') }}</strong></td></tr>
+                    <tr><td>Payload freshness</td><td><strong>{{ state.telemetryStale() ? 'STALE / WAITING' : 'LIVE' }}</strong></td></tr>
+                    <tr><td>Analysis state</td><td><strong>{{ state.lastPayload()?.analysis?.['status'] || '--' }}</strong></td></tr>
+                    <tr><td>Haptic profile</td><td><strong>{{ state.hxMode() | uppercase }}</strong></td></tr>
+                  </tbody>
+                </table>
+              </mat-card-content>
+            </mat-card>
+          </div>
+
+          <!-- RADAR & BLE REFERENCE COMPARATIVE GRIDS -->
+          <div class="quad-grid-diagnostics">
+            <mat-card class="diagnostics-mini-card">
+              <mat-card-header><mat-card-title>Radar Packet</mat-card-title></mat-card-header>
+              <mat-card-content class="diagnostics-table-wrap">
+                <table class="diagnostics-table">
+                  <tbody>
+                    <tr><td>Reported HR</td><td>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) + ' bpm' : '--' }}</td></tr>
+                    <tr><td>Reported RR</td><td>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) + ' br/m' : '--' }}</td></tr>
+                    <tr><td>Candidate HR</td><td>{{ state.lastPayload()?.radar?.candidate_hr ? Math.round(state.lastPayload()?.radar?.candidate_hr ?? 0) + ' bpm' : '--' }}</td></tr>
+                    <tr><td>Candidate RR</td><td>{{ state.lastPayload()?.radar?.candidate_rr ? Math.round(state.lastPayload()?.radar?.candidate_rr ?? 0) + ' br/m' : '--' }}</td></tr>
+                  </tbody>
+                </table>
+              </mat-card-content>
+            </mat-card>
+
+            <mat-card class="diagnostics-mini-card">
+              <mat-card-header><mat-card-title>BLE Reference</mat-card-title></mat-card-header>
+              <mat-card-content class="diagnostics-table-wrap">
+                <table class="diagnostics-table">
+                  <tbody>
+                    <tr><td>Linked device</td><td>{{ state.lastPayload()?.ble?.address || 'Not Linked' }}</td></tr>
+                    <tr><td>BLE Pulse HR</td><td>{{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : '--' }}</td></tr>
+                    <tr><td>BLE Respiration RR</td><td>{{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : '--' }}</td></tr>
+                    <tr><td>Adapter active</td><td>{{ state.lastPayload()?.ble?.connected ? 'CONNECTED' : (state.lastPayload() ? 'NOT REPORTED' : '--') }}</td></tr>
+                  </tbody>
+                </table>
+              </mat-card-content>
+            </mat-card>
+
+            <mat-card class="diagnostics-mini-card">
+              <mat-card-header><mat-card-title>Mismatches / Faults</mat-card-title></mat-card-header>
+              <mat-card-content class="diagnostics-table-wrap">
+                @if ((state.lastPayload()?.faults?.length || 0) > 0) {
+                  <div class="faults-list-container">
+                    @for (fault of state.lastPayload()?.faults || []; track $index) {
+                      <div class="fault-item">
+                        <mat-icon>warning</mat-icon>
+                        <span>{{ formatFault(fault) }}</span>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="faults-empty">
+                    <mat-icon>verified</mat-icon>
+                    <span>No faults reported in the current payload.</span>
+                  </div>
+                }
+              </mat-card-content>
+            </mat-card>
+
+            <mat-card class="diagnostics-mini-card">
+              <mat-card-header><mat-card-title>Spatial Targets</mat-card-title></mat-card-header>
+              <mat-card-content class="diagnostics-table-wrap">
+                <table class="diagnostics-table">
+                  <tbody>
+                    <tr><td>Person Detected</td><td>{{ state.lastPayload()?.radar?.human ? 'YES' : 'NO' }}</td></tr>
+                    <tr><td>Distance (cm)</td><td>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) : '--' }}</td></tr>
+                    <tr><td>Point cloud targets</td><td>{{ metricLabel('num_targets') }}</td></tr>
+                    <tr><td>Doppler cm/s</td><td>{{ metricText('primary_dop_speed_cms', 1) }}</td></tr>
+                  </tbody>
+                </table>
+              </mat-card-content>
+            </mat-card>
+          </div>
+        }
 
       </div>
     </mat-tab>

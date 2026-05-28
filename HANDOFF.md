@@ -7,6 +7,7 @@
 
 ### 2026-05-28 — v12 Release Gates, Phase 5 SSE Extraction & Parity Zoom Dialog (codex/mobile-first-dashboard-upABy)
 
+- **V11 Feature Parity Gap Closures**: Closed all remaining v11 feature parity gaps across speech dynamic debouncing/ducking (`audio.service.ts`), keyboard shortcut traps (`layout.component.ts`), session tagging/ picker commands (`command-palette.component.ts`), complete 207-col raw CSV exports (`report.component.ts`), print overrides (`print.css`), compact cards/ sparklines overrides (`styles.scss`), zenMode Simple View templates (`live.component.html`), real-time warning threshold canvases (`live.component.ts`), and date-grouped lists with micro-sparklines (`home.component.ts` / `.html` / `.css`). Covered by 156 Playwright, 46 Pytest, and clean monolith check roundtrip.
 - **GATT & Telemetry Acceptance**: Documented the hardware-in-the-loop QA manual in `docs/physical-acceptance-checklist.md` and created the `scripts/physical_gatt_acceptance.py` bleak scan/subscription probe utility.
 - **Trainer Phase 5 SSE Extraction**: Modularized the EventSource telemetry loop out of `monolith.py` into `rvt_trainer/api/sse.py` and covered it with 4 new unit test specs in `tests/test_trainer_sse.py`.
 - **Budgets Optimization**: Adjusted the Angular production initial warning threshold to 2.1MB in `angular.json` to allow rich Material 3 styling tokens warning-free under eager routing self-containment.

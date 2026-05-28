@@ -9,8 +9,12 @@ export class AudioService {
   private state = inject(StateService);
 
   private audioCtx: AudioContext | null = null;
-  private voiceLastKey = '';
-  private voiceLastAt = 0;
+  private lastSpokenText = '';
+  private lastSpokenAt = 0;
+  private lastEndAt = 0;
+  private queuedUtterance: SpeechSynthesisUtterance | null = null;
+  private queueTimer: any = null;
+  private isDuckingActive = false;
 
   private getAudioCtx(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -48,7 +52,12 @@ export class AudioService {
       gain.gain.setValueAtTime(0.0001, now);
 
       const volume = this.state.audioVolume();
-      const targetGain = (type === 'bad' ? 0.08 : 0.055) * volume;
+      let targetGain = (type === 'bad' ? 0.08 : 0.055) * volume;
+
+      // Apply 20% ducking if voice alerts are active
+      if (this.isDuckingActive) {
+        targetGain *= 0.2;
+      }
 
       if (targetGain <= 0) {
         gain.gain.setValueAtTime(0.0001, now);
@@ -65,25 +74,86 @@ export class AudioService {
     } catch (_) {}
   }
 
+  private duck() {
+    this.isDuckingActive = true;
+  }
+
+  private restore() {
+    this.isDuckingActive = false;
+  }
+
+  private emitUtterance(u: SpeechSynthesisUtterance, severity: 'ok' | 'warn' | 'bad') {
+    this.queuedUtterance = null;
+    if (this.queueTimer) {
+      clearTimeout(this.queueTimer);
+      this.queueTimer = null;
+    }
+
+    this.duck();
+    window.speechSynthesis.cancel();
+
+    const prevOnEnd = u.onend;
+    const prevOnError = u.onerror;
+
+    u.onend = (ev) => {
+      this.lastEndAt = Date.now();
+      this.restore();
+      if (typeof prevOnEnd === 'function') {
+        try { prevOnEnd.call(u, ev); } catch (_) {}
+      }
+    };
+
+    u.onerror = (ev) => {
+      this.lastEndAt = Date.now();
+      this.restore();
+      if (typeof prevOnError === 'function') {
+        try { prevOnError.call(u, ev); } catch (_) {}
+      }
+    };
+
+    this.lastSpokenText = u.text;
+    this.lastSpokenAt = Date.now();
+    window.speechSynthesis.speak(u);
+  }
+
   speakAlert(text: string, severity: 'ok' | 'warn' | 'bad' = 'warn', force = false) {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     if (!this.state.voiceAlertsEnabled() && !force) return;
 
-    const key = `${severity}:${text}`.slice(0, 180);
-    const now = Date.now();
-    if (!force && key === this.voiceLastKey && now - this.voiceLastAt < 12000) return;
+    const cleanText = (text || '').trim();
+    if (!cleanText) return;
 
-    this.voiceLastKey = key;
-    this.voiceLastAt = now;
+    const now = Date.now();
+    const debounceMs = severity === 'bad' ? 1000 : (severity === 'warn' ? 3000 : 1000);
+
+    if (!force && this.lastSpokenText === cleanText && now - this.lastSpokenAt < debounceMs) {
+      return;
+    }
 
     try {
-      const u = new SpeechSynthesisUtterance(String(text || 'Alert').slice(0, 160));
+      const u = new SpeechSynthesisUtterance(cleanText.slice(0, 160));
       u.rate = 0.95;
       u.pitch = severity === 'bad' ? 0.85 : 1;
       u.volume = Math.max(0.2, Math.min(1, this.state.audioVolume()));
 
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
+      if (force || severity === 'bad') {
+        this.emitUtterance(u, severity);
+        return;
+      }
+
+      const wait = Math.max(0, 1000 - (now - this.lastEndAt));
+      if (wait > 0) {
+        if (this.queueTimer) clearTimeout(this.queueTimer);
+        this.queuedUtterance = u;
+        this.queueTimer = setTimeout(() => {
+          if (this.queuedUtterance === u) {
+            this.emitUtterance(u, severity);
+          }
+        }, wait);
+        return;
+      }
+
+      this.emitUtterance(u, severity);
     } catch (_) {}
   }
 

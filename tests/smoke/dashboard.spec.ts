@@ -387,7 +387,7 @@ test.describe('Dashboard smoke', () => {
       await expect(page.getByRole('button', { name: new RegExp(topic, 'i') }).first()).toBeVisible();
     }
 
-    await page.getByRole('button', { name: /Firmware/ }).first().click();
+    await page.locator('.topic-links button').filter({ hasText: 'Firmware' }).click();
     await expect(page.getByText(/Firmware, trainer and dashboard contracts/)).toBeVisible();
     await page.getByRole('switch', { name: /Advanced detail/ }).click();
     await expect(page.getByText(/serial DATA header is a fixed contract/)).toBeVisible();

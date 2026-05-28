@@ -138,7 +138,28 @@ fn target_url(request: &NativeRequest, paired_origin: Option<&str>) -> Result<St
     Ok(format!("{origin}{}", request.path))
 }
 
+async fn wait_for_local_trainer() -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_millis(800))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        match client.get(LOCAL_TRAINER_HEALTH).send().await {
+            Ok(response) if response.status().is_success() => return Ok(()),
+            _ if tokio::time::Instant::now() >= deadline => {
+                return Err("Bundled trainer did not answer /api/health within 20 seconds.".to_string())
+            }
+            _ => tokio::time::sleep(Duration::from_millis(400)).await,
+        }
+    }
+}
+
 async fn perform_request(request: &NativeRequest, paired_origin: Option<&str>) -> Result<reqwest::Response, String> {
+    let origin = validate_origin(&request.origin)?;
+    if origin == LOCAL_TRAINER_ORIGIN {
+        wait_for_local_trainer().await?;
+    }
     let url = target_url(request, paired_origin)?;
     let method = reqwest::Method::from_bytes(request.method.as_bytes()).map_err(|_| "Invalid HTTP method.".to_string())?;
     let client = reqwest::Client::builder().timeout(Duration::from_secs(15)).build().map_err(|error| error.to_string())?;
@@ -168,23 +189,6 @@ fn trainer_status_snapshot(state: &State<'_, NativeState>) -> TrainerSidecarStat
             error: Some("Native trainer state is unavailable.".to_string()),
             started_at_ms: None,
         },
-    }
-}
-
-async fn wait_for_local_trainer() -> Result<(), String> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(800))
-        .build()
-        .map_err(|error| error.to_string())?;
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
-    loop {
-        match client.get(LOCAL_TRAINER_HEALTH).send().await {
-            Ok(response) if response.status().is_success() => return Ok(()),
-            _ if tokio::time::Instant::now() >= deadline => {
-                return Err("Bundled trainer did not answer /api/health within 20 seconds.".to_string())
-            }
-            _ => tokio::time::sleep(Duration::from_millis(400)).await,
-        }
     }
 }
 
@@ -232,21 +236,8 @@ fn start_local_trainer_sidecar(app: &tauri::App, state: State<'_, NativeState>) 
                     let text = String::from_utf8_lossy(&bytes).to_string();
                     let _ = app_handle.emit("rvt-trainer-stderr", text);
                 }
-                CommandEvent::Terminated(payload) => {
-                    let _ = app_handle.emit("rvt-trainer-terminated", payload);
-                    break;
-                }
+                CommandEvent::Terminated(_) => break,
                 _ => {}
-            }
-        }
-    });
-
-    let state_for_probe = app.state::<NativeState>();
-    tauri::async_runtime::spawn(async move {
-        if let Err(error) = wait_for_local_trainer().await {
-            if let Ok(mut trainer) = state_for_probe.trainer.lock() {
-                trainer.running = false;
-                trainer.error = Some(error.clone());
             }
         }
     });
@@ -425,7 +416,7 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if matches!(event, WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed) {
+            if matches!(event, WindowEvent::CloseRequested { .. }) {
                 let state = window.app_handle().state::<NativeState>();
                 shutdown_local_trainer(&state);
             }

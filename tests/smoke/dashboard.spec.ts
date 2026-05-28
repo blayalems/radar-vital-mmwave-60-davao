@@ -229,6 +229,10 @@ test.describe('Dashboard smoke', () => {
     if (await simpleView.isVisible()) {
       await simpleView.click();
       await expect(page.locator('body')).toHaveClass(/zen-mode/);
+      // Assert clean Simple View layouts hide diagnostics double column, tracking, and quad grids
+      await expect(page.locator('.tracking-card')).toHaveCount(0);
+      await expect(page.locator('.diagnostics-double-column')).toHaveCount(0);
+      await expect(page.locator('.quad-grid-diagnostics')).toHaveCount(0);
     }
 
     if (viewportWidth >= 1024) {
@@ -383,7 +387,7 @@ test.describe('Dashboard smoke', () => {
       await expect(page.getByRole('button', { name: new RegExp(topic, 'i') }).first()).toBeVisible();
     }
 
-    await page.getByRole('button', { name: /Firmware/ }).first().click();
+    await page.locator('.topic-links button').filter({ hasText: 'Firmware' }).click();
     await expect(page.getByText(/Firmware, trainer and dashboard contracts/)).toBeVisible();
     await page.getByRole('switch', { name: /Advanced detail/ }).click();
     await expect(page.getByText(/serial DATA header is a fixed contract/)).toBeVisible();

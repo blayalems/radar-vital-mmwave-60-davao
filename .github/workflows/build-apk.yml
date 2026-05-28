@@ -6,7 +6,6 @@ on:
       - main
       - 'codex/**'
     paths:
-      - 'radar_vital_live_dashboard_v12_for_v16_0.html'
       - 'web/**'
       - 'assets/**'
       - 'capacitor.config.ts'

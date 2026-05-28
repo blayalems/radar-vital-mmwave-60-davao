@@ -186,8 +186,31 @@ export class ReportComponent implements OnInit, AfterViewInit {
     window.URL.revokeObjectURL(url);
   }
 
-  downloadSessionCsv(): void {
-    if (!this.selectedSessionId || !this.sessionDataRows.length) return;
+  async downloadSessionCsv(): Promise<void> {
+    if (!this.selectedSessionId) return;
+
+    if (!this.selectedSummary?.sandbox && this.state.ctlStatus()?.mode !== 'sandbox') {
+      try {
+        await this.api.download(
+          `/api/sessions/${encodeURIComponent(this.selectedSessionId)}/files/radar.csv`,
+          `session_data_${this.selectedSessionId}.csv`
+        );
+        this.state.triggerHaptic('success');
+        return;
+      } catch (error: unknown) {
+        this.snackBar.open(
+          error instanceof Error ? error.message : 'Raw telemetry CSV download failed.',
+          'Dismiss',
+          { duration: 5000 }
+        );
+      }
+    }
+
+    if (!this.sessionDataRows.length) {
+      this.snackBar.open('No telemetry data recorded for this session yet.', 'Dismiss', { duration: 3000 });
+      return;
+    }
+
     const fields = Array.from(new Set(this.sessionDataRows.flatMap(row => Object.keys(row))));
     const content = [
       fields.map(field => this.csvValue(field)).join(','),
@@ -261,6 +284,7 @@ export class ReportComponent implements OnInit, AfterViewInit {
     anchor.click();
     URL.revokeObjectURL(href);
   }
+
   // Only render recorded or currently streamed series; never invent report data.
   private drawReportTrends() {
     if (!this.hrReportCanvas || !this.rrReportCanvas) return;
@@ -295,7 +319,6 @@ export class ReportComponent implements OnInit, AfterViewInit {
       const innerH = h - pad * 2;
       const count = points.length;
 
-      // Draw gridlines
       const outlineColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-outline-variant').trim() || '#f1f5f9';
       ctx.strokeStyle = outlineColor;
       ctx.lineWidth = 1;

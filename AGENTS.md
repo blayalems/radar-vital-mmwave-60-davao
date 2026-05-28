@@ -22,6 +22,7 @@ The design plan lives at `/root/.claude/plans/take-a-look-at-fizzy-taco.md` on t
 8. **HSTS only when explicit.** Never send `Strict-Transport-Security` under a self-signed cert. Gated to `--tls-trusted` only.
 9. **Backward-compatibility tombstone.** The pre-existing `/rvt-sw.js` route stays for one release, but the body is a self-unregister stub. The new SW is `/sw.js`. Don't remove the tombstone until v12.1.
 10. **No marketing model names in artefacts.** Don't write the model ID this agent runs on into commit messages, PR bodies, code comments, or docs.
+11. **SSE Telemetry Reconnect Contract.** The trainer's Server-Sent Events (SSE) `/api/events/subscribe` connection has a hard 12-hour session lifetime limit. The trainer must emit a `session_warning` event with payload `{"reason": "deadline_approaching", "seconds_remaining": 60}` exactly 60 seconds before termination. The Angular client's EventSource or custom reconnect driver must handle this warning or catch the native browser `disconnect`/`close` to re-establish the event stream without session-state clobbering.
 
 ## File-touching rules
 

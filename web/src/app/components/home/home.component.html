@@ -333,29 +333,43 @@
       @if (getFilteredSessions().length > 0) {
       <div class="sessions-list-grid">
         <div class="session-log-row header">
-          <span>Date / Time</span>
+          <span>Time</span>
           <span>Duration</span>
           <span>Subject</span>
+          <span>Trend</span>
           <span>Verdict Score</span>
           <span>Summary Notes</span>
           <span>Review</span>
         </div>
 
-        @for (session of getFilteredSessions(); track session.session_id) {
-        <div class="session-log-row">
-          <strong>{{ session.started_at | date:'short' }}</strong>
-          <span>{{ session.duration_s }} seconds</span>
-          <span>{{ session.subject || '--' }}</span>
-          <span class="session-verdict-badge" [attr.data-verdict]="sessionVerdict(session)">
-            {{ sessionVerdict(session) | uppercase }}
-          </span>
-          <span class="session-summary-col">
-            {{ state.sessionNotes()[session.session_id] || session.summary || 'No operator summary recorded.' }}
-          </span>
-          <button mat-icon-button color="primary" aria-label="Review session" (click)="reviewSession(session.session_id)">
-            <mat-icon>open_in_new</mat-icon>
-          </button>
-        </div>
+        @for (group of getGroupedSessions(); track group.dateLabel) {
+          <div class="session-date-group-header">
+            <mat-icon>calendar_today</mat-icon>
+            <strong>{{ group.dateLabel }}</strong>
+            <span class="group-count-badge">{{ group.items.length }} session{{ group.items.length === 1 ? '' : 's' }}</span>
+          </div>
+
+          @for (session of group.items; track session.session_id) {
+          <div class="session-log-row">
+            <strong>{{ session.started_at | date:'shortTime' }}</strong>
+            <span>
+              <span class="session-duration-badge">{{ sessionDuration(session) }}</span>
+            </span>
+            <span>{{ session.subject_label || session.subject || '--' }}</span>
+            <div class="session-sparkline-cell">
+              <canvas class="session-micro-sparkline" [attr.data-session-id]="session.session_id" role="img" aria-label="Micro-sparkline recent trend"></canvas>
+            </div>
+            <span class="session-verdict-badge" [attr.data-verdict]="sessionVerdict(session)">
+              {{ sessionVerdict(session) | uppercase }}
+            </span>
+            <span class="session-summary-col">
+              {{ state.sessionNotes()[session.session_id] || session.summary || 'No operator summary recorded.' }}
+            </span>
+            <button mat-icon-button color="primary" aria-label="Review session" (click)="reviewSession(session.session_id)">
+              <mat-icon>open_in_new</mat-icon>
+            </button>
+          </div>
+          }
         }
       </div>
       } @else {

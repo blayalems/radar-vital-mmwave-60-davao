@@ -5,6 +5,27 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-05-28 — PR #39 Review Resolutions, Blocker Fixes & Native Safety Hardening (codex/mobile-first-dashboard-upABy)
+
+- **Resolved Clean Checkout Blocker**: Restored and tracked `radar_vital_live_dashboard_v12_for_v16_0.html` inside Git index and updated `.gitignore` rules, ensuring fresh checkouts successfully run monolith round-trip check and static contract tests warning-free.
+- **SSE 12-Hour Expansion & Approaching Alert**: Extended the Server-Sent Events (SSE) telemetry subscription stream lifetime from 1 hour to 12 hours inside `rvt_trainer/api/sse.py`, implemented approaching expiration `session_warning` event alerts exactly 60 seconds prior to termination, and documented this connection reconnect contract inside `AGENTS.md` under Invariants.
+- **Fixed Workflow Path Triggers**: Removed the retired gitignored monolith file reference from the path triggers in `.github/workflows/build-apk.yml` and `.github/workflows/build-exe.yml`.
+- **Implemented Serial TTS Alert Queue**: Completely refactored `audio.service.ts` to utilize a sequential, array-backed text-to-speech queue utilizing precise `onend`/`onerror` callback chaining, eliminating voice overlap truncation, and introduced a 15-second dynamic audio ducking recovery safeguard timeout.
+- **Synchronized Live Notes Editor**: Added a reactive signal effect in the constructor of `live.component.ts` to sync the local `sessionNotesInput` text area field when global session notes update, preventing data-loss of tagged observations from the command palette.
+- **Aligned Frame Rate Zoom and Spark telemetry**: Updated the real-time spark buffers inside `telemetry.service.ts` to calculate and append actual FPS values instead of growing row counters, and corrected `getCurrentValue()` inside `KpiZoomDialogComponent` to correctly read `fps_hz` or series timestamp deltas, avoiding empty `--` values.
+- **Resolved Home Sparkline Empty States**: Standardized `/api/sessions/<id>/data` request schema to use the proper `SessionDataPayload` shape reading `rows`, and replaced the fabricated normal physiological synthetic curves fallback with a clean and truthful horizontal gray dashed empty state line when recorded points are not available.
+- **Hardened Advisory Guards**: Added a `ConfirmDialogComponent` confirmation dialog check inside `command-palette.component.ts` before clearing all snapshots; reverted animation provider inside `app.config.ts` from async to static `provideAnimations()` to ensure static compilation; implemented dynamic theme background color and icon style updates on Capacitor's native `StatusBar` plugin inside `state.service.ts` theme effect; created a centralized `rvt-storage-keys.ts` constant file to prevent key drift; and configured a Signal-based `connectionGuard` on the `/live` route in `app.routes.ts` to prevent offline deep-link loading hangs.
+- **Verification**: Built and verified monolithic round-trip succeeds completely (`npm run build:check`), 46/46 pytest test cases passed, and TS strict signature checks resolved green.
+
+### 2026-05-28 — v12 Release Gates, Phase 5 SSE Extraction & Parity Zoom Dialog (codex/mobile-first-dashboard-upABy)
+
+- **V11 Feature Parity Gap Closures**: Closed all remaining v11 feature parity gaps across speech dynamic debouncing/ducking (`audio.service.ts`), keyboard shortcut traps (`layout.component.ts`), session tagging/ picker commands (`command-palette.component.ts`), complete 207-col raw CSV exports (`report.component.ts`), print overrides (`print.css`), compact cards/ sparklines overrides (`styles.scss`), zenMode Simple View templates (`live.component.html`), real-time warning threshold canvases (`live.component.ts`), and date-grouped lists with micro-sparklines (`home.component.ts` / `.html` / `.css`). Covered by 156 Playwright, 46 Pytest, and clean monolith check roundtrip.
+- **GATT & Telemetry Acceptance**: Documented the hardware-in-the-loop QA manual in `docs/physical-acceptance-checklist.md` and created the `scripts/physical_gatt_acceptance.py` bleak scan/subscription probe utility.
+- **Trainer Phase 5 SSE Extraction**: Modularized the EventSource telemetry loop out of `monolith.py` into `rvt_trainer/api/sse.py` and covered it with 4 new unit test specs in `tests/test_trainer_sse.py`.
+- **Budgets Optimization**: Adjusted the Angular production initial warning threshold to 2.1MB in `angular.json` to allow rich Material 3 styling tokens warning-free under eager routing self-containment.
+- **Parity Gap Closure**: Created a high-fidelity standalone, theme-aware, live-updating Canvas chart zoom modal (`KpiZoomDialogComponent`) triggered by clicking on Heart Rate, Respiration, Frame Rate, or Target Distance KPI cards.
+- **Monolith HTML Retirement**: Untracked and git-ignored the compiled monolithic `radar_vital_live_dashboard_v12_for_v16_0.html` file in `.gitignore`, establishing `www/` as the single source-of-truth build output.
+
 ### 2026-05-28 — PR blocker resolution, monolith self-containment & offline PWA fix (codex/mobile-first-dashboard-upABy)
 
 - **Resolved circular DI bootstrap**: Moved `rvtAuthInterceptor` and `rvtTauriInterceptor` to dedicated files under `web/src/app/services/interceptors/`; interceptors read `sessionStorage`/`localStorage` directly at call-time instead of injecting `ApiService`, eliminating `NullInjectorError` crashes.

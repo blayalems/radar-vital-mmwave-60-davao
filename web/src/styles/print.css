@@ -84,4 +84,33 @@
     max-width: 100% !important;
     page-break-inside: avoid !important;
   }
+
+  /* Pristine printing for inputs, select elements and textareas inside cards */
+  input,
+  textarea,
+  select,
+  .mat-mdc-form-field,
+  .mat-mdc-input-element,
+  .report-textarea {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    resize: none !important;
+    outline: none !important;
+    color: #000000 !important;
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+  }
+  .mdc-text-field--filled:not(.mdc-text-field--disabled) {
+    background-color: transparent !important;
+  }
+  .mdc-line-ripple,
+  .mat-mdc-form-field-focus-overlay,
+  .mat-mdc-form-field-subscript-wrapper {
+    display: none !important;
+  }
 }

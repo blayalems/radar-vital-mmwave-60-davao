@@ -308,6 +308,57 @@ html[data-density='compact'] app-settings mat-card-content {
   padding: 1rem !important;
 }
 
+html[data-density='compact'] {
+  /* Card padding of 8px !important (versus 16px) */
+  mat-card,
+  .kpi-metric-card,
+  .command-strip-card,
+  .session-notes-section-card,
+  .diagnostics-card,
+  .diagnostics-mini-card,
+  .waveforms-container-card,
+  .trend-large-card,
+  .snapshots-container-card,
+  .snap-card,
+  .tracking-card,
+  .advanced-card,
+  .target-plot-panel {
+    padding: 8px !important;
+    border-radius: 8px !important;
+  }
+
+  /* Reduce gap and spacing in containers */
+  .live-container,
+  .tab-content-grid,
+  .waveforms-grid,
+  .diagnostics-double-column,
+  .quad-grid-diagnostics,
+  .tracking-layout {
+    gap: 8px !important;
+  }
+
+  /* Trend and waveform sparkline container heights of 200px !important (versus 280-320px) */
+  .large-canvas-container {
+    height: 200px !important;
+    padding: 6px !important;
+  }
+  .canvas-plot-container {
+    height: 140px !important;
+  }
+  .target-canvas {
+    height: 160px !important;
+  }
+
+  /* Table row paddings of 4px 8px !important inside diagnostic and spatial target grids */
+  .diagnostics-table td {
+    padding: 4px 8px !important;
+  }
+  
+  .spatial-kpis div {
+    padding: 6px 4px !important;
+  }
+}
+
 /* Dark inverse high-contrast surfaces must not inherit light legacy button fills. */
 html[data-theme='hc'] {
   --md-sys-color-primary-container: #000 !important;

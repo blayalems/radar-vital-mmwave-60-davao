@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, effect, inject } from '@angular/core';
 import { AlertEvent } from '../models/rvt.models';
 import { StateService } from './state.service';
 
@@ -9,8 +9,21 @@ export class AudioService {
   private state = inject(StateService);
 
   private audioCtx: AudioContext | null = null;
-  private voiceLastKey = '';
-  private voiceLastAt = 0;
+  private lastSpokenText = '';
+  private lastSpokenAt = 0;
+  private lastEndAt = 0;
+  private isDuckingActive = false;
+  private utteranceQueue: { u: SpeechSynthesisUtterance; severity: 'ok' | 'warn' | 'bad' }[] = [];
+  private isSpeaking = false;
+  private duckTimeout: any = null;
+
+  constructor() {
+    effect(() => {
+      if (!this.state.voiceAlertsEnabled()) {
+        this.cancelVoiceAnnouncements();
+      }
+    });
+  }
 
   private getAudioCtx(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -48,7 +61,11 @@ export class AudioService {
       gain.gain.setValueAtTime(0.0001, now);
 
       const volume = this.state.audioVolume();
-      const targetGain = (type === 'bad' ? 0.08 : 0.055) * volume;
+      let targetGain = (type === 'bad' ? 0.08 : 0.055) * volume;
+
+      if (this.isDuckingActive) {
+        targetGain *= 0.2;
+      }
 
       if (targetGain <= 0) {
         gain.gain.setValueAtTime(0.0001, now);
@@ -65,25 +82,131 @@ export class AudioService {
     } catch (_) {}
   }
 
+  private duck() {
+    this.isDuckingActive = true;
+    if (this.duckTimeout) {
+      clearTimeout(this.duckTimeout);
+    }
+    this.duckTimeout = setTimeout(() => {
+      this.restore();
+    }, 15000);
+  }
+
+  private restore() {
+    this.isDuckingActive = false;
+    if (this.duckTimeout) {
+      clearTimeout(this.duckTimeout);
+      this.duckTimeout = null;
+    }
+  }
+
+  private cancelVoiceAnnouncements() {
+    this.utteranceQueue = [];
+    this.isSpeaking = false;
+    this.restore();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (_) {}
+    }
+  }
+
+  private processQueue() {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    if (!this.state.voiceAlertsEnabled()) {
+      this.cancelVoiceAnnouncements();
+      return;
+    }
+
+    if (this.isSpeaking && !window.speechSynthesis.speaking) {
+      this.isSpeaking = false;
+      this.restore();
+    }
+
+    if (this.isSpeaking || window.speechSynthesis.speaking || this.utteranceQueue.length === 0) {
+      return;
+    }
+
+    const next = this.utteranceQueue.shift();
+    if (!next) return;
+
+    if (!this.state.voiceAlertsEnabled()) {
+      this.cancelVoiceAnnouncements();
+      return;
+    }
+
+    const { u } = next;
+    this.isSpeaking = true;
+    this.duck();
+
+    const prevOnEnd = u.onend;
+    const prevOnError = u.onerror;
+
+    u.onend = (ev) => {
+      this.lastEndAt = Date.now();
+      this.isSpeaking = false;
+      this.restore();
+      if (typeof prevOnEnd === 'function') {
+        try { prevOnEnd.call(u, ev); } catch (_) {}
+      }
+      setTimeout(() => this.processQueue(), 400);
+    };
+
+    u.onerror = (ev) => {
+      this.lastEndAt = Date.now();
+      this.isSpeaking = false;
+      this.restore();
+      if (typeof prevOnError === 'function') {
+        try { prevOnError.call(u, ev); } catch (_) {}
+      }
+      setTimeout(() => this.processQueue(), 400);
+    };
+
+    this.lastSpokenText = u.text;
+    this.lastSpokenAt = Date.now();
+    window.speechSynthesis.speak(u);
+  }
+
   speakAlert(text: string, severity: 'ok' | 'warn' | 'bad' = 'warn', force = false) {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    if (!this.state.voiceAlertsEnabled() && !force) return;
+    if (!this.state.voiceAlertsEnabled() && !force) {
+      this.cancelVoiceAnnouncements();
+      return;
+    }
 
-    const key = `${severity}:${text}`.slice(0, 180);
+    const cleanText = (text || '').trim();
+    if (!cleanText) return;
+
     const now = Date.now();
-    if (!force && key === this.voiceLastKey && now - this.voiceLastAt < 12000) return;
+    const debounceMs = severity === 'bad' ? 1000 : (severity === 'warn' ? 3000 : 1000);
 
-    this.voiceLastKey = key;
-    this.voiceLastAt = now;
+    if (!force && this.lastSpokenText === cleanText && now - this.lastSpokenAt < debounceMs) {
+      return;
+    }
 
     try {
-      const u = new SpeechSynthesisUtterance(String(text || 'Alert').slice(0, 160));
+      const u = new SpeechSynthesisUtterance(cleanText.slice(0, 160));
       u.rate = 0.95;
       u.pitch = severity === 'bad' ? 0.85 : 1;
       u.volume = Math.max(0.2, Math.min(1, this.state.audioVolume()));
 
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
+      if (force || severity === 'bad') {
+        this.utteranceQueue = [];
+        window.speechSynthesis.cancel();
+        this.isSpeaking = false;
+        this.restore();
+
+        setTimeout(() => {
+          if (!this.state.voiceAlertsEnabled() && !force) return;
+          this.utteranceQueue.push({ u, severity });
+          this.processQueue();
+        }, 100);
+        return;
+      }
+
+      this.utteranceQueue.push({ u, severity });
+      this.processQueue();
     } catch (_) {}
   }
 

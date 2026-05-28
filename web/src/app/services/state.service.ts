@@ -158,10 +158,34 @@ export class StateService {
 
     // Effect to sync settings back to storage
     effect(() => {
-      localStorage.setItem('rvt-theme', this.theme());
-      document.documentElement.dataset['theme'] = this.theme();
+      const currentTheme = this.theme();
+      localStorage.setItem('rvt-theme', currentTheme);
+      document.documentElement.dataset['theme'] = currentTheme;
       // Re-apply dynamic color when base theme changes (light ↔ dark)
       this.dynamicColor.reapply();
+
+      // Reactively sync native status bar background and style on Capacitor
+      try {
+        const cap = (window as any).Capacitor;
+        if (cap?.isNativePlatform?.()) {
+          const statusBar = cap?.Plugins?.StatusBar;
+          if (statusBar) {
+            let bgColor = '#f4f6fb';
+            let style = 'LIGHT';
+
+            if (currentTheme === 'dark') {
+              bgColor = '#0f172a';
+              style = 'DARK';
+            } else if (currentTheme === 'night' || currentTheme === 'hc') {
+              bgColor = '#000000';
+              style = 'DARK';
+            }
+
+            void statusBar.setBackgroundColor?.({ color: bgColor })?.catch(() => {});
+            void statusBar.setStyle?.({ style })?.catch(() => {});
+          }
+        }
+      } catch (_) {}
     });
 
     effect(() => {

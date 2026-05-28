@@ -15,6 +15,7 @@ android/
 ios/
 src-tauri/target/
 src-tauri/Cargo.lock
+src-tauri/binaries/
 dist/
 www/
 packaging/capacitor/www/
@@ -40,4 +41,3 @@ sessions/
 # Binary build artifacts and checks
 .artifact-check/
 *.exe
-

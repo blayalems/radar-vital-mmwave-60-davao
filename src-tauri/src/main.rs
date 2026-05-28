@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{collections::HashMap, sync::Mutex, time::Duration};
+use std::{collections::HashMap, sync::Mutex, time::{Duration, SystemTime, UNIX_EPOCH}};
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use btleplug::{
@@ -9,17 +9,30 @@ use btleplug::{
 };
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
+use tauri_plugin_shell::{process::{CommandChild, CommandEvent}, ShellExt};
 use url::Url;
 use uuid::Uuid;
 
 const AILINK_SERVICE_UUID: &str = "0000ffe0-0000-1000-8000-00805f9b34fb";
 const AILINK_NOTIFY_UUID: &str = "0000ffe2-0000-1000-8000-00805f9b34fb";
+const LOCAL_TRAINER_ORIGIN: &str = "http://127.0.0.1:8765";
+const LOCAL_TRAINER_HEALTH: &str = "http://127.0.0.1:8765/api/health";
 
 #[derive(Default)]
 struct NativeState {
     paired_origin: Mutex<Option<String>>,
     active_ble_device: Mutex<Option<String>>,
+    trainer: Mutex<TrainerSidecarState>,
+}
+
+#[derive(Default)]
+struct TrainerSidecarState {
+    origin: Option<String>,
+    running: bool,
+    error: Option<String>,
+    child: Option<CommandChild>,
+    started_at_ms: Option<u128>,
 }
 
 #[derive(Deserialize)]
@@ -56,6 +69,22 @@ struct NativeBleDevice {
 struct NativeBleNotification {
     device_id: String,
     data_base64: String,
+}
+
+#[derive(Clone, Serialize)]
+struct TrainerSidecarStatus {
+    enabled: bool,
+    running: bool,
+    origin: Option<String>,
+    error: Option<String>,
+    started_at_ms: Option<u128>,
+}
+
+fn now_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_millis()
 }
 
 fn validate_origin(origin: &str) -> Result<String, String> {
@@ -123,11 +152,118 @@ async fn perform_request(request: &NativeRequest, paired_origin: Option<&str>) -
     outgoing.send().await.map_err(|error| error.to_string())
 }
 
+fn trainer_status_snapshot(state: &State<'_, NativeState>) -> TrainerSidecarStatus {
+    match state.trainer.lock() {
+        Ok(guard) => TrainerSidecarStatus {
+            enabled: true,
+            running: guard.running,
+            origin: guard.origin.clone(),
+            error: guard.error.clone(),
+            started_at_ms: guard.started_at_ms,
+        },
+        Err(_) => TrainerSidecarStatus {
+            enabled: true,
+            running: false,
+            origin: None,
+            error: Some("Native trainer state is unavailable.".to_string()),
+            started_at_ms: None,
+        },
+    }
+}
+
+async fn wait_for_local_trainer() -> Result<(), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_millis(800))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        match client.get(LOCAL_TRAINER_HEALTH).send().await {
+            Ok(response) if response.status().is_success() => return Ok(()),
+            _ if tokio::time::Instant::now() >= deadline => {
+                return Err("Bundled trainer did not answer /api/health within 20 seconds.".to_string())
+            }
+            _ => tokio::time::sleep(Duration::from_millis(400)).await,
+        }
+    }
+}
+
+fn shutdown_local_trainer(state: &State<'_, NativeState>) {
+    if let Ok(mut trainer) = state.trainer.lock() {
+        if let Some(child) = trainer.child.as_mut() {
+            let _ = child.kill();
+        }
+        trainer.child = None;
+        trainer.running = false;
+    }
+}
+
+fn start_local_trainer_sidecar(app: &tauri::App, state: State<'_, NativeState>) -> Result<(), String> {
+    let sidecar = app
+        .shell()
+        .sidecar("rvt-trainer")
+        .map_err(|error| format!("Bundled trainer sidecar is not available: {error}"))?;
+    let (mut events, child) = sidecar
+        .args(["serve", "--bind", "local", "--host", "127.0.0.1", "--port", "8765", "--no-browser"])
+        .spawn()
+        .map_err(|error| format!("Failed to start bundled trainer: {error}"))?;
+
+    {
+        let mut trainer = state.trainer.lock().map_err(|_| "Native trainer state is unavailable.".to_string())?;
+        trainer.origin = Some(LOCAL_TRAINER_ORIGIN.to_string());
+        trainer.running = true;
+        trainer.error = None;
+        trainer.started_at_ms = Some(now_ms());
+        trainer.child = Some(child);
+    }
+    if let Ok(mut paired) = state.paired_origin.lock() {
+        *paired = Some(LOCAL_TRAINER_ORIGIN.to_string());
+    }
+
+    let app_handle = app.handle().clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = events.recv().await {
+            match event {
+                CommandEvent::Stdout(bytes) => {
+                    let text = String::from_utf8_lossy(&bytes).to_string();
+                    let _ = app_handle.emit("rvt-trainer-stdout", text);
+                }
+                CommandEvent::Stderr(bytes) => {
+                    let text = String::from_utf8_lossy(&bytes).to_string();
+                    let _ = app_handle.emit("rvt-trainer-stderr", text);
+                }
+                CommandEvent::Terminated(payload) => {
+                    let _ = app_handle.emit("rvt-trainer-terminated", payload);
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+
+    let state_for_probe = app.state::<NativeState>();
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = wait_for_local_trainer().await {
+            if let Ok(mut trainer) = state_for_probe.trainer.lock() {
+                trainer.running = false;
+                trainer.error = Some(error.clone());
+            }
+        }
+    });
+
+    Ok(())
+}
+
 #[tauri::command]
 fn native_set_paired_origin(origin: String, state: State<'_, NativeState>) -> Result<(), String> {
     let normalized = validate_origin(&origin)?;
     *state.paired_origin.lock().map_err(|_| "Native origin state is unavailable.".to_string())? = Some(normalized);
     Ok(())
+}
+
+#[tauri::command]
+fn native_trainer_status(state: State<'_, NativeState>) -> TrainerSidecarStatus {
+    trainer_status_snapshot(&state)
 }
 
 #[tauri::command]
@@ -264,13 +400,39 @@ mod tests {
         assert!(allowed_notification_profile(AILINK_SERVICE_UUID, "0000ffe1-0000-1000-8000-00805f9b34fb").is_err());
         assert!(allowed_notification_profile("8b1d0000-7d4c-4a3f-9a2b-7f2d4c8b1000", AILINK_NOTIFY_UUID).is_err());
     }
+
+    #[test]
+    fn accepts_plain_loopback_trainer_origin() {
+        assert_eq!(validate_origin(LOCAL_TRAINER_ORIGIN).unwrap(), LOCAL_TRAINER_ORIGIN);
+    }
 }
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .manage(NativeState::default())
+        .setup(|app| {
+            let state = app.state::<NativeState>();
+            if let Err(error) = start_local_trainer_sidecar(app, state) {
+                let state = app.state::<NativeState>();
+                if let Ok(mut trainer) = state.trainer.lock() {
+                    trainer.running = false;
+                    trainer.error = Some(error.clone());
+                    trainer.origin = Some(LOCAL_TRAINER_ORIGIN.to_string());
+                }
+                eprintln!("[RVT] {error}");
+            }
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if matches!(event, WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed) {
+                let state = window.app_handle().state::<NativeState>();
+                shutdown_local_trainer(&state);
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             native_set_paired_origin,
+            native_trainer_status,
             native_pair_request,
             native_http_request,
             native_download,

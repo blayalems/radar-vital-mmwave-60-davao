@@ -52,12 +52,24 @@ export class ApiService {
 
   private async initializeConnection(): Promise<void> {
     this.connectionLoading.set(true);
-    await this.consumePairPinFromUrl();
-    await this.detectControlMode();
-    this.connectionLoading.set(false);
+    try {
+      await this.consumePairPinFromUrl();
+      await this.detectControlMode();
+    } finally {
+      this.connectionLoading.set(false);
+    }
   }
 
-  // Retrieve current API base address
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+    });
+  }
+
   currentApiBase(): string {
     try {
       const storedBase = localStorage.getItem(this.API_BASE_KEY);
@@ -118,11 +130,15 @@ export class ApiService {
     if (!/^\d{6}$/.test(cleanPin)) {
       throw new Error('Enter the six-digit pairing PIN.');
     }
-    const payload = await this.request<{ token?: string }>('/api/auth/exchange', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: cleanPin })
-    }, true);
+    const payload = await this.withTimeout(
+      this.request<{ token?: string }>('/api/auth/exchange', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: cleanPin })
+      }, true),
+      4000,
+      'Pairing exchange timeout'
+    );
     if (!payload.token) throw new Error('Trainer did not return a pairing token.');
     this.setPairToken(payload.token);
     await this.setTauriPairedOrigin();
@@ -142,7 +158,6 @@ export class ApiService {
     }
   }
 
-  // Low-level HTTP requests utilizing HttpClient under the hood
   async request<T = unknown>(path: string, init?: RequestInit, bypassSandbox = false): Promise<T> {
     const isSandbox = !bypassSandbox && (
       this.state.autoDemoActive()
@@ -156,13 +171,11 @@ export class ApiService {
 
     const base = this.currentApiBase();
     const target = /^[a-z][a-z0-9+.-]*:\/\//i.test(String(path)) ? String(path) : base + String(path);
-
     const method = String(init?.method || 'GET').toUpperCase();
 
-    // Try Capacitor native Http wrapper
     const cap = (window as Window & { Capacitor?: CapacitorBridge }).Capacitor;
-    const http = cap?.Plugins?.CapacitorHttp || cap?.Plugins?.Http;
-    if (cap?.isNativePlatform?.() && http?.request) {
+    const nativeHttp = cap?.Plugins?.CapacitorHttp || cap?.Plugins?.Http;
+    if (cap?.isNativePlatform?.() && nativeHttp?.request) {
       try {
         const headers = new Headers(init?.headers || {});
         const tok = this.pairToken();
@@ -170,19 +183,17 @@ export class ApiService {
         const headerObj: Record<string, string> = {};
         headers.forEach((v, k) => { headerObj[k] = v; });
 
-        const resp = await http.request({
+        const resp = await this.withTimeout(nativeHttp.request({
           url: target,
           method,
           headers: headerObj,
           data: init?.body
-        });
+        }), 10000, 'Request timeout');
 
         const status = Number(resp.status || 0);
         const data = resp.data;
-        
         if (status < 200 || status >= 300) {
-          const err = new Error(this.errorMessage(data, `HTTP ${status}`));
-          throw err;
+          throw new Error(this.errorMessage(data, `HTTP ${status}`));
         }
         return (typeof data === 'string' ? JSON.parse(data || '{}') : data) as T;
       } catch (err) {
@@ -191,7 +202,6 @@ export class ApiService {
       }
     }
 
-    // Standard and Tauri path utilizing HttpClient
     try {
       const httpHeaders = new HttpHeaders(init?.headers as any || {});
       const body = init?.body;
@@ -201,7 +211,7 @@ export class ApiService {
         responseType: 'json',
         observe: 'body'
       });
-      return await firstValueFrom(response);
+      return await this.withTimeout(firstValueFrom(response), 10000, 'Request timeout');
     } catch (err: any) {
       if (err && typeof err === 'object' && 'status' in err) {
         throw new Error(this.errorMessage(err.error, `HTTP ${err.status}`));
@@ -218,16 +228,20 @@ export class ApiService {
     if (token) headers.set('X-RVT-Auth', token);
     const tauri = (window as Window & { __TAURI__?: TauriBridge }).__TAURI__?.core;
     if (tauri?.invoke && base) {
-      const response = await tauri.invoke<{ status: number; body_base64: string; content_type: string }>('native_download', {
-        request: { origin: base, path, method: 'GET', headers: Object.fromEntries(headers.entries()), body: null }
-      });
+      const response = await this.withTimeout(
+        tauri.invoke<{ status: number; body_base64: string; content_type: string }>('native_download', {
+          request: { origin: base, path, method: 'GET', headers: Object.fromEntries(headers.entries()), body: null }
+        }),
+        10000,
+        'Download timeout'
+      );
       if (response.status < 200 || response.status >= 300) throw new Error(`Download failed: HTTP ${response.status}`);
       const binary = atob(response.body_base64);
       const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
       this.downloadBlob(new Blob([bytes], { type: response.content_type || 'application/octet-stream' }), filename);
       return;
     }
-    const response = await fetch(target, { headers, cache: 'no-store' });
+    const response = await this.withTimeout(fetch(target, { headers, cache: 'no-store' }), 10000, 'Download timeout');
     if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
     this.downloadBlob(await response.blob(), filename);
   }
@@ -241,17 +255,14 @@ export class ApiService {
     URL.revokeObjectURL(href);
   }
 
-  // Detect control mode / connect
   async detectControlMode(): Promise<boolean> {
     const attempt = ++this.connectionAttempt;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
-      // 4-second timeout wrapper to prevent locking out layout UI on stale LAN endpoints
-      const statusPromise = this.request<ControlStatus>('/api/status', undefined, true);
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('Connection detection timeout')), 4000);
-      });
-      const r = await Promise.race([statusPromise, timeoutPromise]);
+      const r = await this.withTimeout(
+        this.request<ControlStatus>('/api/status', undefined, true),
+        4000,
+        'Connection detection timeout'
+      );
       if (attempt !== this.connectionAttempt) return false;
 
       this.state.ctlOn.set(true);
@@ -266,13 +277,10 @@ export class ApiService {
       const message = error instanceof Error ? error.message : 'Control API unavailable';
       this.enableSandboxControlMode(message);
       return false;
-    } finally {
-      if (timeoutId !== undefined) clearTimeout(timeoutId);
     }
   }
 
   enableSandboxControlMode(reason: string) {
-    // Explicit fallback wins over any slower in-flight live detection attempt.
     this.connectionAttempt++;
     this.state.ctlOn.set(true);
     this.state.sessionActive.set(false);
@@ -286,8 +294,6 @@ export class ApiService {
     this.sandboxLoadSessions();
     this.connectionLoading.set(false);
   }
-
-  // --- LOCAL SANDBOX / MOCK ENDPOINTS ---
 
   private errorMessage(body: unknown, fallback: string): string {
     if (typeof body === 'object' && body !== null) {
@@ -305,29 +311,10 @@ export class ApiService {
   private sandboxLoadSessions(): SessionRecord[] {
     const existing = this.sandboxReadSessions();
     if (!existing.length) {
-      // Seed default sessions only on very first launch (when key doesn't exist)
       const iso = (mins: number) => new Date(Date.now() - mins * 60000).toISOString();
       const items = [
-        {
-          session_id: 'sandbox_20260420_091800',
-          started_at: iso(64),
-          duration_s: 480,
-          subject: 'demo-A',
-          operator: 'Demo operator',
-          verdict: 'demo',
-          summary: 'Completed 8 min simulated telemetry preview; no physiological conclusion.',
-          sandbox: true
-        },
-        {
-          session_id: 'sandbox_20260419_141803',
-          started_at: iso(1240),
-          duration_s: 300,
-          subject: 'demo-B',
-          operator: 'Demo operator',
-          verdict: 'demo',
-          summary: 'Completed 5 min simulated telemetry preview; no physiological conclusion.',
-          sandbox: true
-        }
+        { session_id: 'sandbox_20260420_091800', started_at: iso(64), duration_s: 480, subject: 'demo-A', operator: 'Demo operator', verdict: 'demo', summary: 'Completed 8 min simulated telemetry preview; no physiological conclusion.', sandbox: true },
+        { session_id: 'sandbox_20260419_141803', started_at: iso(1240), duration_s: 300, subject: 'demo-B', operator: 'Demo operator', verdict: 'demo', summary: 'Completed 5 min simulated telemetry preview; no physiological conclusion.', sandbox: true }
       ];
       this.state.sessionItems.set(items);
       return items;
@@ -383,59 +370,29 @@ export class ApiService {
   private sandboxStart(opts?: RequestInit): SessionRecord {
     let body: Record<string, unknown> = {};
     try {
-      body = typeof opts?.body === 'string'
-        ? JSON.parse(opts.body) as Record<string, unknown>
-        : {};
+      body = typeof opts?.body === 'string' ? JSON.parse(opts.body) as Record<string, unknown> : {};
     } catch (_) {}
-
     const duration = Number(body['duration_s']) || 30;
     const sid = 'sandbox_' + new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15);
-    
     this.state.currentSessionId.set(sid);
     this.state.sessionActive.set(true);
     this.state.ctlStopPending.set(false);
-
-    const currentSession = {
-      session_id: sid,
-      started_at: new Date().toISOString(),
-      started_ms: Date.now(),
-      duration_s: duration,
-      params: { ...body, duration_s: duration },
-      sandbox: true
-    };
-    
-    this.state.ctlStatus.set({
-      ok: true,
-      mode: 'sandbox',
-      session: currentSession
-    });
-
+    const currentSession = { session_id: sid, started_at: new Date().toISOString(), started_ms: Date.now(), duration_s: duration, params: { ...body, duration_s: duration }, sandbox: true };
+    this.state.ctlStatus.set({ ok: true, mode: 'sandbox', session: currentSession });
     return currentSession;
   }
 
   private sandboxCurrent(): SessionRecord | null {
-    const status = this.state.ctlStatus();
-    const cur = status?.session;
+    const cur = this.state.ctlStatus()?.session;
     if (!cur) return null;
-
     const elapsed = Math.max(0, (Date.now() - (cur.started_ms ?? Date.now())) / 1000);
     const dur = Number(cur.duration_s) || 30;
-
-    return {
-      ...cur,
-      elapsed_s: elapsed,
-      remaining_s: Math.max(0, dur - elapsed),
-      duration_s: dur,
-      preview: { elapsed_s: elapsed },
-      status: 'running',
-      sandbox: true
-    };
+    return { ...cur, elapsed_s: elapsed, remaining_s: Math.max(0, dur - elapsed), duration_s: dur, preview: { elapsed_s: elapsed }, status: 'running', sandbox: true };
   }
 
   private sandboxStop(): { ok: boolean; session?: SessionRecord; error?: string } {
     const cur = this.sandboxCurrent();
     if (!cur) return { ok: false, error: 'No active session' };
-
     const item = {
       session_id: cur.session_id,
       started_at: cur.started_at,
@@ -443,40 +400,25 @@ export class ApiService {
       subject: String(cur.params?.['subject_label'] || 'sandbox-subject'),
       operator: String(cur.params?.['operator_label'] || 'sandbox-operator'),
       verdict: 'demo',
-      summary: 'Completed simulated session ' + cur.session_id
+      summary: 'Completed simulated session ' + cur.session_id,
+      sandbox: true
     };
-
     const items = [item, ...this.sandboxReadSessions().filter(i => i.session_id !== cur.session_id)];
     this.sandboxSaveSessions(items);
-
     this.state.currentSessionId.set(null);
     this.state.sessionActive.set(false);
-    this.state.ctlStatus.set({
-      ok: true,
-      mode: 'sandbox',
-      session: null
-    });
-
+    this.state.ctlStatus.set({ ok: true, mode: 'sandbox', session: null });
     return { ok: true, session: item };
   }
 
   private sandboxSummary(item: SessionRecord): SessionRecord {
-    return {
-      ...item,
-      sandbox: true,
-      status: 'demo',
-      downloads: [],
-      analysis_status: 'sandbox_only',
-      message: 'Demo session summary. No physiological readiness claim is produced from simulated data.'
-    };
+    return { ...item, sandbox: true, status: 'demo', downloads: [], analysis_status: 'sandbox_only', message: 'Demo session summary. No physiological readiness claim is produced from simulated data.' };
   }
 
   private sandboxApiJson(path: string, opts?: RequestInit): unknown {
     if (path === '/api/status') return { ok: true, mode: 'sandbox', message: 'Local dashboard sandbox active' };
     if (path === '/api/defaults') return this.sandboxDefaults();
-    if (path === '/api/serial/ports') {
-      return { ok: true, ports: ['COM10', 'COM11', 'COM12'].map(device => ({ device, label: `Demo port ${device}` })), selected: this.state.setup().radar_port };
-    }
+    if (path === '/api/serial/ports') return { ok: true, ports: ['COM10', 'COM11', 'COM12'].map(device => ({ device, label: `Demo port ${device}` })), selected: this.state.setup().radar_port };
     if (path === '/api/preflight') return this.sandboxPreflight();
     const preflightMatch = path.match(/^\/api\/preflight\/([^/?]+)$/);
     if (preflightMatch) {
@@ -485,9 +427,7 @@ export class ApiService {
         || { id: checkId, status: 'bad', label: checkId, description: 'Demo check not implemented.' };
     }
     if (path.startsWith('/api/ble/scan')) {
-      const devices: BleScanDevice[] = [
-        { name: 'Demo oximeter', address: this.state.setup().ble_address, id: this.state.setup().ble_address }
-      ];
+      const devices: BleScanDevice[] = [{ name: 'Demo oximeter', address: this.state.setup().ble_address, id: this.state.setup().ble_address }];
       return { ok: true, sandbox: true, devices };
     }
     if (path === '/api/subject-profiles') {
@@ -527,7 +467,7 @@ export class ApiService {
       return this.state.sessionSignoffs()[sessionId] || { session_id: sessionId, operator_name: '', initials: '', validation_comment: '', signed_at: null };
     }
     const dataMatch = path.match(/^\/api\/sessions\/([^/]+)\/data/);
-    if (dataMatch) return { ok: true, sandbox: true, rows: [] };
+    if (dataMatch) return { ok: true, sandbox: true, rows: [], data: [] };
     const compareMatch = path.match(/^\/api\/sessions\/([^/]+)\/compare$/);
     if (compareMatch) {
       const item = this.sandboxReadSessions().find(session => session.session_id === decodeURIComponent(compareMatch[1]));

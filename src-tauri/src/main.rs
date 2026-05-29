@@ -1,6 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{collections::HashMap, net::TcpListener, sync::Mutex, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{
+    collections::HashMap,
+    fs::{create_dir_all, OpenOptions},
+    io::Write,
+    net::TcpListener,
+    sync::Mutex,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use btleplug::{
@@ -156,6 +163,18 @@ fn is_local_trainer_origin(origin: &str, state: &State<'_, NativeState>) -> bool
     local_trainer_origin(state).as_deref() == Some(origin)
 }
 
+fn record_trainer_error(app: &AppHandle, message: &str) {
+    let _ = app.emit("rvt-trainer-error", message.to_string());
+    if let Ok(data_dir) = app.path().app_data_dir() {
+        if create_dir_all(&data_dir).is_ok() {
+            let log_path = data_dir.join("trainer-sidecar.log");
+            if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(log_path) {
+                let _ = writeln!(file, "{} {}", now_ms(), message);
+            }
+        }
+    }
+}
+
 async fn wait_for_trainer_health(origin: &str, timeout_s: u64) -> Result<(), String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(800))
@@ -180,6 +199,9 @@ async fn ensure_local_trainer_ready(state: &State<'_, NativeState>, origin: &str
     }
     let needs_wait = {
         let trainer = state.trainer.lock().map_err(|_| "Native trainer state is unavailable.".to_string())?;
+        if !trainer.running {
+            return Err(trainer.error.clone().unwrap_or_else(|| "Bundled trainer is not running.".to_string()));
+        }
         !trainer.ready
     };
     if !needs_wait {
@@ -187,8 +209,10 @@ async fn ensure_local_trainer_ready(state: &State<'_, NativeState>, origin: &str
     }
     wait_for_trainer_health(origin, 25).await?;
     let mut trainer = state.trainer.lock().map_err(|_| "Native trainer state is unavailable.".to_string())?;
+    if !trainer.running || trainer.origin.as_deref() != Some(origin) {
+        return Err(trainer.error.clone().unwrap_or_else(|| "Bundled trainer terminated during startup.".to_string()));
+    }
     trainer.ready = true;
-    trainer.running = true;
     trainer.error = None;
     Ok(())
 }
@@ -246,7 +270,7 @@ fn start_local_trainer_sidecar(app: &tauri::App, state: State<'_, NativeState>) 
     let origin = format!("http://{LOCAL_TRAINER_HOST}:{port}");
     let data_dir = app.path().app_data_dir().map_err(|error| format!("Could not resolve app data dir: {error}"))?;
     let sessions_root = data_dir.join("sessions");
-    std::fs::create_dir_all(&sessions_root).map_err(|error| format!("Could not create sessions dir: {error}"))?;
+    create_dir_all(&sessions_root).map_err(|error| format!("Could not create sessions dir: {error}"))?;
     let sessions_root_arg = sessions_root.to_string_lossy().to_string();
     let port_arg = port.to_string();
 
@@ -294,16 +318,21 @@ fn start_local_trainer_sidecar(app: &tauri::App, state: State<'_, NativeState>) 
                 }
                 CommandEvent::Stderr(bytes) => {
                     let text = String::from_utf8_lossy(&bytes).to_string();
-                    let _ = app_handle.emit("rvt-trainer-stderr", text);
+                    let _ = app_handle.emit("rvt-trainer-stderr", text.clone());
+                    if text.to_ascii_lowercase().contains("error") || text.to_ascii_lowercase().contains("traceback") {
+                        record_trainer_error(&app_handle, &text);
+                    }
                 }
                 CommandEvent::Terminated(payload) => {
                     let state = app_handle.state::<NativeState>();
+                    let message = format!("Bundled trainer exited: {:?}", payload);
                     if let Ok(mut trainer) = state.trainer.lock() {
                         trainer.running = false;
                         trainer.ready = false;
                         trainer.child = None;
-                        trainer.error = Some(format!("Bundled trainer exited: {:?}", payload));
+                        trainer.error = Some(message.clone());
                     }
+                    record_trainer_error(&app_handle, &message);
                     let _ = app_handle.emit("rvt-trainer-terminated", payload);
                     break;
                 }
@@ -342,9 +371,9 @@ async fn native_pair_request(request: NativeRequest) -> Result<NativeResponse, S
 #[tauri::command]
 async fn native_http_request(request: NativeRequest, state: State<'_, NativeState>) -> Result<NativeResponse, String> {
     let origin = validate_origin(&request.origin)?;
-    ensure_local_trainer_ready(&state, &origin).await?;
     let paired = state.paired_origin.lock().map_err(|_| "Native origin state is unavailable.".to_string())?.clone();
     let paired = paired.ok_or_else(|| "Pair with a trainer before making native API requests.".to_string())?;
+    ensure_local_trainer_ready(&state, &origin).await?;
     let response = perform_request(&request, Some(&paired)).await?;
     let status = response.status().as_u16();
     let data = response.json::<serde_json::Value>().await.map_err(|error| error.to_string())?;
@@ -354,9 +383,9 @@ async fn native_http_request(request: NativeRequest, state: State<'_, NativeStat
 #[tauri::command]
 async fn native_download(request: NativeRequest, state: State<'_, NativeState>) -> Result<NativeDownload, String> {
     let origin = validate_origin(&request.origin)?;
-    ensure_local_trainer_ready(&state, &origin).await?;
     let paired = state.paired_origin.lock().map_err(|_| "Native origin state is unavailable.".to_string())?.clone();
     let paired = paired.ok_or_else(|| "Pair with a trainer before downloading artifacts.".to_string())?;
+    ensure_local_trainer_ready(&state, &origin).await?;
     let response = perform_request(&request, Some(&paired)).await?;
     let status = response.status().as_u16();
     let content_type = response.headers().get(reqwest::header::CONTENT_TYPE)
@@ -383,9 +412,7 @@ async fn find_peripheral(device_id: &str) -> Result<Peripheral, String> {
 async fn native_ble_scan(timeout_ms: Option<u64>) -> Result<Vec<NativeBleDevice>, String> {
     let adapter = first_adapter().await?;
     let service_uuid = ailink_service_uuid()?;
-    adapter.start_scan(ScanFilter {
-        services: vec![service_uuid],
-    }).await.map_err(|error| error.to_string())?;
+    adapter.start_scan(ScanFilter { services: vec![service_uuid] }).await.map_err(|error| error.to_string())?;
     tokio::time::sleep(Duration::from_millis(timeout_ms.unwrap_or(3000).min(10_000))).await;
     let mut devices = Vec::new();
     for peripheral in adapter.peripherals().await.map_err(|error| error.to_string())? {
@@ -479,12 +506,14 @@ fn main() {
         .setup(|app| {
             let state = app.state::<NativeState>();
             if let Err(error) = start_local_trainer_sidecar(app, state) {
+                let app_handle = app.handle().clone();
                 let state = app.state::<NativeState>();
                 if let Ok(mut trainer) = state.trainer.lock() {
                     trainer.running = false;
                     trainer.ready = false;
                     trainer.error = Some(error.clone());
                 }
+                record_trainer_error(&app_handle, &error);
                 eprintln!("[RVT] {error}");
             }
             Ok(())

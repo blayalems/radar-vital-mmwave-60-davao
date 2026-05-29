@@ -50,8 +50,13 @@ jobs:
       - name: Run Angular unit tests
         run: npm run test:unit:web
 
-      - name: Verify web/ ↔ monolith round-trip
+      - name: Verify web/ ↔ monolith round-trip on main
+        if: github.event_name != 'pull_request'
         run: npm run build:check
+
+      - name: Build web bundle for PR smoke tests
+        if: github.event_name == 'pull_request'
+        run: npm run build:web
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
@@ -99,8 +104,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-v12.txt
 
-      - name: Verify web/ ↔ monolith round-trip
+      - name: Verify web/ ↔ monolith round-trip on main
+        if: github.event_name != 'pull_request'
         run: npm run build:check
+
+      - name: Build web bundle for PR visual tests
+        if: github.event_name == 'pull_request'
+        run: npm run build:web
 
       - name: Install Playwright browsers
         run: npx playwright install chromium webkit

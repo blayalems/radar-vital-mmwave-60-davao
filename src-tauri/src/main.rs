@@ -256,10 +256,9 @@ fn trainer_status_snapshot(state: &State<'_, NativeState>) -> TrainerSidecarStat
 
 fn shutdown_local_trainer(state: &State<'_, NativeState>) {
     if let Ok(mut trainer) = state.trainer.lock() {
-        if let Some(child) = trainer.child.as_mut() {
+        if let Some(child) = trainer.child.take() {
             let _ = child.kill();
         }
-        trainer.child = None;
         trainer.running = false;
         trainer.ready = false;
     }

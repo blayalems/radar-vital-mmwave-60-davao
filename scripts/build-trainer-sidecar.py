@@ -30,11 +30,12 @@ SPEC_DIR = ROOT / ".artifact-check" / "pyinstaller-spec"
 # Keep this list runtime-only. Do not add web/, because CI installs
 # web/node_modules before this script runs and PyInstaller would recursively
 # bundle the whole Angular source/dependency tree.
-ADD_DATA = [
-    ROOT / "assets",
-    ROOT / "www",
-    ROOT / "radar_vital_v16_0_0.ino",
-    ROOT / "requirements-v12.txt",
+ADD_DATA: list[tuple[Path, str]] = [
+    (ROOT / "rvt_trainer" / "assets", "rvt_trainer/assets"),
+    (ROOT / "assets", "assets"),
+    (ROOT / "www", "www"),
+    (ROOT / "radar_vital_v16_0_0.ino", "radar_vital_v16_0_0.ino"),
+    (ROOT / "requirements-v12.txt", "requirements-v12.txt"),
 ]
 
 COLLECT_ALL = [
@@ -111,10 +112,9 @@ def pyinstaller_command(target_name: str, onefile: bool) -> list[str]:
         cmd.append("--onefile")
     for package in COLLECT_ALL:
         cmd.extend(["--collect-all", package])
-    for item in ADD_DATA:
+    for item, destination in ADD_DATA:
         if item.exists():
             separator = ";" if platform.system().lower() == "windows" else ":"
-            destination = item.name
             cmd.extend(["--add-data", f"{item}{separator}{destination}"])
     for hidden in HIDDEN_IMPORTS:
         cmd.extend(["--hidden-import", hidden])

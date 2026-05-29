@@ -13,6 +13,7 @@ argument before dispatching to the real trainer main.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -29,8 +30,22 @@ def _strip_legacy_script_arg() -> None:
         sys.argv.pop(1)
 
 
+def _sidecar_self_test() -> int:
+    schema_path = Path(monolith.__file__).resolve().parent / "assets" / "help_schema.json"
+    payload = {
+        "ok": schema_path.exists(),
+        "version": monolith.VERSION,
+        "dashboard_version": monolith.DASHBOARD_VERSION,
+        "schema_path": str(schema_path),
+    }
+    print(json.dumps(payload, sort_keys=True))
+    return 0 if payload["ok"] else 1
+
+
 def main() -> None:
     _strip_legacy_script_arg()
+    if len(sys.argv) == 2 and sys.argv[1] == "--test":
+        raise SystemExit(_sidecar_self_test())
     monolith.main()
 
 

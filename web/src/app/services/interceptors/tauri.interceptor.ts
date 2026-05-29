@@ -3,6 +3,11 @@ import { from } from 'rxjs';
 
 const API_BASE_KEY = 'rvt-api-base';
 
+let cachedBase: string | null = null;
+let cachedLocalOrigin: string | null = null;
+let tauriListenersInstalled = false;
+let lastPairedOrigin: string | null = null;
+
 interface TauriInvokeRequest {
   origin: string;
   path: string;
@@ -31,29 +36,73 @@ function normalizeHttpOrigin(value: string): string {
   }
 }
 
-async function resolveTauriApiBase(tauri: any): Promise<string> {
-  let stored = '';
+function isLoopbackOrigin(origin: string): boolean {
   try {
-    stored = normalizeHttpOrigin(localStorage.getItem(API_BASE_KEY) || '');
+    const host = new URL(origin).hostname.toLowerCase();
+    return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function clearLocalCache(): void {
+  if (cachedBase && cachedBase === cachedLocalOrigin) {
+    cachedBase = null;
+  }
+  cachedLocalOrigin = null;
+  lastPairedOrigin = null;
+}
+
+function installTauriSidecarListeners(tauri: any): void {
+  if (tauriListenersInstalled) return;
+  tauriListenersInstalled = true;
+  const listen = (window as any).__TAURI__?.event?.listen;
+  if (typeof listen !== 'function') return;
+  try {
+    listen('rvt-trainer-terminated', clearLocalCache);
+    listen('rvt-trainer-error', clearLocalCache);
   } catch (_) {}
+}
 
-  const status = await (tauri.invoke as (cmd: string) => Promise<NativeTrainerStatus>)('native_trainer_status');
-  const localOrigin = normalizeHttpOrigin(String(status?.origin || ''));
+function explicitStoredOrigin(): string {
+  try {
+    const stored = normalizeHttpOrigin(localStorage.getItem(API_BASE_KEY) || '');
+    // Dynamic bundled sidecar origins must not survive process restarts. Treat
+    // loopback values from older builds as stale and let Rust provide the fresh
+    // per-launch sidecar origin through native_trainer_status.
+    if (stored && isLoopbackOrigin(stored)) {
+      localStorage.removeItem(API_BASE_KEY);
+      return '';
+    }
+    return stored;
+  } catch (_) {
+    return '';
+  }
+}
 
-  // Preserve an explicit trainer origin selected in Settings. Re-assert it into
-  // native state before protected requests so stale Rust-side pairing to the
-  // bundled sidecar cannot reject a valid external LAN trainer.
+async function resolveTauriApiBase(tauri: any): Promise<string> {
+  installTauriSidecarListeners(tauri);
+
+  const stored = explicitStoredOrigin();
   if (stored) {
-    try {
-      await (tauri.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<unknown>)('native_set_paired_origin', { origin: stored });
-    } catch (_) {}
+    cachedBase = stored;
+    if (lastPairedOrigin !== stored) {
+      try {
+        await (tauri.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<unknown>)('native_set_paired_origin', { origin: stored });
+        lastPairedOrigin = stored;
+      } catch (_) {}
+    }
     return stored;
   }
 
-  // First-run packaged EXE path: use the dynamic sidecar origin allocated by
-  // Rust and persist it for non-HttpClient helpers such as downloads.
-  if (localOrigin) {
-    try { localStorage.setItem(API_BASE_KEY, localOrigin); } catch (_) {}
+  if (cachedBase) return cachedBase;
+
+  const status = await (tauri.invoke as (cmd: string) => Promise<NativeTrainerStatus>)('native_trainer_status');
+  const localOrigin = normalizeHttpOrigin(String(status?.origin || ''));
+  if (localOrigin && status?.running !== false) {
+    cachedBase = localOrigin;
+    cachedLocalOrigin = localOrigin;
+    lastPairedOrigin = localOrigin;
     return localOrigin;
   }
   return '';
@@ -66,11 +115,21 @@ export const rvtTauriInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
+  const knownBase = cachedBase || explicitStoredOrigin();
+  const maybeApi = req.url.startsWith('/api/') || Boolean(knownBase && req.url.startsWith(knownBase));
+  if (!maybeApi) {
+    return next(req);
+  }
+
   const invokePromise = (async (): Promise<HttpResponse<any>> => {
     const base = await resolveTauriApiBase(tauri);
-    const isApi = req.url.startsWith('/api/') || (base && req.url.startsWith(base));
-    if (!base || !isApi) {
-      throw new Error('RVT_TAURI_PASS_THROUGH');
+    if (!base) {
+      throw new HttpErrorResponse({
+        status: 0,
+        statusText: 'No trainer origin is available',
+        error: { error: 'No trainer origin is available' },
+        url: req.url
+      });
     }
 
     const parsedUrl = new URL(req.url, base);
@@ -124,19 +183,7 @@ export const rvtTauriInterceptor: HttpInterceptorFn = (req, next) => {
       statusText: 'OK',
       url: req.url
     });
-  })().catch(error => {
-    if (error instanceof Error && error.message === 'RVT_TAURI_PASS_THROUGH') {
-      return new Promise<HttpResponse<any>>((resolve, reject) => {
-        next(req).subscribe({
-          next: event => {
-            if (event instanceof HttpResponse) resolve(event);
-          },
-          error: reject
-        });
-      });
-    }
-    throw error;
-  });
+  })();
 
   return from(invokePromise);
 };

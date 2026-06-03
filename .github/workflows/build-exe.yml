@@ -5,9 +5,14 @@ on:
     branches:
       - main
       - 'codex/**'
+      - 'gpt55/**'
     paths:
       - 'web/**'
       - 'assets/**'
+      - 'rvt_trainer/**'
+      - 'radar_vital_trainer_v12_for_v16_0.py'
+      - 'requirements*.txt'
+      - 'radar_vital_v16_0_0.ino'
       - 'src-tauri/**'
       - 'package.json'
       - 'package-lock.json'
@@ -24,7 +29,7 @@ env:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -32,6 +37,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-v12.txt
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -48,14 +61,20 @@ jobs:
       - name: Build www/
         run: npm run build:web
 
+      - name: Build Python trainer sidecar
+        shell: pwsh
+        run: python scripts/build-trainer-sidecar.py --self-test
+
       - name: Diagnostic preflight
         shell: pwsh
         run: |
           node --version
           npm --version
+          python --version
           rustc --version
           cargo --version
           Get-ChildItem www | Select-Object -First 10
+          Get-ChildItem src-tauri/binaries | Select-Object -First 10
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version '^2.0' --locked
@@ -63,20 +82,20 @@ jobs:
       - name: Print Tauri CLI version
         run: cargo tauri --version
 
-      - name: Run native transport and BLE contract tests
+      - name: Run native transport, BLE, and sidecar contract tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --verbose
 
       - name: Compile-only (no bundling)
-        # Surfaces Rust/Tauri compile errors separately from WiX/NSIS bundling
-        # errors. The 14-min PR #5 failure could've been at compile time, link
-        # time, or bundle time — splitting these out tells us which.
+        # Surfaces Rust/Tauri compile errors separately from NSIS bundling
+        # errors. Sidecar binary already exists, so this also catches native
+        # code regressions before the expensive installer stage.
         run: cargo build --release --manifest-path src-tauri/Cargo.toml --verbose
         env:
           RUST_BACKTRACE: '1'
 
       - name: Build NSIS EXE installer
         # This workflow is the EXE release gate. Do not continue on error:
-        # a green run must produce a Windows .exe installer.
+        # a green run must produce a Windows .exe installer with sidecar.
         run: cargo tauri build --verbose --bundles nsis
         env:
           RUST_BACKTRACE: '1'

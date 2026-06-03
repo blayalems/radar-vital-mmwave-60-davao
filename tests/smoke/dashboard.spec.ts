@@ -429,6 +429,8 @@ test.describe('Dashboard smoke', () => {
 
   test('imports all portable Material settings with bounded values', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    // Wait for the loading overlay to disappear so the layout is stable and event listeners are bound
+    await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await page.locator('a[aria-label="Settings"]:visible, a[aria-label="Settings view"]:visible').first().click();
     await leaveActiveSessionIfPrompted(page);
 

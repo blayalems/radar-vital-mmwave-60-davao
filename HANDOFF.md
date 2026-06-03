@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-04 — Fix Mobile Viewport Settings Click Interception & Settings Import Smoke Test (codex/mobile-first-dashboard-upABy)
+
+- **Mobile Viewport Settings Test Click Fix**: Updated `dashboard.spec.ts` to wait for the initial connection loading overlay to disappear (`.initial-loading-overlay` state: 'hidden') before clicking the settings link. This ensures that the Angular app is fully bootstrapped, event listeners are bound, and layout is stable, preventing click interception by other elements on mobile viewports.
+- **Verification**: All 124 tests in the dashboard smoke test suite `tests/smoke/dashboard.spec.ts` passed successfully on all viewports (`desktop`, `pixel-7`, `iphone-14`, `ipad`).
+
 ### 2026-06-03 — Phase 2 Completion, UI Fixes, Backend Extraction, Phase 5 & Phase 6 Addition (codex/mobile-first-dashboard-upABy)
 
 - **PR43 Main Merge Conflict Closure**: Merged current `origin/main` sidecar packaging changes and resolved `src-tauri/src/main.rs` by preserving both loopback trainer-origin acceptance and native bridge origin/API-route pinning tests.

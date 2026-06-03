@@ -1,0 +1,55 @@
+<h2 mat-dialog-title>Operator handoff</h2>
+<mat-dialog-content class="handoff-dialog">
+  <section class="handoff-hero">
+    <div>
+      <p class="eyebrow">Active context</p>
+      <h3>{{ state.currentSessionId() || 'No active session id' }}</h3>
+      <p>{{ state.setup().subject_label || 'Unlabelled subject' }} · {{ state.setup().station_label || 'Station not set' }}</p>
+    </div>
+    <div class="source-pill">{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo source' : 'Trainer source' }}</div>
+  </section>
+
+  <div class="handoff-grid">
+    <section>
+      <h4>Vitals</h4>
+      <dl>
+        <div><dt>Radar HR</dt><dd>{{ state.lastPayload()?.radar?.reported_hr ?? '--' }} bpm</dd></div>
+        <div><dt>Radar RR</dt><dd>{{ state.lastPayload()?.radar?.reported_rr ?? '--' }} br/min</dd></div>
+        <div><dt>BLE HR</dt><dd>{{ state.lastPayload()?.ble?.hr ?? '--' }} bpm</dd></div>
+        <div><dt>Range</dt><dd>{{ state.lastPayload()?.radar?.distance_cm ?? '--' }} cm</dd></div>
+      </dl>
+    </section>
+
+    <section>
+      <h4>Alerts</h4>
+      @if (activeAlerts().length > 0) {
+        <ul>
+          @for (alert of activeAlerts(); track alert.id) {
+            <li><strong>{{ alert.severity }}</strong> {{ alert.msg }}</li>
+          }
+        </ul>
+      } @else {
+        <p class="empty-copy">No active alerts.</p>
+      }
+    </section>
+
+    <section class="wide">
+      <h4>Latest notes</h4>
+      @if (latestNotes().length > 0) {
+        <ol>
+          @for (note of latestNotes(); track note) {
+            <li>{{ note }}</li>
+          }
+        </ol>
+      } @else {
+        <p class="empty-copy">No operator notes recorded yet.</p>
+      }
+    </section>
+  </div>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Close</button>
+  <button mat-flat-button type="button" class="mat-tonal-button" (click)="exportJson()"><mat-icon>download</mat-icon>Export JSON</button>
+  <button mat-flat-button type="button" (click)="copy()"><mat-icon>content_copy</mat-icon>Copy brief</button>
+  <button mat-flat-button type="button" class="mat-tonal-button" (click)="print()"><mat-icon>print</mat-icon>Print</button>
+</mat-dialog-actions>

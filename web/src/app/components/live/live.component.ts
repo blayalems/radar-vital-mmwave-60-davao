@@ -25,7 +25,19 @@ import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
+import { UndoService } from '../../services/undo.service';
+import { AnnotationService } from '../../services/annotation.service';
+import { ChartAnnotation, SnapshotRecord } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+import { ChartDataTableComponent } from '../chart-data-table/chart-data-table.component';
+
+type BlandAltmanMetric = 'hr' | 'rr';
+
+interface BlandAltmanPair {
+  mean: number;
+  diff: number;
+  pqi: number;
+}
 import { KpiZoomDialogComponent } from '../kpi-zoom-dialog/kpi-zoom-dialog.component';
 
 type TrendRange = 30 | 60 | 120 | 'max';
@@ -56,7 +68,8 @@ interface BiasBucket {
     MatButtonToggleModule,
     MatChipsModule,
     MatProgressBarModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    ChartDataTableComponent
   ],
   templateUrl: './live.component.html',
   styleUrl: './live.component.css',
@@ -70,6 +83,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
+  protected readonly undoService = inject(UndoService);
+  protected readonly annotationService = inject(AnnotationService);
 
   protected readonly Math = Math;
   protected readonly NaN = Number.NaN;
@@ -86,6 +101,50 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('overviewRrSpark', { static: false }) overviewRrSpark!: ElementRef<HTMLCanvasElement>;
   @ViewChild('overviewFpsSpark', { static: false }) overviewFpsSpark!: ElementRef<HTMLCanvasElement>;
   @ViewChild('overviewDistSpark', { static: false }) overviewDistSpark!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('baCanvas', { static: false }) baCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('breathCanvasClone', { static: false }) breathCanvasClone?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('heartCanvasClone', { static: false }) heartCanvasClone?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('hrTrendCanvasClone', { static: false }) hrTrendCanvasClone?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('rrTrendCanvasClone', { static: false }) rrTrendCanvasClone?: ElementRef<HTMLCanvasElement>;
+
+  protected readonly trendRangeLimit = computed(() => { const val = this.trendRange(); return val === 'max' ? 240 : Number(val); });
+  protected readonly showBreathTable = signal(false);
+  protected readonly showHeartTable = signal(false);
+  protected readonly showHrTable = signal(false);
+  protected readonly showRrTable = signal(false);
+  protected readonly compareSelection = signal<string[]>([]);
+  protected readonly selectedCompareSnaps = computed(() => {
+    const selected = new Set(this.compareSelection());
+    return this.sortedSnaps().filter(snap => selected.has(snap.id));
+  });
+  protected readonly splitScreenActive = signal(false);
+  protected readonly paneBTabIndex = signal<number>(2);
+  protected readonly kpiOrder = signal<string[]>(['hr', 'rr', 'fps', 'dist']);
+  private draggedKpi: string | null = null;
+  private dragStartX = 0;
+  protected readonly baMetric = signal<BlandAltmanMetric>('hr');
+  private readonly baHrPairs: BlandAltmanPair[] = [];
+  private readonly baRrPairs: BlandAltmanPair[] = [];
+  protected readonly baStats = computed(() => {
+    const pairs = this.baMetric() === 'hr' ? this.baHrPairs : this.baRrPairs;
+    if (pairs.length < 2) return null;
+    const diffs = pairs.map(pair => pair.diff);
+    const meanDiff = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
+    const variance = diffs.map(value => (value - meanDiff) ** 2).reduce((sum, value) => sum + value, 0) / diffs.length;
+    const sdDiff = Math.sqrt(variance) || 0;
+    const thresh = this.baMetric() === 'hr' ? 2.0 : 1.0;
+    return {
+      meanDiff,
+      lo: meanDiff - 1.96 * sdDiff,
+      hi: meanDiff + 1.96 * sdDiff,
+      exceeds: Math.abs(meanDiff) > thresh,
+      unit: this.baMetric() === 'hr' ? 'BPM' : 'BrPM',
+      thresh
+    };
+  });
+  protected readonly ghostSessionActive = signal(false);
+  private readonly ghostHrData = signal<number[]>([]);
+  private readonly ghostRrData = signal<number[]>([]);
 
   private animeFrameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -106,7 +165,25 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       if (idx !== -1) {
         this.activeTabIndex = idx;
       }
-      this.state.lastPayload();
+      const payload = this.state.lastPayload();
+      if (payload && !this.state.paused()) {
+        const radar = payload.radar || {};
+        const ble = payload.ble || {};
+        const radarHr = Number(radar.reported_hr);
+        const radarRr = Number(radar.reported_rr);
+        const bleHr = Number(ble.hr);
+        const bleRr = Number(ble.rr);
+        const pqiHr = Number((radar['candidate_conf'] !== undefined && radar['candidate_conf'] !== null && radar['candidate_conf'] !== '') ? radar['candidate_conf'] : (this.telemetryValue('candidate_hr_conf') ?? 0.5));
+        const pqiRr = Number(this.telemetryValue('candidate_rr_conf') ?? 0.5);
+        if (Number.isFinite(radarHr) && Number.isFinite(bleHr) && bleHr > 0) {
+          this.baHrPairs.push({ mean: (radarHr + bleHr) / 2, diff: radarHr - bleHr, pqi: pqiHr });
+          if (this.baHrPairs.length > 200) this.baHrPairs.shift();
+        }
+        if (Number.isFinite(radarRr) && Number.isFinite(bleRr) && bleRr > 0) {
+          this.baRrPairs.push({ mean: (radarRr + bleRr) / 2, diff: radarRr - bleRr, pqi: pqiRr });
+          if (this.baRrPairs.length > 200) this.baRrPairs.shift();
+        }
+      }
       this.state.spark();
       this.state.kpiThresholds();
       this.state.theme(); // Redraw on theme change
@@ -115,18 +192,22 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
     effect(() => {
       const sid = this.state.currentSessionId();
+      this.baHrPairs.length = 0;
+      this.baRrPairs.length = 0;
       const globalNotes = this.state.sessionNotes();
       if (sid) {
         const note = globalNotes[sid] || '';
         if (this.sessionNotesInput !== note) {
           this.sessionNotesInput = note;
         }
+        void this.annotationService.loadAnnotations(sid);
       }
     });
   }
 
   ngOnInit() {
     this.sessionNotesInput = this.state.sessionNotes()[this.state.currentSessionId() || ''] || '';
+    this.initializeKpiOrder();
   }
 
   ngAfterViewInit() {
@@ -136,8 +217,9 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       [
         this.breathCanvas, this.heartCanvas, this.hrTrendCanvas, this.rrTrendCanvas,
         this.targetCanvas, this.overviewHrSpark, this.overviewRrSpark,
-        this.overviewFpsSpark, this.overviewDistSpark
-      ].filter(Boolean).forEach(ref => this.resizeObserver?.observe(ref.nativeElement));
+        this.overviewFpsSpark, this.overviewDistSpark, this.baCanvas,
+        this.breathCanvasClone, this.heartCanvasClone, this.hrTrendCanvasClone, this.rrTrendCanvasClone
+      ].filter((ref): ref is ElementRef<HTMLCanvasElement> => !!ref).forEach(ref => this.resizeObserver?.observe(ref.nativeElement));
     }
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.requestCanvasDraw();
@@ -157,6 +239,173 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     this.state.activeTab.set(tabs[event.index]);
     this.state.triggerHaptic('tap');
     this.requestCanvasDraw();
+  }
+
+  initializeKpiOrder() {
+    try {
+      const saved = localStorage.getItem('rvt-kpi-order');
+      if (saved) {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr) && arr.length === 4) {
+          this.kpiOrder.set(arr);
+        }
+      }
+    } catch (_) {}
+  }
+
+  onKpiDragStart(event: PointerEvent, kpi: string) {
+    this.draggedKpi = kpi;
+    this.dragStartX = event.clientX;
+    const target = event.currentTarget as HTMLElement;
+    if (target) {
+      target.setPointerCapture(event.pointerId);
+    }
+  }
+
+  onKpiDragMove(event: PointerEvent) {
+    if (!this.draggedKpi) return;
+    const deltaX = event.clientX - this.dragStartX;
+    if (Math.abs(deltaX) > 80) { // threshold to swap
+      const order = [...this.kpiOrder()];
+      const idx = order.indexOf(this.draggedKpi);
+      if (idx !== -1) {
+        const targetIdx = deltaX > 0 ? idx + 1 : idx - 1;
+        if (targetIdx >= 0 && targetIdx < order.length) {
+          [order[idx], order[targetIdx]] = [order[targetIdx], order[idx]];
+          this.kpiOrder.set(order);
+          this.dragStartX = event.clientX;
+          try {
+            localStorage.setItem('rvt-kpi-order', JSON.stringify(order));
+          } catch (_) {}
+          this.state.triggerHaptic('tap');
+        }
+      }
+    }
+  }
+
+  onKpiDragEnd(event: PointerEvent) {
+    this.draggedKpi = null;
+    const target = event.currentTarget as HTMLElement;
+    if (target) {
+      try {
+        target.releasePointerCapture(event.pointerId);
+      } catch (_) {}
+    }
+  }
+
+  hasBleRef(): boolean {
+    const p = this.state.lastPayload();
+    if (!p) return false;
+    const ble = p.ble || {};
+    const series = p.series || {};
+    return (
+      (ble.hr !== undefined && ble.hr !== null && Number.isFinite(Number(ble.hr))) ||
+      (ble.rr !== undefined && ble.rr !== null && Number.isFinite(Number(ble.rr))) ||
+      (Array.isArray(series.ble_hr) && series.ble_hr.some(v => v !== null && Number.isFinite(Number(v)))) ||
+      (Array.isArray(series.ble_rr) && series.ble_rr.some(v => v !== null && Number.isFinite(Number(v))))
+    );
+  }
+
+  toggleGhostSession(): void {
+    if (this.ghostSessionActive()) {
+      this.ghostSessionActive.set(false);
+      this.ghostHrData.set([]);
+      this.ghostRrData.set([]);
+      this.snackBar.open('Ghost session overlay disabled.', 'Dismiss', { duration: 2000 });
+      this.requestCanvasDraw();
+      return;
+    }
+
+    const sessions = this.state.sessionItems();
+    if (!sessions || sessions.length === 0) {
+      this.snackBar.open('No historical sessions available for ghost overlay.', 'Dismiss', { duration: 3000 });
+      return;
+    }
+
+    const choice = window.prompt('Enter session ID or prefix to overlay as ghost (leave empty for most recent):');
+    if (choice === null) return;
+
+    let selectedSession = sessions[0];
+    if (choice.trim()) {
+      const found = sessions.find(s => String(s.session_id || s['id'] || '').includes(choice.trim()));
+      if (found) {
+        selectedSession = found;
+      } else {
+        this.snackBar.open('Session not found. Using most recent session.', 'Dismiss', { duration: 3000 });
+      }
+    }
+
+    const sid = String(selectedSession.session_id || selectedSession['id'] || '');
+    if (!sid) return;
+
+    this.api.request<{ ok?: boolean; rows?: any[] }>(`/api/sessions/${sid}/data?points=120`)
+      .then(resp => {
+        if (resp && Array.isArray(resp.rows)) {
+          const hrValues: number[] = [];
+          const rrValues: number[] = [];
+          resp.rows.forEach((r: any) => {
+            if (r.reported_hr !== undefined && r.reported_hr !== null) hrValues.push(r.reported_hr);
+            if (r.reported_rr !== undefined && r.reported_rr !== null) rrValues.push(r.reported_rr);
+          });
+          this.ghostHrData.set(hrValues);
+          this.ghostRrData.set(rrValues);
+          this.ghostSessionActive.set(true);
+          this.snackBar.open(`Ghost overlay active for session: ${sid.substring(0, 12)}`, 'Dismiss', { duration: 2000 });
+          this.requestCanvasDraw();
+        } else {
+          this.snackBar.open('No data points found in selected session.', 'Dismiss', { duration: 3000 });
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load ghost session data', err);
+        this.snackBar.open('Failed to load ghost session data from API.', 'Dismiss', { duration: 3000 });
+      });
+  }
+
+  getAnnotationsFor(chartKey: string): ChartAnnotation[] {
+    return this.annotationService.currentAnnotations().filter(a => a.chart_key === chartKey);
+  }
+
+  async deleteAnnotation(chartKey: string, ann: ChartAnnotation): Promise<void> {
+    try {
+      await this.annotationService.saveAnnotation(chartKey, ann, 'delete');
+      this.state.triggerHaptic('tap');
+      this.requestCanvasDraw();
+    } catch (e) {
+      this.snackBar.open('Failed to delete annotation.', 'Dismiss', { duration: 3000 });
+    }
+  }
+
+  handleChartClick(event: MouseEvent, chartKey: string): void {
+    const canvas = event.currentTarget as HTMLCanvasElement;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const w = rect.width;
+
+    const pad = (chartKey === 'breath' || chartKey === 'heart') ? 8 : 16;
+    const innerW = w - pad * 2;
+    if (innerW <= 0) return;
+
+    const xPct = Math.max(0, Math.min(1, (clickX - pad) / innerW));
+
+    const label = window.prompt('Enter label for new annotation:');
+    if (label === null || !label.trim()) return;
+
+    const newAnn = {
+      id: crypto.randomUUID(),
+      label: label.trim(),
+      xPct
+    };
+
+    this.annotationService.saveAnnotation(chartKey, newAnn, 'upsert')
+      .then(() => {
+        this.state.triggerHaptic('tap');
+        this.requestCanvasDraw();
+      })
+      .catch(err => {
+        this.snackBar.open('Failed to save annotation.', 'Dismiss', { duration: 3000 });
+      });
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -288,44 +537,130 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
     this.state.triggerHaptic('success');
     const snapId = 'snap_' + Date.now();
-    const snap = {
+    const snap: SnapshotRecord = {
       id: snapId,
       ts: Date.now(),
       reported_hr: payload.radar?.reported_hr || 0,
       reported_rr: payload.radar?.reported_rr || 0,
       distance_cm: payload.radar?.distance_cm || 0,
       ble_hr: payload.ble?.hr || 0,
-      ble_rr: payload.ble?.rr || 0
+      ble_rr: payload.ble?.rr || 0,
+      sortOrder: this.state.snaps().length
     };
 
     this.state.snaps.update(s => [...s, snap]);
     this.state.snapNotes.update(n => ({ ...n, [snapId]: '' }));
+    this.undoService.push({
+      label: 'Capture snapshot',
+      undo: () => {
+        this.state.snaps.update(snaps => snaps.filter(item => item.id !== snapId));
+        this.state.snapNotes.update(notes => {
+          const next = { ...notes };
+          delete next[snapId];
+          return next;
+        });
+      },
+      redo: () => {
+        this.state.snaps.update(snaps => [...snaps, snap]);
+        this.state.snapNotes.update(notes => ({ ...notes, [snapId]: notes[snapId] || '' }));
+      }
+    });
   }
 
   deleteSnap(snapId: string) {
     this.state.triggerHaptic('tap');
+    const before = this.state.snaps();
+    const notesBefore = this.state.snapNotes();
     this.state.snaps.update(s => s.filter(x => x.id !== snapId));
     this.state.snapNotes.update(n => {
       const next = { ...n };
       delete next[snapId];
       return next;
     });
+    this.compareSelection.update(ids => ids.filter(id => id !== snapId));
+    this.undoService.push({
+      label: 'Delete snapshot',
+      undo: () => {
+        this.state.snaps.set(before);
+        this.state.snapNotes.set(notesBefore);
+      },
+      redo: () => {
+        this.state.snaps.update(snaps => snaps.filter(x => x.id !== snapId));
+        this.state.snapNotes.update(notes => {
+          const next = { ...notes };
+          delete next[snapId];
+          return next;
+        });
+        this.compareSelection.update(ids => ids.filter(id => id !== snapId));
+      }
+    });
   }
 
   async clearAllSnaps() {
-    this.state.triggerHaptic('destructiveAccept');
+    this.state.triggerHaptic('warning');
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
       data: {
-        title: 'Clear all snapshots?',
-        message: 'This removes the pinned frames and their notes from this dashboard.',
-        confirmLabel: 'Clear snapshots'
+        title: 'Delete All Snapshots',
+        message: 'Are you sure you want to permanently delete all captured snapshot frames? This action cannot be undone.'
       },
       restoreFocus: true
     }).afterClosed());
     if (confirmed) {
+      const before = this.state.snaps();
+      const notesBefore = this.state.snapNotes();
+      const compareBefore = this.compareSelection();
       this.state.snaps.set([]);
       this.state.snapNotes.set({});
+      this.compareSelection.set([]);
+      this.undoService.push({
+        label: 'Clear snapshots',
+        undo: () => {
+          this.state.snaps.set(before);
+          this.state.snapNotes.set(notesBefore);
+          this.compareSelection.set(compareBefore);
+        },
+        redo: () => {
+          this.state.snaps.set([]);
+          this.state.snapNotes.set({});
+          this.compareSelection.set([]);
+        }
+      });
     }
+  }
+
+  protected sortedSnaps(): SnapshotRecord[] {
+    return [...this.state.snaps()].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.ts - b.ts);
+  }
+
+  protected moveSnap(snapId: string, direction: -1 | 1): void {
+    const ordered = this.sortedSnaps();
+    const index = ordered.findIndex(snap => snap.id === snapId);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= ordered.length) return;
+    const before = this.state.snaps();
+    [ordered[index], ordered[nextIndex]] = [ordered[nextIndex], ordered[index]];
+    const orderById = new Map(ordered.map((snap, order) => [snap.id, order]));
+    this.state.snaps.update(snaps => snaps.map(snap => ({ ...snap, sortOrder: orderById.get(snap.id) ?? snap.sortOrder })));
+    this.undoService.push({
+      label: 'Reorder snapshot',
+      undo: () => this.state.snaps.set(before)
+    });
+    this.state.triggerHaptic('tap');
+  }
+
+  protected toggleCompareSnap(snapId: string): void {
+    this.compareSelection.update(ids => {
+      if (ids.includes(snapId)) return ids.filter(id => id !== snapId);
+      return [...ids.slice(-1), snapId];
+    });
+    this.state.triggerHaptic('tap');
+  }
+
+  protected snapDelta(key: 'reported_hr' | 'reported_rr' | 'distance_cm'): string {
+    const snaps = this.selectedCompareSnaps();
+    if (snaps.length !== 2) return '--';
+    const delta = Number(snaps[1][key]) - Number(snaps[0][key]);
+    return Number.isFinite(delta) ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}` : '--';
   }
 
   updateSnapNote(snapId: string, val: string) {
@@ -417,9 +752,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     return String(event['created_at'] || event['ts'] || '');
   }
 
-  downloadChart(canvas: HTMLCanvasElement, label: string) {
+  downloadChart(canvas: HTMLCanvasElement | ElementRef<HTMLCanvasElement>, label: string) {
+    const target = canvas instanceof ElementRef ? canvas.nativeElement : canvas;
     const anchor = document.createElement('a');
-    anchor.href = canvas.toDataURL('image/png');
+    anchor.href = target.toDataURL('image/png');
     anchor.download = `${label}_${Date.now()}.png`;
     anchor.click();
     this.state.triggerHaptic('success');
@@ -664,7 +1000,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   // --- Real-time Waveforms & Trends Canvas plots ---
-  private requestCanvasDraw(): void {
+  protected requestCanvasDraw(): void {
     if (!this.viewReady || document.visibilityState === 'hidden' || this.animeFrameId !== null) return;
     this.animeFrameId = requestAnimationFrame(() => {
       this.animeFrameId = null;
@@ -672,12 +1008,13 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       this.drawTrends();
       this.drawOverviewSparklines();
       this.drawTargetPosition();
+      this.drawBlandAltman();
     });
   }
 
   private drawWaves() {
-    // Only render waveforms if active tab is Waves (index 1)
-    if (this.activeTabIndex !== 1) return;
+    const showWaves = this.activeTabIndex === 1 || (this.splitScreenActive() && this.paneBTabIndex() === 1);
+    if (!showWaves) return;
 
     const payload = this.state.lastPayload();
     if (!payload || !payload.series) return;
@@ -685,7 +1022,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     const breathPoints = this.seriesNumbers('breath_phase', 'breath');
     const heartPoints = this.seriesNumbers('heart_phase', 'heart');
 
-    const drawPhase = (canvasRef: ElementRef<HTMLCanvasElement>, points: number[], color: string) => {
+    const drawPhase = (canvasRef: ElementRef<HTMLCanvasElement>, points: number[], color: string, chartKey: string) => {
       const canvas = canvasRef.nativeElement;
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
@@ -714,7 +1051,6 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
       points.forEach((val, idx) => {
         const x = pad + (idx / (count - 1)) * innerW;
-        // phase signals normalized roughly between -1.5 and 1.5
         const y = pad + innerH / 2 - (val / 1.5) * (innerH / 2);
         
         if (idx === 0) {
@@ -724,18 +1060,50 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         }
       });
       ctx.stroke();
+
+      // Render annotations
+      const anns = this.getAnnotationsFor(chartKey);
+      anns.forEach(ann => {
+        const x = pad + ann.xPct * innerW;
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, pad);
+        ctx.lineTo(x, pad + innerH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.font = '10px sans-serif';
+        ctx.fillText(ann.label || '', x + 4, pad + 10);
+      });
     };
 
-    if (this.breathCanvas) {
-      drawPhase(this.breathCanvas, breathPoints, 'rgba(97, 105, 198, 0.95)');
+    if (this.activeTabIndex === 1) {
+      if (this.breathCanvas) {
+        drawPhase(this.breathCanvas, breathPoints, 'rgba(97, 105, 198, 0.95)', 'breath');
+      }
+      if (this.heartCanvas) {
+        drawPhase(this.heartCanvas, heartPoints, 'rgba(0, 164, 150, 0.95)', 'heart');
+      }
     }
-    if (this.heartCanvas) {
-      drawPhase(this.heartCanvas, heartPoints, 'rgba(0, 164, 150, 0.95)');
+
+    if (this.splitScreenActive() && this.paneBTabIndex() === 1) {
+      if (this.breathCanvasClone) {
+        drawPhase(this.breathCanvasClone, breathPoints, 'rgba(97, 105, 198, 0.95)', 'breath');
+      }
+      if (this.heartCanvasClone) {
+        drawPhase(this.heartCanvasClone, heartPoints, 'rgba(0, 164, 150, 0.95)', 'heart');
+      }
     }
   }
 
   private drawTrends() {
-    // Render HR trend (index 2) or RR trend (index 3)
+    const showHr = this.activeTabIndex === 2 || (this.splitScreenActive() && this.paneBTabIndex() === 2);
+    const showRr = this.activeTabIndex === 3 || (this.splitScreenActive() && this.paneBTabIndex() === 3);
+    if (!showHr && !showRr) return;
+
     const payload = this.state.lastPayload();
     if (!payload || !payload.series) return;
 
@@ -809,6 +1177,29 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         ctx.stroke();
       }
 
+      // Draw ghost session overlay if active
+      if (this.ghostSessionActive() && type) {
+        const ghostData = type === 'hr' ? this.ghostHrData() : this.ghostRrData();
+        if (ghostData && ghostData.length > 1) {
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.6)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([5, 5]);
+          ctx.beginPath();
+          const ghostCount = ghostData.length;
+          ghostData.forEach((val, idx) => {
+            const x = pad + (idx / (ghostCount - 1)) * innerW;
+            const y = pad + innerH - ((val - minV) / diff) * innerH;
+            if (idx === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          });
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+
       if (data.length < 2) return;
 
       ctx.strokeStyle = color;
@@ -826,14 +1217,41 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         }
       });
       ctx.stroke();
+
+      // Draw annotations
+      if (type) {
+        const anns = this.getAnnotationsFor(type);
+        anns.forEach(ann => {
+          const x = pad + ann.xPct * innerW;
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x, pad);
+          ctx.lineTo(x, pad + innerH);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = '#ef4444';
+          ctx.font = '10px sans-serif';
+          ctx.fillText(ann.label || '', x + 4, pad + 10);
+        });
+      }
     };
 
     const thresholds = this.state.kpiThresholds();
     if (this.activeTabIndex === 2 && this.hrTrendCanvas) {
       plotTrend(this.hrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_hr', 'hr')), 'rgba(0, 164, 150, 0.95)', Math.max(0, thresholds.hrLow - 20), thresholds.hrHigh + 20, 'hr');
     }
+    if (this.splitScreenActive() && this.paneBTabIndex() === 2 && this.hrTrendCanvasClone) {
+      plotTrend(this.hrTrendCanvasClone, this.trimTrend(this.seriesNumbers('reported_hr', 'hr')), 'rgba(0, 164, 150, 0.95)', Math.max(0, thresholds.hrLow - 20), thresholds.hrHigh + 20, 'hr');
+    }
+
     if (this.activeTabIndex === 3 && this.rrTrendCanvas) {
       plotTrend(this.rrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_rr', 'rr')), 'rgba(97, 105, 198, 0.95)', Math.max(0, thresholds.rrLow - 5), thresholds.rrHigh + 5, 'rr');
+    }
+    if (this.splitScreenActive() && this.paneBTabIndex() === 3 && this.rrTrendCanvasClone) {
+      plotTrend(this.rrTrendCanvasClone, this.trimTrend(this.seriesNumbers('reported_rr', 'rr')), 'rgba(97, 105, 198, 0.95)', Math.max(0, thresholds.rrLow - 5), thresholds.rrHigh + 5, 'rr');
     }
   }
 
@@ -935,5 +1353,127 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     ctx.beginPath();
     ctx.arc(pointX, pointY, 4, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  private drawBlandAltman(): void {
+    if (this.activeTabIndex !== 0) return;
+    if (!this.baCanvas) return;
+
+    const canvas = this.baCanvas.nativeElement;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+
+    if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.resetTransform();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    const pad = 30;
+    const innerW = w - pad * 2;
+    const innerH = h - pad * 2;
+
+    const pairs = this.baMetric() === 'hr' ? this.baHrPairs : this.baRrPairs;
+    if (pairs.length === 0) {
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Reference oximeter data required for Bland-Altman analysis.', w / 2, h / 2);
+      return;
+    }
+
+    const means = pairs.map(p => p.mean);
+    const diffs = pairs.map(p => p.diff);
+
+    const minX = Math.min(...means) - 5;
+    const maxX = Math.max(...means) + 5;
+    const rangeX = Math.max(1, maxX - minX);
+
+    const maxAbsDiff = Math.max(...diffs.map(Math.abs), 5);
+    const minY = -maxAbsDiff - 2;
+    const maxY = maxAbsDiff + 2;
+    const rangeY = Math.max(1, maxY - minY);
+
+    const outlineColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-outline-variant').trim() || '#e2e8f0';
+    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-on-surface-variant').trim() || '#64748b';
+    ctx.strokeStyle = outlineColor;
+    ctx.lineWidth = 1;
+
+    // Draw horizontal grid lines and Y-axis labels
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = textColor;
+    ctx.font = '10px sans-serif';
+
+    const yZero = pad + innerH - ((0 - minY) / rangeY) * innerH;
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, yZero);
+    ctx.lineTo(w - pad, yZero);
+    ctx.stroke();
+
+    const stats = this.baStats();
+    if (stats) {
+      const yMean = pad + innerH - ((stats.meanDiff - minY) / rangeY) * innerH;
+      const yHi = pad + innerH - ((stats.hi - minY) / rangeY) * innerH;
+      const yLo = pad + innerH - ((stats.lo - minY) / rangeY) * innerH;
+
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 3]);
+      ctx.beginPath();
+      ctx.moveTo(pad, yMean);
+      ctx.lineTo(w - pad, yMean);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`Mean Bias: ${stats.meanDiff.toFixed(2)}`, pad + 4, yMean - 2);
+
+      ctx.strokeStyle = 'rgba(251, 146, 60, 0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(pad, yHi);
+      ctx.lineTo(w - pad, yHi);
+      ctx.stroke();
+      ctx.fillText(`+1.96 SD: ${stats.hi.toFixed(2)}`, pad + 4, yHi - 2);
+
+      ctx.beginPath();
+      ctx.moveTo(pad, yLo);
+      ctx.lineTo(w - pad, yLo);
+      ctx.stroke();
+      ctx.fillText(`-1.96 SD: ${stats.lo.toFixed(2)}`, pad + 4, yLo + 10);
+
+      ctx.setLineDash([]);
+    }
+
+    pairs.forEach(p => {
+      const cx = pad + ((p.mean - minX) / rangeX) * innerW;
+      const cy = pad + innerH - ((p.diff - minY) / rangeY) * innerH;
+
+      let color = '#94a3b8';
+      if (Number.isFinite(p.pqi)) {
+        if (p.pqi > 0.3) color = '#16a34a';
+        else if (p.pqi >= 0.15) color = '#f59e0b';
+        else color = '#dc2626';
+      }
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    });
   }
 }

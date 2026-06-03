@@ -64,7 +64,7 @@ def handle_sse_subscription(handler, session_id_hint: Optional[str] = None):
             if time_remaining <= warn_before_s and not warned:
                 write_event("session_warning", {
                     "reason": "deadline_approaching",
-                    "seconds_remaining": int(time_remaining)
+                    "seconds_remaining": warn_before_s
                 })
                 warned = True
 

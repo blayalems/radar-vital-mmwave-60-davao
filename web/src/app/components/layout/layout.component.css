@@ -174,6 +174,7 @@
   overflow-y: auto;
   padding: 16px 24px;
   position: relative;
+  z-index: 0;
 }
 
 .main-content-scroll:focus {
@@ -186,7 +187,8 @@
 
 @media (max-width: 760px) {
   .main-content-scroll {
-    padding: 12px 12px 96px; /* Space for bottom nav */
+    margin-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    padding: 12px 12px calc(112px + env(safe-area-inset-bottom, 0px));
   }
 
   .bottom-nav {
@@ -195,24 +197,40 @@
     bottom: 0;
     display: flex !important;
     height: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 0;
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    position: sticky;
-    z-index: 800;
+    position: fixed !important;
+    right: 0;
+    transform: translateZ(0);
+    z-index: 2400;
+  }
+
+  .scroll-to-top-fab {
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 }
 
 @media (min-width: 761px) and (max-width: 1023px) {
   .main-content-scroll {
-    padding-bottom: 96px;
+    margin-bottom: 80px;
+    padding-bottom: 112px;
   }
 
   .bottom-nav {
     background: var(--md-sys-color-surface-container);
     border-top: 1px solid var(--md-sys-color-outline-variant);
+    bottom: 0;
     display: flex !important;
     height: 80px !important;
-    position: sticky;
-    z-index: 800;
+    left: 0;
+    position: fixed !important;
+    right: 0;
+    transform: translateZ(0);
+    z-index: 2400;
+  }
+
+  .scroll-to-top-fab {
+    bottom: 96px;
   }
 }
 
@@ -310,4 +328,66 @@
   background: #000 !important;
   border-color: #fff !important;
   color: #fff !important;
+}
+
+/* Pinned command strip styling */
+.pinned-commands-strip {
+  display: flex;
+  align-items: center;
+  padding: 8px 24px;
+  background: var(--md-sys-color-surface-container-low, #f1f5f9);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  overflow-x: auto;
+  white-space: nowrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+  .pinned-commands-strip {
+    padding: 6px 12px;
+  }
+}
+
+.pinned-cmd-chip {
+  cursor: pointer;
+  --mdc-chip-elevated-container-color: var(--md-sys-color-secondary-container, #e2e8f0) !important;
+  --mdc-chip-label-text-color: var(--md-sys-color-on-secondary-container, #1e293b) !important;
+  font-weight: 500;
+  transition: transform 0.2s ease;
+}
+
+.pinned-cmd-chip:hover {
+  transform: translateY(-1px);
+}
+
+/* Stale banner styling */
+.stale-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  background: var(--md-sys-color-error-container, #ffdad6);
+  color: var(--md-sys-color-on-error-container, #410002);
+  font-weight: 500;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--md-sys-color-error, #ba1a1a);
+  animation: slideDown 0.25s cubic-bezier(0.2, 0, 0, 1);
+  flex-shrink: 0;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.session-progress-bar {
+  height: 4px;
+  flex-shrink: 0;
 }

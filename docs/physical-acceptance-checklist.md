@@ -27,7 +27,7 @@ Ensure the following hardware components are available:
 ### Phase B: Secure LAN PIN Exchange
 - [ ] Run the trainer python script in LAN mode:
   ```bash
-  python radar_vital_trainer_v12_for_v16_0.py --bind lan
+  python radar_vital_trainer_v12_for_v16_0.py serve --bind lan
   ```
 - [ ] Scan the displayed operator QR code or enter the paired PIN displayed on the `/pair` route.
 - [ ] Confirm that once authenticated, the PIN is deleted from the server and the app receives an `X-RVT-Auth` token.

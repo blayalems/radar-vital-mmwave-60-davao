@@ -5,6 +5,7 @@ pinging, stopped states, and client disconnection resilience.
 from __future__ import annotations
 
 import time
+import json
 from typing import Optional, Dict, Any
 from pathlib import Path
 import pytest
@@ -138,6 +139,32 @@ def test_sse_stopped_when_session_not_active(mock_sleep):
     assert event1.startswith("event: ping\n")
     assert event2.startswith("event: stopped\n")
     assert "session_not_active" in event2
+
+
+def test_sse_deadline_warning_payload_is_exactly_sixty_seconds():
+    server = _StubServer()
+    handler = _StubHandler(server, raise_after=2)
+    monotonic_values = iter([
+        100.0,   # last_emit_monotonic
+        100.0,   # initial ping last_emit_monotonic
+        100.0,   # deadline base
+        43240.1, # loop condition: still before 12h deadline
+        43240.1, # time_remaining is 59.9s; payload must stay contractual
+        43240.1, # write_event last_emit_monotonic
+        43240.1, # stopped event last_emit_monotonic
+    ])
+
+    with patch.dict(FEATURE_FLAGS, {"enable_sse": True}), \
+            patch("time.monotonic", side_effect=lambda: next(monotonic_values)), \
+            patch("time.sleep", return_value=None):
+        handle_sse_subscription(handler, session_id_hint="test-session")
+
+    assert len(handler.wfile.buffer) == 2
+    warning = handler.wfile.buffer[1].decode("utf-8")
+    assert warning.startswith("event: session_warning\n")
+    payload = json.loads(warning.split("data: ", 1)[1])
+    assert payload["reason"] == "deadline_approaching"
+    assert payload["seconds_remaining"] == 60
 
 
 if __name__ == "__main__":

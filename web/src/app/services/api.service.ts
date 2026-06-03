@@ -260,7 +260,7 @@ export class ApiService {
     try {
       const r = await this.withTimeout(
         this.request<ControlStatus>('/api/status', undefined, true),
-        4000,
+        10000,
         'Connection detection timeout'
       );
       if (attempt !== this.connectionAttempt) return false;

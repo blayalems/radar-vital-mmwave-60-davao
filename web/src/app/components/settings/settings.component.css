@@ -1,9 +1,9 @@
 :host {
   display: block;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: clamp(14px, 2vw, 24px);
   box-sizing: border-box;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--md-sys-color-on-surface, #e2e2e6);
@@ -12,7 +12,7 @@
 .settings-container {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
   padding-bottom: 5rem;
 }
 
@@ -21,21 +21,23 @@
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
-  padding-bottom: 1rem;
+  padding: 0.25rem 0 1rem;
 }
 
 .settings-title {
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  font-weight: 780;
   margin: 0;
-  color: var(--md-sys-color-primary);
-  letter-spacing: -0.05rem;
+  color: var(--md-sys-color-on-surface);
+  letter-spacing: 0;
+  line-height: 1.05;
 }
 
 .settings-subtitle {
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   color: var(--md-sys-color-on-surface-variant, #a4a4ac);
-  margin: 0.25rem 0 0 0;
+  margin: 0.4rem 0 0;
+  max-width: 58ch;
 }
 
 .close-btn {
@@ -44,25 +46,34 @@
 
 .settings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  align-items: start;
 }
 
 .settings-card {
   background: var(--md-sys-color-surface-container) !important;
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-large, 16px) !important;
-  transition: transform var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
-             border-color var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
-             box-shadow var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));
+  border-radius: 8px !important;
+  transition: border-color 280ms cubic-bezier(0.16, 1, 0.3, 1), background-color 280ms cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
 }
 
 .settings-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--md-sys-color-primary);
-  box-shadow: 0 8px 12px 1px color-mix(in srgb, var(--md-sys-color-shadow, #000) 16%, transparent),
-              0 3px 14px 2px color-mix(in srgb, var(--md-sys-color-shadow, #000) 12%, transparent);
+  border-color: color-mix(in srgb, var(--md-sys-color-primary) 62%, var(--md-sys-color-outline-variant));
+}
+
+.connection-card,
+.ble-scanner-card,
+.thresholds-card {
+  grid-column: span 2;
+}
+
+.connection-card {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent), transparent 38%),
+    var(--md-sys-color-surface-container) !important;
+  border-left: 4px solid var(--md-sys-color-primary);
 }
 
 .card-avatar {
@@ -71,7 +82,7 @@
   justify-content: center;
   color: var(--md-sys-color-primary);
   background: var(--md-sys-color-primary-container);
-  border-radius: 50%;
+  border-radius: 8px;
   padding: 8px;
 }
 
@@ -82,7 +93,7 @@ mat-card-header {
 mat-card-title {
   font-size: 1.15rem !important;
   font-weight: 600 !important;
-  letter-spacing: -0.02rem;
+  letter-spacing: 0;
 }
 
 mat-card-content {
@@ -141,7 +152,7 @@ mat-button-toggle {
   font-weight: 500;
   color: var(--md-sys-color-on-surface-variant, #a4a4ac) !important;
   background: transparent;
-  transition: all 0.2s ease;
+  transition: background-color 220ms cubic-bezier(0.16, 1, 0.3, 1), color 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .mat-button-toggle-checked {
@@ -149,12 +160,22 @@ mat-button-toggle {
   color: var(--md-sys-color-on-secondary-container) !important;
 }
 
-/* Thresholds Alert Card */
-.thresholds-card {
-  grid-column: span 2;
-}
-
 @media (max-width: 768px) {
+  :host {
+    padding: 12px;
+  }
+
+  .settings-header {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .connection-card,
+  .ble-scanner-card,
   .thresholds-card {
     grid-column: span 1;
   }
@@ -213,7 +234,7 @@ mat-button-toggle {
   text-align: center;
   font-weight: 600;
   outline: none;
-  transition: all 0.2s ease;
+  transition: border-color 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .num-input:focus {
@@ -264,7 +285,7 @@ mat-button-toggle {
 }
 
 .test-btn {
-  border-radius: 20px !important;
+  border-radius: 8px !important;
 }
 
 /* Footer style */
@@ -287,11 +308,11 @@ mat-button-toggle {
 }
 
 .reset-all-btn {
-  border-radius: 20px !important;
+  border-radius: 8px !important;
 }
 
 .done-btn {
-  border-radius: 20px !important;
+  border-radius: 8px !important;
   padding: 0 2rem !important;
 }
 
@@ -335,7 +356,7 @@ mat-button-toggle {
   border-radius: 50%;
   border: 2px solid var(--md-sys-color-outline-variant);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  transition: transform var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .color-preview-swatch:hover {
@@ -383,9 +404,9 @@ mat-button-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
-             border-color var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
-             box-shadow var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+             border-color 260ms cubic-bezier(0.16, 1, 0.3, 1),
+             box-shadow 260ms cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   outline: none;
 }
@@ -410,4 +431,64 @@ mat-button-toggle {
   color: #fff;
   font-size: 20px;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.ble-device-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ble-device-row {
+  align-items: center;
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-card,
+  mat-button-toggle,
+  .num-input,
+  .color-preview-swatch,
+  .swatch-btn {
+    transition: none !important;
+  }
+
+  .color-preview-swatch:hover,
+  .swatch-btn:hover,
+  .swatch-btn.active {
+    transform: none;
+  }
+}
+
+.ble-device-row:hover,
+.ble-device-row:focus-visible {
+  border-color: var(--md-sys-color-primary);
+  outline: none;
+}
+
+.ble-device-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.ble-device-copy strong,
+.ble-device-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ble-device-copy span,
+.ble-rssi {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.82rem;
 }

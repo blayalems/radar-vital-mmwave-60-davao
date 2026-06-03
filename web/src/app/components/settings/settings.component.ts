@@ -17,6 +17,8 @@ import { StateService, DEFAULT_KPI_THRESHOLDS, KPI_THRESHOLD_META, KpiThresholds
 import { AudioService } from '../../services/audio.service';
 import { ApiService } from '../../services/api.service';
 import { DynamicColorService } from '../../services/dynamic-color.service';
+import { IdleLockService } from '../../services/idle-lock.service';
+import { BleScanDevice } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 
 @Component({
@@ -43,6 +45,7 @@ export class SettingsComponent {
   protected readonly audio = inject(AudioService);
   protected readonly api = inject(ApiService);
   protected readonly dynamicColor = inject(DynamicColorService);
+  protected readonly idleLock = inject(IdleLockService);
   private readonly router = inject(Router);
   protected readonly Math = Math;
   
@@ -53,6 +56,9 @@ export class SettingsComponent {
   protected readonly endpointInput = signal(this.api.currentApiBase());
   protected readonly pinInput = signal('');
   protected readonly connectionBusy = signal(false);
+  protected readonly bleScanBusy = signal(false);
+  protected readonly bleScanDevices = signal<BleScanDevice[]>([]);
+  protected readonly bleScanMessage = signal('No scan run yet.');
 
   // Material You preset swatches
   protected readonly presetColors: { hex: string; name: string }[] = [
@@ -125,6 +131,37 @@ export class SettingsComponent {
     } finally {
       this.connectionBusy.set(false);
     }
+  }
+
+  async scanBleDevices(): Promise<void> {
+    this.bleScanBusy.set(true);
+    this.bleScanMessage.set('Scanning for BLE reference devices...');
+    try {
+      const result = await this.api.request<{ ok?: boolean; devices?: BleScanDevice[]; error?: string }>('/api/ble/scan');
+      const devices = Array.isArray(result.devices) ? result.devices : [];
+      this.bleScanDevices.set(devices);
+      this.bleScanMessage.set(devices.length
+        ? `${devices.length} device${devices.length === 1 ? '' : 's'} found.`
+        : 'No BLE reference devices found.');
+      this.state.triggerHaptic(devices.length ? 'confirm' : 'warn');
+    } catch (error: unknown) {
+      this.bleScanDevices.set([]);
+      this.bleScanMessage.set(error instanceof Error ? error.message : 'BLE scan failed.');
+      this.state.triggerHaptic('warn');
+    } finally {
+      this.bleScanBusy.set(false);
+    }
+  }
+
+  selectBleDevice(device: BleScanDevice): void {
+    const address = device.address || device.id || '';
+    if (!address) {
+      this.snackBar.open('Selected BLE device does not include an address.', 'Dismiss', { duration: 5000 });
+      return;
+    }
+    this.state.setup.update(current => ({ ...current, ble_address: address }));
+    this.snackBar.open(`BLE reference set to ${device.name || address}.`, 'Dismiss', { duration: 4000 });
+    this.state.triggerHaptic('tap');
   }
 
   exportPreferences(): void {

@@ -15,6 +15,7 @@ import { ApiService } from '../../services/api.service';
 import { DEFAULT_KPI_THRESHOLDS, StateService } from '../../services/state.service';
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+import { CommandPinningService } from '../../services/command-pinning.service';
 
 type CommandGroup = 'Navigate' | 'Live Session' | 'Source' | 'Appearance' | 'Export';
 
@@ -53,6 +54,7 @@ export class CommandPaletteComponent {
   private readonly dialog = inject(MatDialog);
   private readonly dialogRef = inject(MatDialogRef<CommandPaletteComponent>);
   private readonly snackBar = inject(MatSnackBar);
+  protected readonly pinning = inject(CommandPinningService);
 
   protected readonly query = signal('');
   protected readonly commands: PaletteCommand[] = [
@@ -608,5 +610,10 @@ export class CommandPaletteComponent {
         this.state.triggerHaptic('success');
       }
     }
+  }
+
+  togglePin(event: Event, cmdId: string) {
+    event.stopPropagation();
+    this.pinning.togglePin(cmdId);
   }
 }

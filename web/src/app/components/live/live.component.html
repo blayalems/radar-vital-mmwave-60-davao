@@ -8,13 +8,13 @@
         <mat-icon class="timer-icon animate-pulse">sensors</mat-icon>
         <div class="timer-meta">
           <strong>
-            {{ state.lastPayload()?.meta?.status === 'running' 
-              ? 'Telemetry Recording Active' 
-              : 'Standby / Polling Data' 
+            {{ state.lastPayload()?.meta?.status === 'running'
+              ? 'Telemetry Recording Active'
+              : 'Standby / Polling Data'
             }}
           </strong>
           <small>
-            Elapsed: {{ state.lastPayload()?.meta?.elapsed_s || 0 }}s / 
+            Elapsed: {{ state.lastPayload()?.meta?.elapsed_s || 0 }}s /
             Remaining: {{ state.lastPayload()?.meta?.remaining_s || 0 }}s
           </small>
         </div>
@@ -33,6 +33,12 @@
           Pin Snapshot
         </button>
 
+        <!-- SPLIT SCREEN TOGGLE -->
+        <button mat-flat-button (click)="splitScreenActive.set(!splitScreenActive()); state.triggerHaptic('tap'); requestCanvasDraw()" class="mat-tonal-button cmd-btn" [class.active-split]="splitScreenActive()">
+          <mat-icon>{{ splitScreenActive() ? 'desktop_access_disabled' : 'split_screen' }}</mat-icon>
+          {{ splitScreenActive() ? 'Disable Split' : 'Split View' }}
+        </button>
+
         <!-- STOP RECORDING -->
         <button mat-flat-button color="warn" (click)="stopSession()" [disabled]="state.ctlStopPending() || !state.sessionActive()" class="cmd-btn stop-btn">
           <mat-icon>stop</mat-icon>
@@ -43,83 +49,133 @@
   </mat-card>
 
   <!-- SIX HIGH-FIDELITY LIVE TAB PAGES -->
-  <mat-tab-group class="live-tabs-group" [selectedIndex]="activeTabIndex" (selectedTabChange)="onTabChange($event)">
-    
+  <div class="main-layout-split" [class.is-split]="splitScreenActive()">
+    <div class="primary-pane">
+      <mat-tab-group class="live-tabs-group" [selectedIndex]="activeTabIndex" (selectedTabChange)="onTabChange($event)">
+
     <!-- 1. OVERVIEW TAB -->
     <mat-tab label="Overview">
       <div class="tab-content-grid">
-        
+
         <!-- KPI METRICS SUMMARY BOARD -->
         <div class="kpi-grid">
           <p class="sr-only" role="alert" aria-atomic="true">{{ liveAlertAnnouncement() }}</p>
-          <!-- HEART RATE CARD -->
-          <div class="kpi-metric-card kpi-hr cursor-pointer" role="status" tabindex="0" (click)="openKpiZoomDialog('hr')" (keydown.enter)="openKpiZoomDialog('hr')" (keydown.space)="openKpiZoomDialog('hr')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Heart rate (click to zoom)', 'reported_hr', 'beats per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
-            <div class="kpi-card-header">
-              <span>Heart Rate</span>
-              <mat-icon>ecg_heart</mat-icon>
-            </div>
-            <div class="kpi-card-value">
-              <strong>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) : '--' }}</strong>
-              <small>bpm</small>
-            </div>
-            <div class="kpi-card-spark">
-              <canvas #overviewHrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Heart rate recent trend', 'reported_hr', 'beats per minute')"></canvas>
-            </div>
-            <div class="kpi-card-footer">
-              Ref: {{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : 'no reference' }}
-            </div>
-          </div>
+          @for (kpi of kpiOrder(); track kpi) {
+            @if (kpi === 'hr') {
+              <!-- HEART RATE CARD -->
+              <div class="kpi-metric-card kpi-hr cursor-pointer" role="status" tabindex="0"
+                   (click)="openKpiZoomDialog('hr')"
+                   (keydown.enter)="openKpiZoomDialog('hr')"
+                   (keydown.space)="openKpiZoomDialog('hr')"
+                   (pointerdown)="onKpiDragStart($event, 'hr')"
+                   (pointermove)="onKpiDragMove($event)"
+                   (pointerup)="onKpiDragEnd($event)"
+                   aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Heart rate (click to zoom, drag to reorder)', 'reported_hr', 'beats per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
+                <div class="kpi-card-header">
+                  <span>Heart Rate</span>
+                  <div class="kpi-header-icons">
+                    <mat-icon class="drag-icon">drag_indicator</mat-icon>
+                    <mat-icon>ecg_heart</mat-icon>
+                  </div>
+                </div>
+                <div class="kpi-card-value">
+                  <strong>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) : '--' }}</strong>
+                  <small>bpm</small>
+                </div>
+                <div class="kpi-card-spark">
+                  <canvas #overviewHrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Heart rate recent trend', 'reported_hr', 'beats per minute')"></canvas>
+                </div>
+                <div class="kpi-card-footer">
+                  Ref: {{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : 'no reference' }}
+                </div>
+              </div>
+            }
 
-          <!-- RESPIRATORY RATE CARD -->
-          <div class="kpi-metric-card kpi-rr cursor-pointer" role="status" tabindex="0" (click)="openKpiZoomDialog('rr')" (keydown.enter)="openKpiZoomDialog('rr')" (keydown.space)="openKpiZoomDialog('rr')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Respiration (click to zoom)', 'reported_rr', 'breaths per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
-            <div class="kpi-card-header">
-              <span>Respiration</span>
-              <mat-icon>air</mat-icon>
-            </div>
-            <div class="kpi-card-value">
-              <strong>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) : '--' }}</strong>
-              <small>br/min</small>
-            </div>
-            <div class="kpi-card-spark">
-              <canvas #overviewRrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Respiration recent trend', 'reported_rr', 'breaths per minute')"></canvas>
-            </div>
-            <div class="kpi-card-footer">
-              Ref: {{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : 'no reference' }}
-            </div>
-          </div>
+            @if (kpi === 'rr') {
+              <!-- RESPIRATORY RATE CARD -->
+              <div class="kpi-metric-card kpi-rr cursor-pointer" role="status" tabindex="0"
+                   (click)="openKpiZoomDialog('rr')"
+                   (keydown.enter)="openKpiZoomDialog('rr')"
+                   (keydown.space)="openKpiZoomDialog('rr')"
+                   (pointerdown)="onKpiDragStart($event, 'rr')"
+                   (pointermove)="onKpiDragMove($event)"
+                   (pointerup)="onKpiDragEnd($event)"
+                   aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Respiration (click to zoom, drag to reorder)', 'reported_rr', 'breaths per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
+                <div class="kpi-card-header">
+                  <span>Respiration</span>
+                  <div class="kpi-header-icons">
+                    <mat-icon class="drag-icon">drag_indicator</mat-icon>
+                    <mat-icon>air</mat-icon>
+                  </div>
+                </div>
+                <div class="kpi-card-value">
+                  <strong>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) : '--' }}</strong>
+                  <small>br/min</small>
+                </div>
+                <div class="kpi-card-spark">
+                  <canvas #overviewRrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Respiration recent trend', 'reported_rr', 'breaths per minute')"></canvas>
+                </div>
+                <div class="kpi-card-footer">
+                  Ref: {{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : 'no reference' }}
+                </div>
+              </div>
+            }
 
-          @if (!state.zenMode()) {
-            <!-- FRAME RATE CARD -->
-            <div class="kpi-metric-card cursor-pointer" role="status" tabindex="0" (click)="openKpiZoomDialog('fps')" (keydown.enter)="openKpiZoomDialog('fps')" (keydown.space)="openKpiZoomDialog('fps')" aria-live="polite" aria-atomic="true" [attr.aria-label]="frameRateLabel() + ' Click to zoom.'">
-              <div class="kpi-card-header">
-                <span>Frame Rate</span>
-                <mat-icon>speed</mat-icon>
+            @if (kpi === 'fps' && !state.zenMode()) {
+              <!-- FRAME RATE CARD -->
+              <div class="kpi-metric-card cursor-pointer" role="status" tabindex="0"
+                   (click)="openKpiZoomDialog('fps')"
+                   (keydown.enter)="openKpiZoomDialog('fps')"
+                   (keydown.space)="openKpiZoomDialog('fps')"
+                   (pointerdown)="onKpiDragStart($event, 'fps')"
+                   (pointermove)="onKpiDragMove($event)"
+                   (pointerup)="onKpiDragEnd($event)"
+                   aria-live="polite" aria-atomic="true" [attr.aria-label]="frameRateLabel() + ' Click to zoom, drag to reorder.'">
+                <div class="kpi-card-header">
+                  <span>Frame Rate</span>
+                  <div class="kpi-header-icons">
+                    <mat-icon class="drag-icon">drag_indicator</mat-icon>
+                    <mat-icon>speed</mat-icon>
+                  </div>
+                </div>
+                <div class="kpi-card-value">
+                  <strong>{{ computedFps() }}</strong>
+                  <small>Hz</small>
+                </div>
+                <div class="kpi-card-spark">
+                  <canvas #overviewFpsSpark class="sparkline-canvas" role="img" [attr.aria-label]="frameRateLabel() + ' Recent trend chart.'"></canvas>
+                </div>
+                <div class="kpi-card-footer">DSP Loop Speed</div>
               </div>
-              <div class="kpi-card-value">
-                <strong>{{ computedFps() }}</strong>
-                <small>Hz</small>
-              </div>
-              <div class="kpi-card-spark">
-                <canvas #overviewFpsSpark class="sparkline-canvas" role="img" [attr.aria-label]="frameRateLabel() + ' Recent trend chart.'"></canvas>
-              </div>
-              <div class="kpi-card-footer">DSP Loop Speed</div>
-            </div>
+            }
 
-            <!-- RANGE DISTANCE CARD -->
-            <div class="kpi-metric-card cursor-pointer" role="status" tabindex="0" (click)="openKpiZoomDialog('dist')" (keydown.enter)="openKpiZoomDialog('dist')" (keydown.space)="openKpiZoomDialog('dist')" aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Target range (click to zoom)', 'distance_cm', 'centimetres')">
-              <div class="kpi-card-header">
-                <span>Target Range</span>
-                <mat-icon>radar</mat-icon>
+            @if (kpi === 'dist' && !state.zenMode()) {
+              <!-- RANGE DISTANCE CARD -->
+              <div class="kpi-metric-card cursor-pointer" role="status" tabindex="0"
+                   (click)="openKpiZoomDialog('dist')"
+                   (keydown.enter)="openKpiZoomDialog('dist')"
+                   (keydown.space)="openKpiZoomDialog('dist')"
+                   (pointerdown)="onKpiDragStart($event, 'dist')"
+                   (pointermove)="onKpiDragMove($event)"
+                   (pointerup)="onKpiDragEnd($event)"
+                   aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Target range (click to zoom, drag to reorder)', 'distance_cm', 'centimetres')">
+                <div class="kpi-card-header">
+                  <span>Target Range</span>
+                  <div class="kpi-header-icons">
+                    <mat-icon class="drag-icon">drag_indicator</mat-icon>
+                    <mat-icon>radar</mat-icon>
+                  </div>
+                </div>
+                <div class="kpi-card-value">
+                  <strong>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) : '--' }}</strong>
+                  <small>cm</small>
+                </div>
+                <div class="kpi-card-spark">
+                  <canvas #overviewDistSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Target range recent trend', 'distance_cm', 'centimetres')"></canvas>
+                </div>
+                <div class="kpi-card-footer">Placement distance</div>
               </div>
-              <div class="kpi-card-value">
-                <strong>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) : '--' }}</strong>
-                <small>cm</small>
-              </div>
-              <div class="kpi-card-spark">
-                <canvas #overviewDistSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Target range recent trend', 'distance_cm', 'centimetres')"></canvas>
-              </div>
-              <div class="kpi-card-footer">Placement distance</div>
-            </div>
+            }
           }
         </div>
 
@@ -143,7 +199,7 @@
               <mat-label>Operator observations</mat-label>
               <textarea matInput class="notes-textarea" [ngModel]="sessionNotesInput" (ngModelChange)="saveSessionNotes($event)" placeholder="Write your session notes here..."></textarea>
             </mat-form-field>
-            
+
             <div class="quick-tags-toolbar">
               <span class="toolbar-label">Quick Tags:</span>
               <button mat-flat-button class="mat-tonal-button tag-btn" (click)="addQuickTag('Motion')"><mat-icon>directions_run</mat-icon>Motion</button>
@@ -208,6 +264,43 @@
                   </tbody>
                 </table>
               </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- BLAND-ALTMAN CLINICAL SCATTER CHART -->
+          <mat-card class="bland-altman-card" [hidden]="!hasBleRef()">
+            <mat-card-header>
+              <div class="header-content-wrapper">
+                <mat-icon>scatter_plot</mat-icon>
+                <div>
+                  <mat-card-title>Bland-Altman ({{ baMetric().toUpperCase() }})</mat-card-title>
+                  <mat-card-subtitle>Mean vs. difference between radar and reference</mat-card-subtitle>
+                </div>
+              </div>
+              <div class="header-actions">
+                <mat-button-toggle-group [value]="baMetric()" (change)="baMetric.set($event.value); requestCanvasDraw()" aria-label="Bland-Altman Metric Selection">
+                  <mat-button-toggle value="hr">HR</mat-button-toggle>
+                  <mat-button-toggle value="rr">RR</mat-button-toggle>
+                </mat-button-toggle-group>
+              </div>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="ba-canvas-container">
+                <canvas #baCanvas class="ba-canvas" role="img" aria-label="Bland-Altman scatter plot chart comparing radar vitals to reference oximeter"></canvas>
+              </div>
+              @if (baStats(); as stats) {
+                <div class="ba-interp" [class.warn]="stats.exceeds">
+                  Mean bias: <strong>{{ stats.meanDiff.toFixed(2) }} {{ stats.unit }}</strong> |
+                  &plusmn;1.96 SD: <strong>[{{ stats.lo.toFixed(2) }}, {{ stats.hi.toFixed(2) }}] {{ stats.unit }}</strong>
+                  @if (stats.exceeds) {
+                    <span class="warning-badge">
+                      <mat-icon>warning</mat-icon> Exceeds clinical threshold ({{ stats.thresh }} {{ stats.unit }})
+                    </span>
+                  }
+                </div>
+              } @else {
+                <div class="ba-interp">Reference data required for Bland-Altman analysis.</div>
+              }
             </mat-card-content>
           </mat-card>
 
@@ -330,13 +423,34 @@
             <div class="waveform-chart-wrap">
               <div class="chart-header">
                 <strong>Breathing Waveform</strong>
+                <button mat-icon-button type="button" [attr.aria-label]="showBreathTable() ? 'Hide data table' : 'Show data table'" (click)="showBreathTable.set(!showBreathTable()); state.triggerHaptic('tap')" [color]="showBreathTable() ? 'primary' : null">
+                  <mat-icon>{{ showBreathTable() ? 'grid_on' : 'grid_off' }}</mat-icon>
+                </button>
                 <button mat-icon-button type="button" aria-label="Download breathing waveform image" (click)="downloadChart(breathCanvas, 'breathing_waveform')">
                   <mat-icon>download</mat-icon>
                 </button>
               </div>
-              <div class="canvas-plot-container bg-pink-tint">
-                <canvas #breathCanvas class="waveform-canvas" role="img" [attr.aria-label]="chartLabel('Breathing waveform', 'reported_rr', 'breaths per minute')"></canvas>
-              </div>
+              @if (showBreathTable()) {
+                <div class="canvas-plot-container">
+                  <rvt-chart-data-table [series]="state.lastPayload()?.series" [limit]="120" label="Breathing Waveform Samples"></rvt-chart-data-table>
+                </div>
+              } @else {
+                <div class="canvas-plot-container bg-pink-tint">
+                  <canvas #breathCanvas class="waveform-canvas" role="img" [attr.aria-label]="chartLabel('Breathing waveform', 'reported_rr', 'breaths per minute')" (click)="handleChartClick($event, 'breath')"></canvas>
+                </div>
+                @if (getAnnotationsFor('breath').length > 0) {
+                  <div class="annotation-chips">
+                    @for (ann of getAnnotationsFor('breath'); track ann.id) {
+                      <mat-chip-row (removed)="deleteAnnotation('breath', ann)">
+                        {{ ann.label }} ({{ (ann.xPct * 100).toFixed(0) }}%)
+                        <button matChipRemove [attr.aria-label]="'Remove annotation ' + ann.label">
+                          <mat-icon>cancel</mat-icon>
+                        </button>
+                      </mat-chip-row>
+                    }
+                  </div>
+                }
+              }
               <mat-progress-bar mode="determinate" [value]="qualityPercent('pqi_breath')" class="quality-bar rr-quality"></mat-progress-bar>
               <span class="quality-label">{{ qualityLabel('pqi_breath') }}</span>
             </div>
@@ -344,13 +458,34 @@
             <div class="waveform-chart-wrap">
               <div class="chart-header">
                 <strong>Heartbeat Waveform</strong>
+                <button mat-icon-button type="button" [attr.aria-label]="showHeartTable() ? 'Hide data table' : 'Show data table'" (click)="showHeartTable.set(!showHeartTable()); state.triggerHaptic('tap')" [color]="showHeartTable() ? 'primary' : null">
+                  <mat-icon>{{ showHeartTable() ? 'grid_on' : 'grid_off' }}</mat-icon>
+                </button>
                 <button mat-icon-button type="button" aria-label="Download heartbeat waveform image" (click)="downloadChart(heartCanvas, 'heartbeat_waveform')">
                   <mat-icon>download</mat-icon>
                 </button>
               </div>
-              <div class="canvas-plot-container bg-teal-tint">
-                <canvas #heartCanvas class="waveform-canvas" role="img" [attr.aria-label]="chartLabel('Heartbeat waveform', 'reported_hr', 'beats per minute')"></canvas>
-              </div>
+              @if (showHeartTable()) {
+                <div class="canvas-plot-container">
+                  <rvt-chart-data-table [series]="state.lastPayload()?.series" [limit]="120" label="Heartbeat Waveform Samples"></rvt-chart-data-table>
+                </div>
+              } @else {
+                <div class="canvas-plot-container bg-teal-tint">
+                  <canvas #heartCanvas class="waveform-canvas" role="img" [attr.aria-label]="chartLabel('Heartbeat waveform', 'reported_hr', 'beats per minute')" (click)="handleChartClick($event, 'heart')"></canvas>
+                </div>
+                @if (getAnnotationsFor('heart').length > 0) {
+                  <div class="annotation-chips">
+                    @for (ann of getAnnotationsFor('heart'); track ann.id) {
+                      <mat-chip-row (removed)="deleteAnnotation('heart', ann)">
+                        {{ ann.label }} ({{ (ann.xPct * 100).toFixed(0) }}%)
+                        <button matChipRemove [attr.aria-label]="'Remove annotation ' + ann.label">
+                          <mat-icon>cancel</mat-icon>
+                        </button>
+                      </mat-chip-row>
+                    }
+                  </div>
+                }
+              }
               <mat-progress-bar mode="determinate" [value]="qualityPercent('pqi_heart')" class="quality-bar hr-quality"></mat-progress-bar>
               <span class="quality-label">{{ qualityLabel('pqi_heart') }}</span>
             </div>
@@ -375,15 +510,39 @@
                 <mat-button-toggle [checked]="trendRange() === 120" (click)="setTrendRange(120)">120s</mat-button-toggle>
                 <mat-button-toggle [checked]="trendRange() === 'max'" (click)="setTrendRange('max')">Max</mat-button-toggle>
               </mat-button-toggle-group>
+              <button mat-icon-button type="button" [attr.aria-label]="showHrTable() ? 'Hide data table' : 'Show data table'" (click)="showHrTable.set(!showHrTable()); state.triggerHaptic('tap')" [color]="showHrTable() ? 'primary' : null">
+                <mat-icon>{{ showHrTable() ? 'grid_on' : 'grid_off' }}</mat-icon>
+              </button>
+              <button mat-icon-button type="button" [color]="ghostSessionActive() ? 'accent' : null" aria-label="Toggle ghost session overlay" (click)="toggleGhostSession()">
+                <mat-icon>{{ ghostSessionActive() ? 'layers_clear' : 'layers' }}</mat-icon>
+              </button>
               <button mat-icon-button type="button" aria-label="Reset heart rate chart window" (click)="resetTrendRange()"><mat-icon>restart_alt</mat-icon></button>
               <button mat-icon-button type="button" aria-label="Download heart rate trend image" (click)="downloadChart(hrTrendCanvas, 'heart_rate_trend')"><mat-icon>download</mat-icon></button>
             </div>
           </mat-card-header>
           <mat-card-content class="trend-large-content">
             <div class="range-caption">Viewing {{ trendRangeLabel() }}</div>
-            <div class="large-canvas-container">
-              <canvas #hrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="chartLabel('Heart rate trend', 'reported_hr', 'beats per minute')"></canvas>
-            </div>
+            @if (showHrTable()) {
+              <div class="large-canvas-container">
+                <rvt-chart-data-table [series]="state.lastPayload()?.series" [limit]="trendRangeLimit()" label="Heart Rate Funnel Samples"></rvt-chart-data-table>
+              </div>
+            } @else {
+              <div class="large-canvas-container">
+                <canvas #hrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="chartLabel('Heart rate trend', 'reported_hr', 'beats per minute')" (click)="handleChartClick($event, 'hr')"></canvas>
+              </div>
+              @if (getAnnotationsFor('hr').length > 0) {
+                <div class="annotation-chips">
+                  @for (ann of getAnnotationsFor('hr'); track ann.id) {
+                    <mat-chip-row (removed)="deleteAnnotation('hr', ann)">
+                      {{ ann.label }} ({{ (ann.xPct * 100).toFixed(0) }}%)
+                      <button matChipRemove [attr.aria-label]="'Remove annotation ' + ann.label">
+                        <mat-icon>cancel</mat-icon>
+                      </button>
+                    </mat-chip-row>
+                  }
+                </div>
+              }
+            }
           </mat-card-content>
         </mat-card>
         <mat-card class="advanced-card">
@@ -454,14 +613,38 @@
             </div>
             <div class="trend-actions">
               <span class="range-caption">{{ trendRangeLabel() }}</span>
+              <button mat-icon-button type="button" [attr.aria-label]="showRrTable() ? 'Hide data table' : 'Show data table'" (click)="showRrTable.set(!showRrTable()); state.triggerHaptic('tap')" [color]="showRrTable() ? 'primary' : null">
+                <mat-icon>{{ showRrTable() ? 'grid_on' : 'grid_off' }}</mat-icon>
+              </button>
+              <button mat-icon-button type="button" [color]="ghostSessionActive() ? 'accent' : null" aria-label="Toggle ghost session overlay" (click)="toggleGhostSession()">
+                <mat-icon>{{ ghostSessionActive() ? 'layers_clear' : 'layers' }}</mat-icon>
+              </button>
               <button mat-flat-button type="button" aria-label="Reset respiration chart window" (click)="resetTrendRange()" class="mat-tonal-button"><mat-icon>restart_alt</mat-icon></button>
               <button mat-icon-button type="button" aria-label="Download respiration trend image" (click)="downloadChart(rrTrendCanvas, 'respiration_trend')"><mat-icon>download</mat-icon></button>
             </div>
           </mat-card-header>
           <mat-card-content class="trend-large-content">
-            <div class="large-canvas-container">
-              <canvas #rrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="chartLabel('Respiration trend', 'reported_rr', 'breaths per minute')"></canvas>
-            </div>
+            @if (showRrTable()) {
+              <div class="large-canvas-container">
+                <rvt-chart-data-table [series]="state.lastPayload()?.series" [limit]="trendRangeLimit()" label="Respiration Funnel Samples"></rvt-chart-data-table>
+              </div>
+            } @else {
+              <div class="large-canvas-container">
+                <canvas #rrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="chartLabel('Respiration trend', 'reported_rr', 'breaths per minute')" (click)="handleChartClick($event, 'rr')"></canvas>
+              </div>
+              @if (getAnnotationsFor('rr').length > 0) {
+                <div class="annotation-chips">
+                  @for (ann of getAnnotationsFor('rr'); track ann.id) {
+                    <mat-chip-row (removed)="deleteAnnotation('rr', ann)">
+                      {{ ann.label }} ({{ (ann.xPct * 100).toFixed(0) }}%)
+                      <button matChipRemove [attr.aria-label]="'Remove annotation ' + ann.label">
+                        <mat-icon>cancel</mat-icon>
+                      </button>
+                    </mat-chip-row>
+                  }
+                </div>
+              }
+            }
           </mat-card-content>
         </mat-card>
         <div class="diagnostics-double-column">
@@ -552,21 +735,45 @@
 
           <mat-card-content class="snapshots-catalog">
             @if (state.snaps().length > 0) {
+              @if (selectedCompareSnaps().length === 2) {
+                <div class="snapshot-compare-panel" role="region" aria-label="Snapshot comparison">
+                  <div>
+                    <strong>Compare selected frames</strong>
+                    <span>{{ selectedCompareSnaps()[0].ts | date:'mediumTime' }} to {{ selectedCompareSnaps()[1].ts | date:'mediumTime' }}</span>
+                  </div>
+                  <dl>
+                    <div><dt>HR delta</dt><dd>{{ snapDelta('reported_hr') }} bpm</dd></div>
+                    <div><dt>RR delta</dt><dd>{{ snapDelta('reported_rr') }} br/min</dd></div>
+                    <div><dt>Range delta</dt><dd>{{ snapDelta('distance_cm') }} cm</dd></div>
+                  </dl>
+                </div>
+              }
               <div class="snapshots-grid-container">
-              @for (snap of state.snaps(); track snap.id) {
+              @for (snap of sortedSnaps(); track snap.id; let idx = $index; let first = $first; let last = $last) {
                 <mat-card class="snap-card" [attr.data-snapshot-id]="snap.id">
                 <mat-card-header class="snap-card-header-row">
                   <strong>Frame Point: {{ snap.ts | date:'mediumTime' }}</strong>
-                  <button mat-icon-button color="warn" (click)="deleteSnap(snap.id)" aria-label="Delete snapshot">
-                    <mat-icon>close</mat-icon>
-                  </button>
+                  <div class="snap-card-actions">
+                    <button mat-icon-button type="button" (click)="moveSnap(snap.id, -1)" [disabled]="first" aria-label="Move snapshot earlier">
+                      <mat-icon>arrow_upward</mat-icon>
+                    </button>
+                    <button mat-icon-button type="button" (click)="moveSnap(snap.id, 1)" [disabled]="last" aria-label="Move snapshot later">
+                      <mat-icon>arrow_downward</mat-icon>
+                    </button>
+                    <button mat-icon-button type="button" (click)="toggleCompareSnap(snap.id)" [color]="compareSelection().includes(snap.id) ? 'primary' : undefined" [attr.aria-pressed]="compareSelection().includes(snap.id)" aria-label="Select snapshot for comparison">
+                      <mat-icon>compare_arrows</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" (click)="deleteSnap(snap.id)" aria-label="Delete snapshot">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
                 </mat-card-header>
                 <mat-card-content class="snap-card-metrics">
                   <div class="snap-mini-kpi"><span>Radar HR:</span><strong>{{ Math.round(snap.reported_hr) }} bpm</strong></div>
                   <div class="snap-mini-kpi"><span>Radar RR:</span><strong>{{ Math.round(snap.reported_rr) }} br/m</strong></div>
                   <div class="snap-mini-kpi"><span>BLE HR:</span><strong>{{ Math.round(snap.ble_hr) }} bpm</strong></div>
                   <div class="snap-mini-kpi"><span>Distance:</span><strong>{{ Math.round(snap.distance_cm) }} cm</strong></div>
-                  
+
                   <div class="snap-notes-field">
                     <mat-form-field appearance="outline" class="form-field-full">
                       <mat-label>Snapshot Notes</mat-label>
@@ -699,6 +906,53 @@
       </div>
     </mat-tab>
 
-  </mat-tab-group>
+      </mat-tab-group>
+    </div>
+
+    @if (splitScreenActive()) {
+      <div class="secondary-pane">
+        <mat-card class="split-pane-card">
+          <mat-card-header>
+            <mat-card-title>Secondary Monitor (Pane B)</mat-card-title>
+            <div class="pane-actions">
+              <mat-button-toggle-group [value]="paneBTabIndex()" (change)="paneBTabIndex.set($event.value); requestCanvasDraw()" aria-label="Secondary pane view selection">
+                <mat-button-toggle [value]="1">Waves</mat-button-toggle>
+                <mat-button-toggle [value]="2">HR</mat-button-toggle>
+                <mat-button-toggle [value]="3">RR</mat-button-toggle>
+              </mat-button-toggle-group>
+            </div>
+          </mat-card-header>
+          <mat-card-content class="pane-b-content">
+            @if (paneBTabIndex() === 1) {
+              <div class="canvas-plot-container bg-pink-tint secondary-wave">
+                <canvas #breathCanvasClone class="waveform-canvas" role="img" aria-label="Secondary Breath waveform"></canvas>
+              </div>
+              <div class="canvas-plot-container bg-teal-tint secondary-wave">
+                <canvas #heartCanvasClone class="waveform-canvas" role="img" aria-label="Secondary Heart waveform"></canvas>
+              </div>
+            } @else if (paneBTabIndex() === 2) {
+              <div class="large-canvas-container secondary-trend">
+                <canvas #hrTrendCanvasClone class="large-trend-canvas" role="img" aria-label="Secondary Heart rate trend"></canvas>
+              </div>
+            } @else if (paneBTabIndex() === 3) {
+              <div class="large-canvas-container secondary-trend">
+                <canvas #rrTrendCanvasClone class="large-trend-canvas" role="img" aria-label="Secondary Respiration trend"></canvas>
+              </div>
+            }
+          </mat-card-content>
+        </mat-card>
+      </div>
+    }
+  </div>
+
+  <!-- Quick-Pin FAB -->
+  <div class="quick-pin-fab-container">
+    <button mat-fab color="primary" (click)="captureSnapshot()" [disabled]="!state.lastPayload()" aria-label="Capture snapshot instantly">
+      @if (state.snaps().length > 0) {
+        <span class="fab-badge">{{ state.snaps().length }}</span>
+      }
+      <mat-icon>bookmark</mat-icon>
+    </button>
+  </div>
 
 </div>

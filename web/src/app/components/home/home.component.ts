@@ -100,6 +100,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.loadSubjectProfiles();
     this.loadSessions();
     this.runPreflight();
+    void this.scanSerialPorts();
+    void this.scanBleDevices();
   }
 
   @HostListener('document:keydown', ['$event'])

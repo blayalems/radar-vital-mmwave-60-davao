@@ -23,6 +23,7 @@ PLAYWRIGHT_WORKFLOW = ROOT / ".github" / "workflows" / "playwright.yml"
 EXE_WORKFLOW = ROOT / ".github" / "workflows" / "build-exe.yml"
 TAURI_MAIN = ROOT / "src-tauri" / "src" / "main.rs"
 VISUAL_SNAPSHOTS = ROOT / "tests" / "visual" / "rvt-v12.spec.ts-snapshots"
+PATCH_ANDROID_SHELL = ROOT / "scripts" / "patch-android-shell.mjs"
 
 
 def text(path: Path) -> str:
@@ -216,3 +217,15 @@ def test_packaging_scaffolds_exist():
     assert desktop_tauri["bundle"]["windows"]["webviewInstallMode"]["type"] == "downloadBootstrapper"
     assert "connect-src 'self'" in desktop_tauri["app"]["security"]["csp"]
     assert "http://127.0.0.1" not in desktop_tauri["app"]["security"]["csp"]
+
+
+def test_android_package_does_not_backup_local_session_state():
+    patcher = text(PATCH_ANDROID_SHELL)
+    workflow = text(ROOT / ".github" / "workflows" / "build-apk.yml")
+
+    assert "node scripts/patch-android-shell.mjs" in workflow
+    assert "ensureApplicationAttribute(manifest, 'android:allowBackup', 'false')" in patcher
+    assert "ensureApplicationAttribute(manifest, 'android:dataExtractionRules', '@xml/data_extraction_rules')" in patcher
+    assert '<cloud-backup disableIfNoEncryptionCapabilities="true">' in patcher
+    assert '<device-transfer>' in patcher
+    assert patcher.count('<exclude domain="root" path="." />') == 2

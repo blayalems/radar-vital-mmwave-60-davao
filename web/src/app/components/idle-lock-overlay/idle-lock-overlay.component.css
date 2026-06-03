@@ -1,0 +1,73 @@
+.idle-lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    color-mix(in srgb, var(--md-sys-color-surface) 88%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.idle-lock-panel {
+  width: min(460px, 100%);
+  padding: 28px;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 28%, transparent);
+  border-radius: 28px;
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  box-shadow: 0 24px 80px color-mix(in srgb, var(--md-sys-color-shadow) 22%, transparent);
+}
+
+.lock-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.eyebrow {
+  margin: 22px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: .75rem;
+  color: var(--md-sys-color-primary);
+}
+
+h2 {
+  margin: 0;
+  font-size: clamp(1.6rem, 4vw, 2.35rem);
+}
+
+.lock-copy {
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 1.55;
+}
+
+dl {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0;
+}
+
+dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding-block: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 18%, transparent);
+}
+
+dt {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+}

@@ -258,11 +258,60 @@ async fn native_ble_start_notifications(
 mod tests {
     use super::*;
 
+    fn request(origin: &str, path: &str) -> NativeRequest {
+        NativeRequest {
+            origin: origin.to_string(),
+            path: path.to_string(),
+            method: "GET".to_string(),
+            headers: HashMap::new(),
+            body: None,
+        }
+    }
+
     #[test]
     fn permits_only_the_ailink_notification_profile() {
         assert!(allowed_notification_profile(AILINK_SERVICE_UUID, AILINK_NOTIFY_UUID).is_ok());
         assert!(allowed_notification_profile(AILINK_SERVICE_UUID, "0000ffe1-0000-1000-8000-00805f9b34fb").is_err());
         assert!(allowed_notification_profile("8b1d0000-7d4c-4a3f-9a2b-7f2d4c8b1000", AILINK_NOTIFY_UUID).is_err());
+    }
+
+    #[test]
+    fn validates_plain_http_origins_only() {
+        assert_eq!(
+            validate_origin("http://192.168.1.50:8765").unwrap(),
+            "http://192.168.1.50:8765"
+        );
+        assert_eq!(
+            validate_origin("https://trainer.local:8765/").unwrap(),
+            "https://trainer.local:8765"
+        );
+
+        for origin in [
+            "file://trainer",
+            "ftp://trainer.local",
+            "http://user@trainer.local:8765",
+            "http://trainer.local:8765/path",
+            "http://trainer.local:8765?token=secret",
+            "http://trainer.local:8765/#fragment",
+        ] {
+            assert!(validate_origin(origin).is_err(), "{origin} should be rejected");
+        }
+    }
+
+    #[test]
+    fn pins_native_requests_to_the_paired_origin_and_api_routes() {
+        let paired = "http://192.168.1.50:8765";
+        assert_eq!(
+            target_url(&request(paired, "/api/status"), Some(paired)).unwrap(),
+            "http://192.168.1.50:8765/api/status"
+        );
+
+        assert!(target_url(&request("http://192.168.1.51:8765", "/api/status"), Some(paired))
+            .unwrap_err()
+            .contains("paired trainer"));
+        assert!(target_url(&request(paired, "/manifest.webmanifest"), Some(paired))
+            .unwrap_err()
+            .contains("API routes only"));
     }
 }
 

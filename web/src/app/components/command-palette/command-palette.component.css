@@ -17,6 +17,17 @@
   margin-bottom: 8px;
 }
 
+.command-row {
+  align-items: center;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) 48px;
+}
+
+.command-main {
+  min-width: 0;
+}
+
 .command-meta {
   align-items: center;
   color: var(--md-sys-color-on-surface-variant);
@@ -31,6 +42,10 @@
   border-radius: 6px;
   font: inherit;
   padding: 3px 6px;
+}
+
+.pin-cmd-btn {
+  justify-self: center;
 }
 
 @media (max-width: 600px) {

@@ -86,6 +86,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   preflightError = '';
   isScanningPorts = false;
   isScanningBle = false;
+  bleScanAttempted = false;
   isValidatingNativeBle = false;
   nativeBleProbeStatus = '';
   isPreflightRunning = false;
@@ -101,7 +102,6 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.loadSessions();
     this.runPreflight();
     void this.scanSerialPorts();
-    void this.scanBleDevices();
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -215,6 +215,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async scanBleDevices() {
     this.isScanningBle = true;
+    this.bleScanAttempted = true;
     this.state.triggerHaptic('tap');
     try {
       if (this.state.ctlStatus()?.mode !== 'sandbox') {
@@ -237,6 +238,37 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     } finally {
       this.isScanningBle = false;
     }
+  }
+
+  protected applyBleDevice(device: BleScanDevice): void {
+    const address = this.bleDeviceAddress(device);
+    if (!address) {
+      this.snackBar.open('BLE scan result has no hardware address. Pick a device with an address.', 'Dismiss', { duration: 5000 });
+      this.state.triggerHaptic('warn');
+      return;
+    }
+    this.updateSetup('ble_address', address);
+    this.onFormChange();
+    this.bleDevices = [];
+    this.snackBar.open(`BLE reference set to ${device.name || address}.`, 'Dismiss', { duration: 3000 });
+  }
+
+  protected bleDeviceAddress(device: BleScanDevice): string {
+    return (device.address || '').trim();
+  }
+
+  protected bleSignalClass(rssi: number | undefined): string {
+    if (!Number.isFinite(rssi)) return 'unknown';
+    if ((rssi ?? -100) > -60) return 'strong';
+    if ((rssi ?? -100) >= -80) return 'fair';
+    return 'weak';
+  }
+
+  protected bleSignalLabel(rssi: number | undefined): string {
+    if (!Number.isFinite(rssi)) return 'Signal unknown';
+    if ((rssi ?? -100) > -60) return 'Strong signal';
+    if ((rssi ?? -100) >= -80) return 'Fair signal';
+    return 'Weak signal';
   }
 
   async validateNativeBleReference(): Promise<void> {

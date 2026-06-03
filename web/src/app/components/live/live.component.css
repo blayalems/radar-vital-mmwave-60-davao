@@ -469,9 +469,16 @@
   gap: 2px;
 }
 
+.snap-card-actions button[mat-icon-button] {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .snapshot-compare-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 16px;
   align-items: center;
   margin-bottom: 16px;
@@ -507,6 +514,10 @@
   margin: 2px 0 0;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+}
+
+.snapshot-compare-panel button {
+  justify-self: end;
 }
 
 .snap-card-metrics {
@@ -965,6 +976,19 @@
 
   .snapshots-empty-state {
     padding: 28px 12px;
+  }
+
+  .snapshot-compare-panel {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .snapshot-compare-panel dl {
+    flex-wrap: wrap;
+  }
+
+  .snapshot-compare-panel button {
+    justify-self: start;
   }
 }
 

@@ -1,4 +1,4 @@
-@if (idleLock.locked()) {
+@if (locked()) {
   <section class="idle-lock-overlay" role="dialog" aria-modal="true" aria-labelledby="idleLockTitle">
     <div class="idle-lock-panel">
       <div class="lock-icon" aria-hidden="true">
@@ -12,14 +12,14 @@
       <dl>
         <div>
           <dt>Session</dt>
-          <dd>{{ state.currentSessionId() || 'Local dashboard' }}</dd>
+          <dd>{{ sessionLabel() }}</dd>
         </div>
         <div>
           <dt>Source</dt>
-          <dd>{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo' : 'Trainer' }}</dd>
+          <dd>{{ sourceLabel() }}</dd>
         </div>
       </dl>
-      <button mat-flat-button type="button" (click)="idleLock.unlock(); state.triggerHaptic('tap')">
+      <button mat-flat-button type="button" (click)="resumeDashboard()">
         <mat-icon>visibility</mat-icon>
         Resume dashboard
       </button>

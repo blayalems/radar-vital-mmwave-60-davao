@@ -1,30 +1,40 @@
-import { Injectable, computed, effect, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
+
+import { IDLE_LOCK_TIMEOUT_KEY } from './rvt-storage-keys';
 
 export type IdleLockTimeoutMinutes = 0 | 5 | 15 | 30 | 60 | 120;
 
-const STORAGE_KEY = 'rvt-idle-lock-timeout-minutes';
 const DEFAULT_TIMEOUT: IdleLockTimeoutMinutes = 30;
 
 @Injectable({
   providedIn: 'root'
 })
 export class IdleLockService {
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly timeoutMinutes = signal<IdleLockTimeoutMinutes>(this.readStoredTimeout());
   readonly locked = signal(false);
   readonly lastActivityAt = signal(Date.now());
   readonly enabled = computed(() => this.timeoutMinutes() > 0);
 
   private timer: number | null = null;
+  private lastScheduleAt = 0;
+  private readonly scheduleDebounceMs = 250;
 
   constructor() {
     if (typeof window !== 'undefined') {
-      this.installActivityListeners();
-      this.scheduleCheck();
+      this.destroyRef.onDestroy(this.installActivityListeners());
+      this.scheduleCheck(true);
     }
 
     effect(() => {
-      localStorage.setItem(STORAGE_KEY, String(this.timeoutMinutes()));
-      this.scheduleCheck();
+      if (typeof window === 'undefined') return;
+      try {
+        window.localStorage.setItem(IDLE_LOCK_TIMEOUT_KEY, String(this.timeoutMinutes()));
+      } catch (_) {
+        // Storage can be unavailable in private mode or restricted WebViews.
+      }
+      this.scheduleCheck(true);
     });
   }
 
@@ -40,7 +50,7 @@ export class IdleLockService {
   markActivity(): void {
     if (!this.locked()) {
       this.lastActivityAt.set(Date.now());
-      this.scheduleCheck();
+      this.scheduleCheck(false);
     }
   }
 
@@ -49,15 +59,27 @@ export class IdleLockService {
     this.timeoutMinutes.set(allowed.includes(value as IdleLockTimeoutMinutes) ? value as IdleLockTimeoutMinutes : DEFAULT_TIMEOUT);
   }
 
-  private installActivityListeners(): void {
+  private installActivityListeners(): () => void {
     const handler = () => this.markActivity();
     for (const eventName of ['pointerdown', 'keydown', 'touchstart']) {
       window.addEventListener(eventName, handler, { passive: true });
     }
+    return () => {
+      for (const eventName of ['pointerdown', 'keydown', 'touchstart']) {
+        window.removeEventListener(eventName, handler);
+      }
+    };
   }
 
-  private scheduleCheck(): void {
-    if (this.timer !== null) window.clearTimeout(this.timer);
+  private scheduleCheck(force: boolean): void {
+    if (typeof window === 'undefined') return;
+    const now = Date.now();
+    if (!force && this.timer !== null && now - this.lastScheduleAt < this.scheduleDebounceMs) return;
+    this.lastScheduleAt = now;
+    if (this.timer !== null) {
+      window.clearTimeout(this.timer);
+      this.timer = null;
+    }
     if (!this.enabled() || this.locked()) return;
     const timeoutMs = this.timeoutMinutes() * 60_000;
     const elapsed = Date.now() - this.lastActivityAt();
@@ -66,13 +88,18 @@ export class IdleLockService {
       if (this.enabled() && Date.now() - this.lastActivityAt() >= timeoutMs) {
         this.lock();
       } else {
-        this.scheduleCheck();
+        this.scheduleCheck(true);
       }
     }, remaining);
   }
 
   private readStoredTimeout(): IdleLockTimeoutMinutes {
-    const value = Number(localStorage.getItem(STORAGE_KEY));
-    return [0, 5, 15, 30, 60, 120].includes(value) ? value as IdleLockTimeoutMinutes : DEFAULT_TIMEOUT;
+    if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') return DEFAULT_TIMEOUT;
+    try {
+      const value = Number(window.localStorage.getItem(IDLE_LOCK_TIMEOUT_KEY));
+      return [0, 5, 15, 30, 60, 120].includes(value) ? value as IdleLockTimeoutMinutes : DEFAULT_TIMEOUT;
+    } catch (_) {
+      return DEFAULT_TIMEOUT;
+    }
   }
 }

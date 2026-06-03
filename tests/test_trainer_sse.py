@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from unittest.mock import patch
 
-from rvt_trainer.api.sse import handle_sse_subscription
+from rvt_trainer.api.sse import SSE_DEADLINE_WARN_BEFORE_S, handle_sse_subscription
 from rvt_trainer.monolith import FEATURE_FLAGS
 
 
@@ -54,17 +54,22 @@ class _StubHandler:
         self.ended_headers = False
         self.json_status: Optional[int] = None
         self.json_body: Optional[Dict[str, Any]] = None
+        self.call_log: list[tuple[str, ...]] = []
 
     def send_response(self, status: int) -> None:
+        self.call_log.append(("send_response", str(status)))
         self.response_status = status
 
     def send_header(self, name: str, value: str) -> None:
+        self.call_log.append(("send_header", name, value))
         self.headers[name] = value
 
     def end_headers(self) -> None:
+        self.call_log.append(("end_headers",))
         self.ended_headers = True
 
     def _send_json(self, status: int, body: Dict[str, Any]) -> None:
+        self.call_log.append(("send_json", str(status)))
         self.json_status = status
         self.json_body = body
 
@@ -95,6 +100,13 @@ def test_sse_headers_and_initial_ping(mock_sleep):
     assert handler.headers["Cache-Control"] == "no-cache"
     assert handler.headers["Connection"] == "keep-alive"
     assert handler.ended_headers is True
+    assert handler.call_log[:5] == [
+        ("send_response", "200"),
+        ("send_header", "Content-Type", "text/event-stream; charset=utf-8"),
+        ("send_header", "Cache-Control", "no-cache"),
+        ("send_header", "Connection", "keep-alive"),
+        ("end_headers",),
+    ]
     
     # We should have written exactly 1 event (the ping) before disconnect
     assert len(handler.wfile.buffer) == 1
@@ -155,7 +167,7 @@ def test_sse_deadline_warning_payload_is_exactly_sixty_seconds():
     ])
 
     with patch.dict(FEATURE_FLAGS, {"enable_sse": True}), \
-            patch("time.monotonic", side_effect=lambda: next(monotonic_values)), \
+            patch("time.monotonic", side_effect=lambda: next(monotonic_values, 43240.1)), \
             patch("time.sleep", return_value=None):
         handle_sse_subscription(handler, session_id_hint="test-session")
 
@@ -164,7 +176,7 @@ def test_sse_deadline_warning_payload_is_exactly_sixty_seconds():
     assert warning.startswith("event: session_warning\n")
     payload = json.loads(warning.split("data: ", 1)[1])
     assert payload["reason"] == "deadline_approaching"
-    assert payload["seconds_remaining"] == 60
+    assert payload["seconds_remaining"] == SSE_DEADLINE_WARN_BEFORE_S
 
 
 if __name__ == "__main__":

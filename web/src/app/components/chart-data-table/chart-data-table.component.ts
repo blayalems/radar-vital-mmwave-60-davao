@@ -46,7 +46,13 @@ export class ChartDataTableComponent {
   private numbers(series: TelemetrySeries | null | undefined, ...keys: string[]): number[] {
     for (const key of keys) {
       const value = series?.[key];
-      if (Array.isArray(value)) return value.map(item => Number(item)).filter(Number.isFinite);
+      if (Array.isArray(value)) {
+        return value.map(item => {
+          if (item === null || item === undefined || item === '') return Number.NaN;
+          const n = Number(item);
+          return Number.isFinite(n) ? n : Number.NaN;
+        });
+      }
     }
     return [];
   }

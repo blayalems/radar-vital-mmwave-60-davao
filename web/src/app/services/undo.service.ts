@@ -16,11 +16,13 @@ export class UndoService {
 
   readonly canUndo = computed(() => this.undoStack().length > 0);
   readonly canRedo = computed(() => this.redoStack().length > 0);
-  readonly lastActionLabel = computed(() => this.undoStack().at(-1)?.label || '');
-  readonly nextActionLabel = computed(() => this.redoStack().at(-1)?.label || '');
+  readonly lastActionLabel = computed(() => this.undoStack().at(-1)?.label ?? null);
+  readonly nextActionLabel = computed(() => this.redoStack().at(-1)?.label ?? null);
 
   push(action: UndoAction): void {
-    this.undoStack.update(items => [...items, action].slice(-this.limit));
+    const label = action.label.trim();
+    if (!label) throw new Error('Undo action label is required.');
+    this.undoStack.update(items => [...items, { ...action, label }].slice(-this.limit));
     this.redoStack.set([]);
   }
 

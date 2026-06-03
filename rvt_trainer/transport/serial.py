@@ -3,7 +3,7 @@
 from __future__ import annotations
 import serial
 import serial.tools.list_ports
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 DEFAULT_RADAR_PORT = "COM10"
 CONTROL_API_SCHEMA_VERSION = "rvt-control-api-v12.0"
@@ -54,7 +54,7 @@ def serial_ports_payload(selected: str = DEFAULT_RADAR_PORT) -> Dict[str, object
     }
 
 
-def probe_serial_port(port: str, timeout_s: float = 4.0) -> List[str]:
+def probe_serial_port(port: str, timeout_s: float = 4.0) -> Tuple[List[str], Optional[str]]:
     lines = []
     try:
         ser = serial.Serial(port, 115200, timeout=timeout_s)
@@ -65,5 +65,5 @@ def probe_serial_port(port: str, timeout_s: float = 4.0) -> List[str]:
                     break
                 lines.append(raw.decode(errors="ignore").strip())
     except Exception as e:
-        lines.append(f"ERROR: {e}")
-    return lines
+        return lines, str(e)
+    return lines, None

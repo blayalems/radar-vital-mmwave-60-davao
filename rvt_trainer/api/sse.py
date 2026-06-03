@@ -9,6 +9,8 @@ from typing import Optional, Dict, Any
 from ..monolith import _ControlHandler as ControlHandler
 from ..monolith import _SessionSupervisor as SessionSupervisor
 
+SSE_DEADLINE_WARN_BEFORE_S = 60
+
 
 def handle_sse_subscription(handler, session_id_hint: Optional[str] = None):
     """Handle an EventSource subscription for live telemetry streams.
@@ -57,14 +59,13 @@ def handle_sse_subscription(handler, session_id_hint: Optional[str] = None):
     try:
         write_event("ping", {"at": _iso_now()})
         deadline = time.monotonic() + 12 * 60 * 60  # 12 hr — hard kill
-        warn_before_s = 60
         warned = False
         while time.monotonic() < deadline:
             time_remaining = deadline - time.monotonic()
-            if time_remaining <= warn_before_s and not warned:
+            if time_remaining <= SSE_DEADLINE_WARN_BEFORE_S and not warned:
                 write_event("session_warning", {
                     "reason": "deadline_approaching",
-                    "seconds_remaining": warn_before_s
+                    "seconds_remaining": SSE_DEADLINE_WARN_BEFORE_S
                 })
                 warned = True
 
@@ -105,4 +106,4 @@ def handle_sse_subscription(handler, session_id_hint: Optional[str] = None):
         return
 
 
-__all__ = ["ControlHandler", "SessionSupervisor", "handle_sse_subscription"]
+__all__ = ["ControlHandler", "SessionSupervisor", "SSE_DEADLINE_WARN_BEFORE_S", "handle_sse_subscription"]

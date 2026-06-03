@@ -286,7 +286,7 @@
             </mat-card-header>
             <mat-card-content>
               <div class="ba-canvas-container">
-                <canvas #baCanvas class="ba-canvas" role="img" aria-label="Bland-Altman scatter plot chart comparing radar vitals to reference oximeter"></canvas>
+                <canvas #baCanvas class="ba-canvas" role="img" [attr.aria-label]="baChartAriaLabel()"></canvas>
               </div>
               @if (baStats(); as stats) {
                 <div class="ba-interp" [class.warn]="stats.exceeds">
@@ -737,17 +737,18 @@
             @if (state.snaps().length > 0) {
               @if (selectedCompareSnaps().length === 2) {
                 <div class="snapshot-compare-panel" role="region" aria-label="Snapshot comparison">
-                  <div>
-                    <strong>Compare selected frames</strong>
-                    <span>{{ selectedCompareSnaps()[0].ts | date:'mediumTime' }} to {{ selectedCompareSnaps()[1].ts | date:'mediumTime' }}</span>
+                    <div>
+                      <strong>Compare selected frames</strong>
+                      <span>Frame 2 minus Frame 1: {{ selectedCompareSnaps()[0].ts | date:'mediumTime' }} to {{ selectedCompareSnaps()[1].ts | date:'mediumTime' }}</span>
+                    </div>
+                    <dl>
+                      <div><dt>HR delta</dt><dd>{{ snapDelta('reported_hr') }} bpm</dd></div>
+                      <div><dt>RR delta</dt><dd>{{ snapDelta('reported_rr') }} br/min</dd></div>
+                      <div><dt>Range delta</dt><dd>{{ snapDelta('distance_cm') }} cm</dd></div>
+                    </dl>
+                    <button mat-button type="button" (click)="clearCompareSelection()">Clear comparison</button>
                   </div>
-                  <dl>
-                    <div><dt>HR delta</dt><dd>{{ snapDelta('reported_hr') }} bpm</dd></div>
-                    <div><dt>RR delta</dt><dd>{{ snapDelta('reported_rr') }} br/min</dd></div>
-                    <div><dt>Range delta</dt><dd>{{ snapDelta('distance_cm') }} cm</dd></div>
-                  </dl>
-                </div>
-              }
+                }
               <div class="snapshots-grid-container">
               @for (snap of sortedSnaps(); track snap.id; let idx = $index; let first = $first; let last = $last) {
                 <mat-card class="snap-card" [attr.data-snapshot-id]="snap.id">

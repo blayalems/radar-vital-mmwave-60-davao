@@ -1,7 +1,7 @@
 .idle-lock-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  z-index: 3000;
   display: grid;
   place-items: center;
   padding: 24px;

@@ -387,6 +387,12 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .stale-banner {
+    animation: none;
+  }
+}
+
 .session-progress-bar {
   height: 4px;
   flex-shrink: 0;

@@ -32,6 +32,8 @@ function patchStyle(xml, styleName) {
 
 function ensureApplicationAttribute(xml, name, value) {
   const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Generated Capacitor manifests keep application attributes on one line; this
+  // script only patches that deterministic template shape.
   const re = new RegExp(`\\s+${escapedName}="[^"]*"`);
   if (re.test(xml)) return xml.replace(re, `\n        ${name}="${value}"`);
   return xml.replace(/(<application\b)/, `$1\n        ${name}="${value}"`);

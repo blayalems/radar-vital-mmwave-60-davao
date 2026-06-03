@@ -152,7 +152,7 @@ jobs:
   windows:
     name: Windows EXE
     runs-on: windows-latest
-    timeout-minutes: 50
+    timeout-minutes: 80
     needs: release_metadata
     steps:
       - uses: actions/checkout@v4
@@ -161,6 +161,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-v12.txt
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -176,6 +184,10 @@ jobs:
 
       - name: Build www/
         run: npm run build:web
+
+      - name: Build Python trainer sidecar
+        shell: pwsh
+        run: python scripts/build-trainer-sidecar.py --self-test
 
       - name: Stamp Windows release version
         shell: pwsh
@@ -259,7 +271,9 @@ jobs:
           make_latest: false
           generate_release_notes: true
           body: |
-            Installable APK and Windows EXE generated from `${{ github.sha }}`.
+            Installable APK and standalone Windows EXE generated from `${{ github.sha }}`.
+
+            The Windows installer includes the bundled Python trainer sidecar. APK builds remain LAN companion clients that connect to a trainer over Wi-Fi/LAN.
 
             Automated `main` releases use a monotonically increasing `v<app-version>-main.<workflow-run>` version. GitHub-generated release notes below are the changelog for this build.
           fail_on_unmatched_files: true

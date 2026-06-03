@@ -25,12 +25,21 @@ h3, h4 {
 }
 
 .source-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   align-self: flex-start;
   padding: 8px 12px;
   border-radius: 999px;
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
   font-weight: 700;
+}
+
+.source-pill mat-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
 }
 
 .handoff-grid {

@@ -1,6 +1,13 @@
 import { HttpInterceptorFn, HttpResponse, HttpErrorResponse } from '@angular/common/http';
 import { from } from 'rxjs';
 
+const API_BASE_KEY = 'rvt-api-base';
+
+let cachedBase: string | null = null;
+let cachedLocalOrigin: string | null = null;
+let tauriListenersInstalled = false;
+let lastPairedOrigin: string | null = null;
+
 interface TauriInvokeRequest {
   origin: string;
   path: string;
@@ -9,28 +16,124 @@ interface TauriInvokeRequest {
   body: string | null;
 }
 
+interface NativeTrainerStatus {
+  enabled?: boolean;
+  running?: boolean;
+  ready?: boolean;
+  origin?: string | null;
+  error?: string | null;
+  sessions_root?: string | null;
+}
+
+function normalizeHttpOrigin(value: string): string {
+  const raw = String(value || '').trim().replace(/\/+$/, '');
+  if (!raw) return '';
+  try {
+    const u = new URL(raw, window.location.href);
+    return /^https?:$/.test(u.protocol) ? u.origin : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    return host === '127.0.0.1' || host === 'localhost' || host === '::1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function clearLocalCache(): void {
+  if (cachedBase && cachedBase === cachedLocalOrigin) {
+    cachedBase = null;
+  }
+  cachedLocalOrigin = null;
+  lastPairedOrigin = null;
+}
+
+function installTauriSidecarListeners(tauri: any): void {
+  if (tauriListenersInstalled) return;
+  tauriListenersInstalled = true;
+  const listen = (window as any).__TAURI__?.event?.listen;
+  if (typeof listen !== 'function') return;
+  try {
+    listen('rvt-trainer-terminated', clearLocalCache);
+    listen('rvt-trainer-error', clearLocalCache);
+  } catch (_) {}
+}
+
+function explicitStoredOrigin(): string {
+  try {
+    const stored = normalizeHttpOrigin(localStorage.getItem(API_BASE_KEY) || '');
+    // Dynamic bundled sidecar origins must not survive process restarts. Treat
+    // loopback values from older builds as stale and let Rust provide the fresh
+    // per-launch sidecar origin through native_trainer_status.
+    if (stored && isLoopbackOrigin(stored)) {
+      localStorage.removeItem(API_BASE_KEY);
+      return '';
+    }
+    return stored;
+  } catch (_) {
+    return '';
+  }
+}
+
+async function resolveTauriApiBase(tauri: any): Promise<string> {
+  installTauriSidecarListeners(tauri);
+
+  const stored = explicitStoredOrigin();
+  if (stored) {
+    cachedBase = stored;
+    if (lastPairedOrigin !== stored) {
+      try {
+        await (tauri.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<unknown>)('native_set_paired_origin', { origin: stored });
+        lastPairedOrigin = stored;
+      } catch (_) {}
+    }
+    return stored;
+  }
+
+  if (cachedBase) return cachedBase;
+
+  const status = await (tauri.invoke as (cmd: string) => Promise<NativeTrainerStatus>)('native_trainer_status');
+  const localOrigin = normalizeHttpOrigin(String(status?.origin || ''));
+  if (localOrigin && status?.running !== false) {
+    cachedBase = localOrigin;
+    cachedLocalOrigin = localOrigin;
+    lastPairedOrigin = localOrigin;
+    return localOrigin;
+  }
+  return '';
+}
+
 export const rvtTauriInterceptor: HttpInterceptorFn = (req, next) => {
   const tauri = (window as any).__TAURI__?.core;
 
-  // Retrieve current API base without injecting ApiService directly
-  let base = '';
-  try {
-    const storedBase = localStorage.getItem('rvt-api-base');
-    const raw = String(storedBase || '').trim().replace(/\/+$/, '');
-    if (raw) {
-      const u = new URL(raw, window.location.href);
-      if (/^https?:$/.test(u.protocol)) {
-        base = u.origin;
-      }
+  if (!tauri?.invoke) {
+    return next(req);
+  }
+
+  const knownBase = cachedBase || explicitStoredOrigin();
+  const maybeApi = req.url.startsWith('/api/') || Boolean(knownBase && req.url.startsWith(knownBase));
+  if (!maybeApi) {
+    return next(req);
+  }
+
+  const invokePromise = (async (): Promise<HttpResponse<any>> => {
+    const base = await resolveTauriApiBase(tauri);
+    if (!base) {
+      throw new HttpErrorResponse({
+        status: 0,
+        statusText: 'No trainer origin is available',
+        error: { error: 'No trainer origin is available' },
+        url: req.url
+      });
     }
-  } catch (_) {}
 
-  const isApi = req.url.startsWith('/api/') || (base && req.url.startsWith(base));
-
-  if (tauri?.invoke && base && isApi) {
-    const parsedUrl = new URL(req.url, window.location.href);
+    const parsedUrl = new URL(req.url, base);
     const path = parsedUrl.pathname + parsedUrl.search;
-
     const method = req.method.toUpperCase();
     const headersObj: Record<string, string> = {};
     req.headers.keys().forEach(key => {
@@ -55,33 +158,32 @@ export const rvtTauriInterceptor: HttpInterceptorFn = (req, next) => {
       body: bodyStr
     };
 
-    const invokePromise = (tauri.invoke as (cmd: string, args: { request: TauriInvokeRequest }) => Promise<any>)(command, {
+    const resp = await (tauri.invoke as (cmd: string, args: { request: TauriInvokeRequest }) => Promise<any>)(command, {
       request: requestPayload
-    }).then((resp: any): HttpResponse<any> => {
-      if (resp.status < 200 || resp.status >= 300) {
-        let errMsg = `HTTP ${resp.status}`;
-        if (resp.data && typeof resp.data === 'object') {
-          const errPayload = resp.data as { error?: string | { message?: string } };
-          if (typeof errPayload.error === 'string') errMsg = errPayload.error;
-          else if (errPayload.error?.message) errMsg = errPayload.error.message;
-        }
-        throw new HttpErrorResponse({
-          status: resp.status,
-          statusText: errMsg,
-          error: resp.data,
-          url: req.url
-        });
-      }
-      return new HttpResponse({
-        body: resp.data,
-        status: resp.status,
-        statusText: 'OK',
-        url: req.url
-      });
     });
 
-    return from(invokePromise);
-  }
+    if (resp.status < 200 || resp.status >= 300) {
+      let errMsg = `HTTP ${resp.status}`;
+      if (resp.data && typeof resp.data === 'object') {
+        const errPayload = resp.data as { error?: string | { message?: string } };
+        if (typeof errPayload.error === 'string') errMsg = errPayload.error;
+        else if (errPayload.error?.message) errMsg = errPayload.error.message;
+      }
+      throw new HttpErrorResponse({
+        status: resp.status,
+        statusText: errMsg,
+        error: resp.data,
+        url: req.url
+      });
+    }
 
-  return next(req);
+    return new HttpResponse({
+      body: resp.data,
+      status: resp.status,
+      statusText: 'OK',
+      url: req.url
+    });
+  })();
+
+  return from(invokePromise);
 };

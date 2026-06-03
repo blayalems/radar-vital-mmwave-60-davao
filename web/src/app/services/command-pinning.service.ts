@@ -4,6 +4,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { StateService } from './state.service';
 import { UndoService } from './undo.service';
 import { IdleLockService } from './idle-lock.service';
+import { PINNED_COMMANDS_KEY } from './rvt-storage-keys';
 import { AlertsDialogComponent } from '../components/alerts-dialog/alerts-dialog.component';
 import { OperatorHandoffDialogComponent } from '../components/operator-handoff-dialog/operator-handoff-dialog.component';
 
@@ -54,7 +55,7 @@ export class CommandPinningService {
 
   private loadPins() {
     try {
-      const stored = localStorage.getItem('rvt-pinned-cmds');
+      const stored = localStorage.getItem(PINNED_COMMANDS_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
@@ -78,7 +79,7 @@ export class CommandPinningService {
     }
     this.pinnedCommandIds.set(next);
     try {
-      localStorage.setItem('rvt-pinned-cmds', JSON.stringify(next));
+      localStorage.setItem(PINNED_COMMANDS_KEY, JSON.stringify(next));
     } catch (_) {}
   }
 

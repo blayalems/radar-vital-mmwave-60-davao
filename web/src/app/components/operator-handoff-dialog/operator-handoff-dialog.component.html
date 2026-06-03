@@ -6,7 +6,10 @@
       <h3>{{ state.currentSessionId() || 'No active session id' }}</h3>
       <p>{{ state.setup().subject_label || 'Unlabelled subject' }} · {{ state.setup().station_label || 'Station not set' }}</p>
     </div>
-    <div class="source-pill">{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo source' : 'Trainer source' }}</div>
+    <div class="source-pill">
+      <mat-icon>{{ state.ctlStatus()?.mode === 'sandbox' ? 'science' : 'dns' }}</mat-icon>
+      {{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo source' : 'Trainer source' }}
+    </div>
   </section>
 
   <div class="handoff-grid">
@@ -50,6 +53,6 @@
 <mat-dialog-actions align="end">
   <button mat-button mat-dialog-close>Close</button>
   <button mat-flat-button type="button" class="mat-tonal-button" (click)="exportJson()"><mat-icon>download</mat-icon>Export JSON</button>
-  <button mat-flat-button type="button" (click)="copy()"><mat-icon>content_copy</mat-icon>Copy brief</button>
+  <button mat-flat-button type="button" (click)="copy()"><mat-icon>content_copy</mat-icon>Copy de-ID brief</button>
   <button mat-flat-button type="button" class="mat-tonal-button" (click)="print()"><mat-icon>print</mat-icon>Print</button>
 </mat-dialog-actions>

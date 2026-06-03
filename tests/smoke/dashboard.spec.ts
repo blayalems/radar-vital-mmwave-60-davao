@@ -480,6 +480,8 @@ test.describe('Dashboard smoke', () => {
   });
 
   test('scans and applies a BLE reference device from Material settings', async ({ page }) => {
+    // Keep this API-mock flow on direct browser requests; PWA behavior is covered by the service-worker tests above.
+    await page.route('**/sw.js', route => route.abort());
     await page.route('**/api/ble/scan*', async route => {
       await route.fulfill({
         status: 200,

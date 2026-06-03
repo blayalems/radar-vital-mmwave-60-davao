@@ -22,10 +22,7 @@ import { CommandPaletteComponent } from '../command-palette/command-palette.comp
 import { KeyboardShortcutsDialogComponent } from '../keyboard-shortcuts-dialog/keyboard-shortcuts-dialog.component';
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
 import { CommandPinningService } from '../../services/command-pinning.service';
-import { UndoService } from '../../services/undo.service';
-import { IdleLockService } from '../../services/idle-lock.service';
 import { IdleLockOverlayComponent } from '../idle-lock-overlay/idle-lock-overlay.component';
-import { OperatorHandoffDialogComponent } from '../operator-handoff-dialog/operator-handoff-dialog.component';
 
 @Component({
   selector: 'app-layout',

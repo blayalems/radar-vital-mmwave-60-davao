@@ -4,3 +4,5 @@
  */
 export const API_BASE_KEY = 'rvt-api-base';
 export const TOKEN_KEY = 'rvt-pair-token';
+export const IDLE_LOCK_TIMEOUT_KEY = 'rvt-idle-lock-timeout-minutes';
+export const PINNED_COMMANDS_KEY = 'rvt-pinned-cmds';

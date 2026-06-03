@@ -18,8 +18,8 @@ describe('UndoService', () => {
   it('should initialize with empty undo/redo stacks', () => {
     expect(service.canUndo()).toBe(false);
     expect(service.canRedo()).toBe(false);
-    expect(service.lastActionLabel()).toBe('');
-    expect(service.nextActionLabel()).toBe('');
+    expect(service.lastActionLabel()).toBeNull();
+    expect(service.nextActionLabel()).toBeNull();
   });
 
   it('should push actions and allow undoing them', () => {
@@ -105,6 +105,10 @@ describe('UndoService', () => {
     service.clear();
     expect(service.canUndo()).toBe(false);
     expect(service.canRedo()).toBe(false);
-    expect(service.lastActionLabel()).toBe('');
+    expect(service.lastActionLabel()).toBeNull();
+  });
+
+  it('should reject actions without a label', () => {
+    expect(() => service.push({ label: '   ', undo: () => {} })).toThrow('Undo action label is required.');
   });
 });

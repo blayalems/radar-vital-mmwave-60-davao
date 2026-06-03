@@ -601,7 +601,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
       data: {
         title: 'Delete All Snapshots',
-        message: 'Are you sure you want to permanently delete all captured snapshot frames? This action cannot be undone.'
+        message: 'Delete all captured snapshot frames? You can undo this action from the Undo command.'
       },
       restoreFocus: true
     }).afterClosed());
@@ -656,11 +656,27 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     this.state.triggerHaptic('tap');
   }
 
+  protected clearCompareSelection(): void {
+    this.compareSelection.set([]);
+    this.state.triggerHaptic('tap');
+  }
+
   protected snapDelta(key: 'reported_hr' | 'reported_rr' | 'distance_cm'): string {
     const snaps = this.selectedCompareSnaps();
     if (snaps.length !== 2) return '--';
     const delta = Number(snaps[1][key]) - Number(snaps[0][key]);
     return Number.isFinite(delta) ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}` : '--';
+  }
+
+  protected baChartAriaLabel(): string {
+    const metric = this.baMetric() === 'hr' ? 'Heart rate' : 'Respiration rate';
+    const pairs = this.baMetric() === 'hr' ? this.baHrPairs : this.baRrPairs;
+    const stats = this.baStats();
+    if (!stats) {
+      return `${metric} Bland-Altman chart. Reference oximeter samples are required before agreement statistics are available.`;
+    }
+    const threshold = stats.exceeds ? `Bias exceeds the clinical threshold of ${stats.thresh} ${stats.unit}.` : `Bias is within the clinical threshold of ${stats.thresh} ${stats.unit}.`;
+    return `${metric} Bland-Altman chart with ${pairs.length} matched samples. Mean bias ${stats.meanDiff.toFixed(2)} ${stats.unit}. Limits of agreement ${stats.lo.toFixed(2)} to ${stats.hi.toFixed(2)} ${stats.unit}. ${threshold}`;
   }
 
   updateSnapNote(snapId: string, val: string) {
@@ -1400,8 +1416,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     const maxY = maxAbsDiff + 2;
     const rangeY = Math.max(1, maxY - minY);
 
-    const outlineColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-outline-variant').trim() || '#e2e8f0';
-    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-on-surface-variant').trim() || '#64748b';
+    const outlineColor = this.canvasToken(canvas, '--md-sys-color-outline-variant', '#e2e8f0');
+    const textColor = this.canvasToken(canvas, '--md-sys-color-on-surface-variant', '#64748b');
     ctx.strokeStyle = outlineColor;
     ctx.lineWidth = 1;
 
@@ -1475,5 +1491,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       ctx.lineWidth = 0.5;
       ctx.stroke();
     });
+  }
+
+  private canvasToken(canvas: HTMLCanvasElement, token: string, fallback: string): string {
+    if (typeof getComputedStyle === 'undefined') return fallback;
+    return getComputedStyle(canvas).getPropertyValue(token).trim() || fallback;
   }
 }

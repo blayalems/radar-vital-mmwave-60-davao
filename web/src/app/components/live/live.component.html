@@ -1,4 +1,36 @@
 <!-- LIVE MONITORING DASHBOARD PANEL -->
+@if (serverLifecycle.blocksLive()) {
+  <div class="live-container server-blocker-container">
+    <mat-card class="server-blocker-card" role="region" aria-labelledby="serverBlockerTitle">
+      <mat-card-content>
+        <div class="server-blocker-icon" aria-hidden="true">
+          <mat-icon>dns_off</mat-icon>
+        </div>
+        <div class="server-blocker-copy">
+          <p class="eyebrow">Python server</p>
+          <h2 id="serverBlockerTitle">Server not running</h2>
+          <p>
+            Live charts need the Python trainer API. Start the bundled sidecar in the Windows EXE,
+            or pair this APK/PWA with a LAN-bound trainer.
+          </p>
+          @if (serverLifecycle.lastError()) {
+            <p class="server-blocker-error">{{ serverLifecycle.lastError() }}</p>
+          }
+        </div>
+        <div class="server-blocker-actions">
+          <button mat-flat-button type="button" (click)="retryServerFromLive()">
+            <mat-icon>{{ serverLifecycle.platform() === 'exe' ? 'play_arrow' : 'sync' }}</mat-icon>
+            {{ serverLifecycle.platform() === 'exe' ? 'Start server' : 'Retry connection' }}
+          </button>
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="openServerSettings()">
+            <mat-icon>settings</mat-icon>
+            Open Settings
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+} @else {
 <div class="live-container">
 
   <!-- COMMAND PROGRESS STRIP -->
@@ -993,3 +1025,4 @@
   </div>
 
 </div>
+}

@@ -4290,14 +4290,23 @@ def _preflight_result(check_id: str, label: str, status: str, detail: str,
     }
 
 
-def _run_preflight_check(check_id: str, **params) -> Dict[str, object]:
-    from .audit.runner import run_preflight_check
-    return run_preflight_check(check_id, **params)
+def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> List[Path]:
+    if ino_search_paths:
+        out: List[Path] = []
+        for root in ino_search_paths:
+            p = Path(root)
+            if p.is_file():
+                out.append(p)
+            elif p.exists():
+                out.extend(sorted(p.glob("*.ino")))
+        return out
+    return [_REPO_ROOT / "radar_vital_v16_0_0.ino"] + _firmware_contract_candidates()
 
 
-def _run_preflight_all(**params) -> Dict[str, object]:
-    from .audit.runner import run_preflight_all
-    return run_preflight_all(**params)
+from rvt_trainer.audit.runner import (  # noqa: E402
+    run_preflight_all as _run_preflight_all,
+    run_preflight_check as _run_preflight_check,
+)
 
 
 def _fit_piecewise3(x_arr, y_arr, breakpoints=(58.0, 80.0)) -> Optional[Dict[str, object]]:
@@ -5635,16 +5644,7 @@ def _upsert_session_annotation(session_dir: Path, session_id: str, chart_key: st
     return saved
 
 
-def _scan_ble_devices_payload(timeout_s: float = 3.0) -> Dict[str, object]:
-    try:
-        from bleak import BleakScanner
-        devices = asyncio.run(BleakScanner.discover(timeout=max(0.5, min(float(timeout_s), 12.0))))
-        out = []
-        for d in devices or []:
-            out.append({"address": str(getattr(d, "address", "") or ""), "name": str(getattr(d, "name", "") or "BLE device"), "rssi": getattr(d, "rssi", None)})
-        return {"ok": True, "devices": out, "count": len(out), "scanned_at": _iso_now()}
-    except Exception as e:
-        return {"ok": False, "devices": [], "count": 0, "error": {"code": "BLE_SCAN_FAILED", "message": str(e)}, "scanned_at": _iso_now()}
+from rvt_trainer.transport.ble import scan_ble_devices_payload as _scan_ble_devices_payload  # noqa: E402
 
 
 def _mock_live_payload(seq: int = 0, window_s: int = 60) -> Dict[str, object]:
@@ -5718,9 +5718,7 @@ def _session_data_payload(sessions_root: str, session_id: str, points: int = 100
         return {"ok": False, "session_id": session_id, "rows": [], "error": {"code": "DATA_READ_FAILED", "message": str(e)}}
 
 
-def _auto_detect_radar_port(default: str = DEFAULT_RADAR_PORT) -> str:
-    from .transport.serial import auto_detect_radar_port
-    return auto_detect_radar_port(default)
+from rvt_trainer.transport.serial import auto_detect_radar_port as _auto_detect_radar_port  # noqa: E402
 
 
 def _serial_ports_payload(selected: str = DEFAULT_RADAR_PORT) -> Dict[str, object]:

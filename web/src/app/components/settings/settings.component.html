@@ -51,6 +51,71 @@
       </mat-card-content>
     </mat-card>
 
+    <!-- Python Server -->
+    <mat-card class="settings-card premium-card python-server-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">terminal</mat-icon>
+        <mat-card-title>Python Server</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="settings-row block-row">
+          <div class="settings-copy">
+            <span class="row-title">Server lifecycle</span>
+            <span class="row-description">
+              {{ serverLifecycle.platform() === 'exe'
+                ? 'The Windows EXE starts the bundled Python trainer sidecar automatically.'
+                : 'APK and PWA builds connect to a Python trainer running on this machine or a LAN host.' }}
+            </span>
+          </div>
+          <mat-chip-set aria-label="Python server status">
+            <mat-chip class="server-status-chip" [class.running]="serverLifecycle.status() === 'running'" [class.offline]="serverLifecycle.status() !== 'running'">
+              <mat-icon matChipAvatar>{{ serverLifecycle.status() === 'running' ? 'check_circle' : 'error' }}</mat-icon>
+              {{ serverLifecycle.statusLabel() }}
+            </mat-chip>
+          </mat-chip-set>
+        </div>
+
+        @if (serverLifecycle.platform() === 'exe') {
+          <div class="settings-actions-row server-actions">
+            <button mat-flat-button type="button" (click)="startPythonServer()" [disabled]="connectionBusy() || serverLifecycle.status() === 'running'">
+              <mat-icon>play_arrow</mat-icon>Start
+            </button>
+            <button mat-flat-button type="button" class="mat-tonal-button" (click)="stopPythonServer()" [disabled]="connectionBusy() || serverLifecycle.status() === 'stopped'">
+              <mat-icon>stop</mat-icon>Stop
+            </button>
+            <button mat-flat-button type="button" class="mat-tonal-button" (click)="restartPythonServer()" [disabled]="connectionBusy()">
+              <mat-icon>restart_alt</mat-icon>Restart
+            </button>
+          </div>
+          <div class="server-log-panel" role="log" aria-label="Bundled trainer log tail">
+            <div class="server-log-head">
+              <span>Last 20 server log lines</span>
+              <button mat-button type="button" (click)="serverLifecycle.refreshLogTail()">Refresh</button>
+            </div>
+            <pre>{{ serverLifecycle.logTail().length ? serverLifecycle.logTail().join('\n') : 'No trainer output captured yet.' }}</pre>
+          </div>
+        } @else {
+          <mat-form-field appearance="outline" class="form-field-full">
+            <mat-label>Server address</mat-label>
+            <input matInput [ngModel]="endpointInput()" (ngModelChange)="endpointInput.set($event)" placeholder="http://127.0.0.1:8765">
+            <mat-hint>Run `python radar_vital_trainer_v12_for_v16_0.py serve --bind lan`, then pair this device.</mat-hint>
+          </mat-form-field>
+          <div class="settings-actions-row server-actions">
+            <button mat-flat-button type="button" (click)="openPairPage()" [disabled]="connectionBusy()">
+              <mat-icon>qr_code_2</mat-icon>Pair with server
+            </button>
+            <button mat-flat-button type="button" class="mat-tonal-button" (click)="retryPythonServer()" [disabled]="connectionBusy()">
+              <mat-icon>sync</mat-icon>{{ connectionBusy() ? 'Checking...' : 'Retry connection' }}
+            </button>
+          </div>
+        }
+
+        @if (serverLifecycle.lastError()) {
+          <p class="settings-help-text server-error" role="alert">{{ serverLifecycle.lastError() }}</p>
+        }
+      </mat-card-content>
+    </mat-card>
+
     <!-- BLE Reference Scanner -->
     <mat-card class="settings-card premium-card ble-scanner-card">
       <mat-card-header>

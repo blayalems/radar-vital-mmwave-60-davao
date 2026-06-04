@@ -27,6 +27,7 @@ import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
 import { UndoService } from '../../services/undo.service';
 import { AnnotationService } from '../../services/annotation.service';
+import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { ChartAnnotation, SnapshotRecord } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 import { ChartDataTableComponent } from '../chart-data-table/chart-data-table.component';
@@ -80,6 +81,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly api = inject(ApiService);
   protected readonly telemetry = inject(TelemetryService);
   protected readonly audio = inject(AudioService);
+  protected readonly serverLifecycle = inject(ServerLifecycleService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
@@ -88,6 +90,20 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   protected readonly Math = Math;
   protected readonly NaN = Number.NaN;
+
+  protected openServerSettings(): void {
+    this.router.navigate(['/settings']);
+    this.state.triggerHaptic('tap');
+  }
+
+  protected retryServerFromLive(): void {
+    this.state.triggerHaptic('tap');
+    if (this.serverLifecycle.platform() === 'exe') {
+      void this.serverLifecycle.startServer();
+    } else {
+      void this.serverLifecycle.retryConnection();
+    }
+  }
 
   // Canvas element references for dynamic renderers
   @ViewChild('breathCanvas', { static: false }) breathCanvas!: ElementRef<HTMLCanvasElement>;

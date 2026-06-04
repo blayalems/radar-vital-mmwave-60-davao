@@ -20,6 +20,7 @@ import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
 import { BluetoothService } from '../../services/bluetooth.service';
+import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { BleScanDevice, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
 
 @Component({
@@ -52,6 +53,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly telemetry = inject(TelemetryService);
   protected readonly audio = inject(AudioService);
   protected readonly bluetooth = inject(BluetoothService);
+  protected readonly serverLifecycle = inject(ServerLifecycleService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
 
@@ -97,6 +99,15 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnInit() {
     this.selectedDuration = this.state.setup().duration_s;
+    void this.initializeHome();
+  }
+
+  private async initializeHome(): Promise<void> {
+    await this.serverLifecycle.bootstrap();
+    if (this.serverLifecycle.status() === 'offline' || this.serverLifecycle.status() === 'error') {
+      this.snackBar.open('Python server is offline. Use Settings > Python Server to start, pair, or retry.', 'Dismiss', { duration: 7000 });
+      return;
+    }
     this.refreshDefaults();
     this.loadSubjectProfiles();
     this.loadSessions();

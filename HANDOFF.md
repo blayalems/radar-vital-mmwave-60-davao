@@ -5,6 +5,15 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-04 — PR45 Native Server Lifecycle & PR43/PR44 Integration (codex/pr45-native-start)
+
+- **PR45 Integration Strategy**: Created the PR45 integration branch from `origin/main`, merged PR #43 as the primary body, and lifted PR #44's unique BLE transport extraction plus trainer audit/transport pytest coverage without overwriting PR #43's broader UI/security/native hardening.
+- **Python Server Lifecycle**: Added Tauri IPC commands `trainer_start`, `trainer_stop`, `trainer_status`, and `trainer_log_tail`; kept Windows EXE sidecar auto-start on setup, preserved the sidecar child handle, emitted stdout/stderr to Tauri events and stderr, and bounded the native log tail with a 20-line ring buffer.
+- **APK/PWA Server Pairing Flow**: Added an Angular `ServerLifecycleService` that auto-starts the Windows sidecar in Tauri desktop shells, auto-checks LAN/PWA trainer health on remote shells, stores the server origin under `rvt.server.url`, and keeps the existing `/pair` + `X-RVT-Auth` flow intact for APK/PWA.
+- **Operator UI Controls**: Added a topbar server-status chip, a Settings **Python Server** card with EXE Start/Stop/Restart/log controls and APK/PWA address/pair/retry controls, Home bootstrap gating before hardware calls, and a Live tab server-offline blocker that still allows explicit Demo Mode charts.
+- **Trainer Extraction Fixes**: Restored `_candidate_ino_paths`, converted monolith preflight/BLE/serial legacy names to extracted module aliases, made serial helpers import pyserial lazily, and regenerated the committed v12 monolith from `web/src/`.
+- **Verification**: `npm --prefix web run build` passed with the known initial bundle warning (54.23 kB over 2.20 MB); `npm --prefix web run test:ci` passed 32/32; `npm run build:web` and `npm run build:check` passed; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer` passed; `python -m rvt_trainer --help` passed; `python -m pytest tests -q` passed 67/67; `cargo test --manifest-path src-tauri\Cargo.toml` passed 8/8 after rerunning once the parallel web build finished writing `www/`.
+
 ### 2026-06-04 — Live Ghost Overlay Accessibility & Timer Cleanup (codex/mobile-first-dashboard-upABy)
 
 - **Live Trend Accessibility**: Added explicit current-vs-ghost legends for HR/RR trend canvases in primary and split panes, updated trend canvas aria labels with ghost sample/session context, and moved trend gridline color lookup to the same canvas-scoped CSS-token path used by Bland-Altman.

@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     fs::{create_dir_all, OpenOptions},
     io::Write,
     net::TcpListener,
@@ -24,12 +24,14 @@ use uuid::Uuid;
 const AILINK_SERVICE_UUID: &str = "0000ffe0-0000-1000-8000-00805f9b34fb";
 const AILINK_NOTIFY_UUID: &str = "0000ffe2-0000-1000-8000-00805f9b34fb";
 const LOCAL_TRAINER_HOST: &str = "127.0.0.1";
+const TRAINER_LOG_TAIL_LINES: usize = 20;
 
 #[derive(Default)]
 struct NativeState {
     paired_origin: Mutex<Option<String>>,
     active_ble_device: Mutex<Option<String>>,
     trainer: Mutex<TrainerSidecarState>,
+    trainer_log: Mutex<VecDeque<String>>,
 }
 
 #[derive(Default)]
@@ -90,11 +92,31 @@ struct TrainerSidecarStatus {
     sessions_root: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "state", content = "message", rename_all = "snake_case")]
+enum TrainerLifecycleState {
+    Starting,
+    Running,
+    Stopped,
+    Error(String),
+}
+
 fn now_ms() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_else(|_| Duration::from_secs(0))
         .as_millis()
+}
+
+fn push_trainer_log(state: &NativeState, stream: &str, text: &str) {
+    if let Ok(mut log) = state.trainer_log.lock() {
+        for line in text.lines().map(str::trim).filter(|line| !line.is_empty()) {
+            log.push_back(format!("[{stream}] {line}"));
+            while log.len() > TRAINER_LOG_TAIL_LINES {
+                log.pop_front();
+            }
+        }
+    }
 }
 
 fn validate_origin(origin: &str) -> Result<String, String> {
@@ -165,6 +187,8 @@ fn is_local_trainer_origin(origin: &str, state: &State<'_, NativeState>) -> bool
 
 fn record_trainer_error(app: &AppHandle, message: &str) {
     let _ = app.emit("rvt-trainer-error", message.to_string());
+    let state = app.state::<NativeState>();
+    push_trainer_log(&state, "error", message);
     if let Ok(data_dir) = app.path().app_data_dir() {
         if create_dir_all(&data_dir).is_ok() {
             let log_path = data_dir.join("trainer-sidecar.log");
@@ -172,6 +196,26 @@ fn record_trainer_error(app: &AppHandle, message: &str) {
                 let _ = writeln!(file, "{} {}", now_ms(), message);
             }
         }
+    }
+}
+
+fn trainer_lifecycle_from_state(trainer: &TrainerSidecarState) -> TrainerLifecycleState {
+    if let Some(error) = &trainer.error {
+        return TrainerLifecycleState::Error(error.clone());
+    }
+    if trainer.running && trainer.ready {
+        TrainerLifecycleState::Running
+    } else if trainer.running {
+        TrainerLifecycleState::Starting
+    } else {
+        TrainerLifecycleState::Stopped
+    }
+}
+
+fn trainer_lifecycle_status(state: &State<'_, NativeState>) -> TrainerLifecycleState {
+    match state.trainer.lock() {
+        Ok(trainer) => trainer_lifecycle_from_state(&trainer),
+        Err(_) => TrainerLifecycleState::Error("Native trainer state is unavailable.".to_string()),
     }
 }
 
@@ -261,10 +305,11 @@ fn shutdown_local_trainer(state: &State<'_, NativeState>) {
         }
         trainer.running = false;
         trainer.ready = false;
+        trainer.error = None;
     }
 }
 
-fn start_local_trainer_sidecar(app: &tauri::App, state: State<'_, NativeState>) -> Result<(), String> {
+fn start_local_trainer_sidecar(app: &AppHandle, state: &State<'_, NativeState>) -> Result<(), String> {
     let port = reserve_loopback_port()?;
     let origin = format!("http://{LOCAL_TRAINER_HOST}:{port}");
     let data_dir = app.path().app_data_dir().map_err(|error| format!("Could not resolve app data dir: {error}"))?;
@@ -307,16 +352,22 @@ fn start_local_trainer_sidecar(app: &tauri::App, state: State<'_, NativeState>) 
         *paired = Some(origin.clone());
     }
 
-    let app_handle = app.handle().clone();
+    let app_handle = app.clone();
     tauri::async_runtime::spawn(async move {
         while let Some(event) = events.recv().await {
             match event {
                 CommandEvent::Stdout(bytes) => {
                     let text = String::from_utf8_lossy(&bytes).to_string();
+                    eprintln!("[RVT trainer stdout] {text}");
+                    let state = app_handle.state::<NativeState>();
+                    push_trainer_log(&state, "stdout", &text);
                     let _ = app_handle.emit("rvt-trainer-stdout", text);
                 }
                 CommandEvent::Stderr(bytes) => {
                     let text = String::from_utf8_lossy(&bytes).to_string();
+                    eprintln!("[RVT trainer stderr] {text}");
+                    let state = app_handle.state::<NativeState>();
+                    push_trainer_log(&state, "stderr", &text);
                     let _ = app_handle.emit("rvt-trainer-stderr", text.clone());
                     if text.to_ascii_lowercase().contains("error") || text.to_ascii_lowercase().contains("traceback") {
                         record_trainer_error(&app_handle, &text);
@@ -353,6 +404,49 @@ fn native_set_paired_origin(origin: String, state: State<'_, NativeState>) -> Re
 #[tauri::command]
 fn native_trainer_status(state: State<'_, NativeState>) -> TrainerSidecarStatus {
     trainer_status_snapshot(&state)
+}
+
+#[tauri::command]
+fn trainer_status(state: State<'_, NativeState>) -> TrainerLifecycleState {
+    trainer_lifecycle_status(&state)
+}
+
+#[tauri::command]
+fn trainer_start(app: AppHandle, state: State<'_, NativeState>) -> TrainerLifecycleState {
+    {
+        let trainer = match state.trainer.lock() {
+            Ok(trainer) => trainer,
+            Err(_) => return TrainerLifecycleState::Error("Native trainer state is unavailable.".to_string()),
+        };
+        if trainer.running && trainer.child.is_some() {
+            return trainer_lifecycle_from_state(&trainer);
+        }
+    }
+
+    if let Err(error) = start_local_trainer_sidecar(&app, &state) {
+        if let Ok(mut trainer) = state.trainer.lock() {
+            trainer.running = false;
+            trainer.ready = false;
+            trainer.child = None;
+            trainer.error = Some(error.clone());
+        }
+        record_trainer_error(&app, &error);
+        return TrainerLifecycleState::Error(error);
+    }
+    trainer_lifecycle_status(&state)
+}
+
+#[tauri::command]
+fn trainer_stop(state: State<'_, NativeState>) -> TrainerLifecycleState {
+    shutdown_local_trainer(&state);
+    trainer_lifecycle_status(&state)
+}
+
+#[tauri::command]
+fn trainer_log_tail(state: State<'_, NativeState>) -> Vec<String> {
+    state.trainer_log.lock()
+        .map(|log| log.iter().cloned().collect())
+        .unwrap_or_default()
 }
 
 #[tauri::command]
@@ -545,6 +639,53 @@ mod tests {
     fn accepts_plain_loopback_trainer_origin() {
         assert!(validate_origin("http://127.0.0.1:49152").is_ok());
     }
+
+    #[test]
+    fn trainer_lifecycle_reports_running_after_ready() {
+        let state = TrainerSidecarState {
+            running: true,
+            ready: true,
+            ..Default::default()
+        };
+        assert_eq!(trainer_lifecycle_from_state(&state), TrainerLifecycleState::Running);
+    }
+
+    #[test]
+    fn trainer_lifecycle_reports_stopped_after_stop_state() {
+        let mut state = TrainerSidecarState {
+            running: true,
+            ready: true,
+            ..Default::default()
+        };
+        state.running = false;
+        state.ready = false;
+        state.child = None;
+        assert_eq!(trainer_lifecycle_from_state(&state), TrainerLifecycleState::Stopped);
+    }
+
+    #[test]
+    fn trainer_lifecycle_reports_error_when_child_exits_badly() {
+        let state = TrainerSidecarState {
+            error: Some("Bundled trainer exited with code 1".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            trainer_lifecycle_from_state(&state),
+            TrainerLifecycleState::Error("Bundled trainer exited with code 1".to_string())
+        );
+    }
+
+    #[test]
+    fn trainer_log_tail_is_bounded() {
+        let state = NativeState::default();
+        for idx in 0..25 {
+            push_trainer_log(&state, "stdout", &format!("line {idx}"));
+        }
+        let log = state.trainer_log.lock().unwrap();
+        assert_eq!(log.len(), TRAINER_LOG_TAIL_LINES);
+        assert_eq!(log.front().unwrap(), "[stdout] line 5");
+        assert_eq!(log.back().unwrap(), "[stdout] line 24");
+    }
 }
 
 fn main() {
@@ -552,8 +693,9 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .manage(NativeState::default())
         .setup(|app| {
+            let app_handle = app.handle().clone();
             let state = app.state::<NativeState>();
-            if let Err(error) = start_local_trainer_sidecar(app, state) {
+            if let Err(error) = start_local_trainer_sidecar(&app_handle, &state) {
                 let app_handle = app.handle().clone();
                 let state = app.state::<NativeState>();
                 if let Ok(mut trainer) = state.trainer.lock() {
@@ -575,6 +717,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             native_set_paired_origin,
             native_trainer_status,
+            trainer_start,
+            trainer_stop,
+            trainer_status,
+            trainer_log_tail,
             native_pair_request,
             native_http_request,
             native_download,

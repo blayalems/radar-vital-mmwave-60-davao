@@ -64,6 +64,7 @@
 }
 
 .connection-card,
+.python-server-card,
 .ble-scanner-card,
 .thresholds-card {
   grid-column: span 2;
@@ -74,6 +75,59 @@
     linear-gradient(90deg, color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent), transparent 38%),
     var(--md-sys-color-surface-container) !important;
   border-left: 4px solid var(--md-sys-color-primary);
+}
+
+.python-server-card {
+  border-left: 4px solid var(--md-sys-color-tertiary, #0f766e);
+}
+
+.server-status-chip.running {
+  background: var(--md-sys-color-tertiary-container, #ccfbf1) !important;
+  color: var(--md-sys-color-on-tertiary-container, #064e3b) !important;
+}
+
+.server-status-chip.offline {
+  background: var(--md-sys-color-error-container, #ffdad6) !important;
+  color: var(--md-sys-color-on-error-container, #410002) !important;
+}
+
+.server-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.server-log-panel {
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container-lowest, #0f172a);
+  overflow: hidden;
+}
+
+.server-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.server-log-panel pre {
+  margin: 0;
+  padding: 0.85rem;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font: 0.78rem/1.45 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  color: var(--md-sys-color-on-surface);
+}
+
+.server-error {
+  color: var(--md-sys-color-error, #ba1a1a);
 }
 
 .card-avatar {
@@ -175,6 +229,7 @@ mat-button-toggle {
   }
 
   .connection-card,
+  .python-server-card,
   .ble-scanner-card,
   .thresholds-card {
     grid-column: span 1;

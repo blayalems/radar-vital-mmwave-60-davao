@@ -11,7 +11,7 @@ import {
   SubjectProfileRecord
 } from '../models/rvt.models';
 import { StateService } from './state.service';
-import { API_BASE_KEY, TOKEN_KEY } from './rvt-storage-keys';
+import { API_BASE_KEY, SERVER_URL_KEY, TOKEN_KEY } from './rvt-storage-keys';
 
 interface NativeHttpPlugin {
   request(options: {
@@ -72,7 +72,7 @@ export class ApiService {
 
   currentApiBase(): string {
     try {
-      const storedBase = localStorage.getItem(this.API_BASE_KEY);
+      const storedBase = localStorage.getItem(this.API_BASE_KEY) || localStorage.getItem(SERVER_URL_KEY);
       const raw = String(storedBase || '').trim().replace(/\/+$/, '');
       if (!raw) return '';
       const u = new URL(raw, window.location.href);
@@ -98,8 +98,10 @@ export class ApiService {
     try {
       if (normalized) {
         localStorage.setItem(this.API_BASE_KEY, normalized);
+        localStorage.setItem(SERVER_URL_KEY, normalized);
       } else {
         localStorage.removeItem(this.API_BASE_KEY);
+        localStorage.removeItem(SERVER_URL_KEY);
       }
     } catch (_) {}
     return normalized;
@@ -276,6 +278,19 @@ export class ApiService {
       if (attempt !== this.connectionAttempt) return false;
       const message = error instanceof Error ? error.message : 'Control API unavailable';
       this.enableSandboxControlMode(message);
+      return false;
+    }
+  }
+
+  async checkConnection(timeoutMs = 10000): Promise<boolean> {
+    try {
+      const response = await this.withTimeout(
+        this.request<{ ok?: boolean }>('/api/health', undefined, true),
+        timeoutMs,
+        'Server health check timeout'
+      );
+      return response?.ok !== false;
+    } catch (_) {
       return false;
     }
   }

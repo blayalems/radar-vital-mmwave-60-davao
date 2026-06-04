@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-04 — PR45 Visual Baseline Refresh (codex/pr45-native-start)
+
+- **Visual Baseline Refresh**: Regenerated the committed Windows Playwright baselines for the intentional PR45 server-status chip, Python Server settings card, and mobile shell spacing/hit-test changes across all supported themes and viewports.
+- **Verification**: `npx playwright test tests/visual/rvt-v12.spec.ts --update-snapshots --reporter=line` passed 80/80 locally and rewrote the 80 affected baseline PNGs.
+
 ### 2026-06-04 — PR45 Same-Origin Server & Mobile Hit-Test Follow-up (codex/pr45-native-start)
 
 - **Server URL Default Fix**: Updated the remote/PWA server lifecycle default to prefer the current local/LAN trainer origin before falling back to `http://127.0.0.1:8765`, preventing CSP-blocked cross-origin `/api/health` and `/api/status` calls in trainer-served smoke/CI runs.

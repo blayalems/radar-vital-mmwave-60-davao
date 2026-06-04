@@ -274,6 +274,61 @@ body[data-view='home'] app-home .home-stat-card {
   }
 }
 
+/* Routed phone content must not scroll actionable controls under sticky shell chrome. */
+@media (max-width: 760px) {
+  .main-content-scroll {
+    padding-top: calc(88px + env(safe-area-inset-top, 0px)) !important;
+    padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px)) !important;
+    scroll-padding-top: calc(132px + env(safe-area-inset-top, 0px));
+    scroll-padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .main-content-scroll :is(
+    a,
+    button,
+    input,
+    textarea,
+    select,
+    mat-form-field,
+    mat-expansion-panel-header,
+    .mat-mdc-button-base
+  ) {
+    scroll-margin-top: calc(132px + env(safe-area-inset-top, 0px));
+    scroll-margin-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .scroll-to-top-fab {
+    bottom: calc(104px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 900 !important;
+  }
+
+  app-topbar,
+  app-topbar .topbar,
+  .bottom-nav,
+  .mat-mdc-snack-bar-container {
+    pointer-events: none;
+  }
+
+  app-topbar :is(
+    a,
+    button,
+    input,
+    [role='button'],
+    .mat-mdc-button-base,
+    .mat-button-toggle,
+    .server-status
+  ),
+  .bottom-nav :is(a, button, [role='button'], .mat-navigation-tab),
+  .mat-mdc-snack-bar-container :is(button, a, [role='button'], .mat-mdc-snack-bar-action) {
+    pointer-events: auto;
+  }
+
+  .cdk-overlay-pane.mat-mdc-snack-bar-handset {
+    max-width: calc(100vw - 24px) !important;
+    transform: translateY(calc(-1 * (92px + env(safe-area-inset-bottom, 0px)))) !important;
+  }
+}
+
 body.zen-mode app-topbar .topbar {
   display: flex !important;
 }

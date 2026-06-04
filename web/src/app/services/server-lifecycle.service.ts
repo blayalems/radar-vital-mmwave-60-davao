@@ -223,7 +223,19 @@ export class ServerLifecycleService {
 
   private readServerAddress(): string {
     try {
-      return this.api.currentApiBase() || localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_ORIGIN;
+      return this.api.currentApiBase() || localStorage.getItem(SERVER_URL_KEY) || this.defaultRemoteOrigin();
+    } catch (_) {
+      return this.defaultRemoteOrigin();
+    }
+  }
+
+  private defaultRemoteOrigin(): string {
+    if (typeof window === 'undefined') return DEFAULT_SERVER_ORIGIN;
+    try {
+      const { protocol, hostname, origin } = window.location;
+      if (!/^https?:$/.test(protocol)) return DEFAULT_SERVER_ORIGIN;
+      const localOrLan = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/i.test(hostname);
+      return localOrLan ? origin : DEFAULT_SERVER_ORIGIN;
     } catch (_) {
       return DEFAULT_SERVER_ORIGIN;
     }

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-04 — PR45 Same-Origin Server & Mobile Hit-Test Follow-up (codex/pr45-native-start)
+
+- **Server URL Default Fix**: Updated the remote/PWA server lifecycle default to prefer the current local/LAN trainer origin before falling back to `http://127.0.0.1:8765`, preventing CSP-blocked cross-origin `/api/health` and `/api/status` calls in trainer-served smoke/CI runs.
+- **Mobile Hit-Test Fix**: Added phone scroll gutters and pointer-transparent inert shell chrome so sticky topbar, bottom nav, scroll-to-top FAB, and snackbar labels no longer intercept routed form/action controls on iPhone-sized viewports while preserving pointer events on actual chrome actions.
+- **Verification**: `npm --prefix web run test:ci` passed 32/32; `npm run build:web` passed with the known initial bundle warning; targeted iPhone smoke subset passed 3/3; full `npx playwright test tests/smoke --reporter=line` passed 160/160 across desktop, Pixel 7, iPhone 14, and iPad.
+
 ### 2026-06-04 — PR45 Native Server Lifecycle & PR43/PR44 Integration (codex/pr45-native-start)
 
 - **PR45 Integration Strategy**: Created the PR45 integration branch from `origin/main`, merged PR #43 as the primary body, and lifted PR #44's unique BLE transport extraction plus trainer audit/transport pytest coverage without overwriting PR #43's broader UI/security/native hardening.

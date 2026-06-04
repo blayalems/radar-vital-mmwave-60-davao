@@ -90,7 +90,7 @@ export class LayoutComponent implements OnInit {
   );
 
   readonly isStaleBannerVisible = signal(false);
-  private staleTimer: any = null;
+  private staleTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly sessionProgress = computed(() => {
     const elapsed = this.state.lastPayload()?.meta?.elapsed_s ?? 0;
@@ -99,6 +99,13 @@ export class LayoutComponent implements OnInit {
   });
 
   constructor() {
+    this.destroyRef.onDestroy(() => {
+      if (this.staleTimer) {
+        clearTimeout(this.staleTimer);
+        this.staleTimer = null;
+      }
+    });
+
     effect(() => {
       const active = this.state.sessionActive();
       const payload = this.state.lastPayload();

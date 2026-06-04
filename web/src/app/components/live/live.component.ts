@@ -143,6 +143,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     };
   });
   protected readonly ghostSessionActive = signal(false);
+  protected readonly ghostSessionLabel = signal<string | null>(null);
   private readonly ghostHrData = signal<number[]>([]);
   private readonly ghostRrData = signal<number[]>([]);
 
@@ -309,6 +310,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   toggleGhostSession(): void {
     if (this.ghostSessionActive()) {
       this.ghostSessionActive.set(false);
+      this.ghostSessionLabel.set(null);
       this.ghostHrData.set([]);
       this.ghostRrData.set([]);
       this.snackBar.open('Ghost session overlay disabled.', 'Dismiss', { duration: 2000 });
@@ -349,6 +351,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
           });
           this.ghostHrData.set(hrValues);
           this.ghostRrData.set(rrValues);
+          this.ghostSessionLabel.set(sid.substring(0, 12));
           this.ghostSessionActive.set(true);
           this.snackBar.open(`Ghost overlay active for session: ${sid.substring(0, 12)}`, 'Dismiss', { duration: 2000 });
           this.requestCanvasDraw();
@@ -819,6 +822,23 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     return `${label} chart. ${this.readingLabel('Latest reading', key, unit)}`;
   }
 
+  trendChartLabel(label: string, key: string, unit: string, type: 'hr' | 'rr'): string {
+    const base = this.chartLabel(label, key, unit);
+    const ghostCount = this.ghostPointCount(type);
+    if (ghostCount < 2) return base;
+    return `${base} Dashed ghost overlay shows ${ghostCount} historical samples from ${this.ghostSessionLabel() || 'the selected session'}.`;
+  }
+
+  protected ghostPointCount(type: 'hr' | 'rr'): number {
+    return type === 'hr' ? this.ghostHrData().length : this.ghostRrData().length;
+  }
+
+  protected ghostLegendText(type: 'hr' | 'rr'): string {
+    const count = this.ghostPointCount(type);
+    const id = this.ghostSessionLabel();
+    return id ? `Ghost ${id} (${count} samples)` : `Ghost session (${count} samples)`;
+  }
+
   liveAlertAnnouncement(): string {
     const alerts: string[] = [];
     const thresholds = this.state.kpiThresholds();
@@ -1182,7 +1202,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       }
 
       // Draw gridlines
-      const outlineColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-outline-variant').trim() || '#e2e8f0';
+      const outlineColor = this.canvasToken(canvas, '--md-sys-color-outline-variant', '#e2e8f0');
       ctx.strokeStyle = outlineColor;
       ctx.lineWidth = 1;
       for (let i = 0; i <= 4; i++) {

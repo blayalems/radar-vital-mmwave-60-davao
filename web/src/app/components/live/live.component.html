@@ -527,8 +527,20 @@
                 <rvt-chart-data-table [series]="state.lastPayload()?.series" [limit]="trendRangeLimit()" label="Heart Rate Funnel Samples"></rvt-chart-data-table>
               </div>
             } @else {
+              @if (ghostPointCount('hr') > 1) {
+                <div class="trend-legend" role="group" aria-label="Heart rate trend legend">
+                  <span class="trend-legend-item">
+                    <span class="trend-line current hr" aria-hidden="true"></span>
+                    Current session
+                  </span>
+                  <span class="trend-legend-item">
+                    <span class="trend-line ghost" aria-hidden="true"></span>
+                    {{ ghostLegendText('hr') }}
+                  </span>
+                </div>
+              }
               <div class="large-canvas-container">
-                <canvas #hrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="chartLabel('Heart rate trend', 'reported_hr', 'beats per minute')" (click)="handleChartClick($event, 'hr')"></canvas>
+                <canvas #hrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="trendChartLabel('Heart rate trend', 'reported_hr', 'beats per minute', 'hr')" (click)="handleChartClick($event, 'hr')"></canvas>
               </div>
               @if (getAnnotationsFor('hr').length > 0) {
                 <div class="annotation-chips">
@@ -629,8 +641,20 @@
                 <rvt-chart-data-table [series]="state.lastPayload()?.series" [limit]="trendRangeLimit()" label="Respiration Funnel Samples"></rvt-chart-data-table>
               </div>
             } @else {
+              @if (ghostPointCount('rr') > 1) {
+                <div class="trend-legend" role="group" aria-label="Respiration trend legend">
+                  <span class="trend-legend-item">
+                    <span class="trend-line current rr" aria-hidden="true"></span>
+                    Current session
+                  </span>
+                  <span class="trend-legend-item">
+                    <span class="trend-line ghost" aria-hidden="true"></span>
+                    {{ ghostLegendText('rr') }}
+                  </span>
+                </div>
+              }
               <div class="large-canvas-container">
-                <canvas #rrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="chartLabel('Respiration trend', 'reported_rr', 'breaths per minute')" (click)="handleChartClick($event, 'rr')"></canvas>
+                <canvas #rrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="trendChartLabel('Respiration trend', 'reported_rr', 'breaths per minute', 'rr')" (click)="handleChartClick($event, 'rr')"></canvas>
               </div>
               @if (getAnnotationsFor('rr').length > 0) {
                 <div class="annotation-chips">
@@ -932,12 +956,24 @@
                 <canvas #heartCanvasClone class="waveform-canvas" role="img" aria-label="Secondary Heart waveform"></canvas>
               </div>
             } @else if (paneBTabIndex() === 2) {
+              @if (ghostPointCount('hr') > 1) {
+                <div class="trend-legend compact" role="group" aria-label="Secondary heart rate trend legend">
+                  <span class="trend-legend-item"><span class="trend-line current hr" aria-hidden="true"></span>Current</span>
+                  <span class="trend-legend-item"><span class="trend-line ghost" aria-hidden="true"></span>{{ ghostLegendText('hr') }}</span>
+                </div>
+              }
               <div class="large-canvas-container secondary-trend">
-                <canvas #hrTrendCanvasClone class="large-trend-canvas" role="img" aria-label="Secondary Heart rate trend"></canvas>
+                <canvas #hrTrendCanvasClone class="large-trend-canvas" role="img" [attr.aria-label]="trendChartLabel('Secondary heart rate trend', 'reported_hr', 'beats per minute', 'hr')"></canvas>
               </div>
             } @else if (paneBTabIndex() === 3) {
+              @if (ghostPointCount('rr') > 1) {
+                <div class="trend-legend compact" role="group" aria-label="Secondary respiration trend legend">
+                  <span class="trend-legend-item"><span class="trend-line current rr" aria-hidden="true"></span>Current</span>
+                  <span class="trend-legend-item"><span class="trend-line ghost" aria-hidden="true"></span>{{ ghostLegendText('rr') }}</span>
+                </div>
+              }
               <div class="large-canvas-container secondary-trend">
-                <canvas #rrTrendCanvasClone class="large-trend-canvas" role="img" aria-label="Secondary Respiration trend"></canvas>
+                <canvas #rrTrendCanvasClone class="large-trend-canvas" role="img" [attr.aria-label]="trendChartLabel('Secondary respiration trend', 'reported_rr', 'breaths per minute', 'rr')"></canvas>
               </div>
             }
           </mat-card-content>

@@ -819,6 +819,48 @@
   margin-bottom: 8px;
 }
 
+.trend-legend {
+  align-items: center;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  font-weight: 600;
+  gap: 8px 14px;
+  margin: 0 0 8px;
+}
+
+.trend-legend.compact {
+  font-size: 0.74rem;
+  margin-bottom: 4px;
+}
+
+.trend-legend-item {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.trend-line {
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 28px;
+}
+
+.trend-line.current {
+  border-top: 3px solid rgba(0, 164, 150, 0.95);
+}
+
+.trend-line.current.rr {
+  border-top-color: rgba(97, 105, 198, 0.95);
+}
+
+.trend-line.ghost {
+  border-top: 2px dashed rgba(100, 116, 139, 0.82);
+}
+
 .advanced-card {
   background:
     linear-gradient(115deg, color-mix(in srgb, var(--md-sys-color-tertiary, #00a496) 7%, transparent), transparent 44%),

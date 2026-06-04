@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -22,7 +22,17 @@ export class OperatorHandoffDialogComponent {
   private readonly dialog = inject(MatDialog);
   private readonly dialogRef = inject(MatDialogRef<OperatorHandoffDialogComponent>);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly destroyRef = inject(DestroyRef);
   private clipboardClearTimer: number | null = null;
+
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      if (this.clipboardClearTimer !== null) {
+        window.clearTimeout(this.clipboardClearTimer);
+        this.clipboardClearTimer = null;
+      }
+    });
+  }
 
   protected readonly activeAlerts = computed(() => this.state.alertHistory().filter(alert => !alert.dismissed).slice(0, 6));
   protected readonly latestNotes = computed(() => {

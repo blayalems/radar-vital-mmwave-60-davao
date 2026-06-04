@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-04 — Live Ghost Overlay Accessibility & Timer Cleanup (codex/mobile-first-dashboard-upABy)
+
+- **Live Trend Accessibility**: Added explicit current-vs-ghost legends for HR/RR trend canvases in primary and split panes, updated trend canvas aria labels with ghost sample/session context, and moved trend gridline color lookup to the same canvas-scoped CSS-token path used by Bland-Altman.
+- **Timer Cleanup**: Typed and cleared the stale telemetry banner timer on layout teardown, and cleared the operator-handoff clipboard auto-clear timer on dialog teardown.
+- **Verification**: `npm --prefix web run build` passed with the known Angular initial bundle warning (37.53 kB over 2.20 MB); `npm run build:check` passed; `npm run test:unit:web` passed 26/26; trainer compile/help passed; targeted Live visual `light live` passed 4/4 across desktop, Pixel 7, iPhone 14, and iPad; targeted Live smoke subset passed 20/20 across the same projects. Full `npm run test:visual` hit the 10-minute timeout after unrelated Help snapshot mismatches, and full `npm test` hit the 10-minute timeout with existing Help schema smoke failures.
+
 ### 2026-06-04 — Fix Mobile Viewport Settings Click Interception & Settings Import Smoke Test (codex/mobile-first-dashboard-upABy)
 
 - **Mobile Viewport Settings Test Click Fix**: Updated `dashboard.spec.ts` to wait for the initial connection loading overlay to disappear (`.initial-loading-overlay` state: 'hidden') before clicking the settings link. This ensures that the Angular app is fully bootstrapped, event listeners are bound, and layout is stable, preventing click interception by other elements on mobile viewports.

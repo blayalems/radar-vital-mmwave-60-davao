@@ -212,8 +212,11 @@
 .setup-config-card, .radar-scope-card {
   border-radius: 16px !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  box-sizing: border-box;
   box-shadow: none !important;
+  min-width: 0;
   padding: 16px;
+  width: 100%;
   background: var(--md-sys-color-surface, #ffffff) !important;
 }
 
@@ -331,6 +334,13 @@
   border-radius: 8px !important;
 }
 
+.pair-sensor-btn {
+  width: auto !important;
+  min-width: 132px !important;
+  padding-inline: 14px !important;
+  gap: 6px;
+}
+
 .ble-scan-list {
   background: var(--md-sys-color-surface-container-high, #f1f5f9);
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
@@ -340,11 +350,93 @@
 }
 
 .ble-device-item {
+  min-height: 56px;
   padding: 8px 12px;
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 12px;
   cursor: pointer;
   font-size: 0.85rem;
+  text-align: left;
+  width: 100%;
+}
+
+.ble-device-main {
+  display: grid;
+  min-width: 0;
+}
+
+.ble-device-main strong,
+.ble-device-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ble-device-main small {
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+}
+
+.ble-signal {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 4px) auto;
+  align-items: end;
+  gap: 3px;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ble-signal span {
+  width: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.28;
+}
+
+.ble-signal span:nth-child(1) { height: 7px; }
+.ble-signal span:nth-child(2) { height: 11px; }
+.ble-signal span:nth-child(3) { height: 15px; }
+
+.ble-signal.strong {
+  color: #15803d;
+}
+
+.ble-signal.strong span {
+  opacity: 1;
+}
+
+.ble-signal.fair {
+  color: #a16207;
+}
+
+.ble-signal.fair span:nth-child(-n + 2) {
+  opacity: 1;
+}
+
+.ble-signal.weak {
+  color: #b91c1c;
+}
+
+.ble-signal.weak span:first-child {
+  opacity: 1;
+}
+
+.ble-empty-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: 8px;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  background: var(--md-sys-color-surface-container-low, #f8fafc);
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .ble-device-item:hover {
@@ -473,8 +565,11 @@
 .preflight-card-stack {
   border-radius: 16px !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  box-sizing: border-box;
   box-shadow: none !important;
+  min-width: 0;
   padding: 16px;
+  width: 100%;
   background: var(--md-sys-color-surface, #ffffff) !important;
 }
 
@@ -555,8 +650,11 @@
 .sessions-history-card {
   border-radius: 16px !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  box-sizing: border-box;
   box-shadow: none !important;
+  min-width: 0;
   padding: 16px;
+  width: 100%;
   background: var(--md-sys-color-surface, #ffffff) !important;
 }
 

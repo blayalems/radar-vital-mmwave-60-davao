@@ -273,77 +273,8 @@ input:focus, textarea:focus, select:focus {
   outline: none !important;
 }
 
-/* ==========================================
-   TYPOGRAPHY SCALE OVERRIDES
-   ========================================== */
-body {
-  font-family: 'Inter', system-ui, sans-serif !important;
-  background-color: var(--md-sys-color-surface) !important;
-  color: var(--md-sys-color-on-surface) !important;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden !important;
-}
 
-/* Display / Headline values (telemetry readouts) */
-.k-val, .v.rr, .v, #kpiHr, #kpiRr {
-  font-family: 'Inter', system-ui, sans-serif !important;
-  font-weight: 800 !important;
-  letter-spacing: -0.03em !important;
-  line-height: 1.1 !important;
-}
 
-/* Title Large / Medium (card headers and section titles) */
-.ct, .brand-label, h2, h3, .topbar h1 {
-  font-family: 'Inter', system-ui, sans-serif !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.01em !important;
-}
-
-/* Body Large / Medium (labels, notes, tables) */
-.cs, .op-meta, td, th, p, textarea, .m-l {
-  font-family: 'Inter', system-ui, sans-serif !important;
-  font-weight: 500 !important;
-}
-
-/* Label Large / Medium (button texts and micro-telemetry) */
-.r-item, .bn-item, .ca-btn, button, .status-txt, .nav-kbd {
-  font-family: 'Inter', system-ui, sans-serif !important;
-  font-weight: 600 !important;
-}
-
-/* ==========================================
-   SHAPE & ELEVATION (EXPRESSIVE SCALE)
-   ========================================== */
-.card, .kpi, dialog, .sheet {
-  border-radius: var(--radius-lg) !important;
-  background: var(--md-sys-color-surface-container-low) !important;
-  border: 1px solid var(--md-sys-color-outline-variant) !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
-  padding: var(--card-padding) !important;
-  transition: var(--transition-expressive) !important;
-}
-.card:hover, .kpi:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
-  border-color: var(--md-sys-color-outline) !important;
-}
-button, .ca-btn, .ghost-btn, .ic-btn {
-  border-radius: var(--radius-md) !important;
-  min-height: var(--tap) !important;
-  transition: var(--transition-standard) !important;
-}
-input, textarea, select {
-  border-radius: var(--radius-sm) !important;
-  border: 1.5px solid var(--md-sys-color-outline-variant) !important;
-  background: var(--md-sys-color-surface) !important;
-  color: var(--md-sys-color-on-surface) !important;
-  padding: 8px 12px !important;
-  transition: var(--transition-standard) !important;
-}
-input:focus, textarea:focus, select:focus {
-  border-color: var(--md-sys-color-primary) !important;
-  outline: none !important;
-}
 
 /* ==========================================
    RESPONSIVE BREAKPOINT GRID & NAVIGATION
@@ -429,6 +360,10 @@ input:focus, textarea:focus, select:focus {
   body[data-rail-collapsed="1"] .r-item .nav-kbd {
     display: none !important;
   }
+}
+
+/* PHONE VIEWPORTS (< 600px) */
+@media (max-width: 599.98px) {
   .rail {
     display: none !important;
   }

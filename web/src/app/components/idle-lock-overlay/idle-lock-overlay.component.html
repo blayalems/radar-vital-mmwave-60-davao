@@ -1,0 +1,28 @@
+@if (locked()) {
+  <section class="idle-lock-overlay" role="dialog" aria-modal="true" aria-labelledby="idleLockTitle">
+    <div class="idle-lock-panel">
+      <div class="lock-icon" aria-hidden="true">
+        <mat-icon>lock</mat-icon>
+      </div>
+      <p class="eyebrow">Privacy screen</p>
+      <h2 id="idleLockTitle">Session active</h2>
+      <p class="lock-copy">
+        Telemetry continues in the background. Destructive controls stay covered until the operator resumes the dashboard.
+      </p>
+      <dl>
+        <div>
+          <dt>Session</dt>
+          <dd>{{ sessionLabel() }}</dd>
+        </div>
+        <div>
+          <dt>Source</dt>
+          <dd>{{ sourceLabel() }}</dd>
+        </div>
+      </dl>
+      <button mat-flat-button type="button" (click)="resumeDashboard()">
+        <mat-icon>visibility</mat-icon>
+        Resume dashboard
+      </button>
+    </div>
+  </section>
+}

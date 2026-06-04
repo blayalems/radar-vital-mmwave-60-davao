@@ -11,7 +11,7 @@
 
   <div class="settings-grid">
     <!-- Source Mode -->
-    <mat-card class="settings-card premium-card">
+    <mat-card class="settings-card premium-card connection-card">
       <mat-card-header>
         <mat-icon mat-card-avatar class="card-avatar">sensors</mat-icon>
         <mat-card-title>Source Mode</mat-card-title>
@@ -48,6 +48,45 @@
         <button mat-flat-button type="button" (click)="reconnectTrainer()" [disabled]="connectionBusy()">
           <mat-icon>link</mat-icon>{{ connectionBusy() ? 'Connecting...' : 'Connect to trainer' }}
         </button>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- BLE Reference Scanner -->
+    <mat-card class="settings-card premium-card ble-scanner-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">bluetooth_searching</mat-icon>
+        <mat-card-title>BLE Reference Scanner</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p class="settings-help-text">
+          Scan for the reference oximeter advertised by the trainer, then apply the address used for preflight and live pairing.
+        </p>
+        <div class="settings-row block-row">
+          <div class="settings-copy">
+            <span class="row-title">Selected BLE Reference</span>
+            <span class="row-description">{{ state.setup().ble_address || 'No BLE reference selected' }}</span>
+          </div>
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="scanBleDevices()" [disabled]="bleScanBusy()">
+            <mat-icon>bluetooth_searching</mat-icon>{{ bleScanBusy() ? 'Scanning...' : 'Scan BLE' }}
+          </button>
+        </div>
+        <p class="settings-help-text" role="status" aria-live="polite">{{ bleScanMessage() }}</p>
+        @if (bleScanDevices().length > 0) {
+          <div class="ble-device-list" role="list" aria-label="BLE scan results">
+            @for (device of bleScanDevices(); track device.address || device.id || device.name) {
+              <button type="button" class="ble-device-row" [attr.aria-label]="'Use BLE device ' + (device.name || device.address || device.id || 'unnamed')" (click)="selectBleDevice(device)">
+                <mat-icon>bluetooth</mat-icon>
+                <span class="ble-device-copy">
+                  <strong>{{ device.name || 'Unnamed BLE device' }}</strong>
+                  <span>{{ device.address || device.id || 'No address reported' }}</span>
+                </span>
+                @if (device.rssi !== undefined) {
+                  <span class="ble-rssi">{{ device.rssi }} dBm</span>
+                }
+              </button>
+            }
+          </div>
+        }
       </mat-card-content>
     </mat-card>
 
@@ -151,6 +190,35 @@
             }
           </div>
         }
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Idle Privacy Lock -->
+    <mat-card class="settings-card premium-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">lock</mat-icon>
+        <mat-card-title>Privacy Screen Lock</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="settings-row block-row">
+          <div class="settings-copy">
+            <span class="row-title">Auto-Lock Timeout</span>
+            <span class="row-description">Automatically cover the dashboard when inactive to prevent accidental contact or viewing.</span>
+          </div>
+          <mat-button-toggle-group [value]="idleLock.timeoutMinutes()" (change)="idleLock.setTimeoutMinutes($event.value)" aria-label="Idle Lock timeout" class="haptics-toggle-group">
+            <mat-button-toggle [value]="0">Off</mat-button-toggle>
+            <mat-button-toggle [value]="5">5m</mat-button-toggle>
+            <mat-button-toggle [value]="15">15m</mat-button-toggle>
+            <mat-button-toggle [value]="30">30m</mat-button-toggle>
+            <mat-button-toggle [value]="60">1h</mat-button-toggle>
+            <mat-button-toggle [value]="120">2h</mat-button-toggle>
+          </mat-button-toggle-group>
+        </div>
+        <div class="settings-row" style="margin-top: 16px;">
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="idleLock.lock(); state.triggerHaptic('tap')">
+            <mat-icon>lock</mat-icon>Lock now
+          </button>
+        </div>
       </mat-card-content>
     </mat-card>
 

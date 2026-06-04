@@ -1,0 +1,29 @@
+<div class="chart-table-wrap" role="region" [attr.aria-label]="label()">
+  @if (rows().length > 0) {
+    <table role="grid">
+      <caption>{{ label() }}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Sample</th>
+          <th scope="col">Time</th>
+          <th scope="col">HR</th>
+          <th scope="col">RR</th>
+          <th scope="col">Distance</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.index) {
+          <tr>
+            <th scope="row">{{ row.index + 1 }}</th>
+            <td>{{ row.timestamp }}</td>
+            <td>{{ row.hr }}</td>
+            <td>{{ row.rr }}</td>
+            <td>{{ row.distance }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else {
+    <p class="table-empty">No samples available for this chart yet.</p>
+  }
+</div>

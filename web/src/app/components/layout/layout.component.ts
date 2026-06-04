@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, ViewChild, ElementRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, ViewChild, ElementRef, HostListener, effect, computed } from '@angular/core';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { filter, map } from 'rxjs/operators';
@@ -11,7 +11,9 @@ import { MatSidenavContainer, MatSidenavModule } from '@angular/material/sidenav
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatNavigationBar, MatNavigationTab } from '@app/navigation-bar';
+import { MatChipsModule } from '@angular/material/chips';
 
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
@@ -19,11 +21,14 @@ import { TopbarComponent } from '../topbar/topbar.component';
 import { CommandPaletteComponent } from '../command-palette/command-palette.component';
 import { KeyboardShortcutsDialogComponent } from '../keyboard-shortcuts-dialog/keyboard-shortcuts-dialog.component';
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
+import { CommandPinningService } from '../../services/command-pinning.service';
+import { IdleLockOverlayComponent } from '../idle-lock-overlay/idle-lock-overlay.component';
 
 @Component({
   selector: 'app-layout',
   imports: [
     RouterModule,
+    IdleLockOverlayComponent,
     TopbarComponent,
     MatButtonModule,
     MatDialogModule,
@@ -33,8 +38,10 @@ import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component'
     MatToolbarModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
+    MatChipsModule,
     MatNavigationBar,
-    MatNavigationTab
+    MatNavigationTab,
+    MatProgressBarModule
   ],
   templateUrl: './layout.component.html',
   styleUrl: './layout.component.css',
@@ -51,6 +58,7 @@ export class LayoutComponent implements OnInit {
   private readonly snackBar = inject(MatSnackBar);
   private readonly destroyRef = inject(DestroyRef);
   private readonly breakpointObserver = inject(BreakpointObserver);
+  protected readonly pinning = inject(CommandPinningService);
 
   @ViewChild('mainContentScroll', { static: false }) mainContentScroll?: ElementRef<HTMLElement>;
   @ViewChild(MatSidenavContainer) sidenavContainer?: MatSidenavContainer;
@@ -80,6 +88,44 @@ export class LayoutComponent implements OnInit {
     ),
     { initialValue: true }
   );
+
+  readonly isStaleBannerVisible = signal(false);
+  private staleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  readonly sessionProgress = computed(() => {
+    const elapsed = this.state.lastPayload()?.meta?.elapsed_s ?? 0;
+    const duration = this.state.setup().duration_s || 60;
+    return Math.min(100, Math.max(0, (elapsed / duration) * 100));
+  });
+
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      if (this.staleTimer) {
+        clearTimeout(this.staleTimer);
+        this.staleTimer = null;
+      }
+    });
+
+    effect(() => {
+      const active = this.state.sessionActive();
+      const payload = this.state.lastPayload();
+
+      if (this.staleTimer) {
+        clearTimeout(this.staleTimer);
+        this.staleTimer = null;
+      }
+
+      if (!active) {
+        this.isStaleBannerVisible.set(false);
+        return;
+      }
+
+      this.isStaleBannerVisible.set(false);
+      this.staleTimer = setTimeout(() => {
+        this.isStaleBannerVisible.set(true);
+      }, 30000);
+    });
+  }
 
   ngOnInit() {
     this.setRailCollapsed(localStorage.getItem('rvt-rail-collapsed') === '1');
@@ -252,6 +298,48 @@ export class LayoutComponent implements OnInit {
     if (path) {
       event.preventDefault();
       void this.router.navigate([path]);
+    }
+  }
+
+  private touchStartX = 0;
+  private touchStartY = 0;
+
+  @HostListener('touchstart', ['$event'])
+  onTouchStart(event: TouchEvent) {
+    if (this.windowSizeClass() !== 'Compact' || this.state.currentView() !== 'live') return;
+    const touch = event.touches[0];
+    this.touchStartX = touch.clientX;
+    this.touchStartY = touch.clientY;
+  }
+
+  @HostListener('touchend', ['$event'])
+  onTouchEnd(event: TouchEvent) {
+    if (this.windowSizeClass() !== 'Compact' || this.state.currentView() !== 'live') return;
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - this.touchStartX;
+    const deltaY = touch.clientY - this.touchStartY;
+
+    if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > 2 * Math.abs(deltaY)) {
+      const tabs = ['tab-overview', 'tab-waves', 'tab-hr', 'tab-rr', 'tab-snaps', 'tab-audit'];
+      const currentTab = this.state.activeTab();
+      const currentIdx = tabs.indexOf(currentTab);
+      if (currentIdx === -1) return;
+
+      let nextIdx = currentIdx;
+      if (deltaX < 0) {
+        nextIdx = currentIdx + 1;
+      } else {
+        nextIdx = currentIdx - 1;
+      }
+
+      if (nextIdx >= 0 && nextIdx < tabs.length) {
+        const nextTab = tabs[nextIdx];
+        this.state.activeTab.set(nextTab);
+        this.state.triggerHaptic('tap');
+
+        const label = nextTab.replace('tab-', '').toUpperCase();
+        this.snackBar.open(`Switched to tab: ${label}`, 'Dismiss', { duration: 1500 });
+      }
     }
   }
 

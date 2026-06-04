@@ -73,6 +73,7 @@ export interface SnapshotRecord {
   distance_cm: number;
   ble_hr: number;
   ble_rr: number;
+  sortOrder?: number;
 }
 
 export interface SessionRecord {
@@ -182,4 +183,14 @@ export interface SessionDataPayload {
   ok: boolean;
   rows?: Array<Record<string, number | string | null>>;
   error?: { message?: string };
+}
+
+export interface ChartAnnotation {
+  id: string;
+  chart_key: string;
+  label: string;
+  xPct: number;
+  elapsed_s?: number;
+  created_at?: string;
+  updated_at?: string;
 }

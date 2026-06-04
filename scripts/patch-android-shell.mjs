@@ -8,6 +8,8 @@ import url from 'node:url';
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const stylesPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'values', 'styles.xml');
+const manifestPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
+const dataExtractionRulesPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'xml', 'data_extraction_rules.xml');
 
 function ensureItem(styleBlock, name, value) {
   const re = new RegExp(`<item\\s+name="${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}">[^<]*<\\/item>`);
@@ -28,6 +30,15 @@ function patchStyle(xml, styleName) {
   });
 }
 
+function ensureApplicationAttribute(xml, name, value) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Generated Capacitor manifests keep application attributes on one line; this
+  // script only patches that deterministic template shape.
+  const re = new RegExp(`\\s+${escapedName}="[^"]*"`);
+  if (re.test(xml)) return xml.replace(re, `\n        ${name}="${value}"`);
+  return xml.replace(/(<application\b)/, `$1\n        ${name}="${value}"`);
+}
+
 async function main() {
   let xml = await fs.readFile(stylesPath, 'utf8');
   xml = patchStyle(xml, 'AppTheme');
@@ -35,6 +46,24 @@ async function main() {
   xml = patchStyle(xml, 'AppTheme.NoActionBarLaunch');
   await fs.writeFile(stylesPath, xml);
   console.log(`Patched Android shell theme: ${path.relative(ROOT, stylesPath)}`);
+
+  let manifest = await fs.readFile(manifestPath, 'utf8');
+  manifest = ensureApplicationAttribute(manifest, 'android:allowBackup', 'false');
+  manifest = ensureApplicationAttribute(manifest, 'android:dataExtractionRules', '@xml/data_extraction_rules');
+  await fs.writeFile(manifestPath, manifest);
+
+  await fs.mkdir(path.dirname(dataExtractionRulesPath), { recursive: true });
+  await fs.writeFile(dataExtractionRulesPath, `<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
+        <exclude domain="root" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+    </device-transfer>
+</data-extraction-rules>
+`);
+  console.log(`Patched Android backup policy: ${path.relative(ROOT, manifestPath)}`);
 }
 
 main().catch(err => {

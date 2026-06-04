@@ -9,6 +9,21 @@
   </div>
 
   <mat-chip-set class="topbar-status" aria-label="Monitoring status">
+    <mat-chip
+      class="status-pill server-status"
+      [class.running]="serverLifecycle.status() === 'running'"
+      [class.starting]="serverLifecycle.status() === 'starting'"
+      [class.offline]="serverLifecycle.status() === 'offline' || serverLifecycle.status() === 'error' || serverLifecycle.status() === 'stopped'"
+      [attr.role]="serverLifecycle.status() === 'offline' || serverLifecycle.status() === 'error' ? 'button' : 'status'"
+      [attr.tabindex]="serverLifecycle.status() === 'offline' || serverLifecycle.status() === 'error' ? '0' : null"
+      [attr.aria-label]="serverLifecycle.statusLabel()"
+      (click)="openServerSettings()"
+      (keydown.enter)="openServerSettings()"
+      (keydown.space)="openServerSettings()">
+      <span class="server-dot" aria-hidden="true"></span>
+      <span class="status-txt">{{ serverLifecycle.statusLabel() }}</span>
+    </mat-chip>
+
     <!-- Connection Health -->
     <mat-chip class="status-pill conn" [class.active]="state.ctlStatus()?.ok" [class.failed]="state.ctlStatus()?.ok === false" id="conn" role="status" aria-live="polite">
       <span class="status-dot dot"></span>

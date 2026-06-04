@@ -429,7 +429,9 @@ test.describe('Dashboard smoke', () => {
 
   test('imports all portable Material settings with bounded values', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('link', { name: /Settings/ }).first().click();
+    // Wait for the loading overlay to disappear so the layout is stable and event listeners are bound
+    await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await page.locator('a[aria-label="Settings"]:visible, a[aria-label="Settings view"]:visible').first().click();
     await leaveActiveSessionIfPrompted(page);
 
     await page.locator('input[type="file"]').setInputFiles({
@@ -477,6 +479,29 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('html')).toHaveAttribute('data-density', 'compact');
     const compactGap = await settingsGrid.evaluate(element => parseFloat(getComputedStyle(element).gap));
     expect(compactGap).toBeLessThan(comfortableGap);
+  });
+
+  test('scans and applies a BLE reference device from Material settings', async ({ page }) => {
+    // Keep this API-mock flow on direct browser requests; PWA behavior is covered by the service-worker tests above.
+    await page.route('**/sw.js', route => route.abort());
+    await page.route('**/api/ble/scan*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          devices: [
+            { name: 'AiLink QA Oximeter', address: 'AA:BB:CC:DD:EE:01', rssi: -54 },
+            { name: 'Backup Reference', id: 'backup-reference', rssi: -71 }
+          ]
+        })
+      });
+    });
+    await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /Scan BLE/ }).click();
+    await expect(page.getByText('2 devices found.')).toBeVisible();
+    await page.getByRole('button', { name: /Use BLE device AiLink QA Oximeter/ }).click();
+    await expect(page.getByText('AA:BB:CC:DD:EE:01').first()).toBeVisible();
   });
 
   test('labels automatic fallback as DEMO and does not write unscoped telemetry stores', async ({ page }) => {

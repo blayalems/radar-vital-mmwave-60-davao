@@ -122,6 +122,9 @@ export class TelemetryService {
 
   private startSse() {
     if (typeof EventSource === 'undefined') return;
+    // Tauri keeps browser CSP at connect-src 'self'. EventSource bypasses the
+    // HttpClient interceptor, so the native shell uses origin-pinned polling.
+    if (this.isTauriNative()) return;
     if (this.state.demoMode() || this.state.autoDemoActive()) return;
     if (!this.running) return;
     if (this.api.hasPairToken()) {
@@ -182,6 +185,10 @@ export class TelemetryService {
       console.warn('SSE connection failed', e);
       this.scheduleSseReconnect();
     }
+  }
+
+  private isTauriNative(): boolean {
+    return Boolean((window as any).__TAURI__?.core?.invoke);
   }
 
   private parseSseJson(ev: MessageEvent): Record<string, unknown> {

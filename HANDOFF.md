@@ -4,6 +4,57 @@
 > the relevant table row below in the same commit. Drift between code and this
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
+
+### 2026-06-04 — PR45 Visual Baseline Refresh (codex/pr45-native-start)
+
+- **Visual Baseline Refresh**: Regenerated the committed Windows Playwright baselines for the intentional PR45 server-status chip, Python Server settings card, and mobile shell spacing/hit-test changes across all supported themes and viewports.
+- **Verification**: `npx playwright test tests/visual/rvt-v12.spec.ts --update-snapshots --reporter=line` passed 80/80 locally and rewrote the 80 affected baseline PNGs.
+
+### 2026-06-04 — PR45 Same-Origin Server & Mobile Hit-Test Follow-up (codex/pr45-native-start)
+
+- **Server URL Default Fix**: Updated the remote/PWA server lifecycle default to prefer the current local/LAN trainer origin before falling back to `http://127.0.0.1:8765`, preventing CSP-blocked cross-origin `/api/health` and `/api/status` calls in trainer-served smoke/CI runs.
+- **Mobile Hit-Test Fix**: Added phone scroll gutters and pointer-transparent inert shell chrome so sticky topbar, bottom nav, scroll-to-top FAB, and snackbar labels no longer intercept routed form/action controls on iPhone-sized viewports while preserving pointer events on actual chrome actions.
+- **Verification**: `npm --prefix web run test:ci` passed 32/32; `npm run build:web` passed with the known initial bundle warning; targeted iPhone smoke subset passed 3/3; full `npx playwright test tests/smoke --reporter=line` passed 160/160 across desktop, Pixel 7, iPhone 14, and iPad.
+
+### 2026-06-04 — PR45 Native Server Lifecycle & PR43/PR44 Integration (codex/pr45-native-start)
+
+- **PR45 Integration Strategy**: Created the PR45 integration branch from `origin/main`, merged PR #43 as the primary body, and lifted PR #44's unique BLE transport extraction plus trainer audit/transport pytest coverage without overwriting PR #43's broader UI/security/native hardening.
+- **Python Server Lifecycle**: Added Tauri IPC commands `trainer_start`, `trainer_stop`, `trainer_status`, and `trainer_log_tail`; kept Windows EXE sidecar auto-start on setup, preserved the sidecar child handle, emitted stdout/stderr to Tauri events and stderr, and bounded the native log tail with a 20-line ring buffer.
+- **APK/PWA Server Pairing Flow**: Added an Angular `ServerLifecycleService` that auto-starts the Windows sidecar in Tauri desktop shells, auto-checks LAN/PWA trainer health on remote shells, stores the server origin under `rvt.server.url`, and keeps the existing `/pair` + `X-RVT-Auth` flow intact for APK/PWA.
+- **Operator UI Controls**: Added a topbar server-status chip, a Settings **Python Server** card with EXE Start/Stop/Restart/log controls and APK/PWA address/pair/retry controls, Home bootstrap gating before hardware calls, and a Live tab server-offline blocker that still allows explicit Demo Mode charts.
+- **Trainer Extraction Fixes**: Restored `_candidate_ino_paths`, converted monolith preflight/BLE/serial legacy names to extracted module aliases, made serial helpers import pyserial lazily, and regenerated the committed v12 monolith from `web/src/`.
+- **Verification**: `npm --prefix web run build` passed with the known initial bundle warning (54.23 kB over 2.20 MB); `npm --prefix web run test:ci` passed 32/32; `npm run build:web` and `npm run build:check` passed; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer` passed; `python -m rvt_trainer --help` passed; `python -m pytest tests -q` passed 67/67; `cargo test --manifest-path src-tauri\Cargo.toml` passed 8/8 after rerunning once the parallel web build finished writing `www/`.
+
+### 2026-06-04 — Live Ghost Overlay Accessibility & Timer Cleanup (codex/mobile-first-dashboard-upABy)
+
+- **Live Trend Accessibility**: Added explicit current-vs-ghost legends for HR/RR trend canvases in primary and split panes, updated trend canvas aria labels with ghost sample/session context, and moved trend gridline color lookup to the same canvas-scoped CSS-token path used by Bland-Altman.
+- **Timer Cleanup**: Typed and cleared the stale telemetry banner timer on layout teardown, and cleared the operator-handoff clipboard auto-clear timer on dialog teardown.
+- **Verification**: `npm --prefix web run build` passed with the known Angular initial bundle warning (37.53 kB over 2.20 MB); `npm run build:check` passed; `npm run test:unit:web` passed 26/26; trainer compile/help passed; targeted Live visual `light live` passed 4/4 across desktop, Pixel 7, iPhone 14, and iPad; targeted Live smoke subset passed 20/20 across the same projects. Full `npm run test:visual` hit the 10-minute timeout after unrelated Help snapshot mismatches, and full `npm test` hit the 10-minute timeout with existing Help schema smoke failures.
+
+### 2026-06-04 — Fix Mobile Viewport Settings Click Interception & Settings Import Smoke Test (codex/mobile-first-dashboard-upABy)
+
+- **Mobile Viewport Settings Test Click Fix**: Updated `dashboard.spec.ts` to wait for the initial connection loading overlay to disappear (`.initial-loading-overlay` state: 'hidden') before clicking the settings link. This ensures that the Angular app is fully bootstrapped, event listeners are bound, and layout is stable, preventing click interception by other elements on mobile viewports.
+- **Verification**: All 124 tests in the dashboard smoke test suite `tests/smoke/dashboard.spec.ts` passed successfully on all viewports (`desktop`, `pixel-7`, `iphone-14`, `ipad`).
+
+### 2026-06-03 — Phase 2 Completion, UI Fixes, Backend Extraction, Phase 5 & Phase 6 Addition (codex/mobile-first-dashboard-upABy)
+
+- **PR43 Main Merge Conflict Closure**: Merged current `origin/main` sidecar packaging changes and resolved `src-tauri/src/main.rs` by preserving both loopback trainer-origin acceptance and native bridge origin/API-route pinning tests.
+- **Privacy Review Closure for Operator Handoff**: Kept the dialog for shift-change workflow, but changed clipboard copy into a confirmed de-identified brief that excludes session/person labels, alert text, and notes, then auto-clears the clipboard when supported.
+- **Review Feedback Hardening Pass**: Guarded idle-lock storage/listeners, raised the privacy overlay above mobile nav, converted preflight checks to registry dispatch, split serial probe errors from data lines, centralized pinned-command storage keys, and exported the SSE 60-second warning constant.
+- **UI/UX Accessibility Pass**: Removed automatic Home BLE scanning in favor of an explicit Pair sensor CTA, added BLE RSSI/empty guidance, dynamic Bland-Altman screen-reader summaries, reduced-motion fallback for stale telemetry banner, 44 px snapshot reorder targets, handoff print styling, and clear snapshot comparison action.
+- **Monolith Syntax Error Fix**: Patched invalid `except Exception` syntax error in `rvt_trainer/monolith.py` at line 5727 introduced during extraction of `_serial_ports_payload`, ensuring python modules compile cleanly.
+- **UI Compilation & Type Fixes**: Resolved duplicate `IdleLockService` imports and class members in `settings.component.ts`; combined redundant privacy lock settings cards into a single clean M3 card in `settings.component.html`; added `trendRangeLimit` computed property to avoid template string-to-number type errors; safely allowed both `ElementRef` and `HTMLCanvasElement` in `downloadChart()` inside `live.component.ts`.
+- **Backend Modularization (Phase 3)**: Relocated serial port auto-detection and probe checking from `monolith.py` to `rvt_trainer/transport/serial.py`, and moved preflight checking to `rvt_trainer/audit/runner.py`. monolith.py re-routes requests via runtime import to prevent circular dependency issues.
+- **Phase 5 (Legacy Parity) Planning**: Added a new phase to `implementation_plan.md` and `task.md` to implement mobile swipe gestures, session annotations sync, and settings BLE scanner from legacy v9/v11 files to the Angular build.
+- **Phase 6 (Additional Legacy Parity) Planning**: Added a new phase (Phase 6) to `implementation_plan.md` and `task.md` to implement additional legacy features from v9 and v11 HTML monoliths (Bland-Altman scatter chart, Command Palette Pinning, Live Telemetry Stale Banner, Session Progress Bar, Tablet Customizations/Split-view, Ghost Session overlay, and Quick-Pin FAB).
+- **Phase 5/6 Angular Compile Closure**: Restored LiveComponent support for split view, draggable KPI ordering, Bland-Altman stats, chart annotation chips, ghost overlay controls, chart data-table toggles, snapshot compare/reorder, and fixed command-palette pin buttons to avoid nested interactive controls.
+- **Mobile Navigation Hit-Test Fix**: Raised the Material bottom navigation into an explicit top stacking layer and kept the scroll container below it, fixing Pixel 7 Settings navigation click interception while preserving safe-area spacing.
+- **Migrated Legacy Snapshot Controls**: Added Angular Material snapshot compare, reorder, delete undo, and clear undo flows from the v9/v11 monolith behavior, including two-snapshot HR/RR/range deltas for bedside review.
+- **Added Operator Handoff Workflow**: Added a command-palette and keyboard-accessible handoff dialog that summarizes session context, live vitals, active alerts, recent notes, and exports/copies a JSON handoff payload.
+- **Added Privacy and Data Accessibility Controls**: Added idle privacy lock settings/overlay and chart data table toggles for wave/HR/RR trend inspection without replacing the chart-first workflow.
+- **Product Design / AntislopUI Settings Polish**: Applied the Product Design brief with AntislopUI guidance to the Settings screen: connection-first grid hierarchy, restrained card styling, tighter radii, deliberate cubic-bezier UI transitions, reduced-motion fallback, and accessible BLE scan result buttons.
+- **Settings BLE Scanner Closure**: Wired the existing `/api/ble/scan` contract into Angular Material Settings so operators can scan, review RSSI/address details, and apply a BLE reference address to setup state without leaving Settings.
+- **Verification**: `npm run build:check` passed with the known Angular initial bundle warning (34.45 kB over 2.20 MB); `npm run test:unit:web` passed 26/26; trainer compile/help passed; `python -m pytest -q tests\test_trainer_sse.py tests\test_v12_static_contract.py` passed 17/17; `npm test` passed 160/160 across desktop, Pixel 7, iPhone 14, and iPad; `python scripts\build-trainer-sidecar.py --self-test` passed and produced the Tauri sidecar; `cargo test --manifest-path src-tauri\Cargo.toml --verbose` passed 4/4.
  
 ### 2026-05-28 — PR #41: M3 Expressive & Android API 12–16 Audit Closure (codex/mobile-first-dashboard-upABy)
  
@@ -108,6 +159,11 @@ www/
    `.gitignore`d once nothing references it directly.
 
 ## Refactor progress log (newest first)
+
+### 2026-06-03 - Phase 1 security hardening and checklist correction
+- Tightened LAN wildcard CORS so `--cors-origin "*"` with `--bind lan` now fails unless `--allow-wildcard-cors-lan` is explicitly supplied, with focused trainer security tests.
+- Corrected SSE deadline warning payload to keep the contractual `seconds_remaining: 60` value and added regression coverage for the sub-60-second boundary.
+- Disabled Android backup/device-transfer extraction with deny-all data extraction rules, added static contract coverage, and fixed the physical acceptance checklist LAN launch command to include `serve`.
 
 ### 2026-05-27 - M3 Expressive UI/UX Optimization and Dynamic Theme Hardening
 - Modernized bottom navigation container `.bottom-nav` overrides in `layout.component.css` to use proper M3 `display: flex !important` and `height: calc(80px + env(safe-area-inset-bottom, 0px)) !important` metrics.

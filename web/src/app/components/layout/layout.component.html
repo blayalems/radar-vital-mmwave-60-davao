@@ -111,6 +111,30 @@
   <mat-sidenav-content class="main-wrapper">
     <app-topbar></app-topbar>
     
+    @if (pinning.pinnedCommands().length > 0) {
+      <div class="pinned-commands-strip" role="toolbar" aria-label="Pinned quick commands">
+        <mat-chip-set>
+          @for (cmd of pinning.pinnedCommands(); track cmd.id) {
+            <mat-chip class="pinned-cmd-chip" (click)="pinning.execute(cmd.id)">
+              <mat-icon matChipAvatar>{{ cmd.icon }}</mat-icon>
+              <span>{{ cmd.label }}</span>
+            </mat-chip>
+          }
+        </mat-chip-set>
+      </div>
+    }
+
+    @if (isStaleBannerVisible()) {
+      <div class="stale-banner" role="alert" aria-live="assertive">
+        <mat-icon>cloud_off</mat-icon>
+        <span>Connection lost — retrying...</span>
+      </div>
+    }
+
+    @if (state.sessionActive()) {
+      <mat-progress-bar mode="determinate" [value]="sessionProgress()" class="session-progress-bar"></mat-progress-bar>
+    }
+
     <main class="main-content-scroll" id="mainContent" tabindex="-1" #mainContentScroll (scroll)="onMainScroll($event)">
       <router-outlet></router-outlet>
     </main>
@@ -147,3 +171,5 @@
     </mat-navigation-bar>
   </mat-sidenav-content>
 </mat-sidenav-container>
+
+<app-idle-lock-overlay></app-idle-lock-overlay>

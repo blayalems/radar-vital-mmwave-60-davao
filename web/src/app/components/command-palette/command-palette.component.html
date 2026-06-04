@@ -18,16 +18,21 @@
 
   <mat-nav-list aria-label="Available commands">
     @for (command of filteredCommands(); track command.id) {
-    <button mat-list-item type="button" (click)="run(command)" [disabled]="!!disabledReason(command)"
-      [attr.aria-description]="disabledReason(command) || command.description">
-      <mat-icon matListItemIcon>{{ command.icon }}</mat-icon>
-      <span matListItemTitle>{{ command.label }}</span>
-      <span matListItemLine>{{ disabledReason(command) || command.description }}</span>
-      <span matListItemMeta class="command-meta">
-        @if (command.shortcut) { <kbd>{{ command.shortcut }}</kbd> }
-        <span>{{ command.group }}</span>
-      </span>
-    </button>
+    <div class="command-row">
+      <button mat-list-item class="command-main" type="button" (click)="run(command)" [disabled]="!!disabledReason(command)"
+        [attr.aria-description]="disabledReason(command) || command.description">
+        <mat-icon matListItemIcon>{{ command.icon }}</mat-icon>
+        <span matListItemTitle>{{ command.label }}</span>
+        <span matListItemLine>{{ disabledReason(command) || command.description }}</span>
+        <span matListItemMeta class="command-meta">
+          @if (command.shortcut) { <kbd>{{ command.shortcut }}</kbd> }
+          <span>{{ command.group }}</span>
+        </span>
+      </button>
+      <button mat-icon-button type="button" class="pin-cmd-btn" (click)="togglePin($event, command.id)" [attr.aria-label]="pinning.isPinned(command.id) ? 'Unpin command' : 'Pin command'" [color]="pinning.isPinned(command.id) ? 'primary' : undefined">
+        <mat-icon>{{ pinning.isPinned(command.id) ? 'keep' : 'keep_off' }}</mat-icon>
+      </button>
+    </div>
     }
   </mat-nav-list>
   @if (filteredCommands().length === 0) { <p class="palette-empty">No matching command. Try snapshot, report, theme, demo, or reconnect.</p> }

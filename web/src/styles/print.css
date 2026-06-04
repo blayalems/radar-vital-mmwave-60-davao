@@ -113,4 +113,40 @@
   .mat-mdc-form-field-subscript-wrapper {
     display: none !important;
   }
+
+  body:has(.handoff-dialog) app-root,
+  body:has(.handoff-dialog) .cdk-overlay-backdrop,
+  body:has(.handoff-dialog) mat-dialog-actions {
+    display: none !important;
+  }
+
+  body:has(.handoff-dialog) .cdk-overlay-container,
+  body:has(.handoff-dialog) .cdk-global-overlay-wrapper,
+  body:has(.handoff-dialog) .cdk-overlay-pane {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    transform: none !important;
+  }
+
+  body:has(.handoff-dialog) .mat-mdc-dialog-container,
+  body:has(.handoff-dialog) .mdc-dialog__container,
+  body:has(.handoff-dialog) .mdc-dialog__surface {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  body:has(.handoff-dialog) .handoff-dialog {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
 }

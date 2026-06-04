@@ -12,6 +12,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
+import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { SettingsComponent } from '../settings/settings.component';
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
 import { CommandPaletteComponent } from '../command-palette/command-palette.component';
@@ -35,6 +36,7 @@ import { CommandPaletteComponent } from '../command-palette/command-palette.comp
 })
 export class TopbarComponent {
   protected readonly state = inject(StateService);
+  protected readonly serverLifecycle = inject(ServerLifecycleService);
   private readonly api = inject(ApiService);
   private readonly telemetry = inject(TelemetryService);
   private readonly dialog = inject(MatDialog);
@@ -75,6 +77,11 @@ export class TopbarComponent {
       this.router.navigate(['/settings']);
     }
     this.state.triggerHaptic('tap');
+  }
+
+  openServerSettings(): void {
+    if (this.serverLifecycle.status() === 'running' || this.serverLifecycle.status() === 'starting') return;
+    this.openSettings();
   }
 
   openAlerts() {

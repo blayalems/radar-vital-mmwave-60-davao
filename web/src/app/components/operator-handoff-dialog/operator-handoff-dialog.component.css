@@ -1,0 +1,92 @@
+.handoff-dialog {
+  min-width: min(760px, calc(100vw - 40px));
+}
+
+.handoff-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+  border-radius: 24px;
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 20%, transparent);
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  font-size: .72rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--md-sys-color-primary);
+}
+
+h3, h4 {
+  margin: 0 0 8px;
+}
+
+.source-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  font-weight: 700;
+}
+
+.source-pill mat-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+}
+
+.handoff-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+section:not(.handoff-hero) {
+  padding: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 22%, transparent);
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+dl {
+  display: grid;
+  gap: 8px;
+}
+
+dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+ul, ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.empty-copy {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+@media (max-width: 720px) {
+  .handoff-hero,
+  .handoff-grid {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+}

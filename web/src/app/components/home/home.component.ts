@@ -20,6 +20,7 @@ import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
 import { BluetoothService } from '../../services/bluetooth.service';
+import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { BleScanDevice, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
 
 @Component({
@@ -52,6 +53,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly telemetry = inject(TelemetryService);
   protected readonly audio = inject(AudioService);
   protected readonly bluetooth = inject(BluetoothService);
+  protected readonly serverLifecycle = inject(ServerLifecycleService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
 
@@ -86,6 +88,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   preflightError = '';
   isScanningPorts = false;
   isScanningBle = false;
+  bleScanAttempted = false;
   isValidatingNativeBle = false;
   nativeBleProbeStatus = '';
   isPreflightRunning = false;
@@ -96,10 +99,20 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnInit() {
     this.selectedDuration = this.state.setup().duration_s;
+    void this.initializeHome();
+  }
+
+  private async initializeHome(): Promise<void> {
+    await this.serverLifecycle.bootstrap();
+    if (this.serverLifecycle.status() === 'offline' || this.serverLifecycle.status() === 'error') {
+      this.snackBar.open('Python server is offline. Use Settings > Python Server to start, pair, or retry.', 'Dismiss', { duration: 7000 });
+      return;
+    }
     this.refreshDefaults();
     this.loadSubjectProfiles();
     this.loadSessions();
     this.runPreflight();
+    void this.scanSerialPorts();
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -213,6 +226,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async scanBleDevices() {
     this.isScanningBle = true;
+    this.bleScanAttempted = true;
     this.state.triggerHaptic('tap');
     try {
       if (this.state.ctlStatus()?.mode !== 'sandbox') {
@@ -235,6 +249,37 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     } finally {
       this.isScanningBle = false;
     }
+  }
+
+  protected applyBleDevice(device: BleScanDevice): void {
+    const address = this.bleDeviceAddress(device);
+    if (!address) {
+      this.snackBar.open('BLE scan result has no hardware address. Pick a device with an address.', 'Dismiss', { duration: 5000 });
+      this.state.triggerHaptic('warn');
+      return;
+    }
+    this.updateSetup('ble_address', address);
+    this.onFormChange();
+    this.bleDevices = [];
+    this.snackBar.open(`BLE reference set to ${device.name || address}.`, 'Dismiss', { duration: 3000 });
+  }
+
+  protected bleDeviceAddress(device: BleScanDevice): string {
+    return (device.address || '').trim();
+  }
+
+  protected bleSignalClass(rssi: number | undefined): string {
+    if (!Number.isFinite(rssi)) return 'unknown';
+    if ((rssi ?? -100) > -60) return 'strong';
+    if ((rssi ?? -100) >= -80) return 'fair';
+    return 'weak';
+  }
+
+  protected bleSignalLabel(rssi: number | undefined): string {
+    if (!Number.isFinite(rssi)) return 'Signal unknown';
+    if ((rssi ?? -100) > -60) return 'Strong signal';
+    if ((rssi ?? -100) >= -80) return 'Fair signal';
+    return 'Weak signal';
   }
 
   async validateNativeBleReference(): Promise<void> {

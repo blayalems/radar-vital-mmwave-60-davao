@@ -6,6 +6,7 @@ import { MatSliderModule } from '@angular/material/slider';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
+import { MatChipsModule } from '@angular/material/chips';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -17,6 +18,9 @@ import { StateService, DEFAULT_KPI_THRESHOLDS, KPI_THRESHOLD_META, KpiThresholds
 import { AudioService } from '../../services/audio.service';
 import { ApiService } from '../../services/api.service';
 import { DynamicColorService } from '../../services/dynamic-color.service';
+import { IdleLockService } from '../../services/idle-lock.service';
+import { ServerLifecycleService } from '../../services/server-lifecycle.service';
+import { BleScanDevice } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 
 @Component({
@@ -29,6 +33,7 @@ import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.compone
     MatButtonModule,
     MatButtonToggleModule,
     MatIconModule,
+    MatChipsModule,
     MatInputModule,
     MatFormFieldModule,
     MatDialogModule,
@@ -43,6 +48,8 @@ export class SettingsComponent {
   protected readonly audio = inject(AudioService);
   protected readonly api = inject(ApiService);
   protected readonly dynamicColor = inject(DynamicColorService);
+  protected readonly idleLock = inject(IdleLockService);
+  protected readonly serverLifecycle = inject(ServerLifecycleService);
   private readonly router = inject(Router);
   protected readonly Math = Math;
   
@@ -50,9 +57,12 @@ export class SettingsComponent {
   private readonly dialogRef = inject(MatDialogRef<SettingsComponent>, { optional: true });
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
-  protected readonly endpointInput = signal(this.api.currentApiBase());
+  protected readonly endpointInput = signal(this.serverLifecycle.serverAddress());
   protected readonly pinInput = signal('');
   protected readonly connectionBusy = signal(false);
+  protected readonly bleScanBusy = signal(false);
+  protected readonly bleScanDevices = signal<BleScanDevice[]>([]);
+  protected readonly bleScanMessage = signal('No scan run yet.');
 
   // Material You preset swatches
   protected readonly presetColors: { hex: string; name: string }[] = [
@@ -97,10 +107,11 @@ export class SettingsComponent {
 
   async reconnectTrainer(): Promise<void> {
     this.connectionBusy.set(true);
-    this.api.setApiBase(this.endpointInput());
+    this.serverLifecycle.setServerAddress(this.endpointInput());
     this.state.demoMode.set(false);
     try {
-      const connected = await this.api.detectControlMode();
+      await this.serverLifecycle.retryConnection();
+      const connected = this.serverLifecycle.status() === 'running';
       this.snackBar.open(
         connected ? 'Trainer connection established.' : 'Trainer unavailable; sandbox preview remains active.',
         'Dismiss',
@@ -113,11 +124,11 @@ export class SettingsComponent {
 
   async pairWithPin(): Promise<void> {
     this.connectionBusy.set(true);
-    this.api.setApiBase(this.endpointInput());
+    this.serverLifecycle.setServerAddress(this.endpointInput());
     try {
       await this.api.exchangePairPin(this.pinInput());
       this.pinInput.set('');
-      await this.api.detectControlMode();
+      await this.serverLifecycle.retryConnection();
       this.state.demoMode.set(false);
       this.snackBar.open('LAN trainer paired for this browser session.', 'Dismiss', { duration: 5000 });
     } catch (error: unknown) {
@@ -125,6 +136,86 @@ export class SettingsComponent {
     } finally {
       this.connectionBusy.set(false);
     }
+  }
+
+  async startPythonServer(): Promise<void> {
+    this.connectionBusy.set(true);
+    try {
+      await this.serverLifecycle.startServer();
+      this.endpointInput.set(this.serverLifecycle.serverAddress());
+    } finally {
+      this.connectionBusy.set(false);
+    }
+  }
+
+  async stopPythonServer(): Promise<void> {
+    this.connectionBusy.set(true);
+    try {
+      await this.serverLifecycle.stopServer();
+    } finally {
+      this.connectionBusy.set(false);
+    }
+  }
+
+  async restartPythonServer(): Promise<void> {
+    this.connectionBusy.set(true);
+    try {
+      await this.serverLifecycle.restartServer();
+      this.endpointInput.set(this.serverLifecycle.serverAddress());
+    } finally {
+      this.connectionBusy.set(false);
+    }
+  }
+
+  async retryPythonServer(): Promise<void> {
+    this.connectionBusy.set(true);
+    this.serverLifecycle.setServerAddress(this.endpointInput());
+    try {
+      await this.serverLifecycle.retryConnection();
+      this.snackBar.open(
+        this.serverLifecycle.status() === 'running' ? 'Python server connection is online.' : 'Python server is still offline.',
+        'Dismiss',
+        { duration: 5000 }
+      );
+    } finally {
+      this.connectionBusy.set(false);
+    }
+  }
+
+  openPairPage(): void {
+    this.serverLifecycle.setServerAddress(this.endpointInput());
+    this.serverLifecycle.openPairPage();
+  }
+
+  async scanBleDevices(): Promise<void> {
+    this.bleScanBusy.set(true);
+    this.bleScanMessage.set('Scanning for BLE reference devices...');
+    try {
+      const result = await this.api.request<{ ok?: boolean; devices?: BleScanDevice[]; error?: string }>('/api/ble/scan');
+      const devices = Array.isArray(result.devices) ? result.devices : [];
+      this.bleScanDevices.set(devices);
+      this.bleScanMessage.set(devices.length
+        ? `${devices.length} device${devices.length === 1 ? '' : 's'} found.`
+        : 'No BLE reference devices found.');
+      this.state.triggerHaptic(devices.length ? 'confirm' : 'warn');
+    } catch (error: unknown) {
+      this.bleScanDevices.set([]);
+      this.bleScanMessage.set(error instanceof Error ? error.message : 'BLE scan failed.');
+      this.state.triggerHaptic('warn');
+    } finally {
+      this.bleScanBusy.set(false);
+    }
+  }
+
+  selectBleDevice(device: BleScanDevice): void {
+    const address = device.address || device.id || '';
+    if (!address) {
+      this.snackBar.open('Selected BLE device does not include an address.', 'Dismiss', { duration: 5000 });
+      return;
+    }
+    this.state.setup.update(current => ({ ...current, ble_address: address }));
+    this.snackBar.open(`BLE reference set to ${device.name || address}.`, 'Dismiss', { duration: 4000 });
+    this.state.triggerHaptic('tap');
   }
 
   exportPreferences(): void {

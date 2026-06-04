@@ -55,6 +55,48 @@
   background: var(--md-sys-color-tertiary, #0f766e) !important;
 }
 
+:host .server-status {
+  cursor: default;
+}
+
+:host .server-status.offline {
+  cursor: pointer;
+}
+
+:host .server-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--md-sys-color-outline);
+  display: inline-block;
+  margin-right: 6px;
+}
+
+:host .server-status.running .server-dot {
+  background: var(--md-sys-color-tertiary, #0f766e);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--md-sys-color-tertiary, #0f766e) 18%, transparent);
+}
+
+:host .server-status.starting .server-dot {
+  background: var(--md-sys-color-secondary, #6750a4);
+  animation: server-status-pulse 1100ms ease-in-out infinite;
+}
+
+:host .server-status.offline .server-dot {
+  background: var(--md-sys-color-error, #ba1a1a);
+}
+
+@keyframes server-status-pulse {
+  0%, 100% { transform: scale(0.82); opacity: 0.65; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host .server-status.starting .server-dot {
+    animation: none;
+  }
+}
+
 @media (min-width: 761px) {
   :host .topbar-status,
   :host .topbar-actions {
@@ -102,6 +144,13 @@
   }
 
   :host .topbar-status {
+    display: flex !important;
+    flex: 0 0 auto !important;
+    margin-left: 0 !important;
+    order: 1 !important;
+  }
+
+  :host .topbar-status .status-pill:not(.server-status) {
     display: none !important;
   }
 
@@ -112,7 +161,7 @@
     height: auto !important;
     margin: 0 !important;
     min-width: 48px !important;
-    order: 1 !important;
+    order: 2 !important;
     padding: 0 !important;
     width: auto !important;
   }

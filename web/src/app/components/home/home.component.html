@@ -140,18 +140,35 @@
             <mat-form-field appearance="outline" class="form-field-full">
               <input matInput [ngModel]="state.setup().ble_address" (ngModelChange)="updateSetup('ble_address', $event)" (blur)="onFormChange()" placeholder="e.g. 10:22:33:9E:8F:63">
             </mat-form-field>
-            <button mat-flat-button (click)="scanBleDevices()" [disabled]="isScanningBle" class="mat-tonal-button icon-action-btn">
+            <button mat-flat-button (click)="scanBleDevices()" [disabled]="isScanningBle" class="mat-tonal-button icon-action-btn pair-sensor-btn">
               <mat-icon>{{ isScanningBle ? 'sync' : 'bluetooth' }}</mat-icon>
+              <span>Pair sensor</span>
             </button>
           </div>
           @if (bleDevices.length > 0) {
           <div class="ble-scan-list">
             @for (dev of bleDevices; track dev.id || dev.address || dev.name) {
-            <button mat-button type="button" class="ble-device-item" (click)="updateSetup('ble_address', dev.address || dev.id || ''); onFormChange(); bleDevices = []">
-              <span>{{ dev.name }}</span>
-              <small>{{ dev.address || dev.id }}</small>
+            <button mat-button type="button" class="ble-device-item" (click)="applyBleDevice(dev)" [disabled]="!bleDeviceAddress(dev)" [attr.aria-label]="'Use BLE device ' + (dev.name || bleDeviceAddress(dev) || 'without address')">
+              <span class="ble-device-main">
+                <strong>{{ dev.name || 'Unnamed BLE device' }}</strong>
+                <small>{{ bleDeviceAddress(dev) || 'No hardware address reported' }}</small>
+              </span>
+              <span class="ble-signal"
+                    [class.strong]="bleSignalClass(dev.rssi) === 'strong'"
+                    [class.fair]="bleSignalClass(dev.rssi) === 'fair'"
+                    [class.weak]="bleSignalClass(dev.rssi) === 'weak'"
+                    [class.unknown]="bleSignalClass(dev.rssi) === 'unknown'"
+                    [attr.aria-label]="bleSignalLabel(dev.rssi)">
+                <span></span><span></span><span></span>
+                <em>{{ dev.rssi ?? '--' }} dBm</em>
+              </span>
             </button>
             }
+          </div>
+          } @else if (bleScanAttempted && !isScanningBle) {
+          <div class="ble-empty-state" role="status">
+            <mat-icon>bluetooth_disabled</mat-icon>
+            <span>No BLE oximeters found. Confirm Bluetooth is on, power-cycle the oximeter, and keep it near this device before scanning again.</span>
           </div>
           }
         </div>

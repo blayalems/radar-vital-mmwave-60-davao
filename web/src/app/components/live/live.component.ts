@@ -19,14 +19,17 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
+import { UndoService } from '../../services/undo.service';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 import { KpiZoomDialogComponent } from '../kpi-zoom-dialog/kpi-zoom-dialog.component';
+import { SnapshotRecord } from '../../models/rvt.models';
 
 type TrendRange = 30 | 60 | 120 | 'max';
 
@@ -56,7 +59,8 @@ interface BiasBucket {
     MatButtonToggleModule,
     MatChipsModule,
     MatProgressBarModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatTooltipModule
   ],
   templateUrl: './live.component.html',
   styleUrl: './live.component.css',
@@ -67,6 +71,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly api = inject(ApiService);
   protected readonly telemetry = inject(TelemetryService);
   protected readonly audio = inject(AudioService);
+  private readonly undo = inject(UndoService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
@@ -304,12 +309,23 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   deleteSnap(snapId: string) {
     this.state.triggerHaptic('tap');
+    const prevSnaps = this.state.snaps();
+    const prevNotes = this.state.snapNotes();
+    // Drop the deleted card from any pending comparison selection.
+    this.compareSelection.update(ids => ids.filter(id => id !== snapId));
     this.state.snaps.update(s => s.filter(x => x.id !== snapId));
     this.state.snapNotes.update(n => {
       const next = { ...n };
       delete next[snapId];
       return next;
     });
+    this.undo.push('Delete snapshot', () => {
+      this.state.snaps.set(prevSnaps);
+      this.state.snapNotes.set(prevNotes);
+    });
+    this.snackBar.open('Snapshot deleted.', 'Undo', { duration: 4000 })
+      .onAction()
+      .subscribe(() => this.runUndo());
   }
 
   async clearAllSnaps() {
@@ -323,13 +339,95 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
       restoreFocus: true
     }).afterClosed());
     if (confirmed) {
+      const prevSnaps = this.state.snaps();
+      const prevNotes = this.state.snapNotes();
+      this.compareSelection.set([]);
       this.state.snaps.set([]);
       this.state.snapNotes.set({});
+      this.undo.push('Clear all snapshots', () => {
+        this.state.snaps.set(prevSnaps);
+        this.state.snapNotes.set(prevNotes);
+      });
+      this.snackBar.open('All snapshots cleared.', 'Undo', { duration: 5000 })
+        .onAction()
+        .subscribe(() => this.runUndo());
     }
   }
 
   updateSnapNote(snapId: string, val: string) {
     this.state.snapNotes.update(n => ({ ...n, [snapId]: val }));
+  }
+
+  // --- Snapshot reorder (move up / down) -------------------------------------
+  // Restores the v11 ability to re-sequence pinned frames so operators can group
+  // related observations before exporting a report.
+  moveSnap(snapId: string, direction: -1 | 1) {
+    this.state.triggerHaptic('tap');
+    const prev = this.state.snaps();
+    const idx = prev.findIndex(s => s.id === snapId);
+    const target = idx + direction;
+    if (idx === -1 || target < 0 || target >= prev.length) return;
+    const next = [...prev];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    this.state.snaps.set(next);
+    this.undo.push('Reorder snapshot', () => this.state.snaps.set(prev));
+  }
+
+  canMoveSnap(snapId: string, direction: -1 | 1): boolean {
+    const snaps = this.state.snaps();
+    const idx = snaps.findIndex(s => s.id === snapId);
+    if (idx === -1) return false;
+    const target = idx + direction;
+    return target >= 0 && target < snaps.length;
+  }
+
+  // --- Snapshot compare ------------------------------------------------------
+  // Operators may select up to two pinned frames to compute side-by-side deltas
+  // (HR / RR / distance / BLE), matching the v11 compare workflow.
+  protected readonly compareSelection = signal<string[]>([]);
+
+  protected readonly compareSnaps = computed<SnapshotRecord[]>(() => {
+    const ids = this.compareSelection();
+    const byId = new Map(this.state.snaps().map(s => [s.id, s]));
+    return ids.map(id => byId.get(id)).filter((s): s is SnapshotRecord => !!s);
+  });
+
+  protected readonly compareDelta = computed(() => {
+    const [a, b] = this.compareSnaps();
+    if (!a || !b) return null;
+    const round = (v: number) => Math.round(v * 10) / 10;
+    return {
+      reported_hr: round((b.reported_hr || 0) - (a.reported_hr || 0)),
+      reported_rr: round((b.reported_rr || 0) - (a.reported_rr || 0)),
+      distance_cm: round((b.distance_cm || 0) - (a.distance_cm || 0)),
+      ble_hr: round((b.ble_hr || 0) - (a.ble_hr || 0))
+    };
+  });
+
+  isSnapSelected(snapId: string): boolean {
+    return this.compareSelection().includes(snapId);
+  }
+
+  toggleCompareSnap(snapId: string) {
+    this.state.triggerHaptic('tap');
+    this.compareSelection.update(ids => {
+      if (ids.includes(snapId)) return ids.filter(id => id !== snapId);
+      // Keep at most two frames selected; the oldest selection rolls off.
+      const next = [...ids, snapId];
+      return next.length > 2 ? next.slice(next.length - 2) : next;
+    });
+  }
+
+  clearCompareSelection() {
+    this.compareSelection.set([]);
+  }
+
+  private runUndo(): void {
+    const label = this.undo.undo();
+    if (label) {
+      this.state.triggerHaptic('confirm');
+      this.snackBar.open(`Reverted: ${label}.`, 'Dismiss', { duration: 2500 });
+    }
   }
 
   saveSessionNotes(val: string) {
@@ -465,6 +563,41 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   chartLabel(label: string, key: string, unit: string): string {
     return `${label} chart. ${this.readingLabel('Latest reading', key, unit)}`;
+  }
+
+  // --- Accessible data-table alternatives for canvas charts -------------------
+  // v11 offered a text/table fallback so screen-reader and print users could
+  // read chart values that the <canvas> elements only render visually. Each
+  // trend tab exposes a toggle that reveals a downsampled table of the same
+  // series currently plotted, honouring the active trend window.
+  protected readonly showDataTable = signal<Record<string, boolean>>({});
+
+  toggleDataTable(key: string): void {
+    this.state.triggerHaptic('tap');
+    this.showDataTable.update(map => ({ ...map, [key]: !map[key] }));
+  }
+
+  isDataTableShown(key: string): boolean {
+    return !!this.showDataTable()[key];
+  }
+
+  /**
+   * Returns up to `maxRows` evenly-sampled points from the named series within
+   * the active trend window, as `{ index, value }` rows for an accessible table.
+   */
+  dataTableRows(key: string, maxRows = 20): { index: number; value: number }[] {
+    const points = this.trimTrend(this.seriesNumbers(key, key === 'reported_hr' ? 'hr' : key === 'reported_rr' ? 'rr' : key));
+    if (points.length === 0) return [];
+    if (points.length <= maxRows) {
+      return points.map((value, index) => ({ index: index + 1, value: Math.round(value * 10) / 10 }));
+    }
+    const step = (points.length - 1) / (maxRows - 1);
+    const rows: { index: number; value: number }[] = [];
+    for (let i = 0; i < maxRows; i++) {
+      const srcIndex = Math.round(i * step);
+      rows.push({ index: srcIndex + 1, value: Math.round(points[srcIndex] * 10) / 10 });
+    }
+    return rows;
   }
 
   liveAlertAnnouncement(): string {

@@ -1,0 +1,40 @@
+<h2 mat-dialog-title class="handoff-title">
+  <mat-icon>swap_horiz</mat-icon>
+  Operator Handoff
+</h2>
+
+<mat-dialog-content class="handoff-content">
+  <p class="handoff-generated">Generated {{ generatedAt | date:'medium' }}</p>
+
+  <dl class="handoff-grid">
+    @for (line of briefLines(); track line.label) {
+      <div class="handoff-row" [class.handoff-row-alert]="line.label === 'Active alerts' && criticalAlertCount() > 0">
+        <dt>{{ line.label }}</dt>
+        <dd>{{ line.value }}</dd>
+      </div>
+    }
+  </dl>
+
+  <mat-form-field appearance="outline" class="handoff-note-field">
+    <mat-label>Handoff note for incoming operator</mat-label>
+    <textarea
+      matInput
+      rows="3"
+      [(ngModel)]="handoffNote"
+      maxlength="600"
+      placeholder="e.g. Subject reported dizziness at 12:40; BLE oximeter re-paired twice."></textarea>
+    <mat-hint align="end">{{ handoffNote.length }}/600</mat-hint>
+  </mat-form-field>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="handoff-actions">
+  <button mat-button type="button" (click)="close()">Close</button>
+  <button mat-flat-button type="button" class="mat-tonal-button" (click)="printBrief()">
+    <mat-icon>print</mat-icon>
+    Print
+  </button>
+  <button mat-flat-button color="primary" type="button" (click)="copyBrief()">
+    <mat-icon>{{ copied() ? 'check' : 'content_copy' }}</mat-icon>
+    {{ copied() ? 'Copied' : 'Copy brief' }}
+  </button>
+</mat-dialog-actions>

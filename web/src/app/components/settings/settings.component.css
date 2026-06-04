@@ -105,6 +105,26 @@ mat-card-content {
   gap: 0.75rem;
 }
 
+.idle-lock-timeout-row {
+  margin-top: 0.75rem;
+}
+
+.idle-timeout-field {
+  width: 110px;
+  flex-shrink: 0;
+}
+
+/* Suppress the default form-field subscript so the row stays compact. */
+.idle-timeout-field .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+.settings-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
 .settings-copy {
   display: flex;
   flex-direction: column;

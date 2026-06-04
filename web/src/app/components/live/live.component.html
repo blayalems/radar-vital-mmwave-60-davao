@@ -377,6 +377,7 @@
               </mat-button-toggle-group>
               <button mat-icon-button type="button" aria-label="Reset heart rate chart window" (click)="resetTrendRange()"><mat-icon>restart_alt</mat-icon></button>
               <button mat-icon-button type="button" aria-label="Download heart rate trend image" (click)="downloadChart(hrTrendCanvas, 'heart_rate_trend')"><mat-icon>download</mat-icon></button>
+              <button mat-icon-button type="button" [attr.aria-pressed]="isDataTableShown('reported_hr')" aria-label="Toggle heart rate data table" matTooltip="View as data table" (click)="toggleDataTable('reported_hr')"><mat-icon>table_rows</mat-icon></button>
             </div>
           </mat-card-header>
           <mat-card-content class="trend-large-content">
@@ -384,6 +385,23 @@
             <div class="large-canvas-container">
               <canvas #hrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="chartLabel('Heart rate trend', 'reported_hr', 'beats per minute')"></canvas>
             </div>
+            @if (isDataTableShown('reported_hr')) {
+              <div class="chart-data-table-wrap" role="region" aria-label="Heart rate trend data table">
+                @if (dataTableRows('reported_hr').length > 0) {
+                  <table class="chart-data-table">
+                    <caption>Heart rate trend ({{ trendRangeLabel() }}) — sampled values in beats per minute.</caption>
+                    <thead><tr><th scope="col">Sample</th><th scope="col">HR (bpm)</th></tr></thead>
+                    <tbody>
+                      @for (row of dataTableRows('reported_hr'); track row.index) {
+                        <tr><th scope="row">{{ row.index }}</th><td>{{ row.value }}</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                } @else {
+                  <p class="empty-copy">No heart rate samples are available for this window yet.</p>
+                }
+              </div>
+            }
           </mat-card-content>
         </mat-card>
         <mat-card class="advanced-card">
@@ -456,12 +474,30 @@
               <span class="range-caption">{{ trendRangeLabel() }}</span>
               <button mat-flat-button type="button" aria-label="Reset respiration chart window" (click)="resetTrendRange()" class="mat-tonal-button"><mat-icon>restart_alt</mat-icon></button>
               <button mat-icon-button type="button" aria-label="Download respiration trend image" (click)="downloadChart(rrTrendCanvas, 'respiration_trend')"><mat-icon>download</mat-icon></button>
+              <button mat-icon-button type="button" [attr.aria-pressed]="isDataTableShown('reported_rr')" aria-label="Toggle respiration data table" matTooltip="View as data table" (click)="toggleDataTable('reported_rr')"><mat-icon>table_rows</mat-icon></button>
             </div>
           </mat-card-header>
           <mat-card-content class="trend-large-content">
             <div class="large-canvas-container">
               <canvas #rrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="chartLabel('Respiration trend', 'reported_rr', 'breaths per minute')"></canvas>
             </div>
+            @if (isDataTableShown('reported_rr')) {
+              <div class="chart-data-table-wrap" role="region" aria-label="Respiration trend data table">
+                @if (dataTableRows('reported_rr').length > 0) {
+                  <table class="chart-data-table">
+                    <caption>Respiration trend ({{ trendRangeLabel() }}) — sampled values in breaths per minute.</caption>
+                    <thead><tr><th scope="col">Sample</th><th scope="col">RR (br/min)</th></tr></thead>
+                    <tbody>
+                      @for (row of dataTableRows('reported_rr'); track row.index) {
+                        <tr><th scope="row">{{ row.index }}</th><td>{{ row.value }}</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                } @else {
+                  <p class="empty-copy">No respiration samples are available for this window yet.</p>
+                }
+              </div>
+            }
           </mat-card-content>
         </mat-card>
         <div class="diagnostics-double-column">
@@ -552,14 +588,72 @@
 
           <mat-card-content class="snapshots-catalog">
             @if (state.snaps().length > 0) {
+              @if (compareSnaps().length === 2 && compareDelta(); as delta) {
+                <div class="snap-compare-panel" role="region" aria-label="Snapshot comparison">
+                  <div class="snap-compare-head">
+                    <mat-icon>compare_arrows</mat-icon>
+                    <strong>Comparing two frames</strong>
+                    <button mat-button (click)="clearCompareSelection()">Clear</button>
+                  </div>
+                  <table class="snap-compare-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Metric</th>
+                        <th scope="col">{{ compareSnaps()[0].ts | date:'mediumTime' }}</th>
+                        <th scope="col">{{ compareSnaps()[1].ts | date:'mediumTime' }}</th>
+                        <th scope="col">Δ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <th scope="row">Radar HR (bpm)</th>
+                        <td>{{ Math.round(compareSnaps()[0].reported_hr) }}</td>
+                        <td>{{ Math.round(compareSnaps()[1].reported_hr) }}</td>
+                        <td [class.delta-up]="delta.reported_hr > 0" [class.delta-down]="delta.reported_hr < 0">{{ delta.reported_hr > 0 ? '+' : '' }}{{ delta.reported_hr }}</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">Radar RR (br/m)</th>
+                        <td>{{ Math.round(compareSnaps()[0].reported_rr) }}</td>
+                        <td>{{ Math.round(compareSnaps()[1].reported_rr) }}</td>
+                        <td [class.delta-up]="delta.reported_rr > 0" [class.delta-down]="delta.reported_rr < 0">{{ delta.reported_rr > 0 ? '+' : '' }}{{ delta.reported_rr }}</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">BLE HR (bpm)</th>
+                        <td>{{ Math.round(compareSnaps()[0].ble_hr) }}</td>
+                        <td>{{ Math.round(compareSnaps()[1].ble_hr) }}</td>
+                        <td [class.delta-up]="delta.ble_hr > 0" [class.delta-down]="delta.ble_hr < 0">{{ delta.ble_hr > 0 ? '+' : '' }}{{ delta.ble_hr }}</td>
+                      </tr>
+                      <tr>
+                        <th scope="row">Distance (cm)</th>
+                        <td>{{ Math.round(compareSnaps()[0].distance_cm) }}</td>
+                        <td>{{ Math.round(compareSnaps()[1].distance_cm) }}</td>
+                        <td [class.delta-up]="delta.distance_cm > 0" [class.delta-down]="delta.distance_cm < 0">{{ delta.distance_cm > 0 ? '+' : '' }}{{ delta.distance_cm }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              } @else if (compareSnaps().length === 1) {
+                <p class="snap-compare-hint">Select one more frame to compare deltas.</p>
+              }
               <div class="snapshots-grid-container">
-              @for (snap of state.snaps(); track snap.id) {
-                <mat-card class="snap-card" [attr.data-snapshot-id]="snap.id">
+              @for (snap of state.snaps(); track snap.id; let i = $index) {
+                <mat-card class="snap-card" [class.snap-card-selected]="isSnapSelected(snap.id)" [attr.data-snapshot-id]="snap.id">
                 <mat-card-header class="snap-card-header-row">
                   <strong>Frame Point: {{ snap.ts | date:'mediumTime' }}</strong>
-                  <button mat-icon-button color="warn" (click)="deleteSnap(snap.id)" aria-label="Delete snapshot">
-                    <mat-icon>close</mat-icon>
-                  </button>
+                  <div class="snap-card-controls">
+                    <button mat-icon-button (click)="moveSnap(snap.id, -1)" [disabled]="!canMoveSnap(snap.id, -1)" aria-label="Move snapshot earlier" matTooltip="Move up">
+                      <mat-icon>arrow_upward</mat-icon>
+                    </button>
+                    <button mat-icon-button (click)="moveSnap(snap.id, 1)" [disabled]="!canMoveSnap(snap.id, 1)" aria-label="Move snapshot later" matTooltip="Move down">
+                      <mat-icon>arrow_downward</mat-icon>
+                    </button>
+                    <button mat-icon-button (click)="toggleCompareSnap(snap.id)" [attr.aria-pressed]="isSnapSelected(snap.id)" aria-label="Select snapshot for comparison" matTooltip="Compare">
+                      <mat-icon>{{ isSnapSelected(snap.id) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" (click)="deleteSnap(snap.id)" aria-label="Delete snapshot">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
                 </mat-card-header>
                 <mat-card-content class="snap-card-metrics">
                   <div class="snap-mini-kpi"><span>Radar HR:</span><strong>{{ Math.round(snap.reported_hr) }} bpm</strong></div>

@@ -147,3 +147,26 @@
     </mat-navigation-bar>
   </mat-sidenav-content>
 </mat-sidenav-container>
+
+<!-- IDLE / MANUAL LOCK CURTAIN -->
+@if (idleLock.locked()) {
+  <div class="idle-lock-overlay" role="dialog" aria-modal="true" aria-labelledby="idleLockTitle"
+    (document:keydown.escape)="unlockSession()">
+    <div class="idle-lock-card">
+      <span class="material-symbols-rounded idle-lock-icon" aria-hidden="true">lock</span>
+      <h2 id="idleLockTitle" class="idle-lock-title">Station locked</h2>
+      <p class="idle-lock-msg">
+        @if (idleLock.lockReason() === 'idle') {
+          The console locked after {{ idleLock.timeoutMinutes() }} minute{{ idleLock.timeoutMinutes() === 1 ? '' : 's' }} of inactivity to keep subject telemetry private.
+        } @else {
+          The console was locked manually.
+        }
+      </p>
+      <p class="idle-lock-note">This is a local privacy curtain — your paired trainer session is unaffected.</p>
+      <button #unlockButton mat-flat-button color="primary" type="button" (click)="unlockSession()" class="idle-lock-unlock">
+        <mat-icon>lock_open</mat-icon>
+        Unlock
+      </button>
+    </div>
+  </div>
+}

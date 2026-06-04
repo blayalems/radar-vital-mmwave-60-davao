@@ -85,6 +85,9 @@ export class KeyboardShortcutsDialogComponent {
   readonly shortcuts = [
     { keys: 'Ctrl+K or /', description: 'Open command palette' },
     { keys: '?', description: 'Show keyboard shortcuts' },
+    { keys: 'Ctrl+Z', description: 'Undo last action', context: 'Reverses snapshot delete/clear/reorder and alert dismissal.' },
+    { keys: 'Ctrl+H', description: 'Open operator handoff brief' },
+    { keys: 'Ctrl+L', description: 'Lock station now', context: 'Local privacy curtain; does not affect the trainer session.' },
     { keys: 'Ctrl+Shift+C', description: 'Copy operator summary' },
     { keys: '1 - 5', description: 'Go to Home, Live, Report, Help or Settings' },
     { keys: 'H / L / R / W / S', description: 'View aliases', context: 'S opens Settings outside Live.' },

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal, ViewChild, ElementRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, OnInit, signal, ViewChild, ElementRef } from '@angular/core';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { filter, map } from 'rxjs/operators';
@@ -15,10 +15,13 @@ import { MatNavigationBar, MatNavigationTab } from '@app/navigation-bar';
 
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
+import { UndoService } from '../../services/undo.service';
+import { IdleLockService } from '../../services/idle-lock.service';
 import { TopbarComponent } from '../topbar/topbar.component';
 import { CommandPaletteComponent } from '../command-palette/command-palette.component';
 import { KeyboardShortcutsDialogComponent } from '../keyboard-shortcuts-dialog/keyboard-shortcuts-dialog.component';
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
+import { OperatorHandoffDialogComponent } from '../operator-handoff-dialog/operator-handoff-dialog.component';
 
 @Component({
   selector: 'app-layout',
@@ -46,6 +49,8 @@ import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component'
 export class LayoutComponent implements OnInit {
   protected readonly state = inject(StateService);
   protected readonly api = inject(ApiService);
+  protected readonly idleLock = inject(IdleLockService);
+  private readonly undoService = inject(UndoService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
@@ -54,6 +59,7 @@ export class LayoutComponent implements OnInit {
 
   @ViewChild('mainContentScroll', { static: false }) mainContentScroll?: ElementRef<HTMLElement>;
   @ViewChild(MatSidenavContainer) sidenavContainer?: MatSidenavContainer;
+  @ViewChild('unlockButton', { static: false }) unlockButton?: ElementRef<HTMLButtonElement>;
   protected readonly showScrollTop = signal(false);
 
   protected readonly railCollapsed = signal(false);
@@ -81,8 +87,19 @@ export class LayoutComponent implements OnInit {
     { initialValue: true }
   );
 
+  constructor() {
+    // When the privacy curtain appears, move keyboard focus onto the unlock
+    // control so the locked state traps focus and is operable by keyboard.
+    effect(() => {
+      if (this.idleLock.locked()) {
+        requestAnimationFrame(() => this.unlockButton?.nativeElement.focus());
+      }
+    });
+  }
+
   ngOnInit() {
     this.setRailCollapsed(localStorage.getItem('rvt-rail-collapsed') === '1');
+    this.idleLock.start();
     this.syncCurrentView(this.router.url);
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -142,20 +159,18 @@ export class LayoutComponent implements OnInit {
     }
     if (primaryModifier && !event.altKey && !event.shiftKey && key === 'z') {
       event.preventDefault();
-      this.state.triggerHaptic('tap');
-      this.snackBar.open('Shortcut recognized: Undo is not yet available in the modern dashboard.', 'Dismiss', { duration: 3000 });
+      this.performUndo();
       return;
     }
     if (primaryModifier && !event.altKey && !event.shiftKey && key === 'h') {
       event.preventDefault();
-      this.state.triggerHaptic('tap');
-      this.snackBar.open('Shortcut recognized: Operator handoff modal is not yet available. Use Ctrl+Shift+C to copy operator brief.', 'Dismiss', { duration: 4000 });
+      this.openOperatorHandoff();
       return;
     }
     if (primaryModifier && !event.altKey && !event.shiftKey && key === 'l') {
       event.preventDefault();
+      this.idleLock.lockNow('manual');
       this.state.triggerHaptic('tap');
-      this.snackBar.open('Shortcut recognized: Idle auto-lock is not yet available.', 'Dismiss', { duration: 3000 });
       return;
     }
     if (primaryModifier && !event.altKey && key === 'k') {
@@ -282,6 +297,42 @@ export class LayoutComponent implements OnInit {
   openShortcuts() {
     this.state.triggerHaptic('tap');
     this.dialog.open(KeyboardShortcutsDialogComponent, {
+      restoreFocus: true,
+      panelClass: 'm3-dialog-panel'
+    });
+  }
+
+  /**
+   * Universal undo (Ctrl+Z). Reverses the most recent destructive UI mutation
+   * captured by feature components (snapshot delete/clear/reorder, alert
+   * dismiss/acknowledge). Surfaces a confirmation toast or a "nothing to undo"
+   * hint so the contract is observable from any view.
+   */
+  performUndo(): void {
+    const label = this.undoService.undo();
+    if (label) {
+      this.state.triggerHaptic('confirm');
+      this.snackBar.open(`Reverted: ${label}.`, 'Dismiss', { duration: 2500 });
+    } else {
+      this.state.triggerHaptic('tap');
+      this.snackBar.open('Nothing to undo.', 'Dismiss', { duration: 2000 });
+    }
+  }
+
+  /** Release the idle / manual lock curtain. */
+  unlockSession(): void {
+    this.idleLock.unlock();
+    this.state.triggerHaptic('tap');
+    // Return focus to the main content region after the curtain dismisses.
+    requestAnimationFrame(() => this.mainContentScroll?.nativeElement.focus());
+  }
+
+  /** Operator handoff modal (Ctrl+H) — structured shift-change brief. */
+  openOperatorHandoff(): void {
+    this.state.triggerHaptic('tap');
+    this.dialog.open(OperatorHandoffDialogComponent, {
+      maxWidth: 'calc(100vw - 24px)',
+      width: '560px',
       restoreFocus: true,
       panelClass: 'm3-dialog-panel'
     });

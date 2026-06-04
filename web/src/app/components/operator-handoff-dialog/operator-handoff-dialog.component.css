@@ -1,0 +1,68 @@
+.handoff-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 20px 24px 12px;
+  font-family: 'Inter', 'Roboto', sans-serif;
+}
+
+.handoff-content {
+  padding: 0 24px 8px !important;
+}
+
+.handoff-generated {
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+}
+
+.handoff-grid {
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-radius: var(--md-sys-shape-corner-large, 16px);
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  overflow: hidden;
+}
+
+.handoff-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+}
+
+.handoff-row:last-child {
+  border-bottom: none;
+}
+
+.handoff-row dt {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+}
+
+.handoff-row dd {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: right;
+  color: var(--md-sys-color-on-surface, #0f172a);
+}
+
+.handoff-row-alert dd {
+  color: var(--md-sys-color-error, #ba1a1a);
+}
+
+.handoff-note-field {
+  width: 100%;
+}
+
+.handoff-actions {
+  padding: 8px 24px 20px !important;
+  gap: 8px;
+}

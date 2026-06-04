@@ -68,6 +68,41 @@
       </mat-card-content>
     </mat-card>
 
+    <!-- Privacy & Idle Lock -->
+    <mat-card class="settings-card premium-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">lock_clock</mat-icon>
+        <mat-card-title>Privacy &amp; Idle Lock</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="settings-row">
+          <div class="settings-copy">
+            <span class="row-title">Auto-lock when idle</span>
+            <span class="row-description">Hide subject telemetry behind a local privacy curtain after a period of inactivity. Press Ctrl+L to lock immediately. Your paired trainer session is never affected.</span>
+          </div>
+          <mat-slide-toggle [checked]="idleLock.enabled()" (change)="idleLock.setEnabled($event.checked)" aria-label="Enable idle auto-lock"></mat-slide-toggle>
+        </div>
+        @if (idleLock.enabled()) {
+          <div class="settings-row idle-lock-timeout-row">
+            <div class="settings-copy">
+              <span class="row-title">Idle timeout</span>
+              <span class="row-description">Lock after {{ idleLock.timeoutMinutes() }} minute{{ idleLock.timeoutMinutes() === 1 ? '' : 's' }} of no pointer, key, or touch activity.</span>
+            </div>
+            <mat-form-field appearance="outline" class="idle-timeout-field">
+              <mat-label>Minutes</mat-label>
+              <input matInput type="number" min="1" max="120" [ngModel]="idleLock.timeoutMinutes()" (ngModelChange)="idleLock.setTimeoutMinutes(+$event)">
+            </mat-form-field>
+          </div>
+          <div class="settings-actions-row">
+            <button mat-flat-button class="mat-tonal-button" type="button" (click)="idleLock.lockNow('manual')">
+              <mat-icon>lock</mat-icon>
+              Lock now
+            </button>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
     <!-- Appearance -->
     <mat-card class="settings-card premium-card">
       <mat-card-header>

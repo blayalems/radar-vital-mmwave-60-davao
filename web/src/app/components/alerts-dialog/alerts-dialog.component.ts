@@ -9,8 +9,11 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogRef } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 
+import { MatSnackBar } from '@angular/material/snack-bar';
+
 import { AlertEvent } from '../../models/rvt.models';
 import { StateService } from '../../services/state.service';
+import { UndoService } from '../../services/undo.service';
 
 @Component({
   selector: 'app-alerts-dialog',
@@ -21,6 +24,8 @@ import { StateService } from '../../services/state.service';
 })
 export class AlertsDialogComponent {
   protected readonly state = inject(StateService);
+  private readonly undo = inject(UndoService);
+  private readonly snackBar = inject(MatSnackBar);
   private readonly router = inject(Router);
   private readonly dialogRef = inject(MatDialogRef<AlertsDialogComponent>);
   protected readonly filter = signal<'active' | 'all' | 'info' | 'warn' | 'critical' | 'pinned'>('active');
@@ -58,11 +63,37 @@ export class AlertsDialogComponent {
   }
 
   dismiss(alert: AlertEvent): void {
+    const prevHistory = this.state.alertHistory();
+    const prevPins = this.state.alertPins();
     this.state.dismissAlert(alert.id);
+    this.undo.push('Dismiss alert', () => {
+      this.state.alertHistory.set(prevHistory);
+      this.state.alertPins.set(prevPins);
+    });
+    this.snackBar.open('Alert dismissed.', 'Undo', { duration: 4000 })
+      .onAction()
+      .subscribe(() => this.runUndo());
   }
 
   acknowledgeVisible(): void {
+    const prevHistory = this.state.alertHistory();
+    const prevPins = this.state.alertPins();
     this.alerts().filter(alert => !alert.dismissed).forEach(alert => this.state.dismissAlert(alert.id));
+    this.undo.push('Acknowledge alerts', () => {
+      this.state.alertHistory.set(prevHistory);
+      this.state.alertPins.set(prevPins);
+    });
+    this.snackBar.open('Visible alerts acknowledged.', 'Undo', { duration: 4000 })
+      .onAction()
+      .subscribe(() => this.runUndo());
+  }
+
+  private runUndo(): void {
+    const label = this.undo.undo();
+    if (label) {
+      this.state.triggerHaptic('confirm');
+      this.snackBar.open(`Reverted: ${label}.`, 'Dismiss', { duration: 2500 });
+    }
   }
 
   exportHistory(format: 'json' | 'csv'): void {

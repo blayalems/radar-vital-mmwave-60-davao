@@ -311,3 +311,78 @@
   border-color: #fff !important;
   color: #fff !important;
 }
+
+/* Idle / manual lock curtain. Sits above everything (including the loading
+   overlay z-index 1200) so an unattended station hides telemetry. */
+.idle-lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--md-sys-color-scrim, #000) 78%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: idle-lock-fade 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes idle-lock-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.idle-lock-card {
+  width: min(100%, 420px);
+  text-align: center;
+  padding: 32px 28px;
+  border-radius: var(--md-sys-shape-corner-extra-large, 28px);
+  background: var(--md-sys-color-surface-container-high, #e8eef7);
+  color: var(--md-sys-color-on-surface, #0f172a);
+  box-shadow: 0 16px 48px color-mix(in srgb, var(--md-sys-color-shadow, #000) 30%, transparent);
+}
+
+.idle-lock-icon {
+  font-size: 44px;
+  width: 44px;
+  height: 44px;
+  color: var(--md-sys-color-primary, #0061a4);
+}
+
+.idle-lock-title {
+  margin: 12px 0 8px;
+  font-family: 'Inter', 'Roboto', sans-serif;
+  font-size: 1.4rem;
+}
+
+.idle-lock-msg {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+}
+
+.idle-lock-note {
+  margin: 0 0 20px;
+  font-size: 0.78rem;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+}
+
+.idle-lock-unlock {
+  min-width: 160px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .idle-lock-overlay {
+    animation: none;
+  }
+}
+
+:host-context(html[data-theme='hc']) .idle-lock-card {
+  background: #000 !important;
+  border: 2px solid #fff !important;
+  color: #fff !important;
+}
+
+:host-context(html[data-theme='hc']) .idle-lock-note {
+  color: #fff !important;
+}

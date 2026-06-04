@@ -17,6 +17,7 @@ import { StateService, DEFAULT_KPI_THRESHOLDS, KPI_THRESHOLD_META, KpiThresholds
 import { AudioService } from '../../services/audio.service';
 import { ApiService } from '../../services/api.service';
 import { DynamicColorService } from '../../services/dynamic-color.service';
+import { IdleLockService } from '../../services/idle-lock.service';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 
 @Component({
@@ -43,6 +44,7 @@ export class SettingsComponent {
   protected readonly audio = inject(AudioService);
   protected readonly api = inject(ApiService);
   protected readonly dynamicColor = inject(DynamicColorService);
+  protected readonly idleLock = inject(IdleLockService);
   private readonly router = inject(Router);
   protected readonly Math = Math;
   

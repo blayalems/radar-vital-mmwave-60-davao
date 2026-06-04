@@ -13,8 +13,11 @@ import { firstValueFrom } from 'rxjs';
 import { PreflightCheck, SnapshotRecord, ThemeId } from '../../models/rvt.models';
 import { ApiService } from '../../services/api.service';
 import { DEFAULT_KPI_THRESHOLDS, StateService } from '../../services/state.service';
+import { UndoService } from '../../services/undo.service';
+import { IdleLockService } from '../../services/idle-lock.service';
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+import { OperatorHandoffDialogComponent } from '../operator-handoff-dialog/operator-handoff-dialog.component';
 
 type CommandGroup = 'Navigate' | 'Live Session' | 'Source' | 'Appearance' | 'Export';
 
@@ -49,6 +52,8 @@ interface PaletteCommand {
 export class CommandPaletteComponent {
   private readonly state = inject(StateService);
   private readonly api = inject(ApiService);
+  private readonly undo = inject(UndoService);
+  private readonly idleLock = inject(IdleLockService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly dialogRef = inject(MatDialogRef<CommandPaletteComponent>);
@@ -121,6 +126,37 @@ export class CommandPaletteComponent {
       group: 'Export',
       icon: 'content_copy',
       action: () => this.copyOperatorBrief()
+    },
+    {
+      id: 'operator-handoff',
+      label: 'Operator handoff',
+      description: 'Open the structured shift-change brief with copy and print',
+      keywords: 'handoff shift change brief print copy operator',
+      group: 'Export',
+      icon: 'swap_horiz',
+      shortcut: 'Ctrl+H',
+      action: () => this.openOperatorHandoff()
+    },
+    {
+      id: 'undo',
+      label: 'Undo last action',
+      description: 'Reverse the most recent destructive change (snapshot, alert, reorder)',
+      keywords: 'undo revert restore back ctrl+z',
+      group: 'Live Session',
+      icon: 'undo',
+      shortcut: 'Ctrl+Z',
+      disabledReason: () => this.undo.canUndo() ? null : 'Nothing to undo.',
+      action: () => this.performUndo()
+    },
+    {
+      id: 'lock-station',
+      label: 'Lock station now',
+      description: 'Hide subject telemetry behind a local privacy curtain',
+      keywords: 'lock idle privacy curtain secure away',
+      group: 'Appearance',
+      icon: 'lock',
+      shortcut: 'Ctrl+L',
+      action: () => this.idleLock.lockNow('manual')
     },
     {
       id: 'print',
@@ -431,6 +467,25 @@ export class CommandPaletteComponent {
       restoreFocus: true,
       panelClass: 'm3-dialog-panel'
     });
+  }
+
+  private openOperatorHandoff(): void {
+    this.dialog.open(OperatorHandoffDialogComponent, {
+      maxWidth: 'calc(100vw - 24px)',
+      width: '560px',
+      restoreFocus: true,
+      panelClass: 'm3-dialog-panel'
+    });
+  }
+
+  private performUndo(): void {
+    const label = this.undo.undo();
+    if (label) {
+      this.state.triggerHaptic('confirm');
+      this.snackBar.open(`Reverted: ${label}.`, 'Dismiss', { duration: 2500 });
+    } else {
+      this.snackBar.open('Nothing to undo.', 'Dismiss', { duration: 2000 });
+    }
   }
 
   private async copyOperatorBrief(): Promise<void> {

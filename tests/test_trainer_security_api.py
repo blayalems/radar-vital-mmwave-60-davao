@@ -123,3 +123,30 @@ def test_review_summary_and_signoff_round_trip(tmp_path: Path):
         assert payload["signed_at"]
     finally:
         server.stop()
+
+
+def test_headerless_request_does_not_crash(tmp_path: Path):
+    import socket
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    server.start()
+    port = server.httpd.server_port
+    try:
+        # Send a raw malformed/headerless request (HTTP/0.9)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect(("127.0.0.1", port))
+        s.sendall(b"GET /api/health\r\n\r\n")
+        try:
+            s.recv(1024)
+        except Exception:
+            pass
+        s.close()
+
+        # Check server remains healthy and running
+        base = f"http://127.0.0.1:{port}"
+        status, resp = _request(base, "/api/health")
+        assert status == 200
+        assert resp["ok"] is True
+    finally:
+        server.stop()

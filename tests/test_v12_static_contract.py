@@ -62,7 +62,7 @@ def test_dashboard_pwa_contract():
 
 def test_service_worker_contract():
     sw = text(SW)
-    assert "rvt-shell-v12.0.2" in sw
+    assert "rvt-shell-v12.0.3" in sw
     assert "text/event-stream" in sw
     assert "SKIP_WAITING" in sw
     assert "SW_UPDATED" in sw
@@ -161,7 +161,7 @@ def test_manifest_payload_is_plain_manifest():
 
 def test_firmware_ble_contract():
     ino = text(FW)
-    assert '#define FW_VERSION "v16.0.0"' in ino
+    assert '#define FW_VERSION "v16.0.1"' in ino
     assert "#define ENABLE_BLE false" in ino
     assert "NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN" in ino
     assert "bleSuppressUntilMs = millis() + 500UL" in ino

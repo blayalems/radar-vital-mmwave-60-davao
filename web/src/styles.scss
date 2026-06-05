@@ -769,3 +769,15 @@ app-live .section-header-row > .mat-mdc-card-header-text {
   background-color: color-mix(in srgb, var(--md-sys-color-primary-container, #eaddff) 92%, var(--md-sys-color-on-primary-container, #21005d)) !important;
 }
 
+html[data-sandbox="1"] body {
+  padding-top: 0 !important;
+}
+
+body #demoBanner {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  box-shadow: none !important;
+  z-index: 1 !important;
+}

@@ -187,7 +187,7 @@
 
 @media (max-width: 760px) {
   .main-content-scroll {
-    margin-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    margin-bottom: 0;
     padding: 12px 12px calc(112px + env(safe-area-inset-bottom, 0px));
   }
 
@@ -202,7 +202,7 @@
     position: fixed !important;
     right: 0;
     transform: translateZ(0);
-    z-index: 2400;
+    z-index: 900;
   }
 
   .scroll-to-top-fab {
@@ -212,7 +212,7 @@
 
 @media (min-width: 761px) and (max-width: 1023px) {
   .main-content-scroll {
-    margin-bottom: 80px;
+    margin-bottom: 0;
     padding-bottom: 112px;
   }
 
@@ -226,7 +226,7 @@
     position: fixed !important;
     right: 0;
     transform: translateZ(0);
-    z-index: 2400;
+    z-index: 900;
   }
 
   .scroll-to-top-fab {

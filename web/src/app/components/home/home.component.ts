@@ -105,7 +105,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   private async initializeHome(): Promise<void> {
     await this.serverLifecycle.bootstrap();
     if (this.serverLifecycle.status() === 'offline' || this.serverLifecycle.status() === 'error') {
-      this.snackBar.open('Python server is offline. Use Settings > Python Server to start, pair, or retry.', 'Dismiss', { duration: 7000 });
+      if (!this.state.demoMode() && !this.state.autoDemoActive()) {
+        this.snackBar.open('Python server is offline. Use Settings > Python Server to start, pair, or retry.', 'Dismiss', { duration: 7000 });
+      }
       return;
     }
     this.refreshDefaults();

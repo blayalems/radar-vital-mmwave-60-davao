@@ -5,6 +5,34 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-06 — PR46 Variable Collision Minification Fix
+
+- **IIFE Scope Collision**: Resolved a critical console error (`TypeError: $ is not a function`) on dashboard load by adding the `--minify` flag to the esbuild bundling step in `scripts/build-angular.mjs`. This prevents hoisting and sharing of minified template identifiers (like `$`) across ESModules when merged into the single-file IIFE monolith.
+- **Visual Baseline Refresh**: Re-generated the 80 visual baseline snapshots to match the updated Home and Settings components layouts.
+
+### 2026-06-06 — PR46 Backend Hardening & API Version updates
+
+- **Monolith Hardening**: Guarded `_ControlHandler.end_headers()`, `_require_control_auth()`, and `_read_body()` against `self.headers` being `None` (resolving crashes on HTTP/0.9 or headerless/malformed socket connections).
+- **Version and Schema Metadata**: Bumped trainer, dashboard, and expected firmware versions to `16.0.1`/`v16.0.1` in `rvt_trainer/monolith.py` and `radar_vital_v16_0_0.ino`. Extended the GET `/api/version` response to include `product_version`, `schema_versions` for all schema types, and `update_manifest_url`.
+- **Update Manifest Proxy**: Implemented GET `/api/update/manifest` proxy in `rvt_trainer/monolith.py` using standard `urllib.request.urlopen` to route manifest requests dynamically.
+- **Unit and Contract Tests**: Added `test_headerless_request_does_not_crash` in `tests/test_trainer_security_api.py` to verify resilience against malformed socket requests, and bumped version assertions in `tests/test_v12_static_contract.py`.
+
+### 2026-06-06 — PR46 UI fixes & Settings Update Card
+
+- **Service Worker & Test Bumps**: Bumped cache version to `'rvt-shell-v12.0.3'` in `assets/sw.js`, `tests/test_v12_static_contract.py`, and `tests/smoke/dashboard.spec.ts`.
+- **Layout & Styles Overrides**: Set `.main-content-scroll` `margin-bottom: 0` and `.bottom-nav` `z-index: 900` under all media queries in `layout.component.css`. Added `html[data-sandbox="1"] body { padding-top: 0 !important; }` and `body #demoBanner` positioning rules in `styles.scss`.
+- **Offline Snackbar Suppression**: Suppressed the initialization offline snackbar in `home.component.ts` when demo mode or auto-demo is active.
+- **Home Responsive CSS**: Flex-wrapped `.field-controls` and updated grid layout for `.setup-card-content` under 900px breakpoint in `home.component.css`.
+- **Command Palette CSS**: Applied flex/display layout rules to `command-palette.component.css` and hid shortcut labels on mobile viewports.
+- **Settings Card & Grid CSS**: Implemented the "Update & Version Info" card, checking for updates against `/api/update/manifest` in `settings.component.html/ts`, and added its CSS rules and mobile responsive spans in `settings.component.css`.
+
+### 2026-06-06 — PR46 Release Manifest & Packaging Version Bump (codex/pr46-release-manifest)
+
+- **Packaging Version Bump**: Bumped version to `16.0.1` across root `package.json`, root `package-lock.json`, `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`, `packaging/tauri/tauri.conf.json`, and `packaging/capacitor/package.json`/`package-lock.json`.
+- **Release Manifest Generator**: Implemented a Node.js utility `scripts/generate-rvt-latest.mjs` to calculate sizes and SHA-256 hashes of build APK and EXE artifacts, outputting `rvt-latest.json` for update delivery.
+- **Release Workflow Integration**: Updated `.github/workflows/release-artifacts.yml` to execute the generator script, upload `rvt-latest.json` as a release asset, and commit/push it to the `gh-pages` branch for Pages hosting.
+- **Verification**: Ran `node scripts/generate-rvt-latest.mjs --self-test` successfully validating mock artifacts against the schema.
+
 ### 2026-06-04 — PR45 Visual Baseline Refresh (codex/pr45-native-start)
 
 - **Visual Baseline Refresh**: Regenerated the committed Windows Playwright baselines for the intentional PR45 server-status chip, Python Server settings card, and mobile shell spacing/hit-test changes across all supported themes and viewports.
@@ -111,8 +139,8 @@
 | Dashboard refactor (v12/v16 Angular Material app) | `web/src/` + `web/package.json` | Angular Material source of truth; scoped IndexedDB, PIN pairing, report sign-off, alert diagnosis, mobile commands, dark inverse HC and native BLE qualification UI implemented | codex/mobile-first-dashboard-upABy |
 | Trainer refactor | `radar_vital_trainer_v12_for_v16_0.py` + `rvt_trainer/` | Phase 4 partial extraction continues; monolith now denies generic static reads, protects LAN telemetry reads/SSE and exposes serial/notes/sign-off contracts | codex/mobile-first-dashboard-upABy |
 | PWA (GitHub Pages) | `.github/workflows/pages.yml` -> `www/` | Public URL serves the Angular shell; current branch enforces Angular-only Pages artifacts and direct-route shell fallback while its updated SW awaits deployment | codex/mobile-first-dashboard-upABy |
-| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | CI built the debug APK from `a74c4e1`; each accepted `main` push now publishes a versioned APK prerelease with generated changelog once merged | codex/mobile-first-dashboard-upABy |
-| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | CI built the NSIS installer and passed Rust native tests from `a74c4e1`; each accepted `main` push now publishes a versioned EXE prerelease with generated changelog once merged | codex/mobile-first-dashboard-upABy |
+| APK (Capacitor) | `.github/workflows/build-apk.yml`, `.github/workflows/release-artifacts.yml` + `capacitor.config.ts` | CI built the debug APK; each accepted push publishes a versioned APK; PR46 added latest release manifest generation and version bump to 16.0.1 | codex/pr46-version-ota-bugs |
+| EXE (Tauri) | `.github/workflows/build-exe.yml`, `.github/workflows/release-artifacts.yml` + `src-tauri/` | CI built the NSIS installer; each accepted push publishes a versioned EXE; PR46 added latest release manifest generation and version bump to 16.0.1 | codex/pr46-version-ota-bugs |
 | Smoke + visual tests | `tests/` | 40 Python contracts, 156 four-viewport smoke/API checks and 16 affected Live visuals pass locally; prior-head CI full visual/native/package workflows passed | codex/mobile-first-dashboard-upABy |
 
 ## How the dashboard build flows

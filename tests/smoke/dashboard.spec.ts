@@ -105,7 +105,7 @@ test.describe('Dashboard smoke', () => {
     });
     await page.waitForFunction(() => !!navigator.serviceWorker.controller, undefined, { timeout: 15_000 });
     const cachedShell = await page.evaluate(async () => {
-      const cache = await caches.open('rvt-shell-v12.0.2');
+      const cache = await caches.open('rvt-shell-v12.0.3');
       return Boolean(
         await cache.match('./index.html')
         || await cache.match('./radar_vital_live_dashboard_v12_for_v16_0.html')

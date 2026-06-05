@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag to publish, for example v12.0.0-alpha.1'
+        description: 'Release tag to publish, for example v16.0.1-alpha.1'
         required: true
         type: string
       prerelease:
@@ -254,6 +254,8 @@ jobs:
       - android
       - windows
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: release-assets
@@ -261,13 +263,22 @@ jobs:
       - name: List release assets
         run: find release-assets -type f -maxdepth 3 -print
 
+      - name: Prepare dist directory for generator
+        run: |
+          mkdir -p dist
+          cp release-assets/radar-vital-apk-release-asset/*.apk dist/
+          cp release-assets/radar-vital-exe-release-asset/*.exe dist/
+
+      - name: Generate latest release manifest JSON
+        run: node scripts/generate-rvt-latest.mjs
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.release_metadata.outputs.release_tag }}
           name: ${{ needs.release_metadata.outputs.release_name }}
           target_commitish: ${{ github.sha }}
-          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || startsWith(github.ref_name, 'v12.0.0-alpha') }}
+          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || startsWith(github.ref_name, 'v16.0.1-alpha') }}
           make_latest: false
           generate_release_notes: true
           body: |
@@ -280,3 +291,33 @@ jobs:
           files: |
             release-assets/**/*.apk
             release-assets/**/*.exe
+            dist/rvt-latest.json
+
+      - name: Push rvt-latest.json to gh-pages branch
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+          
+          # Clone the gh-pages branch
+          if git clone --depth 1 --branch gh-pages "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" temp-gh-pages; then
+            cp dist/rvt-latest.json temp-gh-pages/
+            cd temp-gh-pages
+            git add rvt-latest.json
+            if ! git diff --cached --quiet; then
+              git commit -m "Deploy rvt-latest.json for ${{ needs.release_metadata.outputs.release_tag }}"
+              git push origin gh-pages
+            else
+              echo "No changes to rvt-latest.json"
+            fi
+          else
+            echo "gh-pages branch does not exist. Creating orphan branch..."
+            mkdir temp-gh-pages
+            cd temp-gh-pages
+            git init
+            git checkout --orphan gh-pages
+            cp ../dist/rvt-latest.json ./
+            git add rvt-latest.json
+            git commit -m "Initial commit of rvt-latest.json"
+            git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+            git push -u origin gh-pages
+          fi

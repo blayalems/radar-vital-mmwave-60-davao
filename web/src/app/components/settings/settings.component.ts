@@ -334,6 +334,106 @@ export class SettingsComponent {
     }
   }
 
+  // Update check states
+  protected readonly updateCheckBusy = signal(false);
+  protected readonly updateCheckResult = signal<{
+    ok: boolean;
+    updateAvailable?: boolean;
+    product_version?: string;
+    released_at?: string;
+    released_at_formatted?: string;
+    artifacts?: {
+      apk?: { url: string; size: number; size_mb: string; sha256: string; compatibility: string };
+      exe?: { url: string; size: number; size_mb: string; sha256: string; compatibility: string };
+    };
+    error?: string;
+  } | null>(null);
+
+  isNewerVersion(current: string, latest: string): boolean {
+    const parse = (v: string) => v.replace(/^v/, '').split('.').map(Number);
+    const currParts = parse(current);
+    const lateParts = parse(latest);
+    for (let i = 0; i < Math.max(currParts.length, lateParts.length); i++) {
+      const c = currParts[i] || 0;
+      const l = lateParts[i] || 0;
+      if (l > c) return true;
+      if (l < c) return false;
+    }
+    return false;
+  }
+
+  async checkForUpdates(): Promise<void> {
+    this.updateCheckBusy.set(true);
+    this.updateCheckResult.set(null);
+    this.state.triggerHaptic('tap');
+    try {
+      const result = await this.api.request<{
+        product_version?: string;
+        released_at?: string;
+        artifacts?: {
+          apk?: { url: string; size: number; sha256: string; compatibility: string };
+          exe?: { url: string; size: number; sha256: string; compatibility: string };
+        };
+      } | null>('/api/update/manifest');
+
+      if (result && result.product_version) {
+        const currentVersion = '16.0.1';
+        const hasUpdate = this.isNewerVersion(currentVersion, result.product_version);
+        const formattedDate = result.released_at ? new Date(result.released_at).toLocaleString() : 'Unknown';
+
+        const artifacts: any = {};
+        if (result.artifacts) {
+          if (result.artifacts.apk) {
+            artifacts.apk = {
+              ...result.artifacts.apk,
+              size_mb: (result.artifacts.apk.size / (1024 * 1024)).toFixed(2)
+            };
+          }
+          if (result.artifacts.exe) {
+            artifacts.exe = {
+              ...result.artifacts.exe,
+              size_mb: (result.artifacts.exe.size / (1024 * 1024)).toFixed(2)
+            };
+          }
+        }
+
+        this.updateCheckResult.set({
+          ok: true,
+          updateAvailable: hasUpdate,
+          product_version: result.product_version,
+          released_at: result.released_at,
+          released_at_formatted: formattedDate,
+          artifacts: artifacts
+        });
+
+        if (hasUpdate) {
+          this.snackBar.open(`New update ${result.product_version} is available!`, 'Dismiss', { duration: 5000 });
+          this.state.triggerHaptic('success');
+        } else {
+          this.snackBar.open('Your dashboard is up to date.', 'Dismiss', { duration: 4000 });
+          this.state.triggerHaptic('success');
+        }
+      } else {
+        this.updateCheckResult.set({
+          ok: false,
+          error: 'Invalid manifest format returned.'
+        });
+        this.snackBar.open('Check failed: Invalid manifest response.', 'Dismiss', { duration: 5000 });
+        this.state.triggerHaptic('warn');
+      }
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Offline or endpoint not found.';
+      this.updateCheckResult.set({
+        ok: false,
+        error: msg
+      });
+      this.snackBar.open(`Update check failed: ${msg}`, 'Dismiss', { duration: 5000 });
+      this.state.triggerHaptic('reject');
+    } finally {
+      this.updateCheckBusy.set(false);
+    }
+  }
+
   close() {
     if (this.dialogRef) {
       this.dialogRef.close();

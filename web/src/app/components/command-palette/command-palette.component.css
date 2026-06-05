@@ -1,7 +1,25 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 85dvh;
+  max-height: 700px;
+  overflow: hidden;
+}
+
 .palette-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: none !important;
   width: min(720px, calc(100vw - 48px));
-  max-height: min(74vh, 760px);
   padding-top: 8px;
+}
+
+.palette-content mat-nav-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .palette-search {
@@ -26,6 +44,7 @@
 
 .command-main {
   min-width: 0;
+  text-align: left !important;
 }
 
 .command-meta {
@@ -53,7 +72,7 @@
     width: calc(100vw - 32px);
   }
 
-  .command-meta span {
-    display: none;
+  .command-meta {
+    display: none !important;
   }
 }

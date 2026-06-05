@@ -231,7 +231,8 @@ mat-button-toggle {
   .connection-card,
   .python-server-card,
   .ble-scanner-card,
-  .thresholds-card {
+  .thresholds-card,
+  .update-info-card {
     grid-column: span 1;
   }
 }
@@ -547,3 +548,26 @@ mat-button-toggle {
   color: var(--md-sys-color-on-surface-variant);
   font-size: 0.82rem;
 }
+
+.update-info-card {
+  border-left: 4px solid var(--md-sys-color-primary, #0061a4);
+}
+
+@media (max-width: 480px) {
+  .settings-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  .settings-row mat-slide-toggle,
+  .settings-row mat-button-toggle-group {
+    align-self: flex-start;
+    width: 100%;
+  }
+  .server-actions button,
+  .audio-actions button,
+  .threshold-actions button {
+    width: 100%;
+  }
+}
+

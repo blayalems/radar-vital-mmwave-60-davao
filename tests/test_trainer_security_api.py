@@ -150,3 +150,78 @@ def test_headerless_request_does_not_crash(tmp_path: Path):
         assert resp["ok"] is True
     finally:
         server.stop()
+
+
+def test_update_manifest_proxy_success(tmp_path: Path):
+    from unittest.mock import patch, MagicMock
+    from rvt_trainer.monolith import _manifest_cache
+    
+    # Reset cache to force network call
+    _manifest_cache["data"] = None
+    _manifest_cache["ts"] = 0
+
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    
+    mock_data = {
+        "product_version": "16.0.1",
+        "minimum_supported": "16.0.0",
+        "released_at": "2026-06-06T00:00:00Z",
+        "artifacts": {}
+    }
+    
+    original_urlopen = urllib.request.urlopen
+    
+    mock_response = MagicMock()
+    mock_response.read.return_value = json.dumps(mock_data).encode("utf-8")
+    mock_response.__enter__.return_value = mock_response
+    
+    def side_effect(req, *args, **kwargs):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "rvt-latest.json" in url:
+            return mock_response
+        return original_urlopen(req, *args, **kwargs)
+    
+    try:
+        with patch("urllib.request.urlopen", side_effect=side_effect):
+            status, data = _request(base, "/api/update/manifest")
+            assert status == 200
+            assert data["product_version"] == "16.0.1"
+    finally:
+        server.stop()
+
+
+def test_update_manifest_proxy_failure(tmp_path: Path):
+    from unittest.mock import patch
+    from rvt_trainer.monolith import _manifest_cache
+    
+    # Reset cache to force network call
+    _manifest_cache["data"] = None
+    _manifest_cache["ts"] = 0
+
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    
+    original_urlopen = urllib.request.urlopen
+    
+    def side_effect(req, *args, **kwargs):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "rvt-latest.json" in url:
+            raise urllib.error.URLError("Network error")
+        return original_urlopen(req, *args, **kwargs)
+    
+    try:
+        with patch("urllib.request.urlopen", side_effect=side_effect):
+            status, data = _request(base, "/api/update/manifest")
+            assert status == 502
+            assert data["ok"] is False
+            assert "PROXY_ERROR" in data["error"]["code"]
+    finally:
+        server.stop()
+

@@ -59,6 +59,7 @@ import tempfile
 import time
 import threading
 import csv
+import urllib.request
 from collections import deque
 from functools import lru_cache, partial
 from html import escape as html_escape
@@ -85,6 +86,9 @@ _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 VERSION = "16.0.1"
 DASHBOARD_VERSION = "16.0.1"
 FIRMWARE_VERSION_EXPECTED = "v16.0.1"
+UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
+_manifest_cache = {"data": None, "ts": 0}
+_manifest_cache_lock = threading.Lock()
 DEFAULT_RADAR_PORT = "COM10"
 DEFAULT_BLE_ADDRESS = "10:22:33:9E:8F:63"
 FEATURE_ENGINEERING_VERSION = "v11.0-physio-2026"
@@ -6264,11 +6268,18 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if path.startswith("/api/") and path not in public_api_paths and not self._require_control_auth():
             return
         if path == "/api/update/manifest":
-            import urllib.request
+            now = time.time()
+            with _manifest_cache_lock:
+                if _manifest_cache["data"] is not None and now - _manifest_cache["ts"] < 300:
+                    self._send_json(200, _manifest_cache["data"])
+                    return
             try:
-                url = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
-                with urllib.request.urlopen(url, timeout=5) as response:
+                # Reduced timeout to 3 seconds. 502 expected on offline hosts.
+                with urllib.request.urlopen(UPDATE_MANIFEST_URL, timeout=3) as response:
                     payload = json.loads(response.read().decode("utf-8"))
+                with _manifest_cache_lock:
+                    _manifest_cache["data"] = payload
+                    _manifest_cache["ts"] = now
                 self._send_json(200, payload)
             except Exception as e:
                 self._send_json(502, {"ok": False, "error": {"code": "PROXY_ERROR", "message": f"Failed to fetch update manifest: {str(e)}"}} )
@@ -6285,7 +6296,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "trainer": VERSION,
                 "firmware_expected": FIRMWARE_VERSION_EXPECTED,
                 "dashboard": DASHBOARD_VERSION,
-                "product_version": "16.0.1",
+                "product_version": VERSION,
                 "schema_versions": {
                     "control_api": CONTROL_API_SCHEMA_VERSION,
                     "session_notes": SESSION_NOTES_SCHEMA_VERSION,
@@ -6296,7 +6307,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     "chart_annotations": CHART_ANNOTATIONS_SCHEMA_VERSION,
                     "subject_profile": SUBJECT_PROFILE_SCHEMA_VERSION
                 },
-                "update_manifest_url": "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
+                "update_manifest_url": UPDATE_MANIFEST_URL
             })
             return
         if path == "/api/ble/scan":

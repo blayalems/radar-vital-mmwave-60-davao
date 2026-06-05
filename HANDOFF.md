@@ -8,7 +8,7 @@
 ### 2026-06-06 — PR46 Variable Collision Minification Fix
 
 - **IIFE Scope Collision**: Resolved a critical console error (`TypeError: $ is not a function`) on dashboard load by adding the `--minify` flag to the esbuild bundling step in `scripts/build-angular.mjs`. This prevents hoisting and sharing of minified template identifiers (like `$`) across ESModules when merged into the single-file IIFE monolith.
-- **Visual Baseline Refresh**: Re-generated the 80 visual baseline snapshots to match the updated Home and Settings components layouts.
+- **Visual Baseline Refresh**: Re-generated the 96 visual baseline snapshots to match the updated Home and Settings components layouts.
 
 ### 2026-06-06 — PR46 Backend Hardening & API Version updates
 

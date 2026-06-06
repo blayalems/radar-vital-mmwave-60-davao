@@ -1,15 +1,15 @@
-/* radar_vital_v16_0_0.ino
+/* radar_vital_v16_1_0.ino
  *
  * XIAO ESP32-C6 + MR60BHA2 60 GHz FMCW radar + MLX90614 + HD44780 20x4 LCD
  * + Active Buzzer for audio feedback
  *
- * Firmware release: v16.0.1
+ * Firmware release: v16.1.0
  * CSV schema release: v15.0.0 / trainer contract v12.0.0
  *
 * Manuscript-facing calibration / release notes
 * -------------------------------------------
-* + FW_VERSION is v16.0.1.
-* + v16.0.1 keeps the v15 serial DATA telemetry contract by default and adds
+* + FW_VERSION is v16.1.0.
+* + v16.1.0 keeps the v15 serial DATA telemetry contract by default and adds
 *   a gated BLE bridge path for the v12 dashboard / native app milestone.
 * + ENABLE_BLE defaults to false; with BLE off, the serial DSP path is
 *   behaviorally identical to v15.0.0.
@@ -204,7 +204,7 @@
 #endif
 
 #if !defined(ARDUINO_XIAO_ESP32C6)
-#error "radar_vital_v16_0_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
+#error "radar_vital_v16_1_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
 #endif
 
 #ifdef ESP32
@@ -266,13 +266,11 @@ static inline float applyRawHrCorrection(float rawHrValue) {
 // LOGGING & OBSERVABILITY
 // =========================================================================
 #define LOG_MODE 1       // 1 = Enable CSV "DATA,..." logging
-#define FW_VERSION "v16.0.1"
+#define FW_VERSION "v16.1.0"
 #define SKETCH_VERSION_MAJOR 16
-#define SKETCH_VERSION_SUB 0
-#define SKETCH_VERSION_MOD 1
-#ifndef ENABLE_BLE
-#define ENABLE_BLE false
-#endif
+#define SKETCH_VERSION_SUB 1
+#define SKETCH_VERSION_MOD 0
+
 #define DIAG_PLOTTER 0   // 1 = Enable live Serial Plotter DSP diagnostics, 0 = Off
 #define LOG_INTERVAL_MS 200
 
@@ -1240,10 +1238,7 @@ static const bool EXP_ENABLE_ADDITIVE_CONFIDENCE = FULL_EXPERIMENTAL_PROFILE || 
 static const bool EXP_ENABLE_THRESHOLD_RETUNE = FULL_EXPERIMENTAL_PROFILE || false;
 static const float EXP_HR_LOG_PQI_MIN = 0.08f;
 static const float EXP_RR_PQI_LOG_THRESHOLD = 0.12f;
-// @deprecated in v14.0.0 — retained for trainer grep compatibility and
-// downstream bisection tools. Blind-reseed now uses rate-dependent non-linear
-// correction (see rawHRNonlinearBiasCorrection()).
-static const float CHIP_HR_BIAS_CORRECTION_BPM = 6.0f;
+// v14.0.0: fixed 6 BPM bias replaced by applyRawHrCorrection() — see changelog.
 // v14.0.0 Q6: unconditional (cooldown-gated) clutter re-warmup escalation on
 // persistent AGC-floor or ghost-suspect streaks. See applyEscalationRewarm().
 static const unsigned int AGC_REWARM_RUNLEN_THRESH = 30U;
@@ -1447,7 +1442,7 @@ float medianOf5(float* a) {
 // higher ceilings more slowly but inexorably; keep the guard honest).
 #define RLS_LAMBDA_HR_BASE      0.97f
 #define RLS_LAMBDA_HR_COLLISION 0.93f
-#define RLS_LAMBDA_HR           RLS_LAMBDA_HR_BASE   // legacy alias; do not use in new code
+#define RLS_LAMBDA_HR           RLS_LAMBDA_HR_BASE   // REMOVE at v17 — use RLS_LAMBDA_HR_BASE directly
 #define RLS_P_MAX_GUARD         5.0e3f
 #define RLS_DELTA 1000.0f
 
@@ -3867,6 +3862,7 @@ static uint8_t blePhaseSeq = 0;
 
 class RvsControlCallbacks : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic* chr) override {
+    // STUB — no-op until BLE path activates
     std::string value = chr->getValue();
     if (value.empty()) return;
     uint8_t cmd = (uint8_t)value[0];
@@ -6733,6 +6729,13 @@ void loop() {
 
     if (now-lastLogMs>=LOG_INTERVAL_MS) {
       lastLogMs=now;
+      static int _csvColCount = 0;
+      static bool _csvSessionWas = false;
+      static bool _csvFirstEmitDone = false;
+      if (sessionStats.active && !_csvSessionWas) {
+        _csvFirstEmitDone = false;
+      }
+      _csvSessionWas = sessionStats.active;
       int phaseFresh_i        = phaseFreshNow ? 1 : 0;
       int trustedVitalFresh_i = trustedVitalFreshNow ? 1 : 0;
       int trustedHrFresh_i    = trustedHrFreshNow ? 1 : 0;
@@ -6824,10 +6827,10 @@ void loop() {
       // Stage C activates cols 201-204, Stage E/v12 activates cols 205-207.
       // Update this comment whenever columns are added or removed.
       #define CSV_COLUMN_COUNT 207
-#define CSVU(v) do { Serial.print((unsigned long)(v)); Serial.print(','); } while (0)
-#define CSVI(v) do { Serial.print((int)(v)); Serial.print(','); } while (0)
-#define CSVF(v,p) do { float __csv_v = (float)(v); Serial.print(isfinite(__csv_v) ? __csv_v : -1.0f, (p)); Serial.print(','); } while (0)
-#define CSVFN(v,p) do { float __csv_v = (float)(v); Serial.print(isfinite(__csv_v) ? __csv_v : -1.0f, (p)); Serial.print(','); } while (0)
+#define CSVU(v) do { Serial.print((unsigned long)(v)); Serial.print(','); _csvColCount++; } while (0)
+#define CSVI(v) do { Serial.print((int)(v)); Serial.print(','); _csvColCount++; } while (0)
+#define CSVF(v,p) do { float __csv_v = (float)(v); Serial.print(isfinite(__csv_v) ? __csv_v : -1.0f, (p)); Serial.print(','); _csvColCount++; } while (0)
+#define CSVFN(v,p) do { float __csv_v = (float)(v); Serial.print(isfinite(__csv_v) ? __csv_v : -1.0f, (p)); Serial.print(','); _csvColCount++; } while (0)
       // v15.0 Stage B: pack presence FSM debug field for column 200.
       // bits[2:0] = presenceState (0..4)
       // bits[5:3] = min(7, entryDropoutCount)
@@ -7053,7 +7056,14 @@ CSVF(phaseBufferValidPctLogged, 2);    // col 203: phase_buffer_valid_pct (Stage
 CSVF(pqiV15PairCoverageMinLogged, 4);  // col 204: pqi_v15_pair_coverage_min (Stage C activates, default -1)
 CSVF(correctionShadowDeltaBpmLogged, 3); // col 205: correction_shadow_delta_bpm (Stage E activates, default -1)
 CSVI((int)correctionSourceLogged);     // col 206: correction_source (Stage E/v12 activates, default 0)
-Serial.println((unsigned int)correctionParamsHashLogged);  // col 207: correction_params_hash (Stage E/v12, default 0)
+Serial.println((unsigned int)correctionParamsHashLogged); _csvColCount++;  // col 207: correction_params_hash (Stage E/v12, default 0)
+      if (sessionStats.active && !_csvFirstEmitDone) {
+        _csvFirstEmitDone = true;
+        if (_csvColCount != CSV_COLUMN_COUNT) {
+          Serial.printf("[CONTRACT] CSV column count mismatch: expected %d got %d\n", CSV_COLUMN_COUNT, _csvColCount);
+        }
+      }
+      _csvColCount = 0;
 #undef CSV_COLUMN_COUNT
 #undef CSVU
 #undef CSVI

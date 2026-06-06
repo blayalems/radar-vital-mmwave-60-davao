@@ -26,7 +26,7 @@
       </div>
       <div class="brand-label">
         <span class="bl-top">RADAR</span>
-        <span class="bl-bot">VITAL · v16.0</span>
+          <span class="bl-bot">VITAL · v16.1</span>
       </div>
       <button mat-icon-button class="rail-collapse-btn" type="button" (click)="toggleRailCollapse()"
         [attr.aria-label]="railCollapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
@@ -108,7 +108,7 @@
   </mat-sidenav>
 
   <!-- MAIN AREA (TOPBAR + CONTENT + BOTTOM NAV) -->
-  <mat-sidenav-content class="main-wrapper">
+  <mat-sidenav-content class="main-wrapper" [class.settings-view]="state.currentView() === 'settings'">
     <app-topbar></app-topbar>
     
     @if (pinning.pinnedCommands().length > 0) {

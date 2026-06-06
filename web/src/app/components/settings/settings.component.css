@@ -271,6 +271,22 @@ mat-button-toggle {
   .update-info-card {
     grid-column: span 1;
   }
+
+  .settings-container {
+    padding-bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .settings-footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .settings-footer button {
+    width: 100%;
+  }
 }
 
 .thresholds-grid {
@@ -605,5 +621,108 @@ mat-button-toggle {
   .threshold-actions button {
     width: 100%;
   }
+}
+
+/* Migrated Update Card CSS Rules */
+.update-check-row {
+  margin-top: 8px;
+}
+
+.update-result-region {
+  display: block;
+}
+
+.update-available-container {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background-color: var(--md-sys-color-secondary-container, #e8def8);
+  color: var(--md-sys-color-on-secondary-container, #1d192b);
+}
+
+.update-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.update-icon {
+  color: var(--md-sys-color-primary, #6750a4);
+}
+
+.update-title-text {
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.update-release-date {
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+  opacity: 0.85;
+}
+
+.download-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.artifact-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  padding: 6px 0;
+}
+
+.artifact-row.border-bottom {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.artifact-meta {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.update-install-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.update-install-tooltip {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.update-install-tooltip button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.update-install-help {
+  margin-top: 0;
+  color: var(--md-sys-color-on-secondary-container, #1d192b);
+  opacity: 0.82;
+}
+
+.update-status-row {
+  margin-top: 12px;
+  align-items: center;
+  gap: 8px;
+}
+
+.update-status-row.success-state {
+  color: var(--md-sys-color-tertiary, #00a496);
+}
+
+.update-status-row.error-state {
+  color: var(--md-sys-color-error, #ba1a1a);
+}
+
+.color-inherit {
+  color: inherit;
 }
 

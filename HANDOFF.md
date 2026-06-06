@@ -5,6 +5,44 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-07 — PR47 Native OTA Install, EXE Lifecycle, and v16.1.0 Bump
+
+- **Native Update Installers**: Added Angular update/PWA services, Tauri updater IPC/config, Android APK download/hash/install bridge, and release publication for both `rvt-latest.json` and `rvt-latest-tauri.json`.
+- **EXE Lifecycle/BLE**: Fixed Tauri Stop Server to terminate the Windows trainer process tree by PID and widened EXE BLE discovery to scan broadly before filtering by AiLink service/name hints.
+- **Responsive OTA QA**: Clicked the OTA/update, Settings, and dashboard smoke flows across desktop, Pixel 7, iPhone 14, and iPad; blocked service workers in OTA smoke so mobile/tablet route mocks exercise `/api/update/manifest`, hid the scroll-to-top FAB on the Settings route, stacked Settings footer actions on phones, and refreshed intentional Help snapshots for `16.1.0`.
+- **Android Shell Reproducibility**: Updated the tracked Capacitor patch script to recreate the native `OpenFilePlugin.kt`, register it in `MainActivity`, add FileProvider/cache paths, and verify `@capacitor/filesystem` is installed/synced.
+- **Version Bump**: Promoted product/trainer/dashboard/firmware/package metadata to `16.1.0`, renamed firmware to `radar_vital_v16_1_0.ino`, and bumped the SW cache key to `rvt-shell-v12.0.4`.
+- **Verification**: `npm --prefix web run build`, `npm --prefix web run test:ci` (32/32), `cargo check --manifest-path src-tauri\Cargo.toml`, `cargo test --manifest-path src-tauri\Cargo.toml` (8/8), `npm run build:web`, `npm run build:check`, `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer`, `python -m rvt_trainer --help`, `python -m pytest -q tests --basetemp .pytest-tmp-pr47` (82/82), `node scripts\generate-rvt-latest.mjs --self-test`, `npx playwright test smoke/ota.spec.ts --reporter=line` (20/20), `npm run test:smoke -- --reporter=line` (180/180), `npm run test:visual -- --reporter=line` (96/96), `npm run cap:sync`, and `android\gradlew.bat -p android :app:compileDebugKotlin --no-daemon "-Dkotlin.compiler.execution.strategy=in-process" --console=plain --stacktrace` passed; Angular still reports the known initial bundle budget warning and Android dependency deprecation warnings.
+
+### 2026-06-07 — Firmware Audit Fixes & v16_0_1 Filename Rename
+
+- **Firmware Rename**: Renamed `radar_vital_v16_0_0.ino` → `radar_vital_v16_0_1.ino` to match the internal `FW_VERSION "v16.0.1"` / `SKETCH_VERSION_MOD 1`. Updated all references across `AGENTS.md`, `README.md`, `HANDOFF.md`, `ORIGINAL_REQUEST.md`, `rvt_trainer/monolith.py` (2 sites), `tests/test_v12_static_contract.py`, `.github/workflows/build-exe.yml`, `docs/angular-migration-audit.md`, and `docs/physical-acceptance-checklist.md`.
+- **CSV Column Count Enforcement**: Added runtime `_csvColCount` counter incremented by all `CSVU`/`CSVI`/`CSVF`/`CSVFN` macros; asserts `_csvColCount == CSV_COLUMN_COUNT` (207) on the first DATA emit of each new session and prints `[CONTRACT]` warning on mismatch. Counter resets to 0 after each row.
+- **Duplicate ENABLE_BLE Removed**: Removed the second `#ifndef ENABLE_BLE` / `#define ENABLE_BLE false` / `#endif` block at the old lines 273–275 (inside the logging section), keeping only the canonical block at lines 198–200.
+- **Dead Constant Removed**: Replaced `static const float CHIP_HR_BIAS_CORRECTION_BPM = 6.0f` (deprecated since v14.0.0) with a changelog comment.
+- **BLE Callback Tagged**: Added `// STUB — no-op until BLE path activates` comment to `RvsControlCallbacks::onWrite`.
+- **RLS_LAMBDA_HR Comment Updated**: Changed legacy alias comment to `// REMOVE at v17 — use RLS_LAMBDA_HR_BASE directly`.
+
+### 2026-06-06 — PR46 OTA Installation & Settings E2E Verification
+
+- **E2E Spec & Verification**: Implemented Playwright specs in `tests/smoke/ota.spec.ts` covering update check status results (New Version, New Build, Up-to-Date), button accessibility attributes, and unauthenticated public proxy manifest route validation.
+- **Firmware Audits**: Implemented runtime CSV column counting and mismatch warning on the first DATA emit of a session, and verified all 5 firmware requirements programmatically in `tests/test_v12_static_contract.py`.
+- **Backend Mocks & Manifest**: Confirmed context manager support (`__enter__` and `__exit__`) for `urllib.request.urlopen` in `tests/test_ota_backend.py`. Rebuilt the Angular application monolith and confirmed visual regressions/smoke tests pass 100%.
+- **Verification**: `pytest` passed 82/82; `npx playwright test tests/smoke/ota.spec.ts` passed 20/20; `npm run test:smoke` passed 180/180; `npm run test:visual` passed 8/8; `npm run build:web` / `npm run build:check` completed successfully.
+
+### 2026-06-06 — HyperFrames 60 Second Launch Commercial
+
+- **Launch Commercial Project**: Added `videos/radar-vital-launch-60s` with a 60-second fast-paced HyperFrames launch video covering Radar Vital's 60 GHz mmWave workflow, no-contact measurement, 0.4 m to 1.5 m operating range, desktop/mobile light-mode dashboard, and PWA/APK/Windows EXE availability.
+- **Credits & Narration**: Generated Kokoro narration and ended the commercial with the required credits for Lemuel Blaya, Angelo Diaz, and Blessie Mugat of the University of Mindanao, Electronics Engineering Students.
+- **Verification**: `npx --yes hyperframes lint`, `npx --yes hyperframes validate`, and `npx --yes hyperframes inspect --samples 18` passed with zero errors/warnings/layout issues; `npx --yes hyperframes snapshot . --at 2,6,10.8,16.7,22.6,28.6,34.8,41,46.8,51.8,57` produced review frames under `videos/radar-vital-launch-60s/snapshots`; rendered `videos/radar-vital-launch-60s/renders/radar-vital-launch-60s-with-narration.mp4` and verified 60.00 s 1920x1080 H.264 video with AAC narration.
+
+### 2026-06-06 — HyperFrames Product Promo Artifact
+
+- **Website Promo Project**: Captured `https://blayalems.github.io/radar-vital-mmwave-60-davao` into `videos/radar-vital-mmwave-60-davao-promo/capture` and built a 20-second HyperFrames product promo with DESIGN/SCRIPT/STORYBOARD docs, local captured fonts/assets, generated Kokoro narration, and midpoint snapshots.
+- **Working Demo Screenshot Update**: Replaced the promo's offline/server-not-running screenshot with a Playwright-captured explicit demo-mode Live view from a trainer-served mock dashboard, saved as `videos/radar-vital-mmwave-60-davao-promo/capture/screenshots/demo-working.png`.
+- **Light Mode + Mobile Availability Update**: Switched the promo composition and product frames to light mode, added a Pixel 7 light demo screenshot (`demo-working-mobile-light.png`), and updated the final beat to show desktop + mobile views with PWA, Android APK, and Windows EXE availability.
+- **Verification**: `npx --yes hyperframes lint`, `npx --yes hyperframes validate`, and `npx --yes hyperframes inspect --samples 15` passed with zero errors/warnings/layout issues; `npx --yes hyperframes snapshot . --at 1.8,6.8,12.6,17.8` produced review frames under `videos/radar-vital-mmwave-60-davao-promo/snapshots`.
+
 ### 2026-06-06 — PR46 v16.0.1 OTA Metadata & Mobile Regression Closure
 
 - **Release Metadata Contract**: Extended `scripts/generate-rvt-latest.mjs` and release CI so `rvt-latest.json` carries product/release/build identity, artifact URLs, sizes, SHA-256 hashes, minimum support, and compatibility metadata from the actual merge/tag release instead of PR-only publication.
@@ -21,7 +59,7 @@
 ### 2026-06-06 — PR46 Backend Hardening & API Version updates
 
 - **Monolith Hardening**: Guarded `_ControlHandler.end_headers()`, `_require_control_auth()`, and `_read_body()` against `self.headers` being `None` (resolving crashes on HTTP/0.9 or headerless/malformed socket connections).
-- **Version and Schema Metadata**: Bumped trainer, dashboard, and expected firmware versions to `16.0.1`/`v16.0.1` in `rvt_trainer/monolith.py` and `radar_vital_v16_0_0.ino`. Extended the GET `/api/version` response to include `product_version`, `schema_versions` for all schema types, and `update_manifest_url`.
+- **Version and Schema Metadata**: Bumped trainer, dashboard, and expected firmware versions to `16.0.1`/`v16.0.1` in `rvt_trainer/monolith.py` and `radar_vital_v16_0_1.ino`. Extended the GET `/api/version` response to include `product_version`, `schema_versions` for all schema types, and `update_manifest_url`.
 - **Update Manifest Proxy**: Implemented GET `/api/update/manifest` proxy in `rvt_trainer/monolith.py` using standard `urllib.request.urlopen` to route manifest requests dynamically.
 - **Unit and Contract Tests**: Added `test_headerless_request_does_not_crash` in `tests/test_trainer_security_api.py` to verify resilience against malformed socket requests, and bumped version assertions in `tests/test_v12_static_contract.py`.
 

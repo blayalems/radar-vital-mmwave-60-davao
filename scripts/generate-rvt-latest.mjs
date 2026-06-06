@@ -61,6 +61,16 @@ function artifactMetadata({ kind, platform, fileName, filePath, compatibility, r
   return artifact;
 }
 
+function readTauriSignature(exePath) {
+  const inlineSignature = readArg('--tauri-signature') || process.env.TAURI_SIGNATURE || '';
+  if (inlineSignature) return inlineSignature.trim();
+  const sigPath = `${exePath}.sig`;
+  if (fs.existsSync(sigPath)) {
+    return fs.readFileSync(sigPath, 'utf8').trim();
+  }
+  return '';
+}
+
 // Generate the manifest object
 function generateManifest(distDir, prodVersion, options = buildOptions(prodVersion)) {
   const apkReleasePath = path.join(distDir, 'radar-vital-release.apk');
@@ -102,6 +112,7 @@ function generateManifest(distDir, prodVersion, options = buildOptions(prodVersi
     compatibility: 'Windows 10+',
     releaseUrl
   });
+  const tauriSignature = readTauriSignature(exePath);
 
   return {
     product_version: prodVersion,
@@ -120,7 +131,35 @@ function generateManifest(distDir, prodVersion, options = buildOptions(prodVersi
       android: 'Android 8.0+',
       windows: 'Windows 10+',
       schema_lineage: 'rvt-v12.0',
-      install_mode: 'manual_download_guidance'
+      install_mode: 'automated_native_install_with_manual_fallback',
+      manual_download_guidance: 'Use the listed APK/EXE links when native install automation is unavailable.'
+    },
+    tauri_updater: {
+      manifest_url: 'https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest-tauri.json',
+      signature_configured: Boolean(tauriSignature)
+    }
+  };
+}
+
+// Generate the Tauri v2 updater manifest object
+function generateTauriManifest(distDir, prodVersion, options = buildOptions(prodVersion)) {
+  const exePath = path.join(distDir, 'radar-vital-windows-installer.exe');
+  if (!fs.existsSync(exePath)) {
+    throw new Error(`radar-vital-windows-installer.exe was not found in ${distDir}`);
+  }
+  const signature = readTauriSignature(exePath);
+  const releaseUrl = `https://github.com/${options.repository}/releases/download/${options.releaseTag}`;
+  const platform = {
+    signature: signature,
+    url: `${releaseUrl}/radar-vital-windows-installer.exe`
+  };
+  return {
+    version: prodVersion,
+    notes: `Radar Vital version ${prodVersion} release.`,
+    pub_date: options.releasedAt,
+    platforms: {
+      'windows-x86_64': platform,
+      'windows-x86_64.nsis': platform
     }
   };
 }
@@ -135,12 +174,15 @@ function runSelfTest() {
 
   const mockApkContent = 'mock apk content ' + Math.random();
   const mockExeContent = 'mock exe content ' + Math.random();
+  const mockSigContent = 'mock-signature-content';
 
   const mockApkPath = path.join(tempDir, 'radar-vital-release.apk');
   const mockExePath = path.join(tempDir, 'radar-vital-windows-installer.exe');
+  const mockSigPath = path.join(tempDir, 'radar-vital-windows-installer.exe.sig');
 
   fs.writeFileSync(mockApkPath, mockApkContent);
   fs.writeFileSync(mockExePath, mockExeContent);
+  fs.writeFileSync(mockSigPath, mockSigContent);
 
   const expectedApkSize = Buffer.byteLength(mockApkContent);
   const expectedExeSize = Buffer.byteLength(mockExeContent);
@@ -180,6 +222,12 @@ function runSelfTest() {
     }
     if (manifest.release_url !== `https://github.com/${DEFAULT_REPOSITORY}/releases/tag/${testOptions.releaseTag}`) {
       throw new Error(`release_url mismatch: got ${manifest.release_url}`);
+    }
+    if (manifest.compatibility?.install_mode !== 'automated_native_install_with_manual_fallback') {
+      throw new Error(`install_mode mismatch: got ${manifest.compatibility?.install_mode}`);
+    }
+    if (!manifest.tauri_updater?.signature_configured) {
+      throw new Error('Expected tauri_updater.signature_configured in manifest self-test');
     }
 
     const apk = manifest.artifacts?.apk;
@@ -227,6 +275,34 @@ function runSelfTest() {
       throw new Error(`EXE compatibility mismatch: got ${exe.compatibility}`);
     }
 
+    // Validate Tauri manifest
+    const tauriManifest = generateTauriManifest(tempDir, version, testOptions);
+    console.log('Generated Tauri manifest in self-test:', JSON.stringify(tauriManifest, null, 2));
+
+    if (tauriManifest.version !== version) {
+      throw new Error(`Tauri version mismatch: expected ${version}, got ${tauriManifest.version}`);
+    }
+    if (tauriManifest.pub_date !== testOptions.releasedAt) {
+      throw new Error(`Tauri pub_date mismatch: expected ${testOptions.releasedAt}, got ${tauriManifest.pub_date}`);
+    }
+    const tauriPlatform = tauriManifest.platforms?.['windows-x86_64'];
+    if (!tauriPlatform) {
+      throw new Error('Missing windows-x86_64 platform in Tauri manifest');
+    }
+    const tauriNsisPlatform = tauriManifest.platforms?.['windows-x86_64.nsis'];
+    if (!tauriNsisPlatform) {
+      throw new Error('Missing windows-x86_64.nsis platform in Tauri manifest');
+    }
+    if (tauriPlatform.signature !== mockSigContent) {
+      throw new Error(`Tauri signature mismatch: expected ${mockSigContent}, got ${tauriPlatform.signature}`);
+    }
+    if (tauriPlatform.url !== `https://github.com/${DEFAULT_REPOSITORY}/releases/download/${testOptions.releaseTag}/radar-vital-windows-installer.exe`) {
+      throw new Error(`Tauri URL mismatch: got ${tauriPlatform.url}`);
+    }
+    if (tauriNsisPlatform.signature !== mockSigContent || tauriNsisPlatform.url !== tauriPlatform.url) {
+      throw new Error('Tauri NSIS platform metadata mismatch');
+    }
+
     console.log('Self-test validation passed successfully!');
   } finally {
     // Clean up temp dir
@@ -254,6 +330,12 @@ if (isSelfTest) {
     const outputPath = path.join(distDir, 'rvt-latest.json');
     fs.writeFileSync(outputPath, JSON.stringify(manifest, null, 2));
     console.log(`Successfully generated manifest: ${outputPath}`);
+
+    // Tauri updater manifest
+    const tauriManifest = generateTauriManifest(distDir, version);
+    const tauriOutputPath = path.join(distDir, 'rvt-latest-tauri.json');
+    fs.writeFileSync(tauriOutputPath, JSON.stringify(tauriManifest, null, 2));
+    console.log(`Successfully generated Tauri manifest: ${tauriOutputPath}`);
   } catch (error) {
     console.error('Failed to generate manifest:', error);
     process.exit(1);

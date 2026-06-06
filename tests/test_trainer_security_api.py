@@ -163,10 +163,10 @@ def test_api_version_additive_product_and_schema_fields(tmp_path: Path):
     try:
         status, payload = _request(base, "/api/version")
         assert status == 200
-        assert payload["trainer"] == "16.0.1"
-        assert payload["dashboard"] == "16.0.1"
-        assert payload["product_version"] == "16.0.1"
-        assert payload["firmware_expected"] == "v16.0.1"
+        assert payload["trainer"] == "16.1.0"
+        assert payload["dashboard"] == "16.1.0"
+        assert payload["product_version"] == "16.1.0"
+        assert payload["firmware_expected"] == "v16.1.0"
         expected_schema_versions = {
             "control_api": "rvt-control-api-v12.0",
             "session_notes": "rvt-session-notes-v12.0",
@@ -208,7 +208,7 @@ def test_control_handler_end_headers_tolerates_missing_headers_attribute():
 def test_update_manifest_proxy_success(tmp_path: Path):
     from unittest.mock import patch, MagicMock
     from rvt_trainer.monolith import _manifest_cache
-    
+
     # Reset cache to force network call
     _manifest_cache["data"] = None
     _manifest_cache["ts"] = 0
@@ -218,31 +218,31 @@ def test_update_manifest_proxy_success(tmp_path: Path):
     server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
     server.start()
     base = f"http://127.0.0.1:{server.httpd.server_port}"
-    
+
     mock_data = {
-        "product_version": "16.0.1",
+        "product_version": "16.1.0",
         "minimum_supported": "16.0.0",
         "released_at": "2026-06-06T00:00:00Z",
         "artifacts": {}
     }
-    
+
     original_urlopen = urllib.request.urlopen
-    
+
     mock_response = MagicMock()
     mock_response.read.return_value = json.dumps(mock_data).encode("utf-8")
     mock_response.__enter__.return_value = mock_response
-    
+
     def side_effect(req, *args, **kwargs):
         url = req.full_url if hasattr(req, "full_url") else str(req)
         if "rvt-latest.json" in url:
             return mock_response
         return original_urlopen(req, *args, **kwargs)
-    
+
     try:
         with patch("urllib.request.urlopen", side_effect=side_effect):
             status, data = _request(base, "/api/update/manifest")
             assert status == 200
-            assert data["product_version"] == "16.0.1"
+            assert data["product_version"] == "16.1.0"
     finally:
         server.stop()
 
@@ -250,7 +250,7 @@ def test_update_manifest_proxy_success(tmp_path: Path):
 def test_update_manifest_proxy_failure(tmp_path: Path):
     from unittest.mock import patch
     from rvt_trainer.monolith import _manifest_cache
-    
+
     # Reset cache to force network call
     _manifest_cache["data"] = None
     _manifest_cache["ts"] = 0
@@ -260,15 +260,15 @@ def test_update_manifest_proxy_failure(tmp_path: Path):
     server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
     server.start()
     base = f"http://127.0.0.1:{server.httpd.server_port}"
-    
+
     original_urlopen = urllib.request.urlopen
-    
+
     def side_effect(req, *args, **kwargs):
         url = req.full_url if hasattr(req, "full_url") else str(req)
         if "rvt-latest.json" in url:
             raise urllib.error.URLError("Network error")
         return original_urlopen(req, *args, **kwargs)
-    
+
     try:
         with patch("urllib.request.urlopen", side_effect=side_effect):
             status, data = _request(base, "/api/update/manifest")
@@ -278,3 +278,63 @@ def test_update_manifest_proxy_failure(tmp_path: Path):
     finally:
         server.stop()
 
+
+def test_update_manifest_proxy_caching_and_expiration(tmp_path: Path):
+    from unittest.mock import patch, MagicMock
+    from rvt_trainer.monolith import _manifest_cache
+    import time
+
+    # 1. Reset cache
+    _manifest_cache["data"] = None
+    _manifest_cache["ts"] = 0
+
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+
+    call_count = 0
+    original_urlopen = urllib.request.urlopen
+
+    def side_effect(req, *args, **kwargs):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "rvt-latest.json" in url:
+            nonlocal call_count
+            call_count += 1
+            mock_response = MagicMock()
+            mock_data = {
+                "product_version": f"16.1.0-{call_count}",
+                "minimum_supported": "16.0.0",
+                "released_at": "2026-06-06T00:00:00Z",
+                "artifacts": {}
+            }
+            mock_response.read.return_value = json.dumps(mock_data).encode("utf-8")
+            mock_response.__enter__.return_value = mock_response
+            return mock_response
+        return original_urlopen(req, *args, **kwargs)
+
+    try:
+        with patch("urllib.request.urlopen", side_effect=side_effect):
+            # First request: should trigger fetch and get 16.1.0-1
+            status1, data1 = _request(base, "/api/update/manifest")
+            assert status1 == 200
+            assert data1["product_version"] == "16.1.0-1"
+            assert call_count == 1
+
+            # Second request immediately: should return cached data and NOT increment call_count
+            status2, data2 = _request(base, "/api/update/manifest")
+            assert status2 == 200
+            assert data2["product_version"] == "16.1.0-1"
+            assert call_count == 1
+
+            # Simulate cache expiration: move the cached timestamp back by 301 seconds
+            _manifest_cache["ts"] = time.time() - 301
+
+            # Third request: cache has expired, should trigger a new fetch and get 16.1.0-2
+            status3, data3 = _request(base, "/api/update/manifest")
+            assert status3 == 200
+            assert data3["product_version"] == "16.1.0-2"
+            assert call_count == 2
+    finally:
+        server.stop()

@@ -1,4 +1,4 @@
-const CACHE = 'rvt-shell-v12.0.3';
+const CACHE = 'rvt-shell-v12.0.4';
 const DASHBOARD = './index.html';
 const MONOLITH = './radar_vital_live_dashboard_v12_for_v16_0.html';
 const PRECACHE = [

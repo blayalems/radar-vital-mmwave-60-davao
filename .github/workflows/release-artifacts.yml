@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag to publish, for example v16.0.1-alpha.1'
+        description: 'Release tag to publish, for example v16.1.0-alpha.1'
         required: true
         type: string
       prerelease:
@@ -35,6 +35,7 @@ jobs:
       release_name: ${{ steps.version.outputs.release_name }}
       release_version: ${{ steps.version.outputs.release_version }}
       android_version_code: ${{ steps.version.outputs.android_version_code }}
+      released_at: ${{ steps.version.outputs.released_at }}
     steps:
       - uses: actions/checkout@v4
 
@@ -61,6 +62,8 @@ jobs:
           echo "release_name=Radar Vital ${release_tag}" >> "$GITHUB_OUTPUT"
           echo "release_version=${release_version}" >> "$GITHUB_OUTPUT"
           echo "android_version_code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          released_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          echo "released_at=${released_at}" >> "$GITHUB_OUTPUT"
 
   android:
     name: Android APK
@@ -195,10 +198,20 @@ jobs:
         shell: pwsh
         env:
           RELEASE_VERSION: ${{ needs.release_metadata.outputs.release_version }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
         run: |
           $configPath = "src-tauri/tauri.conf.json"
           $config = Get-Content $configPath -Raw | ConvertFrom-Json
           $config.version = $env:RELEASE_VERSION
+          if ($env:TAURI_UPDATER_PUBLIC_KEY) {
+            if (-not $config.plugins) {
+              $config | Add-Member -NotePropertyName plugins -NotePropertyValue ([pscustomobject]@{})
+            }
+            if (-not $config.plugins.updater) {
+              $config.plugins | Add-Member -NotePropertyName updater -NotePropertyValue ([pscustomobject]@{})
+            }
+            $config.plugins.updater.pubkey = $env:TAURI_UPDATER_PUBLIC_KEY
+          }
           $config | ConvertTo-Json -Depth 100 | Set-Content $configPath
           Write-Host "Tauri installer version: $($config.version)"
 
@@ -210,6 +223,8 @@ jobs:
         env:
           RUST_BACKTRACE: '1'
           TAURI_BUNDLE__WEBVIEW_FIXED_RUNTIME_PATH: ''
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Sign EXE when certificate is configured
         shell: pwsh
@@ -239,12 +254,20 @@ jobs:
           $exe = Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter *.exe | Select-Object -First 1
           if (-not $exe) { throw "No NSIS EXE found." }
           Copy-Item $exe.FullName "dist\radar-vital-windows-installer.exe"
+          $sig = Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter *.exe.sig | Select-Object -First 1
+          if ($sig) {
+            Copy-Item $sig.FullName "dist\radar-vital-windows-installer.exe.sig"
+          } else {
+            Write-Host "No Tauri updater signature found; Windows install automation will remain disabled in the manifest."
+          }
 
       - name: Upload EXE release asset
         uses: actions/upload-artifact@v4
         with:
           name: radar-vital-exe-release-asset
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/*.sig
           if-no-files-found: error
           retention-days: 30
 
@@ -281,11 +304,13 @@ jobs:
           mkdir -p dist
           cp release-assets/radar-vital-apk-release-asset/*.apk dist/
           cp release-assets/radar-vital-exe-release-asset/*.exe dist/
+          cp release-assets/radar-vital-exe-release-asset/*.sig dist/ || true
 
       - name: Generate latest release manifest JSON
         env:
           RELEASE_TAG: ${{ needs.release_metadata.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.release_metadata.outputs.release_version }}
+          RELEASED_AT: ${{ needs.release_metadata.outputs.released_at }}
           ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}
           BUILD_NUMBER: ${{ github.run_number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -297,7 +322,7 @@ jobs:
           tag_name: ${{ needs.release_metadata.outputs.release_tag }}
           name: ${{ needs.release_metadata.outputs.release_name }}
           target_commitish: ${{ github.sha }}
-          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || startsWith(github.ref_name, 'v16.0.1-alpha') }}
+          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || startsWith(github.ref_name, 'v16.1.0-alpha') }}
           make_latest: false
           generate_release_notes: true
           body: |
@@ -310,7 +335,9 @@ jobs:
           files: |
             release-assets/**/*.apk
             release-assets/**/*.exe
+            release-assets/**/*.sig
             dist/rvt-latest.json
+            dist/rvt-latest-tauri.json
 
       - name: Build Pages artifact with latest manifest
         run: |
@@ -318,6 +345,7 @@ jobs:
           npm --prefix web ci
           npm run build:web
           cp dist/rvt-latest.json www/rvt-latest.json
+          cp dist/rvt-latest-tauri.json www/rvt-latest-tauri.json
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

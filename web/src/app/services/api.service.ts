@@ -435,7 +435,7 @@ export class ApiService {
     if (path === '/api/update/manifest') {
       const releaseUrl = 'https://github.com/blayalems/radar-vital-mmwave-60-davao/releases';
       return {
-        product_version: '16.0.1',
+        product_version: '16.1.0',
         minimum_supported: '16.0.0',
         released_at: '2026-06-06T00:00:00.000Z',
         release_url: releaseUrl,

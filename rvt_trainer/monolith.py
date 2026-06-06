@@ -83,9 +83,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.0.1"
-DASHBOARD_VERSION = "16.0.1"
-FIRMWARE_VERSION_EXPECTED = "v16.0.1"
+VERSION = "16.1.0"
+DASHBOARD_VERSION = "16.1.0"
+FIRMWARE_VERSION_EXPECTED = "v16.1.0"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 _manifest_cache = {"data": None, "ts": 0}
 _manifest_cache_lock = threading.Lock()
@@ -4304,7 +4304,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_0_0.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_1_0.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -6271,21 +6271,20 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if path.startswith("/api/") and path not in public_api_paths and not self._require_control_auth():
             return
         if path == "/api/update/manifest":
-            now = time.time()
             with _manifest_cache_lock:
+                now = time.time()
                 if _manifest_cache["data"] is not None and now - _manifest_cache["ts"] < 300:
                     self._send_json(200, _manifest_cache["data"])
                     return
-            try:
-                # Reduced timeout to 3 seconds. 502 expected on offline hosts.
-                with urllib.request.urlopen(UPDATE_MANIFEST_URL, timeout=3) as response:
-                    payload = json.loads(response.read().decode("utf-8"))
-                with _manifest_cache_lock:
+                try:
+                    # Fetching under the manifest cache lock ensures only one concurrent request triggers network fetch
+                    with urllib.request.urlopen(UPDATE_MANIFEST_URL, timeout=3) as response:
+                        payload = json.loads(response.read().decode("utf-8"))
                     _manifest_cache["data"] = payload
                     _manifest_cache["ts"] = now
-                self._send_json(200, payload)
-            except Exception as e:
-                self._send_json(502, {"ok": False, "error": {"code": "PROXY_ERROR", "message": f"Failed to fetch update manifest: {str(e)}"}} )
+                    self._send_json(200, payload)
+                except Exception as e:
+                    self._send_json(502, {"ok": False, "error": {"code": "PROXY_ERROR", "message": f"Failed to fetch update manifest: {str(e)}"}} )
             return
         if path == "/api/health":
             t0 = time.perf_counter()
@@ -6996,7 +6995,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_0_0.ino"),
+        Path("radar_vital_v16_1_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
         Path("radar_vital_v14.ino"),

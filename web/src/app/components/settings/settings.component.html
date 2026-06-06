@@ -453,6 +453,87 @@
         <p class="settings-help-text">Live charts keep {{ state.liveBufferSeconds() }} seconds, currently capped at {{ state.maxChartPoints() }} data points.</p>
       </mat-card-content>
     </mat-card>
+
+    <!-- Update & Version Info -->
+    <mat-card class="settings-card premium-card update-info-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar">system_update</mat-icon>
+        <mat-card-title>Update & Version Info</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="settings-row">
+          <div class="settings-copy">
+            <span class="row-title">Product Version</span>
+            <span class="row-description">{{ productVersion }}</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-copy">
+            <span class="row-title">Schema Version</span>
+            <span class="row-description">{{ schemaVersion }}</span>
+          </div>
+        </div>
+        
+        <div class="settings-row block-row" style="margin-top: 8px;">
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="checkForUpdates()" [disabled]="updateCheckBusy()">
+            <mat-icon>sync</mat-icon>{{ updateCheckBusy() ? 'Checking...' : 'Check for Updates' }}
+          </button>
+        </div>
+
+        @if (updateCheckResult(); as result) {
+          @if (result.ok) {
+            @if (result.updateAvailable) {
+              <div class="update-available-container" style="margin-top: 16px; padding: 12px; border-radius: 8px; background-color: var(--md-sys-color-secondary-container, #e8def8); color: var(--md-sys-color-on-secondary-container, #1d192b);">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                  <mat-icon style="color: var(--md-sys-color-primary, #6750a4);">downloading</mat-icon>
+                  <span style="font-weight: 500; font-size: 0.95rem;">Update Available: {{ result.release_tag || result.product_version }}</span>
+                </div>
+                <div style="font-size: 0.85rem; margin-bottom: 12px; opacity: 0.85;">
+                  Released: {{ result.released_at_formatted }}
+                </div>
+                
+                <div class="download-links" style="display: flex; flex-direction: column; gap: 8px;">
+                  @if (result.artifacts?.apk; as apk) {
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid rgba(0,0,0,0.1);">
+                      <div>
+                        <strong>Android APK</strong> ({{ apk.compatibility }})<br>
+                        <span style="font-size: 0.75rem; opacity: 0.7;">Size: {{ apk.size_mb }} MB | SHA256: {{ apk.sha256.substring(0, 8) }}...</span>
+                      </div>
+                      <a mat-stroked-button [href]="apk.url" target="_blank" rel="noopener">Download</a>
+                    </div>
+                  }
+                  @if (result.artifacts?.exe; as exe) {
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 6px 0;">
+                      <div>
+                        <strong>Windows EXE</strong> ({{ exe.compatibility }})<br>
+                        <span style="font-size: 0.75rem; opacity: 0.7;">Size: {{ exe.size_mb }} MB | SHA256: {{ exe.sha256.substring(0, 8) }}...</span>
+                      </div>
+                      <a mat-stroked-button [href]="exe.url" target="_blank" rel="noopener">Download</a>
+                    </div>
+                  }
+                </div>
+              </div>
+            } @else {
+              <div class="settings-row" style="margin-top: 12px; align-items: center; gap: 8px; color: var(--md-sys-color-tertiary, #00a496);">
+                <mat-icon>check_circle</mat-icon>
+                <div class="settings-copy">
+                  <span class="row-title" style="color: inherit;">Your dashboard is up to date.</span>
+                  <span class="row-description" style="color: inherit;">Version: 16.0.1</span>
+                </div>
+              </div>
+            }
+          } @else {
+            <div class="settings-row" style="margin-top: 12px; align-items: center; gap: 8px; color: var(--md-sys-color-error, #ba1a1a);">
+              <mat-icon>error</mat-icon>
+              <div class="settings-copy">
+                <span class="row-title" style="color: inherit;">Check Failed</span>
+                <span class="row-description" style="color: inherit;">{{ result.error }}</span>
+              </div>
+            </div>
+          }
+        }
+      </mat-card-content>
+    </mat-card>
   </div>
 
   <div class="settings-footer">

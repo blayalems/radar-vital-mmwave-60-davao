@@ -147,11 +147,38 @@
     display: flex !important;
     flex: 0 0 auto !important;
     margin-left: 0 !important;
+    max-width: 44px !important;
+    min-width: 44px !important;
     order: 1 !important;
   }
 
   :host .topbar-status .status-pill:not(.server-status) {
     display: none !important;
+  }
+
+  :host .topbar-status .server-status {
+    align-items: center !important;
+    display: inline-flex !important;
+    height: 44px !important;
+    justify-content: center !important;
+    max-width: 44px !important;
+    min-width: 44px !important;
+    overflow: hidden !important;
+    padding-inline: 0 !important;
+    width: 44px !important;
+  }
+
+  :host .topbar-status .server-status .status-txt {
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
+  :host .topbar-status .server-dot {
+    margin: 0 !important;
   }
 
   :host .topbar-actions {

@@ -59,6 +59,33 @@
   overflow: hidden;
 }
 
+.settings-card,
+.settings-card *,
+.settings-row,
+.settings-copy,
+.server-actions,
+.threshold-row,
+.audio-control-row,
+.color-picker-row,
+.ble-device-row,
+.download-links,
+mat-card-content,
+mat-form-field,
+button {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+button,
+.row-title,
+.row-description,
+.settings-help-text,
+.server-log-panel pre,
+.ble-device-row,
+.download-links {
+  overflow-wrap: anywhere;
+}
+
 .settings-card:hover {
   border-color: color-mix(in srgb, var(--md-sys-color-primary) 62%, var(--md-sys-color-outline-variant));
 }
@@ -95,6 +122,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.server-actions button,
+.threshold-actions button,
+.audio-actions button,
+.download-links a {
+  max-width: 100%;
+  white-space: normal;
 }
 
 .server-log-panel {
@@ -162,6 +197,7 @@ mat-card-content {
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .block-row {
@@ -231,7 +267,8 @@ mat-button-toggle {
   .connection-card,
   .python-server-card,
   .ble-scanner-card,
-  .thresholds-card {
+  .thresholds-card,
+  .update-info-card {
     grid-column: span 1;
   }
 }
@@ -547,3 +584,26 @@ mat-button-toggle {
   color: var(--md-sys-color-on-surface-variant);
   font-size: 0.82rem;
 }
+
+.update-info-card {
+  border-left: 4px solid var(--md-sys-color-primary, #0061a4);
+}
+
+@media (max-width: 480px) {
+  .settings-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  .settings-row mat-slide-toggle,
+  .settings-row mat-button-toggle-group {
+    align-self: flex-start;
+    width: 100%;
+  }
+  .server-actions button,
+  .audio-actions button,
+  .threshold-actions button {
+    width: 100%;
+  }
+}
+

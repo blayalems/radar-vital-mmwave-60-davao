@@ -59,6 +59,7 @@ import tempfile
 import time
 import threading
 import csv
+import urllib.request
 from collections import deque
 from functools import lru_cache, partial
 from html import escape as html_escape
@@ -82,9 +83,12 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "12.0.0"
-DASHBOARD_VERSION = "12.0.0"
-FIRMWARE_VERSION_EXPECTED = "v16.0.0"
+VERSION = "16.0.1"
+DASHBOARD_VERSION = "16.0.1"
+FIRMWARE_VERSION_EXPECTED = "v16.0.1"
+UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
+_manifest_cache = {"data": None, "ts": 0}
+_manifest_cache_lock = threading.Lock()
 DEFAULT_RADAR_PORT = "COM10"
 DEFAULT_BLE_ADDRESS = "10:22:33:9E:8F:63"
 FEATURE_ENGINEERING_VERSION = "v11.0-physio-2026"
@@ -6112,7 +6116,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self.send_header("Pragma", "no-cache")
             self.send_header("Expires", "0")
 
-        req_origin = self.headers.get("Origin", "")
+        headers = getattr(self, "headers", None)
+        req_origin = headers.get("Origin", "") if headers else ""
         cors_origin = str(getattr(self.server, "cors_origin", ""))
 
         if cors_origin == "*":
@@ -6176,7 +6181,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
     def _require_control_auth(self) -> bool:
         if getattr(self.server, "bind_mode", "local") != "lan":
             return True
-        token = (self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "").strip()
+        headers = getattr(self, "headers", None)
+        token = ((headers.get("X-RVT-Auth") or headers.get("X-RVT-Token") or "") if headers else "").strip()
         if token and token in getattr(self.server, "auth_tokens", set()):
             return True
         self.send_response(401)
@@ -6217,7 +6223,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
 
     def _read_body(self):
         try:
-            n = int(self.headers.get("Content-Length", "0") or 0)
+            headers = getattr(self, "headers", None)
+            n = int((headers.get("Content-Length", "0") if headers else "0") or 0)
             return json.loads(self.rfile.read(n).decode("utf-8")) if n > 0 else {}
         except Exception:
             return {}
@@ -6259,8 +6266,26 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             "/api/version",
             "/api/server-info",
             "/api/help/schema",
+            "/api/update/manifest",
         }
         if path.startswith("/api/") and path not in public_api_paths and not self._require_control_auth():
+            return
+        if path == "/api/update/manifest":
+            now = time.time()
+            with _manifest_cache_lock:
+                if _manifest_cache["data"] is not None and now - _manifest_cache["ts"] < 300:
+                    self._send_json(200, _manifest_cache["data"])
+                    return
+            try:
+                # Reduced timeout to 3 seconds. 502 expected on offline hosts.
+                with urllib.request.urlopen(UPDATE_MANIFEST_URL, timeout=3) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                with _manifest_cache_lock:
+                    _manifest_cache["data"] = payload
+                    _manifest_cache["ts"] = now
+                self._send_json(200, payload)
+            except Exception as e:
+                self._send_json(502, {"ok": False, "error": {"code": "PROXY_ERROR", "message": f"Failed to fetch update manifest: {str(e)}"}} )
             return
         if path == "/api/health":
             t0 = time.perf_counter()
@@ -6274,6 +6299,19 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "trainer": VERSION,
                 "firmware_expected": FIRMWARE_VERSION_EXPECTED,
                 "dashboard": DASHBOARD_VERSION,
+                "product_version": VERSION,
+                "schema_versions": {
+                    "control_api": CONTROL_API_SCHEMA_VERSION,
+                    "session_notes": SESSION_NOTES_SCHEMA_VERSION,
+                    "session_signoff": SESSION_SIGNOFF_SCHEMA_VERSION,
+                    "training_progress": TRAINING_PROGRESS_SCHEMA_VERSION,
+                    "live_event": LIVE_EVENT_SCHEMA_VERSION,
+                    "live_events": LIVE_EVENT_SCHEMA_VERSION,
+                    "session_manifest": SESSION_MANIFEST_SCHEMA_VERSION,
+                    "chart_annotations": CHART_ANNOTATIONS_SCHEMA_VERSION,
+                    "subject_profile": SUBJECT_PROFILE_SCHEMA_VERSION
+                },
+                "update_manifest_url": UPDATE_MANIFEST_URL
             })
             return
         if path == "/api/ble/scan":

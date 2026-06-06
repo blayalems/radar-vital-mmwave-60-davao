@@ -95,7 +95,7 @@ async function main() {
     try {
       console.log(`Bundling JS bundle with esbuild to resolve all chunks: ${jsPath}`);
       const bundledPath = path.join(WWW, `bundled-${path.basename(jsPath)}`);
-      execSync(`npx esbuild "${path.join(WWW, jsPath)}" --bundle --allow-overwrite --outfile="${bundledPath}" --format=iife --global-name=RVTDashboardBundle`, { cwd: ROOT, stdio: 'ignore' });
+      execSync(`npx esbuild "${path.join(WWW, jsPath)}" --bundle --minify --allow-overwrite --outfile="${bundledPath}" --format=iife --global-name=RVTDashboardBundle`, { cwd: ROOT, stdio: 'ignore' });
       jsContent = await fs.readFile(bundledPath, 'utf8');
       scriptType = '';
     } catch (e) {

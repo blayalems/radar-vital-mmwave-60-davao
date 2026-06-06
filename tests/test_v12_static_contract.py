@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DASH = ROOT / "radar_vital_live_dashboard_v12_for_v16_0.html"
 APP = ROOT / "web" / "src" / "app" / "app.ts"
 LAYOUT = ROOT / "web" / "src" / "app" / "components" / "layout" / "layout.component.html"
+LAYOUT_TS = ROOT / "web" / "src" / "app" / "components" / "layout" / "layout.component.ts"
 API = ROOT / "web" / "src" / "app" / "services" / "api.service.ts"
 TELEMETRY = ROOT / "web" / "src" / "app" / "services" / "telemetry.service.ts"
 BLUETOOTH = ROOT / "web" / "src" / "app" / "services" / "bluetooth.service.ts"
@@ -18,12 +19,21 @@ FW = ROOT / "radar_vital_v16_0_0.ino"
 SW = ROOT / "assets" / "sw.js"
 STYLES = ROOT / "web" / "src" / "styles.scss"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
+RELEASE_MANIFEST_GENERATOR = ROOT / "scripts" / "generate-rvt-latest.mjs"
 PAGES_WORKFLOW = ROOT / ".github" / "workflows" / "pages.yml"
 PLAYWRIGHT_WORKFLOW = ROOT / ".github" / "workflows" / "playwright.yml"
+RELEASE_ARTIFACTS_WORKFLOW = ROOT / ".github" / "workflows" / "release-artifacts.yml"
 EXE_WORKFLOW = ROOT / ".github" / "workflows" / "build-exe.yml"
 TAURI_MAIN = ROOT / "src-tauri" / "src" / "main.rs"
 VISUAL_SNAPSHOTS = ROOT / "tests" / "visual" / "rvt-v12.spec.ts-snapshots"
 PATCH_ANDROID_SHELL = ROOT / "scripts" / "patch-android-shell.mjs"
+ROOT_PACKAGE = ROOT / "package.json"
+ROOT_PACKAGE_LOCK = ROOT / "package-lock.json"
+TAURI_CARGO = ROOT / "src-tauri" / "Cargo.toml"
+TAURI_CONF = ROOT / "src-tauri" / "tauri.conf.json"
+PACKAGING_TAURI_CONF = ROOT / "packaging" / "tauri" / "tauri.conf.json"
+PACKAGING_CAP_PACKAGE = ROOT / "packaging" / "capacitor" / "package.json"
+PACKAGING_CAP_PACKAGE_LOCK = ROOT / "packaging" / "capacitor" / "package-lock.json"
 
 
 def text(path: Path) -> str:
@@ -34,6 +44,7 @@ def test_dashboard_pwa_contract():
     html = text(DASH)
     app = text(APP)
     layout = text(LAYOUT)
+    layout_ts = text(LAYOUT_TS)
     api = text(API)
     telemetry = text(TELEMETRY)
     state = text(STATE)
@@ -54,6 +65,7 @@ def test_dashboard_pwa_contract():
     assert "this.state.demoMode() || this.state.autoDemoActive()" in telemetry
     assert "PersistenceService" in state
     assert "indexedDB" in text(ROOT / "web" / "src" / "app" / "services" / "persistence.service.ts")
+    assert "this.breakpointObserver.observe('(min-width: 1024px)')" in layout_ts
     assert "min-device-memory" not in html
     assert "fonts.googleapis" not in html
     assert "fonts.gstatic" not in html
@@ -62,12 +74,82 @@ def test_dashboard_pwa_contract():
 
 def test_service_worker_contract():
     sw = text(SW)
-    assert "rvt-shell-v12.0.2" in sw
+    assert "rvt-shell-v12.0.3" in sw
     assert "text/event-stream" in sw
     assert "SKIP_WAITING" in sw
     assert "SW_UPDATED" in sw
     assert "/api/session/current/live_dashboard.json" in sw
     assert "/fonts/material-symbols-rounded.woff2" in sw
+
+
+def test_pr46_product_identity_bump_preserves_v12_lineage():
+    trainer = text(TRAINER_MONOLITH)
+    firmware = text(FW)
+    settings = text(ROOT / "web" / "src" / "app" / "components" / "settings" / "settings.component.ts")
+    api = text(API)
+    sw = text(SW)
+
+    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.0.1"
+    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.0.1"
+    assert json.loads(text(TAURI_CONF))["version"] == "16.0.1"
+    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.0.1"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.0.1"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.0.1"
+    assert re.search(r'^version = "16\.0\.1"$', text(TAURI_CARGO), re.MULTILINE)
+
+    assert 'VERSION = "16.0.1"' in trainer
+    assert 'DASHBOARD_VERSION = "16.0.1"' in trainer
+    assert 'FIRMWARE_VERSION_EXPECTED = "v16.0.1"' in trainer
+    assert "const PRODUCT_VERSION = '16.0.1';" in settings
+    assert "product_version: '16.0.1'" in api
+    assert '#define FW_VERSION "v16.0.1"' in firmware
+    assert "#define SKETCH_VERSION_MAJOR 16" in firmware
+    assert "#define SKETCH_VERSION_SUB 0" in firmware
+    assert "#define SKETCH_VERSION_MOD 1" in firmware
+
+    for schema_id in [
+        "rvt-control-api-v12.0",
+        "rvt-session-notes-v12.0",
+        "rvt-session-signoff-v12.0",
+        "rvt-training-progress-v12.0",
+        "rvt-live-events-v12.0",
+        "rvt-session-manifest-v12.0",
+        "rvt-chart-annotations-v12.0",
+        "rvt-subject-profiles-v12.0",
+    ]:
+        assert schema_id in trainer
+    assert "rvt-shell-v12.0.3" in sw
+    assert "rvt-shell-v16" not in sw
+
+
+def test_release_manifest_contract_and_ci_validation():
+    generator = text(RELEASE_MANIFEST_GENERATOR)
+    release_workflow = text(RELEASE_ARTIFACTS_WORKFLOW)
+    playwright_workflow = text(PLAYWRIGHT_WORKFLOW)
+
+    assert "artifact_entries" in generator
+    assert "size_bytes" in generator
+    assert "sha256" in generator
+    assert "release_tag" in generator
+    assert "release_version" in generator
+    assert "build_number" in generator
+    assert "version_code" in generator
+    assert "compatibility" in generator
+    assert "manual_download_guidance" in generator
+    assert "process.env.RELEASE_TAG" in generator
+    assert "process.env.ANDROID_VERSION_CODE" in generator
+    assert "releases/download/${options.releaseTag}" in generator
+
+    assert "RELEASE_TAG: ${{ needs.release_metadata.outputs.release_tag }}" in release_workflow
+    assert "ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}" in release_workflow
+    assert "node scripts/generate-rvt-latest.mjs" in release_workflow
+    assert "dist/rvt-latest.json" in release_workflow
+    assert "actions/deploy-pages@v4" in release_workflow
+    assert "group: pages" in release_workflow
+    assert "gh-pages" not in release_workflow
+    assert "Preserve latest release manifest" in text(PAGES_WORKFLOW)
+    assert "rvt-latest.json" in text(PAGES_WORKFLOW)
+    assert "node scripts/generate-rvt-latest.mjs --self-test" in playwright_workflow
 
 
 def test_pages_publishes_angular_pwa_shell_not_documentation():
@@ -161,7 +243,7 @@ def test_manifest_payload_is_plain_manifest():
 
 def test_firmware_ble_contract():
     ino = text(FW)
-    assert '#define FW_VERSION "v16.0.0"' in ino
+    assert '#define FW_VERSION "v16.0.1"' in ino
     assert "#define ENABLE_BLE false" in ino
     assert "NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN" in ino
     assert "bleSuppressUntilMs = millis() + 500UL" in ino

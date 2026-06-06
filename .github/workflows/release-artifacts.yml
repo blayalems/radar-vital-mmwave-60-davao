@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag to publish, for example v12.0.0-alpha.1'
+        description: 'Release tag to publish, for example v16.0.1-alpha.1'
         required: true
         type: string
       prerelease:
@@ -20,6 +20,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -249,11 +251,24 @@ jobs:
   release:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.pages_deployment.outputs.page_url }}
     needs:
       - release_metadata
       - android
       - windows
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
       - uses: actions/download-artifact@v4
         with:
           path: release-assets
@@ -261,22 +276,57 @@ jobs:
       - name: List release assets
         run: find release-assets -type f -maxdepth 3 -print
 
+      - name: Prepare dist directory for generator
+        run: |
+          mkdir -p dist
+          cp release-assets/radar-vital-apk-release-asset/*.apk dist/
+          cp release-assets/radar-vital-exe-release-asset/*.exe dist/
+
+      - name: Generate latest release manifest JSON
+        env:
+          RELEASE_TAG: ${{ needs.release_metadata.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.release_metadata.outputs.release_version }}
+          ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/generate-rvt-latest.mjs
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.release_metadata.outputs.release_tag }}
           name: ${{ needs.release_metadata.outputs.release_name }}
           target_commitish: ${{ github.sha }}
-          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || startsWith(github.ref_name, 'v12.0.0-alpha') }}
+          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || startsWith(github.ref_name, 'v16.0.1-alpha') }}
           make_latest: false
           generate_release_notes: true
           body: |
-            Installable APK and standalone Windows EXE generated from `${{ github.sha }}`.
+            Radar Vital ${{ needs.release_metadata.outputs.release_tag }} installable APK and standalone Windows EXE generated from `${{ github.sha }}`.
 
             The Windows installer includes the bundled Python trainer sidecar. APK builds remain LAN companion clients that connect to a trainer over Wi-Fi/LAN.
 
-            Automated `main` releases use a monotonically increasing `v<app-version>-main.<workflow-run>` version. GitHub-generated release notes below are the changelog for this build.
+            `rvt-latest.json` is published with SHA-256 hashes, byte sizes, release URLs, and compatibility metadata for manual update guidance. Automated `main` releases use a monotonically increasing `v<app-version>-main.<workflow-run>` tag. GitHub-generated release notes below are the changelog for this build.
           fail_on_unmatched_files: true
           files: |
             release-assets/**/*.apk
             release-assets/**/*.exe
+            dist/rvt-latest.json
+
+      - name: Build Pages artifact with latest manifest
+        run: |
+          npm ci
+          npm --prefix web ci
+          npm run build:web
+          cp dist/rvt-latest.json www/rvt-latest.json
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: www
+
+      - name: Deploy latest manifest to Pages
+        id: pages_deployment
+        uses: actions/deploy-pages@v4

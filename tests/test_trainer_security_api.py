@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 import urllib.error
 import urllib.request
 
-from rvt_trainer.monolith import _ControlServer
+from rvt_trainer.monolith import _ControlHandler, _ControlServer
 
 
 def _request(base: str, path: str, method: str = "GET", token: str = "", payload=None):
@@ -123,3 +125,156 @@ def test_review_summary_and_signoff_round_trip(tmp_path: Path):
         assert payload["signed_at"]
     finally:
         server.stop()
+
+
+def test_headerless_request_does_not_crash(tmp_path: Path):
+    import socket
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    server.start()
+    port = server.httpd.server_port
+    try:
+        # Send a raw malformed/headerless request (HTTP/0.9)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect(("127.0.0.1", port))
+        s.sendall(b"GET /api/health\r\n\r\n")
+        try:
+            s.recv(1024)
+        except Exception:
+            pass
+        s.close()
+
+        # Check server remains healthy and running
+        base = f"http://127.0.0.1:{port}"
+        status, resp = _request(base, "/api/health")
+        assert status == 200
+        assert resp["ok"] is True
+    finally:
+        server.stop()
+
+
+def test_api_version_additive_product_and_schema_fields(tmp_path: Path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    try:
+        status, payload = _request(base, "/api/version")
+        assert status == 200
+        assert payload["trainer"] == "16.0.1"
+        assert payload["dashboard"] == "16.0.1"
+        assert payload["product_version"] == "16.0.1"
+        assert payload["firmware_expected"] == "v16.0.1"
+        expected_schema_versions = {
+            "control_api": "rvt-control-api-v12.0",
+            "session_notes": "rvt-session-notes-v12.0",
+            "session_signoff": "rvt-session-signoff-v12.0",
+            "training_progress": "rvt-training-progress-v12.0",
+            "live_events": "rvt-live-events-v12.0",
+            "session_manifest": "rvt-session-manifest-v12.0",
+            "chart_annotations": "rvt-chart-annotations-v12.0",
+            "subject_profile": "rvt-subject-profiles-v12.0",
+        }
+        for key, value in expected_schema_versions.items():
+            assert payload["schema_versions"][key] == value
+        assert payload["schema_versions"]["live_event"] == "rvt-live-events-v12.0"
+        assert payload["update_manifest_url"].endswith("/rvt-latest.json")
+    finally:
+        server.stop()
+
+
+def test_control_handler_end_headers_tolerates_missing_headers_attribute():
+    handler = object.__new__(_ControlHandler)
+    handler.server = SimpleNamespace(
+        cors_origin="",
+        content_security_policy="default-src 'self'",
+        tls_trusted=False,
+    )
+    handler._headers_buffer = []
+    handler.request_version = "HTTP/1.1"
+    handler.protocol_version = "HTTP/1.0"
+    handler.wfile = BytesIO()
+
+    handler.end_headers()
+
+    raw_headers = handler.wfile.getvalue().decode("iso-8859-1")
+    assert "Cache-Control: no-store, no-cache, must-revalidate, max-age=0" in raw_headers
+    assert "Content-Security-Policy: default-src 'self'" in raw_headers
+    assert "Access-Control-Allow-Origin" not in raw_headers
+
+
+def test_update_manifest_proxy_success(tmp_path: Path):
+    from unittest.mock import patch, MagicMock
+    from rvt_trainer.monolith import _manifest_cache
+    
+    # Reset cache to force network call
+    _manifest_cache["data"] = None
+    _manifest_cache["ts"] = 0
+
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    
+    mock_data = {
+        "product_version": "16.0.1",
+        "minimum_supported": "16.0.0",
+        "released_at": "2026-06-06T00:00:00Z",
+        "artifacts": {}
+    }
+    
+    original_urlopen = urllib.request.urlopen
+    
+    mock_response = MagicMock()
+    mock_response.read.return_value = json.dumps(mock_data).encode("utf-8")
+    mock_response.__enter__.return_value = mock_response
+    
+    def side_effect(req, *args, **kwargs):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "rvt-latest.json" in url:
+            return mock_response
+        return original_urlopen(req, *args, **kwargs)
+    
+    try:
+        with patch("urllib.request.urlopen", side_effect=side_effect):
+            status, data = _request(base, "/api/update/manifest")
+            assert status == 200
+            assert data["product_version"] == "16.0.1"
+    finally:
+        server.stop()
+
+
+def test_update_manifest_proxy_failure(tmp_path: Path):
+    from unittest.mock import patch
+    from rvt_trainer.monolith import _manifest_cache
+    
+    # Reset cache to force network call
+    _manifest_cache["data"] = None
+    _manifest_cache["ts"] = 0
+
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    
+    original_urlopen = urllib.request.urlopen
+    
+    def side_effect(req, *args, **kwargs):
+        url = req.full_url if hasattr(req, "full_url") else str(req)
+        if "rvt-latest.json" in url:
+            raise urllib.error.URLError("Network error")
+        return original_urlopen(req, *args, **kwargs)
+    
+    try:
+        with patch("urllib.request.urlopen", side_effect=side_effect):
+            status, data = _request(base, "/api/update/manifest")
+            assert status == 502
+            assert data["ok"] is False
+            assert "PROXY_ERROR" in data["error"]["code"]
+    finally:
+        server.stop()
+

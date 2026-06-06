@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 import urllib.error
 import urllib.request
 
-from rvt_trainer.monolith import _ControlServer
+from rvt_trainer.monolith import _ControlHandler, _ControlServer
 
 
 def _request(base: str, path: str, method: str = "GET", token: str = "", payload=None):
@@ -150,6 +152,57 @@ def test_headerless_request_does_not_crash(tmp_path: Path):
         assert resp["ok"] is True
     finally:
         server.stop()
+
+
+def test_api_version_additive_product_and_schema_fields(tmp_path: Path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    try:
+        status, payload = _request(base, "/api/version")
+        assert status == 200
+        assert payload["trainer"] == "16.0.1"
+        assert payload["dashboard"] == "16.0.1"
+        assert payload["product_version"] == "16.0.1"
+        assert payload["firmware_expected"] == "v16.0.1"
+        expected_schema_versions = {
+            "control_api": "rvt-control-api-v12.0",
+            "session_notes": "rvt-session-notes-v12.0",
+            "session_signoff": "rvt-session-signoff-v12.0",
+            "training_progress": "rvt-training-progress-v12.0",
+            "live_events": "rvt-live-events-v12.0",
+            "session_manifest": "rvt-session-manifest-v12.0",
+            "chart_annotations": "rvt-chart-annotations-v12.0",
+            "subject_profile": "rvt-subject-profiles-v12.0",
+        }
+        for key, value in expected_schema_versions.items():
+            assert payload["schema_versions"][key] == value
+        assert payload["schema_versions"]["live_event"] == "rvt-live-events-v12.0"
+        assert payload["update_manifest_url"].endswith("/rvt-latest.json")
+    finally:
+        server.stop()
+
+
+def test_control_handler_end_headers_tolerates_missing_headers_attribute():
+    handler = object.__new__(_ControlHandler)
+    handler.server = SimpleNamespace(
+        cors_origin="",
+        content_security_policy="default-src 'self'",
+        tls_trusted=False,
+    )
+    handler._headers_buffer = []
+    handler.request_version = "HTTP/1.1"
+    handler.protocol_version = "HTTP/1.0"
+    handler.wfile = BytesIO()
+
+    handler.end_headers()
+
+    raw_headers = handler.wfile.getvalue().decode("iso-8859-1")
+    assert "Cache-Control: no-store, no-cache, must-revalidate, max-age=0" in raw_headers
+    assert "Content-Security-Policy: default-src 'self'" in raw_headers
+    assert "Access-Control-Allow-Origin" not in raw_headers
 
 
 def test_update_manifest_proxy_success(tmp_path: Path):

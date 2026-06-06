@@ -781,3 +781,41 @@ body #demoBanner {
   box-shadow: none !important;
   z-index: 1 !important;
 }
+
+body[data-rail-collapsed="1"] .app.rail-collapsed .rail .brand,
+body[data-rail-collapsed="1"] .rail .brand {
+  align-items: center !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  grid-template-columns: none !important;
+  margin: 0 auto 6px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  width: 48px !important;
+}
+
+body[data-rail-collapsed="1"] .app.rail-collapsed .rail .brand-mark,
+body[data-rail-collapsed="1"] .rail .brand-mark {
+  border-radius: 12px !important;
+  box-sizing: border-box !important;
+  flex: 0 0 36px !important;
+  height: 36px !important;
+  margin: 0 auto !important;
+  min-width: 36px !important;
+  overflow: hidden !important;
+  position: relative !important;
+  width: 36px !important;
+}
+
+body[data-rail-collapsed="1"] .app.rail-collapsed .rail .brand-ring,
+body[data-rail-collapsed="1"] .rail .brand-ring {
+  inset: 6px !important;
+}
+
+body[data-rail-collapsed="1"] .app.rail-collapsed .rail .brand-ring.r2,
+body[data-rail-collapsed="1"] .rail .brand-ring.r2 {
+  inset: 10px !important;
+}

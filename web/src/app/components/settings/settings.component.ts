@@ -23,6 +23,16 @@ import { ServerLifecycleService } from '../../services/server-lifecycle.service'
 import { BleScanDevice } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 
+const PRODUCT_VERSION = '16.0.1';
+
+type UpdateArtifact = {
+  url: string;
+  size?: number;
+  size_bytes?: number;
+  sha256: string;
+  compatibility: string;
+};
+
 @Component({
   selector: 'app-settings',
   imports: [
@@ -52,6 +62,8 @@ export class SettingsComponent {
   protected readonly serverLifecycle = inject(ServerLifecycleService);
   private readonly router = inject(Router);
   protected readonly Math = Math;
+  protected readonly productVersion = PRODUCT_VERSION;
+  protected readonly schemaVersion = 'v12.0';
   
   // Optional injection of MatDialogRef for close behavior when loaded inside dialog
   private readonly dialogRef = inject(MatDialogRef<SettingsComponent>, { optional: true });
@@ -340,11 +352,15 @@ export class SettingsComponent {
     ok: boolean;
     updateAvailable?: boolean;
     product_version?: string;
+    release_tag?: string;
+    release_version?: string;
+    build_number?: number | null;
+    minimum_supported?: string;
     released_at?: string;
     released_at_formatted?: string;
     artifacts?: {
-      apk?: { url: string; size: number; size_mb: string; sha256: string; compatibility: string };
-      exe?: { url: string; size: number; size_mb: string; sha256: string; compatibility: string };
+      apk?: UpdateArtifact & { size_mb: string };
+      exe?: UpdateArtifact & { size_mb: string };
     };
     error?: string;
   } | null>(null);
@@ -369,30 +385,40 @@ export class SettingsComponent {
     try {
       const result = await this.api.request<{
         product_version?: string;
+        release_tag?: string;
+        release_version?: string;
+        build_number?: number | null;
+        minimum_supported?: string;
         released_at?: string;
         artifacts?: {
-          apk?: { url: string; size: number; sha256: string; compatibility: string };
-          exe?: { url: string; size: number; sha256: string; compatibility: string };
+          apk?: UpdateArtifact;
+          exe?: UpdateArtifact;
         };
       } | null>('/api/update/manifest');
 
       if (result && result.product_version) {
-        const currentVersion = '16.0.1';
-        const hasUpdate = this.isNewerVersion(currentVersion, result.product_version);
+        const hasUpdate = this.isNewerVersion(PRODUCT_VERSION, result.product_version)
+          || (!!result.release_tag && result.release_tag !== `v${PRODUCT_VERSION}`);
         const formattedDate = result.released_at ? new Date(result.released_at).toLocaleString() : 'Unknown';
 
-        const artifacts: any = {};
+        const artifacts: { apk?: UpdateArtifact & { size_mb: string }; exe?: UpdateArtifact & { size_mb: string } } = {};
         if (result.artifacts) {
           if (result.artifacts.apk) {
+            const sizeBytes = result.artifacts.apk.size_bytes ?? result.artifacts.apk.size ?? 0;
             artifacts.apk = {
               ...result.artifacts.apk,
-              size_mb: (result.artifacts.apk.size / (1024 * 1024)).toFixed(2)
+              size: sizeBytes,
+              size_bytes: sizeBytes,
+              size_mb: (sizeBytes / (1024 * 1024)).toFixed(2)
             };
           }
           if (result.artifacts.exe) {
+            const sizeBytes = result.artifacts.exe.size_bytes ?? result.artifacts.exe.size ?? 0;
             artifacts.exe = {
               ...result.artifacts.exe,
-              size_mb: (result.artifacts.exe.size / (1024 * 1024)).toFixed(2)
+              size: sizeBytes,
+              size_bytes: sizeBytes,
+              size_mb: (sizeBytes / (1024 * 1024)).toFixed(2)
             };
           }
         }
@@ -401,6 +427,10 @@ export class SettingsComponent {
           ok: true,
           updateAvailable: hasUpdate,
           product_version: result.product_version,
+          release_tag: result.release_tag,
+          release_version: result.release_version,
+          build_number: result.build_number,
+          minimum_supported: result.minimum_supported,
           released_at: result.released_at,
           released_at_formatted: formattedDate,
           artifacts: artifacts

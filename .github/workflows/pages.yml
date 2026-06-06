@@ -58,6 +58,16 @@ jobs:
       - name: Build www/
         run: npm run build:web
 
+      - name: Preserve latest release manifest
+        if: github.event_name != 'pull_request'
+        run: |
+          manifest_url="https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
+          if curl -fsSL "$manifest_url" -o www/rvt-latest.json; then
+            echo "Preserved published rvt-latest.json in Pages artifact."
+          else
+            echo "No published rvt-latest.json found yet; release-artifacts.yml will publish it after the next release."
+          fi
+
       - name: Verify repository-scoped static PWA output
         run: |
           test -f www/index.html

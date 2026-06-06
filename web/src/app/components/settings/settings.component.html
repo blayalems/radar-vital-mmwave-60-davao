@@ -464,13 +464,13 @@
         <div class="settings-row">
           <div class="settings-copy">
             <span class="row-title">Product Version</span>
-            <span class="row-description">16.0.1</span>
+            <span class="row-description">{{ productVersion }}</span>
           </div>
         </div>
         <div class="settings-row">
           <div class="settings-copy">
             <span class="row-title">Schema Version</span>
-            <span class="row-description">v12.0</span>
+            <span class="row-description">{{ schemaVersion }}</span>
           </div>
         </div>
         
@@ -486,7 +486,7 @@
               <div class="update-available-container" style="margin-top: 16px; padding: 12px; border-radius: 8px; background-color: var(--md-sys-color-secondary-container, #e8def8); color: var(--md-sys-color-on-secondary-container, #1d192b);">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
                   <mat-icon style="color: var(--md-sys-color-primary, #6750a4);">downloading</mat-icon>
-                  <span style="font-weight: 500; font-size: 0.95rem;">Update Available: {{ result.product_version }}</span>
+                  <span style="font-weight: 500; font-size: 0.95rem;">Update Available: {{ result.release_tag || result.product_version }}</span>
                 </div>
                 <div style="font-size: 0.85rem; margin-bottom: 12px; opacity: 0.85;">
                   Released: {{ result.released_at_formatted }}

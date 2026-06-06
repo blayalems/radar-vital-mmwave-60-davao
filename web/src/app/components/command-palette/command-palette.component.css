@@ -3,7 +3,14 @@
   flex-direction: column;
   height: 85dvh;
   max-height: 700px;
+  max-width: calc(100vw - 32px);
   overflow: hidden;
+  width: min(720px, calc(100vw - 48px));
+}
+
+h2[mat-dialog-title],
+mat-dialog-actions {
+  flex: 0 0 auto;
 }
 
 .palette-content {
@@ -12,7 +19,8 @@
   flex-direction: column;
   overflow: hidden;
   max-height: none !important;
-  width: min(720px, calc(100vw - 48px));
+  min-height: 0;
+  width: 100%;
   padding-top: 8px;
 }
 
@@ -40,11 +48,21 @@
   display: grid;
   gap: 4px;
   grid-template-columns: minmax(0, 1fr) 48px;
+  min-width: 0;
 }
 
 .command-main {
   min-width: 0;
   text-align: left !important;
+}
+
+.command-main span,
+.command-main [matListItemTitle],
+.command-main [matListItemLine] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: left !important;
+  white-space: normal;
 }
 
 .command-meta {
@@ -68,8 +86,13 @@
 }
 
 @media (max-width: 600px) {
-  .palette-content {
+  :host {
+    height: min(85dvh, calc(100dvh - 32px));
     width: calc(100vw - 32px);
+  }
+
+  .palette-content {
+    width: 100%;
   }
 
   .command-meta {

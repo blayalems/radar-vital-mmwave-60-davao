@@ -6116,7 +6116,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self.send_header("Pragma", "no-cache")
             self.send_header("Expires", "0")
 
-        req_origin = self.headers.get("Origin", "") if self.headers else ""
+        headers = getattr(self, "headers", None)
+        req_origin = headers.get("Origin", "") if headers else ""
         cors_origin = str(getattr(self.server, "cors_origin", ""))
 
         if cors_origin == "*":
@@ -6180,7 +6181,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
     def _require_control_auth(self) -> bool:
         if getattr(self.server, "bind_mode", "local") != "lan":
             return True
-        token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if self.headers else "").strip()
+        headers = getattr(self, "headers", None)
+        token = ((headers.get("X-RVT-Auth") or headers.get("X-RVT-Token") or "") if headers else "").strip()
         if token and token in getattr(self.server, "auth_tokens", set()):
             return True
         self.send_response(401)
@@ -6221,7 +6223,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
 
     def _read_body(self):
         try:
-            n = int((self.headers.get("Content-Length", "0") if self.headers else "0") or 0)
+            headers = getattr(self, "headers", None)
+            n = int((headers.get("Content-Length", "0") if headers else "0") or 0)
             return json.loads(self.rfile.read(n).decode("utf-8")) if n > 0 else {}
         except Exception:
             return {}
@@ -6303,6 +6306,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     "session_signoff": SESSION_SIGNOFF_SCHEMA_VERSION,
                     "training_progress": TRAINING_PROGRESS_SCHEMA_VERSION,
                     "live_event": LIVE_EVENT_SCHEMA_VERSION,
+                    "live_events": LIVE_EVENT_SCHEMA_VERSION,
                     "session_manifest": SESSION_MANIFEST_SCHEMA_VERSION,
                     "chart_annotations": CHART_ANNOTATIONS_SCHEMA_VERSION,
                     "subject_profile": SUBJECT_PROFILE_SCHEMA_VERSION

@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-06 — PR46 v16.0.1 OTA Metadata & Mobile Regression Closure
+
+- **Release Metadata Contract**: Extended `scripts/generate-rvt-latest.mjs` and release CI so `rvt-latest.json` carries product/release/build identity, artifact URLs, sizes, SHA-256 hashes, minimum support, and compatibility metadata from the actual merge/tag release instead of PR-only publication.
+- **Pages Publication Safety**: Replaced the release workflow's direct `gh-pages` push with Actions Pages upload/deploy, and made the normal Pages workflow preserve the latest hosted `rvt-latest.json` when rebuilding the static dashboard.
+- **Update UI Consumers**: Updated Settings and sandbox API consumers to understand additive release metadata, same-product build updates, no-update demo manifests, and release-link guidance without APK/EXE/Python/firmware install automation.
+- **Mobile Layout Regression Tests**: Added Playwright checks for horizontal overflow, blank top band, bottom-nav clearance, Home setup containment, and Command Palette close/list containment across phone/tablet viewports; tightened Command Palette, Settings, topbar, and navigation breakpoint CSS accordingly.
+- **Verification**: `python -m pytest -q tests\test_trainer_security_api.py tests\test_v12_static_contract.py tests\test_trainer_server_info.py tests\test_trainer_cors_guard.py` passed 34/34; `npm --prefix web run test:ci` passed 32/32; `npm run build:check` passed with the known initial bundle warning; `node scripts\generate-rvt-latest.mjs --self-test` passed; targeted mobile smoke passed 9/9; full smoke was split by project and passed 40/40 on desktop, Pixel 7, iPhone 14, and iPad; full visual passed 96/96 after intentional snapshot refresh.
+
 ### 2026-06-06 — PR46 Variable Collision Minification Fix
 
 - **IIFE Scope Collision**: Resolved a critical console error (`TypeError: $ is not a function`) on dashboard load by adding the `--minify` flag to the esbuild bundling step in `scripts/build-angular.mjs`. This prevents hoisting and sharing of minified template identifiers (like `$`) across ESModules when merged into the single-file IIFE monolith.

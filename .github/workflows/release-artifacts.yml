@@ -20,6 +20,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -249,12 +251,23 @@ jobs:
   release:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.pages_deployment.outputs.page_url }}
     needs:
       - release_metadata
       - android
       - windows
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
       - uses: actions/download-artifact@v4
         with:
@@ -270,6 +283,12 @@ jobs:
           cp release-assets/radar-vital-exe-release-asset/*.exe dist/
 
       - name: Generate latest release manifest JSON
+        env:
+          RELEASE_TAG: ${{ needs.release_metadata.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.release_metadata.outputs.release_version }}
+          ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/generate-rvt-latest.mjs
 
       - name: Publish release
@@ -282,42 +301,32 @@ jobs:
           make_latest: false
           generate_release_notes: true
           body: |
-            Installable APK and standalone Windows EXE generated from `${{ github.sha }}`.
+            Radar Vital ${{ needs.release_metadata.outputs.release_tag }} installable APK and standalone Windows EXE generated from `${{ github.sha }}`.
 
             The Windows installer includes the bundled Python trainer sidecar. APK builds remain LAN companion clients that connect to a trainer over Wi-Fi/LAN.
 
-            Automated `main` releases use a monotonically increasing `v<app-version>-main.<workflow-run>` version. GitHub-generated release notes below are the changelog for this build.
+            `rvt-latest.json` is published with SHA-256 hashes, byte sizes, release URLs, and compatibility metadata for manual update guidance. Automated `main` releases use a monotonically increasing `v<app-version>-main.<workflow-run>` tag. GitHub-generated release notes below are the changelog for this build.
           fail_on_unmatched_files: true
           files: |
             release-assets/**/*.apk
             release-assets/**/*.exe
             dist/rvt-latest.json
 
-      - name: Push rvt-latest.json to gh-pages branch
+      - name: Build Pages artifact with latest manifest
         run: |
-          git config --global user.name "${{ github.actor }}"
-          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-          
-          # Clone the gh-pages branch
-          if git clone --depth 1 --branch gh-pages "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" temp-gh-pages; then
-            cp dist/rvt-latest.json temp-gh-pages/
-            cd temp-gh-pages
-            git add rvt-latest.json
-            if ! git diff --cached --quiet; then
-              git commit -m "Deploy rvt-latest.json for ${{ needs.release_metadata.outputs.release_tag }}"
-              git push origin gh-pages
-            else
-              echo "No changes to rvt-latest.json"
-            fi
-          else
-            echo "gh-pages branch does not exist. Creating orphan branch..."
-            mkdir temp-gh-pages
-            cd temp-gh-pages
-            git init
-            git checkout --orphan gh-pages
-            cp ../dist/rvt-latest.json ./
-            git add rvt-latest.json
-            git commit -m "Initial commit of rvt-latest.json"
-            git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
-            git push -u origin gh-pages
-          fi
+          npm ci
+          npm --prefix web ci
+          npm run build:web
+          cp dist/rvt-latest.json www/rvt-latest.json
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: www
+
+      - name: Deploy latest manifest to Pages
+        id: pages_deployment
+        uses: actions/deploy-pages@v4

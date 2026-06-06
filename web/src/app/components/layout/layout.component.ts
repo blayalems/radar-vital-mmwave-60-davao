@@ -83,10 +83,10 @@ export class LayoutComponent implements OnInit {
   );
 
   protected readonly showRail = toSignal(
-    this.breakpointObserver.observe('(min-width: 600px)').pipe(
+    this.breakpointObserver.observe('(min-width: 1024px)').pipe(
       map(r => r.matches)
     ),
-    { initialValue: true }
+    { initialValue: false }
   );
 
   readonly isStaleBannerVisible = signal(false);

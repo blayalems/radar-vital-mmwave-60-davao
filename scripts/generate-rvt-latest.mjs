@@ -10,6 +10,29 @@ const PACKAGE_JSON_PATH = path.join(ROOT_DIR, 'package.json');
 // Read version from root package.json
 const packageJson = JSON.parse(fs.readFileSync(PACKAGE_JSON_PATH, 'utf8'));
 const version = packageJson.version;
+const DEFAULT_REPOSITORY = 'blayalems/radar-vital-mmwave-60-davao';
+
+function readArg(name) {
+  const idx = process.argv.indexOf(name);
+  if (idx >= 0 && idx + 1 < process.argv.length) {
+    return process.argv[idx + 1];
+  }
+  const prefix = `${name}=`;
+  const match = process.argv.find(arg => arg.startsWith(prefix));
+  return match ? match.slice(prefix.length) : '';
+}
+
+function buildOptions(prodVersion) {
+  const releaseTag = readArg('--release-tag') || process.env.RELEASE_TAG || `v${prodVersion}`;
+  const repository = readArg('--repo') || process.env.GITHUB_REPOSITORY || DEFAULT_REPOSITORY;
+  const releasedAt = readArg('--released-at') || process.env.RELEASED_AT || new Date().toISOString();
+  const releaseVersion = readArg('--release-version') || process.env.RELEASE_VERSION || releaseTag.replace(/^v/, '');
+  const androidVersionCodeRaw = readArg('--android-version-code') || process.env.ANDROID_VERSION_CODE || '';
+  const androidVersionCode = /^\d+$/.test(androidVersionCodeRaw) ? Number(androidVersionCodeRaw) : null;
+  const buildNumberRaw = readArg('--build-number') || process.env.BUILD_NUMBER || androidVersionCodeRaw || '';
+  const buildNumber = /^\d+$/.test(buildNumberRaw) ? Number(buildNumberRaw) : null;
+  return { releaseTag, repository, releasedAt, releaseVersion, androidVersionCode, buildNumber };
+}
 
 // Helper to calculate file size and SHA-256 hash
 function getFileStats(filePath) {
@@ -20,8 +43,26 @@ function getFileStats(filePath) {
   return { size, sha256 };
 }
 
+function artifactMetadata({ kind, platform, fileName, filePath, compatibility, releaseUrl, versionCode = null }) {
+  const stats = getFileStats(filePath);
+  const artifact = {
+    kind,
+    platform,
+    file_name: fileName,
+    url: `${releaseUrl}/${fileName}`,
+    size: stats.size,
+    size_bytes: stats.size,
+    sha256: stats.sha256,
+    compatibility
+  };
+  if (versionCode !== null) {
+    artifact.version_code = versionCode;
+  }
+  return artifact;
+}
+
 // Generate the manifest object
-function generateManifest(distDir, prodVersion) {
+function generateManifest(distDir, prodVersion, options = buildOptions(prodVersion)) {
   const apkReleasePath = path.join(distDir, 'radar-vital-release.apk');
   const apkDebugPath = path.join(distDir, 'radar-vital-debug.apk');
   const exePath = path.join(distDir, 'radar-vital-windows-installer.exe');
@@ -43,26 +84,43 @@ function generateManifest(distDir, prodVersion) {
     throw new Error(`radar-vital-windows-installer.exe was not found in ${distDir}`);
   }
 
-  const apkStats = getFileStats(apkFilePath);
-  const exeStats = getFileStats(exePath);
+  const releaseUrl = `https://github.com/${options.repository}/releases/download/${options.releaseTag}`;
+  const apk = artifactMetadata({
+    kind: 'apk',
+    platform: 'android',
+    fileName: apkFileName,
+    filePath: apkFilePath,
+    compatibility: 'Android 8.0+',
+    releaseUrl,
+    versionCode: options.androidVersionCode
+  });
+  const exe = artifactMetadata({
+    kind: 'exe',
+    platform: 'windows',
+    fileName: 'radar-vital-windows-installer.exe',
+    filePath: exePath,
+    compatibility: 'Windows 10+',
+    releaseUrl
+  });
 
   return {
     product_version: prodVersion,
+    release_version: options.releaseVersion,
     minimum_supported: '16.0.0',
-    released_at: new Date().toISOString(),
+    released_at: options.releasedAt,
+    release_tag: options.releaseTag,
+    build_number: options.buildNumber,
+    release_url: `https://github.com/${options.repository}/releases/tag/${options.releaseTag}`,
     artifacts: {
-      apk: {
-        url: `https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v${prodVersion}/${apkFileName}`,
-        size: apkStats.size,
-        sha256: apkStats.sha256,
-        compatibility: 'Android 8.0+'
-      },
-      exe: {
-        url: `https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v${prodVersion}/radar-vital-windows-installer.exe`,
-        size: exeStats.size,
-        sha256: exeStats.sha256,
-        compatibility: 'Windows 10+'
-      }
+      apk,
+      exe
+    },
+    artifact_entries: [apk, exe],
+    compatibility: {
+      android: 'Android 8.0+',
+      windows: 'Windows 10+',
+      schema_lineage: 'rvt-v12.0',
+      install_mode: 'manual_download_guidance'
     }
   };
 }
@@ -90,7 +148,15 @@ function runSelfTest() {
   const expectedExeHash = crypto.createHash('sha256').update(mockExeContent).digest('hex');
 
   try {
-    const manifest = generateManifest(tempDir, version);
+    const testOptions = {
+      releaseTag: `v${version}-main.999`,
+      repository: DEFAULT_REPOSITORY,
+      releasedAt: '2026-06-06T00:00:00.000Z',
+      releaseVersion: `${version}-main.999`,
+      androidVersionCode: 999,
+      buildNumber: 999
+    };
+    const manifest = generateManifest(tempDir, version, testOptions);
     console.log('Generated manifest in self-test:', JSON.stringify(manifest, null, 2));
 
     // Validate Schema
@@ -103,6 +169,18 @@ function runSelfTest() {
     if (isNaN(Date.parse(manifest.released_at))) {
       throw new Error(`released_at is not a valid ISO date: ${manifest.released_at}`);
     }
+    if (manifest.release_tag !== testOptions.releaseTag) {
+      throw new Error(`release_tag mismatch: expected ${testOptions.releaseTag}, got ${manifest.release_tag}`);
+    }
+    if (manifest.release_version !== testOptions.releaseVersion) {
+      throw new Error(`release_version mismatch: expected ${testOptions.releaseVersion}, got ${manifest.release_version}`);
+    }
+    if (manifest.build_number !== testOptions.buildNumber) {
+      throw new Error(`build_number mismatch: expected ${testOptions.buildNumber}, got ${manifest.build_number}`);
+    }
+    if (manifest.release_url !== `https://github.com/${DEFAULT_REPOSITORY}/releases/tag/${testOptions.releaseTag}`) {
+      throw new Error(`release_url mismatch: got ${manifest.release_url}`);
+    }
 
     const apk = manifest.artifacts?.apk;
     const exe = manifest.artifacts?.exe;
@@ -110,12 +188,21 @@ function runSelfTest() {
     if (!apk || !exe) {
       throw new Error('Missing apk or exe in artifacts');
     }
+    if (!Array.isArray(manifest.artifact_entries) || manifest.artifact_entries.length !== 2) {
+      throw new Error('Missing artifact_entries array');
+    }
 
-    if (apk.url !== `https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v${version}/radar-vital-release.apk`) {
+    if (apk.url !== `https://github.com/${DEFAULT_REPOSITORY}/releases/download/${testOptions.releaseTag}/radar-vital-release.apk`) {
       throw new Error(`APK url mismatch: got ${apk.url}`);
     }
     if (apk.size !== expectedApkSize) {
       throw new Error(`APK size mismatch: expected ${expectedApkSize}, got ${apk.size}`);
+    }
+    if (apk.size_bytes !== expectedApkSize) {
+      throw new Error(`APK size_bytes mismatch: expected ${expectedApkSize}, got ${apk.size_bytes}`);
+    }
+    if (apk.version_code !== testOptions.androidVersionCode) {
+      throw new Error(`APK version_code mismatch: expected ${testOptions.androidVersionCode}, got ${apk.version_code}`);
     }
     if (apk.sha256 !== expectedApkHash) {
       throw new Error(`APK sha256 mismatch: expected ${expectedApkHash}, got ${apk.sha256}`);
@@ -124,11 +211,14 @@ function runSelfTest() {
       throw new Error(`APK compatibility mismatch: got ${apk.compatibility}`);
     }
 
-    if (exe.url !== `https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v${version}/radar-vital-windows-installer.exe`) {
+    if (exe.url !== `https://github.com/${DEFAULT_REPOSITORY}/releases/download/${testOptions.releaseTag}/radar-vital-windows-installer.exe`) {
       throw new Error(`EXE url mismatch: got ${exe.url}`);
     }
     if (exe.size !== expectedExeSize) {
       throw new Error(`EXE size mismatch: expected ${expectedExeSize}, got ${exe.size}`);
+    }
+    if (exe.size_bytes !== expectedExeSize) {
+      throw new Error(`EXE size_bytes mismatch: expected ${expectedExeSize}, got ${exe.size_bytes}`);
     }
     if (exe.sha256 !== expectedExeHash) {
       throw new Error(`EXE sha256 mismatch: expected ${expectedExeHash}, got ${exe.sha256}`);

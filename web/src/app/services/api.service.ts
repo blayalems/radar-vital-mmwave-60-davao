@@ -432,6 +432,20 @@ export class ApiService {
 
   private sandboxApiJson(path: string, opts?: RequestInit): unknown {
     if (path === '/api/status') return { ok: true, mode: 'sandbox', message: 'Local dashboard sandbox active' };
+    if (path === '/api/update/manifest') {
+      const releaseUrl = 'https://github.com/blayalems/radar-vital-mmwave-60-davao/releases';
+      return {
+        product_version: '16.0.1',
+        minimum_supported: '16.0.0',
+        released_at: '2026-06-06T00:00:00.000Z',
+        release_url: releaseUrl,
+        artifacts: {
+          apk: { url: releaseUrl, size: 0, size_bytes: 0, sha256: 'sandbox', compatibility: 'Android 8.0+' },
+          exe: { url: releaseUrl, size: 0, size_bytes: 0, sha256: 'sandbox', compatibility: 'Windows 10+' }
+        },
+        sandbox: true
+      };
+    }
     if (path === '/api/defaults') return this.sandboxDefaults();
     if (path === '/api/serial/ports') return { ok: true, ports: ['COM10', 'COM11', 'COM12'].map(device => ({ device, label: `Demo port ${device}` })), selected: this.state.setup().radar_port };
     if (path === '/api/preflight') return this.sandboxPreflight();

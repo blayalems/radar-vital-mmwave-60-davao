@@ -10,6 +10,34 @@ async function leaveActiveSessionIfPrompted(page: Page): Promise<void> {
   }
 }
 
+async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    const documentOverflow = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - viewportWidth;
+    const offenders = Array.from(document.querySelectorAll('body *'))
+      .filter((element) => element.getClientRects().length > 0)
+      .filter((element) => !element.matches('.skip-link:not(:focus), [aria-hidden="true"], [aria-hidden="true"] *'))
+      .filter((element) => {
+        const style = getComputedStyle(element);
+        return style.visibility !== 'hidden' && style.display !== 'none' && Number(style.opacity || '1') !== 0;
+      })
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          selector: element.tagName.toLowerCase() + (element.className ? `.${String(element.className).trim().split(/\s+/).join('.')}` : ''),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width)
+        };
+      })
+      .filter((rect) => rect.width > 0 && (rect.left < -2 || rect.right > viewportWidth + 2))
+      .slice(0, 8);
+    return { documentOverflow, offenders };
+  });
+  expect(overflow.documentOverflow, `document overflow: ${JSON.stringify(overflow)}`).toBeLessThanOrEqual(2);
+  expect(overflow.offenders, `horizontal overflow offenders: ${JSON.stringify(overflow.offenders)}`).toEqual([]);
+}
+
 test.describe('Dashboard smoke', () => {
   test('loads without console errors', async ({ page }) => {
     const consoleErrors: string[] = [];
@@ -276,6 +304,7 @@ test.describe('Dashboard smoke', () => {
       })).toBe(true);
     } else {
       await expect(page.locator('.bottom-nav')).toBeVisible();
+      await expectNoHorizontalOverflow(page);
     }
   });
 
@@ -345,6 +374,42 @@ test.describe('Dashboard smoke', () => {
         .every((card) => !!card && card.left >= content.left - 1 && card.right <= content.right + 1);
     });
     expect(cardsContained).toBe(true);
+
+    if ((page.viewportSize()?.width || 0) < 1024) {
+      await expectNoHorizontalOverflow(page);
+      const mobileGeometry = await page.evaluate(() => {
+        const viewportWidth = document.documentElement.clientWidth;
+        const topbar = document.querySelector('.topbar')?.getBoundingClientRect();
+        const banner = document.querySelector('#demoBanner')?.getBoundingClientRect();
+        const firstChromeTop = banner && banner.height > 0 ? banner.top : topbar?.top;
+        const shellStartsAtTop = firstChromeTop !== undefined && firstChromeTop <= 2;
+        const setupCard = document.querySelector('.setup-config-card')?.getBoundingClientRect();
+        const setupControls = Array.from(document.querySelectorAll(
+          '.setup-config-card .setup-card-content, .setup-config-card .setup-field, .setup-config-card .field-controls, .setup-config-card .form-field-full, .setup-config-card .pair-sensor-btn, .setup-config-card .setup-card-actions, .setup-config-card .start-session-btn'
+        ));
+        const controlOverflow = setupControls
+          .filter((element) => element.getClientRects().length > 0)
+          .filter((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.left < (setupCard?.left ?? 0) - 2 ||
+              rect.right > (setupCard?.right ?? viewportWidth) + 2 ||
+              rect.left < -2 ||
+              rect.right > viewportWidth + 2;
+          })
+          .map((element) => element.className);
+        return { shellStartsAtTop, controlOverflow };
+      });
+      expect(mobileGeometry.shellStartsAtTop, `blank top band geometry: ${JSON.stringify(mobileGeometry)}`).toBe(true);
+      expect(mobileGeometry.controlOverflow, `Home setup overflow: ${JSON.stringify(mobileGeometry.controlOverflow)}`).toEqual([]);
+
+      await page.locator('.main-content-scroll').evaluate((element) => { element.scrollTop = element.scrollHeight; });
+      const bottomClearance = await page.evaluate(() => {
+        const nav = document.querySelector('.bottom-nav')?.getBoundingClientRect();
+        const startButton = document.querySelector('.start-session-btn')?.getBoundingClientRect();
+        return !!nav && !!startButton && startButton.bottom <= nav.top - 4;
+      });
+      expect(bottomClearance).toBe(true);
+    }
 
     if ((page.viewportSize()?.width || 0) >= 1024) {
       await page.getByRole('link', { name: /Live/ }).first().click();
@@ -628,7 +693,47 @@ test.describe('Dashboard smoke', () => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.getByRole('button', { name: 'More console actions' }).click();
     await page.getByRole('menuitem', { name: /Search commands/ }).click();
-    await expect(page.getByRole('dialog')).toContainText('Command Palette');
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('Command Palette');
+    await expect(page.getByRole('button', { name: 'Close' })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    const paletteGeometry = await page.evaluate(() => {
+      const viewportWidth = document.documentElement.clientWidth;
+      const viewportHeight = window.innerHeight;
+      const dialog = document.querySelector('[role="dialog"]')?.getBoundingClientRect();
+      const close = Array.from(document.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'Close')
+        ?.getBoundingClientRect();
+      const rows = Array.from(document.querySelectorAll('.command-row')).slice(0, 8);
+      const rowOverflow = rows
+        .filter((row) => {
+          const rect = row.getBoundingClientRect();
+          return rect.left < (dialog?.left ?? 0) - 2 ||
+            rect.right > (dialog?.right ?? viewportWidth) + 2 ||
+            rect.right > viewportWidth + 2;
+        })
+        .map((row) => row.textContent?.trim().slice(0, 80));
+      const leftAligned = rows.every((row) => {
+        const rowRect = row.getBoundingClientRect();
+        const mainRect = row.querySelector('.command-main')?.getBoundingClientRect();
+        return !!mainRect && Math.abs(mainRect.left - rowRect.left) <= 2;
+      });
+      const list = document.querySelector('.palette-content mat-nav-list');
+      const listScrolls = !!list && list.scrollHeight > list.clientHeight;
+      return {
+        dialogContained: !!dialog && dialog.top >= -2 && dialog.left >= -2 &&
+          dialog.right <= viewportWidth + 2 && dialog.bottom <= viewportHeight + 2,
+        closeVisible: !!close && close.bottom <= viewportHeight + 2 && close.right <= viewportWidth + 2,
+        rowOverflow,
+        leftAligned,
+        listScrolls
+      };
+    });
+    expect(paletteGeometry.dialogContained, JSON.stringify(paletteGeometry)).toBe(true);
+    expect(paletteGeometry.closeVisible, JSON.stringify(paletteGeometry)).toBe(true);
+    expect(paletteGeometry.rowOverflow, JSON.stringify(paletteGeometry.rowOverflow)).toEqual([]);
+    expect(paletteGeometry.leftAligned).toBe(true);
+    expect(paletteGeometry.listScrolls).toBe(true);
   });
 
   test('hydrates active-session actions and home history from trainer APIs', async ({ page }) => {

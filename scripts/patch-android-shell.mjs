@@ -9,6 +9,8 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const stylesPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'values', 'styles.xml');
 const manifestPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
+const rootGradlePath = path.join(ROOT, 'android', 'build.gradle');
+const appGradlePath = path.join(ROOT, 'android', 'app', 'build.gradle');
 const dataExtractionRulesPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'xml', 'data_extraction_rules.xml');
 const filePathsPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'xml', 'file_paths.xml');
 const androidPackagePath = path.join(ROOT, 'android', 'app', 'src', 'main', 'java', 'app', 'radarvital', 'trainer');
@@ -149,7 +151,31 @@ function ensureFileProvider(xml) {
   return xml.replace(/(\s*<\/application>)/, `${provider}$1`);
 }
 
+function ensureKotlinGradlePlugin(rootGradle) {
+  if (rootGradle.includes('org.jetbrains.kotlin:kotlin-gradle-plugin')) return rootGradle;
+  return rootGradle.replace(
+    /(\s*classpath ['"]com\.google\.gms:google-services:[^'"]+['"])/,
+    `$1\n        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21'`
+  );
+}
+
+function ensureKotlinAndroidPlugin(appGradle) {
+  if (appGradle.includes("apply plugin: 'org.jetbrains.kotlin.android'")) return appGradle;
+  return appGradle.replace(
+    /apply plugin: 'com\.android\.application'/,
+    `apply plugin: 'com.android.application'\napply plugin: 'org.jetbrains.kotlin.android'`
+  );
+}
+
 async function main() {
+  let rootGradle = await fs.readFile(rootGradlePath, 'utf8');
+  rootGradle = ensureKotlinGradlePlugin(rootGradle);
+  await fs.writeFile(rootGradlePath, rootGradle);
+
+  let appGradle = await fs.readFile(appGradlePath, 'utf8');
+  appGradle = ensureKotlinAndroidPlugin(appGradle);
+  await fs.writeFile(appGradlePath, appGradle);
+
   let xml = await fs.readFile(stylesPath, 'utf8');
   xml = patchStyle(xml, 'AppTheme');
   xml = patchStyle(xml, 'AppTheme.NoActionBar');
@@ -184,6 +210,7 @@ async function main() {
   await fs.mkdir(androidPackagePath, { recursive: true });
   await fs.writeFile(mainActivityPath, MAIN_ACTIVITY_JAVA);
   await fs.writeFile(openFilePluginPath, OPEN_FILE_PLUGIN_KT);
+  console.log(`Patched Android Kotlin plugin: ${path.relative(ROOT, appGradlePath)}`);
   console.log(`Patched Android backup policy: ${path.relative(ROOT, manifestPath)}`);
   console.log(`Patched Android update installer plugin: ${path.relative(ROOT, openFilePluginPath)}`);
 }

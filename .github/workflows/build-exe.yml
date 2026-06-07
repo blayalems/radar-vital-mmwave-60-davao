@@ -93,6 +93,18 @@ jobs:
         env:
           RUST_BACKTRACE: '1'
 
+      - name: Disable updater artifacts for unsigned CI installer
+        shell: pwsh
+        run: |
+          $configPath = "src-tauri/tauri.conf.json"
+          $config = Get-Content $configPath -Raw | ConvertFrom-Json
+          $config.bundle.createUpdaterArtifacts = $false
+          if ($config.plugins -and $config.plugins.updater) {
+            $config.plugins.updater.pubkey = ""
+          }
+          $config | ConvertTo-Json -Depth 100 | Set-Content $configPath
+          Write-Host "Updater artifacts disabled for PR/push installer build."
+
       - name: Build NSIS EXE installer
         # This workflow is the EXE release gate. Do not continue on error:
         # a green run must produce a Windows .exe installer with sidecar.

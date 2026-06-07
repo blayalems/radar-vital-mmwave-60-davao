@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-07 — PR47 CI Packaging Fixes
+
+- **APK CI Fix**: Reproduced the fresh GitHub-generated Android build failure (`MainActivity.java` could not resolve `OpenFilePlugin`) and updated `scripts/patch-android-shell.mjs` to inject the Kotlin Gradle classpath/app plugin before writing `OpenFilePlugin.kt`.
+- **EXE CI Fix**: Reproduced the Tauri bundler failure where updater artifacts required `TAURI_SIGNING_PRIVATE_KEY`; disabled updater artifact generation by default and gated release updater artifacts on both public and private updater signing secrets.
+- **Verification**: Clean-regenerated `android/` with `npx cap add android`, `npx cap sync android`, `node scripts\patch-android-shell.mjs`, and `android\gradlew.bat -p android assembleDebug --no-daemon --stacktrace --console=plain` passed. `npx tauri build --verbose --bundles nsis` passed locally and produced `Radar Vital_16.1.0_x64-setup.exe`; Angular still reports the known initial bundle budget warning.
+
 ### 2026-06-07 — PR47 Native OTA Install, EXE Lifecycle, and v16.1.0 Bump
 
 - **Native Update Installers**: Added Angular update/PWA services, Tauri updater IPC/config, Android APK download/hash/install bridge, and release publication for both `rvt-latest.json` and `rvt-latest-tauri.json`.

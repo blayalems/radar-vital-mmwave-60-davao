@@ -199,10 +199,13 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.release_metadata.outputs.release_version }}
           TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           $configPath = "src-tauri/tauri.conf.json"
           $config = Get-Content $configPath -Raw | ConvertFrom-Json
           $config.version = $env:RELEASE_VERSION
+          $updaterSigningConfigured = [bool]$env:TAURI_UPDATER_PUBLIC_KEY -and [bool]$env:TAURI_SIGNING_PRIVATE_KEY
+          $config.bundle.createUpdaterArtifacts = $updaterSigningConfigured
           if ($env:TAURI_UPDATER_PUBLIC_KEY) {
             if (-not $config.plugins) {
               $config | Add-Member -NotePropertyName plugins -NotePropertyValue ([pscustomobject]@{})
@@ -211,9 +214,12 @@ jobs:
               $config.plugins | Add-Member -NotePropertyName updater -NotePropertyValue ([pscustomobject]@{})
             }
             $config.plugins.updater.pubkey = $env:TAURI_UPDATER_PUBLIC_KEY
+          } elseif ($config.plugins -and $config.plugins.updater) {
+            $config.plugins.updater.pubkey = ""
           }
           $config | ConvertTo-Json -Depth 100 | Set-Content $configPath
           Write-Host "Tauri installer version: $($config.version)"
+          Write-Host "Tauri updater artifacts enabled: $updaterSigningConfigured"
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version '^2.0' --locked

@@ -54,7 +54,9 @@ def test_dashboard_pwa_contract():
     assert '<link rel="manifest" href="./manifest.webmanifest">' in html
     sw_update = text(SW_UPDATE)
     assert "register('./sw.js')" in sw_update
-    assert "Dashboard update available. Refresh when monitoring is paused." in sw_update
+    assert "ServiceWorkerRegistration" in sw_update
+    assert "registration.update()" in sw_update
+    assert "SKIP_WAITING" in sw_update
     assert "afterClosed()" in sw_update
     assert 'id="demoBanner"' in layout
     assert 'role="alert"' in layout

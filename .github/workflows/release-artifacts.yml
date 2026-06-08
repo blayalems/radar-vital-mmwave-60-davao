@@ -253,6 +253,24 @@ jobs:
           & $signtool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f "$PWD\windows-signing.pfx" /p "$env:WINDOWS_CERTIFICATE_PASSWORD" $exe.FullName
           & $signtool.FullName verify /pa /v $exe.FullName
 
+      - name: Re-sign Tauri updater artifact after final EXE bytes
+        shell: pwsh
+        env:
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $exe = Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { throw "No NSIS EXE found to sign for updater." }
+          if (-not $env:TAURI_UPDATER_PUBLIC_KEY -or -not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            Write-Host "Tauri updater signing keys not fully configured; skipping updater signature."
+            exit 0
+          }
+          $sigPath = "$($exe.FullName).sig"
+          if (Test-Path $sigPath) { Remove-Item $sigPath -Force }
+          cargo tauri signer sign $exe.FullName
+          if (-not (Test-Path $sigPath)) { throw "Tauri updater signature was not generated at $sigPath." }
+
       - name: Stage EXE release asset
         shell: pwsh
         run: |
@@ -322,6 +340,21 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/generate-rvt-latest.mjs
 
+      - name: Resolve release upload file list
+        id: release_files
+        shell: bash
+        run: |
+          {
+            find release-assets -type f \( -name '*.apk' -o -name '*.exe' -o -name '*.sig' \)
+            printf '%s\n' dist/rvt-latest.json dist/rvt-latest-tauri.json
+          } | sort > release-files.txt
+          cat release-files.txt
+          {
+            echo 'files<<EOF'
+            cat release-files.txt
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -338,12 +371,7 @@ jobs:
 
             `rvt-latest.json` is published with SHA-256 hashes, byte sizes, release URLs, and compatibility metadata for manual update guidance. Automated `main` releases use a monotonically increasing `v<app-version>-main.<workflow-run>` tag. GitHub-generated release notes below are the changelog for this build.
           fail_on_unmatched_files: true
-          files: |
-            release-assets/**/*.apk
-            release-assets/**/*.exe
-            release-assets/**/*.sig
-            dist/rvt-latest.json
-            dist/rvt-latest-tauri.json
+          files: ${{ steps.release_files.outputs.files }}
 
       - name: Build Pages artifact with latest manifest
         run: |

@@ -2,7 +2,6 @@ import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/
 import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
-import { provideServiceWorker } from '@angular/service-worker';
 
 import { routes } from './app.routes';
 import { rvtAuthInterceptor } from './services/interceptors/auth.interceptor';
@@ -20,10 +19,6 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(
       withFetch(),
       withInterceptors([rvtAuthInterceptor, rvtTauriInterceptor])
-    ),
-    provideServiceWorker('sw.js', {
-      enabled: typeof navigator !== 'undefined' && 'serviceWorker' in navigator,
-      registrationStrategy: 'registerWhenStable:30000'
-    })
+    )
   ]
 };

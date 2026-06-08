@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-08 — PR47 Review Follow-up Fixes
+
+- **Updater Manifest Version**: Changed `rvt-latest-tauri.json` generation to advertise the stamped release version (`RELEASE_VERSION`) so prerelease/main installers do not repeatedly compare against the base product version.
+- **PWA Worker Apply Path**: Removed Angular `SwUpdate` registration for custom `sw.js` and routed checks/reload prompts through the native `ServiceWorkerRegistration.update()` + waiting-worker `SKIP_WAITING` path.
+- **Release Signing Safety**: Re-signed the Tauri updater signature after final Authenticode EXE signing and replaced the release upload glob list with a generated file list so optional `.sig` assets do not fail unsigned/manual-fallback releases.
+- **Android Review Note**: Confirmed the P1 Android Kotlin compile issue is already covered by the prior `scripts/patch-android-shell.mjs` Kotlin Gradle injection and clean regenerated APK build verification.
+
 ### 2026-06-07 — PR47 CI Packaging Fixes
 
 - **APK CI Fix**: Reproduced the fresh GitHub-generated Android build failure (`MainActivity.java` could not resolve `OpenFilePlugin`) and updated `scripts/patch-android-shell.mjs` to inject the Kotlin Gradle classpath/app plugin before writing `OpenFilePlugin.kt`.

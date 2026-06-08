@@ -1,44 +1,38 @@
 import { Injectable, inject } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
-import { filter, firstValueFrom } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 
 import { ConfirmDialogComponent } from '../components/confirm-dialog/confirm-dialog.component';
 
 @Injectable({ providedIn: 'root' })
 export class SwUpdateService {
-  private readonly swUpdate = inject(SwUpdate, { optional: true });
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
   private initialized = false;
   private promptOpen = false;
   private applyingUpdate = false;
+  private registration: ServiceWorkerRegistration | null = null;
 
   initialize(): void {
     if (this.initialized) return;
     this.initialized = true;
-    this.installCustomWorkerFallback();
+    if (!this.supportsServiceWorker()) return;
 
-    if (this.swUpdate?.isEnabled) {
-      this.swUpdate.versionUpdates.pipe(
-        filter((event): event is VersionReadyEvent => event.type === 'VERSION_READY')
-      ).subscribe(() => void this.promptReload());
-
-      window.setInterval(() => {
-        void this.checkNow(false);
-      }, 6 * 60 * 60 * 1000);
-
+    void this.registerCustomWorker();
+    window.setInterval(() => {
       void this.checkNow(false);
-    }
+    }, 6 * 60 * 60 * 1000);
   }
 
   async checkNow(forcePrompt: boolean): Promise<boolean> {
-    if (!this.swUpdate?.isEnabled) return false;
+    if (!this.supportsServiceWorker()) return false;
     try {
-      const ready = await this.swUpdate.checkForUpdate();
-      if (ready || forcePrompt) {
-        return await this.promptReload();
+      const registration = await this.ensureRegistration();
+      await registration.update();
+      const waiting = registration.waiting;
+      if (waiting && navigator.serviceWorker.controller) {
+        return await this.promptReload(waiting);
       }
     } catch (error: unknown) {
       if (forcePrompt) {
@@ -48,7 +42,7 @@ export class SwUpdateService {
     return false;
   }
 
-  private async promptReload(): Promise<boolean> {
+  private async promptReload(worker: ServiceWorker): Promise<boolean> {
     if (this.promptOpen) return false;
     this.promptOpen = true;
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
@@ -63,50 +57,48 @@ export class SwUpdateService {
     this.promptOpen = false;
     if (!confirmed) return false;
     this.applyingUpdate = true;
-    await this.swUpdate?.activateUpdate().catch(() => undefined);
-    document.location.reload();
+    worker.postMessage({ type: 'SKIP_WAITING' });
     return true;
   }
 
-  private installCustomWorkerFallback(): void {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
-
-    navigator.serviceWorker.register('./sw.js').then(registration => {
-      if (registration.waiting && navigator.serviceWorker.controller) {
-        this.promptWaitingWorker(registration.waiting);
-      }
-      registration.addEventListener('updatefound', () => {
-        const worker = registration.installing;
-        if (!worker) return;
-        worker.addEventListener('statechange', () => {
-          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-            this.promptWaitingWorker(worker);
-          }
-        });
-      });
-    }).catch(error => {
-      console.warn('Service worker registration failed', error);
-    });
+  private async registerCustomWorker(): Promise<ServiceWorkerRegistration> {
+    const registration = await navigator.serviceWorker.register('./sw.js');
+    this.registration = registration;
+    this.watchRegistration(registration);
+    if (registration.waiting && navigator.serviceWorker.controller) {
+      void this.promptReload(registration.waiting);
+    }
 
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (this.applyingUpdate) location.reload();
     });
+    return registration;
   }
 
-  private promptWaitingWorker(worker: ServiceWorker): void {
-    if (this.promptOpen) return;
-    this.promptOpen = true;
-    const snack = this.snackBar.open(
-      'Dashboard update available. Refresh when monitoring is paused.',
-      'Refresh',
-      { panelClass: 'rvt-update-snackbar' }
-    );
-    snack.onAction().subscribe(() => {
-      this.applyingUpdate = true;
-      worker.postMessage({ type: 'SKIP_WAITING' });
+  private watchRegistration(registration: ServiceWorkerRegistration): void {
+    registration.addEventListener('updatefound', () => {
+      const worker = registration.installing;
+      if (!worker) return;
+      worker.addEventListener('statechange', () => {
+        if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+          void this.promptReload(worker);
+        }
+      });
     });
-    snack.afterDismissed().subscribe(() => {
-      if (!this.applyingUpdate) this.promptOpen = false;
-    });
+  }
+
+  private async ensureRegistration(): Promise<ServiceWorkerRegistration> {
+    if (this.registration) return this.registration;
+    const existing = await navigator.serviceWorker.getRegistration('./');
+    if (existing) {
+      this.registration = existing;
+      this.watchRegistration(existing);
+      return existing;
+    }
+    return this.registerCustomWorker();
+  }
+
+  private supportsServiceWorker(): boolean {
+    return typeof window !== 'undefined' && 'serviceWorker' in navigator;
   }
 }

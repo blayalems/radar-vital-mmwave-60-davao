@@ -154,8 +154,8 @@ function generateTauriManifest(distDir, prodVersion, options = buildOptions(prod
     url: `${releaseUrl}/radar-vital-windows-installer.exe`
   };
   return {
-    version: prodVersion,
-    notes: `Radar Vital version ${prodVersion} release.`,
+    version: options.releaseVersion,
+    notes: `Radar Vital version ${options.releaseVersion} release.`,
     pub_date: options.releasedAt,
     platforms: {
       'windows-x86_64': platform,
@@ -279,8 +279,8 @@ function runSelfTest() {
     const tauriManifest = generateTauriManifest(tempDir, version, testOptions);
     console.log('Generated Tauri manifest in self-test:', JSON.stringify(tauriManifest, null, 2));
 
-    if (tauriManifest.version !== version) {
-      throw new Error(`Tauri version mismatch: expected ${version}, got ${tauriManifest.version}`);
+    if (tauriManifest.version !== testOptions.releaseVersion) {
+      throw new Error(`Tauri version mismatch: expected ${testOptions.releaseVersion}, got ${tauriManifest.version}`);
     }
     if (tauriManifest.pub_date !== testOptions.releasedAt) {
       throw new Error(`Tauri pub_date mismatch: expected ${testOptions.releasedAt}, got ${tauriManifest.pub_date}`);

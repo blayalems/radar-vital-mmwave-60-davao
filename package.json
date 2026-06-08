@@ -1,6 +1,6 @@
 {
   "name": "radar-vital-mobile",
-  "version": "16.0.1",
+  "version": "16.1.0",
   "private": true,
   "description": "Mobile-first PWA shell for the Radar Vital mmWave 60 GHz trainer. Capacitor APK + Tauri EXE + GitHub Pages.",
   "type": "module",
@@ -30,6 +30,7 @@
     "@capacitor/android": "^7.0.0",
     "@capacitor/app": "^7.0.0",
     "@capacitor/core": "^7.0.0",
+    "@capacitor/filesystem": "^7.1.8",
     "@capacitor/haptics": "^7.0.5",
     "@capacitor/splash-screen": "^7.0.5",
     "@capacitor/status-bar": "^7.0.6"

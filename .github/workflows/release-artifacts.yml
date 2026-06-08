@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag to publish, for example v16.0.1-alpha.1'
+        description: 'Release tag to publish, for example v16.1.0-alpha.1'
         required: true
         type: string
       prerelease:
@@ -35,6 +35,7 @@ jobs:
       release_name: ${{ steps.version.outputs.release_name }}
       release_version: ${{ steps.version.outputs.release_version }}
       android_version_code: ${{ steps.version.outputs.android_version_code }}
+      released_at: ${{ steps.version.outputs.released_at }}
     steps:
       - uses: actions/checkout@v4
 
@@ -61,6 +62,8 @@ jobs:
           echo "release_name=Radar Vital ${release_tag}" >> "$GITHUB_OUTPUT"
           echo "release_version=${release_version}" >> "$GITHUB_OUTPUT"
           echo "android_version_code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          released_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          echo "released_at=${released_at}" >> "$GITHUB_OUTPUT"
 
   android:
     name: Android APK
@@ -195,12 +198,28 @@ jobs:
         shell: pwsh
         env:
           RELEASE_VERSION: ${{ needs.release_metadata.outputs.release_version }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           $configPath = "src-tauri/tauri.conf.json"
           $config = Get-Content $configPath -Raw | ConvertFrom-Json
           $config.version = $env:RELEASE_VERSION
+          $updaterSigningConfigured = [bool]$env:TAURI_UPDATER_PUBLIC_KEY -and [bool]$env:TAURI_SIGNING_PRIVATE_KEY
+          $config.bundle.createUpdaterArtifacts = $updaterSigningConfigured
+          if ($env:TAURI_UPDATER_PUBLIC_KEY) {
+            if (-not $config.plugins) {
+              $config | Add-Member -NotePropertyName plugins -NotePropertyValue ([pscustomobject]@{})
+            }
+            if (-not $config.plugins.updater) {
+              $config.plugins | Add-Member -NotePropertyName updater -NotePropertyValue ([pscustomobject]@{})
+            }
+            $config.plugins.updater.pubkey = $env:TAURI_UPDATER_PUBLIC_KEY
+          } elseif ($config.plugins -and $config.plugins.updater) {
+            $config.plugins.updater.pubkey = ""
+          }
           $config | ConvertTo-Json -Depth 100 | Set-Content $configPath
           Write-Host "Tauri installer version: $($config.version)"
+          Write-Host "Tauri updater artifacts enabled: $updaterSigningConfigured"
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version '^2.0' --locked
@@ -210,6 +229,8 @@ jobs:
         env:
           RUST_BACKTRACE: '1'
           TAURI_BUNDLE__WEBVIEW_FIXED_RUNTIME_PATH: ''
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Sign EXE when certificate is configured
         shell: pwsh
@@ -232,6 +253,24 @@ jobs:
           & $signtool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f "$PWD\windows-signing.pfx" /p "$env:WINDOWS_CERTIFICATE_PASSWORD" $exe.FullName
           & $signtool.FullName verify /pa /v $exe.FullName
 
+      - name: Re-sign Tauri updater artifact after final EXE bytes
+        shell: pwsh
+        env:
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $exe = Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { throw "No NSIS EXE found to sign for updater." }
+          if (-not $env:TAURI_UPDATER_PUBLIC_KEY -or -not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            Write-Host "Tauri updater signing keys not fully configured; skipping updater signature."
+            exit 0
+          }
+          $sigPath = "$($exe.FullName).sig"
+          if (Test-Path $sigPath) { Remove-Item $sigPath -Force }
+          cargo tauri signer sign $exe.FullName
+          if (-not (Test-Path $sigPath)) { throw "Tauri updater signature was not generated at $sigPath." }
+
       - name: Stage EXE release asset
         shell: pwsh
         run: |
@@ -239,12 +278,20 @@ jobs:
           $exe = Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter *.exe | Select-Object -First 1
           if (-not $exe) { throw "No NSIS EXE found." }
           Copy-Item $exe.FullName "dist\radar-vital-windows-installer.exe"
+          $sig = Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter *.exe.sig | Select-Object -First 1
+          if ($sig) {
+            Copy-Item $sig.FullName "dist\radar-vital-windows-installer.exe.sig"
+          } else {
+            Write-Host "No Tauri updater signature found; Windows install automation will remain disabled in the manifest."
+          }
 
       - name: Upload EXE release asset
         uses: actions/upload-artifact@v4
         with:
           name: radar-vital-exe-release-asset
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/*.sig
           if-no-files-found: error
           retention-days: 30
 
@@ -281,15 +328,32 @@ jobs:
           mkdir -p dist
           cp release-assets/radar-vital-apk-release-asset/*.apk dist/
           cp release-assets/radar-vital-exe-release-asset/*.exe dist/
+          cp release-assets/radar-vital-exe-release-asset/*.sig dist/ || true
 
       - name: Generate latest release manifest JSON
         env:
           RELEASE_TAG: ${{ needs.release_metadata.outputs.release_tag }}
           RELEASE_VERSION: ${{ needs.release_metadata.outputs.release_version }}
+          RELEASED_AT: ${{ needs.release_metadata.outputs.released_at }}
           ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}
           BUILD_NUMBER: ${{ github.run_number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/generate-rvt-latest.mjs
+
+      - name: Resolve release upload file list
+        id: release_files
+        shell: bash
+        run: |
+          {
+            find release-assets -type f \( -name '*.apk' -o -name '*.exe' -o -name '*.sig' \)
+            printf '%s\n' dist/rvt-latest.json dist/rvt-latest-tauri.json
+          } | sort > release-files.txt
+          cat release-files.txt
+          {
+            echo 'files<<EOF'
+            cat release-files.txt
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -297,7 +361,7 @@ jobs:
           tag_name: ${{ needs.release_metadata.outputs.release_tag }}
           name: ${{ needs.release_metadata.outputs.release_name }}
           target_commitish: ${{ github.sha }}
-          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || startsWith(github.ref_name, 'v16.0.1-alpha') }}
+          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
           make_latest: false
           generate_release_notes: true
           body: |
@@ -307,10 +371,7 @@ jobs:
 
             `rvt-latest.json` is published with SHA-256 hashes, byte sizes, release URLs, and compatibility metadata for manual update guidance. Automated `main` releases use a monotonically increasing `v<app-version>-main.<workflow-run>` tag. GitHub-generated release notes below are the changelog for this build.
           fail_on_unmatched_files: true
-          files: |
-            release-assets/**/*.apk
-            release-assets/**/*.exe
-            dist/rvt-latest.json
+          files: ${{ steps.release_files.outputs.files }}
 
       - name: Build Pages artifact with latest manifest
         run: |
@@ -318,6 +379,7 @@ jobs:
           npm --prefix web ci
           npm run build:web
           cp dist/rvt-latest.json www/rvt-latest.json
+          cp dist/rvt-latest-tauri.json www/rvt-latest-tauri.json
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

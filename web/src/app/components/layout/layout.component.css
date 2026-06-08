@@ -287,11 +287,19 @@
     bottom: 92px; /* above mobile bottom nav */
     right: 16px;
   }
+
+  .main-wrapper.settings-view .scroll-to-top-fab {
+    display: none;
+  }
 }
 @media (min-width: 761px) and (max-width: 1023px) {
   .scroll-to-top-fab {
     bottom: 92px; /* above bottom nav */
     right: 24px;
+  }
+
+  .main-wrapper.settings-view .scroll-to-top-fab {
+    display: none;
   }
 }
 :host-context(html[data-theme='hc']) .scroll-to-top-fab {

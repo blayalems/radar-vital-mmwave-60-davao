@@ -41,6 +41,8 @@ struct TrainerSidecarState {
     ready: bool,
     error: Option<String>,
     child: Option<CommandChild>,
+    child_pid: Option<u32>,
+    stop_requested: bool,
     started_at_ms: Option<u128>,
     sessions_root: Option<String>,
 }
@@ -219,6 +221,17 @@ fn trainer_lifecycle_status(state: &State<'_, NativeState>) -> TrainerLifecycleS
     }
 }
 
+#[cfg(target_os = "windows")]
+fn terminate_process_tree(pid: u32) {
+    let pid_arg = pid.to_string();
+    let _ = std::process::Command::new("taskkill")
+        .args(["/PID", pid_arg.as_str(), "/T", "/F"])
+        .status();
+}
+
+#[cfg(not(target_os = "windows"))]
+fn terminate_process_tree(_pid: u32) {}
+
 async fn wait_for_trainer_health(origin: &str, timeout_s: u64) -> Result<(), String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(800))
@@ -300,6 +313,10 @@ fn trainer_status_snapshot(state: &State<'_, NativeState>) -> TrainerSidecarStat
 
 fn shutdown_local_trainer(state: &State<'_, NativeState>) {
     if let Ok(mut trainer) = state.trainer.lock() {
+        trainer.stop_requested = true;
+        if let Some(pid) = trainer.child_pid.take() {
+            terminate_process_tree(pid);
+        }
         if let Some(child) = trainer.child.take() {
             let _ = child.kill();
         }
@@ -337,6 +354,7 @@ fn start_local_trainer_sidecar(app: &AppHandle, state: &State<'_, NativeState>) 
         ])
         .spawn()
         .map_err(|error| format!("Failed to start bundled trainer: {error}"))?;
+    let child_pid = child.pid();
 
     {
         let mut trainer = state.trainer.lock().map_err(|_| "Native trainer state is unavailable.".to_string())?;
@@ -344,8 +362,10 @@ fn start_local_trainer_sidecar(app: &AppHandle, state: &State<'_, NativeState>) 
         trainer.running = true;
         trainer.ready = false;
         trainer.error = None;
+        trainer.stop_requested = false;
         trainer.started_at_ms = Some(now_ms());
         trainer.sessions_root = Some(sessions_root_arg);
+        trainer.child_pid = Some(child_pid);
         trainer.child = Some(child);
     }
     if let Ok(mut paired) = state.paired_origin.lock() {
@@ -376,13 +396,21 @@ fn start_local_trainer_sidecar(app: &AppHandle, state: &State<'_, NativeState>) 
                 CommandEvent::Terminated(payload) => {
                     let state = app_handle.state::<NativeState>();
                     let message = format!("Bundled trainer exited: {:?}", payload);
+                    let mut stopped_by_request = false;
                     if let Ok(mut trainer) = state.trainer.lock() {
+                        stopped_by_request = trainer.stop_requested;
                         trainer.running = false;
                         trainer.ready = false;
                         trainer.child = None;
-                        trainer.error = Some(message.clone());
+                        trainer.child_pid = None;
+                        trainer.stop_requested = false;
+                        trainer.error = if stopped_by_request { None } else { Some(message.clone()) };
                     }
-                    record_trainer_error(&app_handle, &message);
+                    if stopped_by_request {
+                        push_trainer_log(&state, "lifecycle", "Bundled trainer stopped by user request.");
+                    } else {
+                        record_trainer_error(&app_handle, &message);
+                    }
                     let _ = app_handle.emit("rvt-trainer-terminated", payload);
                     break;
                 }
@@ -428,6 +456,8 @@ fn trainer_start(app: AppHandle, state: State<'_, NativeState>) -> TrainerLifecy
             trainer.running = false;
             trainer.ready = false;
             trainer.child = None;
+            trainer.child_pid = None;
+            trainer.stop_requested = false;
             trainer.error = Some(error.clone());
         }
         record_trainer_error(&app, &error);
@@ -487,6 +517,29 @@ async fn native_download(request: NativeRequest, state: State<'_, NativeState>) 
     Ok(NativeDownload { status, body_base64: STANDARD.encode(bytes), content_type })
 }
 
+#[tauri::command]
+async fn check_and_install_update(app: AppHandle) -> Result<String, String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let update = app
+        .updater()
+        .map_err(|error| error.to_string())?
+        .check()
+        .await
+        .map_err(|error| error.to_string())?;
+
+    match update {
+        Some(update) => {
+            update
+                .download_and_install(|_, _| {}, || {})
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok("installed".to_string())
+        }
+        None => Ok("up-to-date".to_string()),
+    }
+}
+
 async fn first_adapter() -> Result<btleplug::platform::Adapter, String> {
     let manager = BleManager::new().await.map_err(|error| error.to_string())?;
     manager.adapters().await.map_err(|error| error.to_string())?
@@ -505,17 +558,25 @@ async fn find_peripheral(device_id: &str) -> Result<Peripheral, String> {
 async fn native_ble_scan(timeout_ms: Option<u64>) -> Result<Vec<NativeBleDevice>, String> {
     let adapter = first_adapter().await?;
     let service_uuid = ailink_service_uuid()?;
-    adapter.start_scan(ScanFilter { services: vec![service_uuid] }).await.map_err(|error| error.to_string())?;
-    tokio::time::sleep(Duration::from_millis(timeout_ms.unwrap_or(3000).min(10_000))).await;
+    adapter.start_scan(ScanFilter::default()).await.map_err(|error| error.to_string())?;
+    tokio::time::sleep(Duration::from_millis(timeout_ms.unwrap_or(8000).min(10_000))).await;
     let mut devices = Vec::new();
     for peripheral in adapter.peripherals().await.map_err(|error| error.to_string())? {
         if let Some(properties) = peripheral.properties().await.map_err(|error| error.to_string())? {
-            if !properties.services.contains(&service_uuid) {
+            let name = properties.local_name.unwrap_or_else(|| "Radar Vital BLE device".to_string());
+            let normalized_name = name.to_ascii_lowercase();
+            let service_match = properties.services.contains(&service_uuid);
+            let name_match = normalized_name.contains("radar")
+                || normalized_name.contains("vital")
+                || normalized_name.contains("ailink")
+                || normalized_name.contains("spo2")
+                || normalized_name.contains("pulse");
+            if !service_match && !name_match {
                 continue;
             }
             devices.push(NativeBleDevice {
                 id: peripheral.id().to_string(),
-                name: properties.local_name.unwrap_or_else(|| "Radar Vital BLE device".to_string()),
+                name,
                 address: properties.address.to_string(),
                 rssi: properties.rssi,
             });
@@ -691,6 +752,7 @@ mod tests {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(NativeState::default())
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -724,6 +786,7 @@ fn main() {
             native_pair_request,
             native_http_request,
             native_download,
+            check_and_install_update,
             native_ble_scan,
             native_ble_connect,
             native_ble_disconnect,

@@ -389,7 +389,7 @@
         </div>
 
         <p class="settings-help-text">Changes apply immediately to live KPI alerts and persist across monitoring sessions.</p>
-        
+
         <div class="threshold-actions">
           <button mat-flat-button color="warn" (click)="resetThresholds()" class="mat-tonal-button">Reset Thresholds</button>
         </div>
@@ -473,65 +473,91 @@
             <span class="row-description">{{ schemaVersion }}</span>
           </div>
         </div>
-        
-        <div class="settings-row block-row" style="margin-top: 8px;">
-          <button mat-flat-button type="button" class="mat-tonal-button" (click)="checkForUpdates()" [disabled]="updateCheckBusy()">
+
+        <div class="settings-row block-row update-check-row">
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="checkForUpdates()" [disabled]="updateCheckBusy()" [aria-busy]="updateCheckBusy()" aria-describedby="updateResultRegion">
             <mat-icon>sync</mat-icon>{{ updateCheckBusy() ? 'Checking...' : 'Check for Updates' }}
           </button>
         </div>
 
-        @if (updateCheckResult(); as result) {
-          @if (result.ok) {
-            @if (result.updateAvailable) {
-              <div class="update-available-container" style="margin-top: 16px; padding: 12px; border-radius: 8px; background-color: var(--md-sys-color-secondary-container, #e8def8); color: var(--md-sys-color-on-secondary-container, #1d192b);">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                  <mat-icon style="color: var(--md-sys-color-primary, #6750a4);">downloading</mat-icon>
-                  <span style="font-weight: 500; font-size: 0.95rem;">Update Available: {{ result.release_tag || result.product_version }}</span>
-                </div>
-                <div style="font-size: 0.85rem; margin-bottom: 12px; opacity: 0.85;">
-                  Released: {{ result.released_at_formatted }}
-                </div>
-                
-                <div class="download-links" style="display: flex; flex-direction: column; gap: 8px;">
-                  @if (result.artifacts?.apk; as apk) {
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid rgba(0,0,0,0.1);">
-                      <div>
-                        <strong>Android APK</strong> ({{ apk.compatibility }})<br>
-                        <span style="font-size: 0.75rem; opacity: 0.7;">Size: {{ apk.size_mb }} MB | SHA256: {{ apk.sha256.substring(0, 8) }}...</span>
+        <div id="updateResultRegion" role="status" aria-live="polite" class="update-result-region">
+          @if (updateCheckResult(); as result) {
+            @if (result.ok) {
+              @if (result.updateAvailable) {
+                <div class="update-available-container">
+                  <div class="update-header-row">
+                    <mat-icon class="update-icon">downloading</mat-icon>
+                    <span class="update-title-text">
+                      {{ result.isNewBuild ? 'New Build Available' : 'Update Available' }}: {{ result.release_tag || result.product_version }}
+                    </span>
+                  </div>
+                  <div class="update-release-date">
+                    Released: {{ result.released_at_formatted }}
+                  </div>
+
+                  <div class="download-links">
+                    @if (result.artifacts?.apk; as apk) {
+                      <div class="artifact-row border-bottom">
+                        <div>
+                          <strong>Android APK</strong> ({{ apk.compatibility }})<br>
+                          <span class="artifact-meta">Size: {{ apk.size_mb }} MB | SHA256: {{ apk.sha256.substring(0, 8) }}...</span>
+                        </div>
+                        <a mat-stroked-button [href]="apk.url" target="_blank" rel="noopener">Download</a>
                       </div>
-                      <a mat-stroked-button [href]="apk.url" target="_blank" rel="noopener">Download</a>
-                    </div>
-                  }
-                  @if (result.artifacts?.exe; as exe) {
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding: 6px 0;">
-                      <div>
-                        <strong>Windows EXE</strong> ({{ exe.compatibility }})<br>
-                        <span style="font-size: 0.75rem; opacity: 0.7;">Size: {{ exe.size_mb }} MB | SHA256: {{ exe.sha256.substring(0, 8) }}...</span>
+                    }
+                    @if (result.artifacts?.exe; as exe) {
+                      <div class="artifact-row">
+                        <div>
+                          <strong>Windows EXE</strong> ({{ exe.compatibility }})<br>
+                          <span class="artifact-meta">Size: {{ exe.size_mb }} MB | SHA256: {{ exe.sha256.substring(0, 8) }}...</span>
+                        </div>
+                        <a mat-stroked-button [href]="exe.url" target="_blank" rel="noopener">Download</a>
                       </div>
-                      <a mat-stroked-button [href]="exe.url" target="_blank" rel="noopener">Download</a>
-                    </div>
-                  }
+                    }
+                  </div>
+                  <div class="update-install-panel">
+                    @if (updateService.state().phase === 'downloading') {
+                      <mat-progress-bar mode="determinate" [value]="updateDownloadProgress()" aria-label="Update download progress"></mat-progress-bar>
+                    } @else if (updateService.state().phase === 'verifying' || updateService.state().phase === 'installing') {
+                      <mat-progress-bar mode="indeterminate" aria-label="Update installation progress"></mat-progress-bar>
+                    }
+                    <span class="update-install-tooltip" [matTooltip]="updateInstallDisabledReason()" [matTooltipDisabled]="!updateInstallDisabledReason()">
+                      <button
+                        mat-flat-button
+                        type="button"
+                        color="primary"
+                        (click)="onInstallUpdate()"
+                        [disabled]="updateCheckBusy() || !!updateInstallDisabledReason()"
+                        [attr.aria-disabled]="updateCheckBusy() || !!updateInstallDisabledReason()"
+                        [attr.aria-describedby]="updateInstallDisabledReason() ? 'updateInstallHelp' : 'updateResultRegion'">
+                        <mat-icon>system_update_alt</mat-icon>{{ updateService.installButtonLabel() }}
+                      </button>
+                    </span>
+                    @if (updateInstallDisabledReason()) {
+                      <p id="updateInstallHelp" class="settings-help-text update-install-help">{{ updateInstallDisabledReason() }}</p>
+                    }
+                  </div>
                 </div>
-              </div>
+              } @else {
+                <div class="settings-row update-status-row success-state">
+                  <mat-icon>check_circle</mat-icon>
+                  <div class="settings-copy">
+                    <span class="row-title color-inherit">Your dashboard is up to date.</span>
+                    <span class="row-description color-inherit">Version: {{ productVersion }}</span>
+                  </div>
+                </div>
+              }
             } @else {
-              <div class="settings-row" style="margin-top: 12px; align-items: center; gap: 8px; color: var(--md-sys-color-tertiary, #00a496);">
-                <mat-icon>check_circle</mat-icon>
+              <div class="settings-row update-status-row error-state">
+                <mat-icon>error</mat-icon>
                 <div class="settings-copy">
-                  <span class="row-title" style="color: inherit;">Your dashboard is up to date.</span>
-                  <span class="row-description" style="color: inherit;">Version: 16.0.1</span>
+                  <span class="row-title color-inherit">Check Failed</span>
+                  <span class="row-description color-inherit">{{ result.error }}</span>
                 </div>
               </div>
             }
-          } @else {
-            <div class="settings-row" style="margin-top: 12px; align-items: center; gap: 8px; color: var(--md-sys-color-error, #ba1a1a);">
-              <mat-icon>error</mat-icon>
-              <div class="settings-copy">
-                <span class="row-title" style="color: inherit;">Check Failed</span>
-                <span class="row-description" style="color: inherit;">{{ result.error }}</span>
-              </div>
-            </div>
           }
-        }
+        </div>
       </mat-card-content>
     </mat-card>
   </div>

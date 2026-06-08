@@ -12,10 +12,11 @@ LAYOUT_TS = ROOT / "web" / "src" / "app" / "components" / "layout" / "layout.com
 API = ROOT / "web" / "src" / "app" / "services" / "api.service.ts"
 TELEMETRY = ROOT / "web" / "src" / "app" / "services" / "telemetry.service.ts"
 BLUETOOTH = ROOT / "web" / "src" / "app" / "services" / "bluetooth.service.ts"
+SW_UPDATE = ROOT / "web" / "src" / "app" / "services" / "sw-update.service.ts"
 STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
-FW = ROOT / "radar_vital_v16_0_0.ino"
+FW = ROOT / "radar_vital_v16_1_0.ino"
 SW = ROOT / "assets" / "sw.js"
 STYLES = ROOT / "web" / "src" / "styles.scss"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
@@ -51,9 +52,12 @@ def test_dashboard_pwa_contract():
     assert "viewport-fit=cover" in html
     assert "interactive-widget=resizes-content" in html
     assert '<link rel="manifest" href="./manifest.webmanifest">' in html
-    assert "register('./sw.js')" in app
-    assert "Dashboard update available. Refresh when monitoring is paused." in app
-    assert "onAction()" in app
+    sw_update = text(SW_UPDATE)
+    assert "register('./sw.js')" in sw_update
+    assert "ServiceWorkerRegistration" in sw_update
+    assert "registration.update()" in sw_update
+    assert "SKIP_WAITING" in sw_update
+    assert "afterClosed()" in sw_update
     assert 'id="demoBanner"' in layout
     assert 'role="alert"' in layout
     assert 'href="#mainContent"' in layout
@@ -74,7 +78,7 @@ def test_dashboard_pwa_contract():
 
 def test_service_worker_contract():
     sw = text(SW)
-    assert "rvt-shell-v12.0.3" in sw
+    assert "rvt-shell-v12.0.4" in sw
     assert "text/event-stream" in sw
     assert "SKIP_WAITING" in sw
     assert "SW_UPDATED" in sw
@@ -89,23 +93,23 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
     api = text(API)
     sw = text(SW)
 
-    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.0.1"
-    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.0.1"
-    assert json.loads(text(TAURI_CONF))["version"] == "16.0.1"
-    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.0.1"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.0.1"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.0.1"
-    assert re.search(r'^version = "16\.0\.1"$', text(TAURI_CARGO), re.MULTILINE)
+    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.1.0"
+    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.1.0"
+    assert json.loads(text(TAURI_CONF))["version"] == "16.1.0"
+    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.1.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.1.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.1.0"
+    assert re.search(r'^version = "16\.1\.0"$', text(TAURI_CARGO), re.MULTILINE)
 
-    assert 'VERSION = "16.0.1"' in trainer
-    assert 'DASHBOARD_VERSION = "16.0.1"' in trainer
-    assert 'FIRMWARE_VERSION_EXPECTED = "v16.0.1"' in trainer
-    assert "const PRODUCT_VERSION = '16.0.1';" in settings
-    assert "product_version: '16.0.1'" in api
-    assert '#define FW_VERSION "v16.0.1"' in firmware
+    assert 'VERSION = "16.1.0"' in trainer
+    assert 'DASHBOARD_VERSION = "16.1.0"' in trainer
+    assert 'FIRMWARE_VERSION_EXPECTED = "v16.1.0"' in trainer
+    assert "const PRODUCT_VERSION = '16.1.0';" in settings
+    assert "product_version: '16.1.0'" in api
+    assert '#define FW_VERSION "v16.1.0"' in firmware
     assert "#define SKETCH_VERSION_MAJOR 16" in firmware
-    assert "#define SKETCH_VERSION_SUB 0" in firmware
-    assert "#define SKETCH_VERSION_MOD 1" in firmware
+    assert "#define SKETCH_VERSION_SUB 1" in firmware
+    assert "#define SKETCH_VERSION_MOD 0" in firmware
 
     for schema_id in [
         "rvt-control-api-v12.0",
@@ -118,7 +122,7 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
         "rvt-subject-profiles-v12.0",
     ]:
         assert schema_id in trainer
-    assert "rvt-shell-v12.0.3" in sw
+    assert "rvt-shell-v12.0.4" in sw
     assert "rvt-shell-v16" not in sw
 
 
@@ -144,6 +148,9 @@ def test_release_manifest_contract_and_ci_validation():
     assert "ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}" in release_workflow
     assert "node scripts/generate-rvt-latest.mjs" in release_workflow
     assert "dist/rvt-latest.json" in release_workflow
+    assert "startsWith(github.ref_name, 'v16.1.0-alpha')" not in release_workflow
+    assert "contains(github.ref_name, '-alpha')" in release_workflow
+    assert "contains(github.ref_name, '-rc')" in release_workflow
     assert "actions/deploy-pages@v4" in release_workflow
     assert "group: pages" in release_workflow
     assert "gh-pages" not in release_workflow
@@ -243,13 +250,36 @@ def test_manifest_payload_is_plain_manifest():
 
 def test_firmware_ble_contract():
     ino = text(FW)
-    assert '#define FW_VERSION "v16.0.1"' in ino
+    assert '#define FW_VERSION "v16.1.0"' in ino
     assert "#define ENABLE_BLE false" in ino
     assert "NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN" in ino
     assert "bleSuppressUntilMs = millis() + 500UL" in ino
     assert "delay(500)" not in ino
     assert "hrsValid = validHr" in ino
     assert "hrBpm >= 1.0f && hrBpm <= 254.0f" in ino
+
+
+def test_firmware_new_audit_requirements():
+    ino = text(FW)
+    # 1. CSV Column Count Runtime Enforcement
+    assert "int _csvColCount = 0;" in ino or "static int _csvColCount = 0;" in ino
+    assert "_csvColCount++" in ino
+    assert "[CONTRACT] CSV column count mismatch" in ino
+    assert "_csvFirstEmitDone" in ino
+
+    # 2. No Duplicate BLE Define
+    assert ino.count("#define ENABLE_BLE false") == 1
+    assert ino.count("#ifndef ENABLE_BLE") == 1
+
+    # 3. Deprecated Constant Removed
+    assert "CHIP_HR_BIAS_CORRECTION_BPM" not in ino or "removed" in ino
+    assert "static const float CHIP_HR_BIAS_CORRECTION_BPM" not in ino
+
+    # 4. BLE callbacks stubbed
+    assert "// STUB — no-op until BLE path activates" in ino
+
+    # 5. Legacy alias cleanup
+    assert "// REMOVE at v17 — use RLS_LAMBDA_HR_BASE directly" in ino
 
 
 def test_native_ble_commands_allowlist_reference_gatt_profile():

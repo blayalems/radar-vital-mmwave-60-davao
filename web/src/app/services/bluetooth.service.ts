@@ -77,9 +77,9 @@ export class BluetoothService {
   }
 
   private async requestDeviceTauri(): Promise<BleDevice> {
-    const devices = await this.tauriInvoke<Array<{ id: string; name?: string }>>('native_ble_scan', { timeoutMs: 3000 });
+    const devices = await this.tauriInvoke<Array<{ id: string; name?: string }>>('native_ble_scan', { timeoutMs: 8000 });
     const selected = devices[0];
-    if (!selected) throw new Error('No Radar Vital BLE device found.');
+    if (!selected) throw new Error('No Radar Vital BLE device found by the Windows native scanner. Make sure Bluetooth is enabled and the device is advertising, then scan again.');
     return { id: selected.id, name: selected.name, nativeHandle: selected };
   }
 

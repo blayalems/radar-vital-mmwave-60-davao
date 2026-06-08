@@ -11,6 +11,7 @@ export class SwUpdateService {
   private readonly snackBar = inject(MatSnackBar);
   private initialized = false;
   private promptOpen = false;
+  private noticeOpen = false;
   private applyingUpdate = false;
   private registration: ServiceWorkerRegistration | null = null;
 
@@ -32,7 +33,9 @@ export class SwUpdateService {
       await registration.update();
       const waiting = registration.waiting;
       if (waiting && navigator.serviceWorker.controller) {
-        return await this.promptReload(waiting);
+        if (forcePrompt) return await this.promptReload(waiting);
+        this.notifyWaitingWorker(waiting);
+        return false;
       }
     } catch (error: unknown) {
       if (forcePrompt) {
@@ -66,7 +69,7 @@ export class SwUpdateService {
     this.registration = registration;
     this.watchRegistration(registration);
     if (registration.waiting && navigator.serviceWorker.controller) {
-      void this.promptReload(registration.waiting);
+      this.notifyWaitingWorker(registration.waiting);
     }
 
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -81,9 +84,25 @@ export class SwUpdateService {
       if (!worker) return;
       worker.addEventListener('statechange', () => {
         if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-          void this.promptReload(worker);
+          this.notifyWaitingWorker(worker);
         }
       });
+    });
+  }
+
+  private notifyWaitingWorker(worker: ServiceWorker): void {
+    if (this.noticeOpen || this.promptOpen) return;
+    this.noticeOpen = true;
+    const snack = this.snackBar.open(
+      'Dashboard update available. Refresh when monitoring is paused.',
+      'Refresh',
+      { panelClass: 'rvt-update-snackbar' }
+    );
+    snack.onAction().subscribe(() => {
+      void this.promptReload(worker);
+    });
+    snack.afterDismissed().subscribe(() => {
+      this.noticeOpen = false;
     });
   }
 

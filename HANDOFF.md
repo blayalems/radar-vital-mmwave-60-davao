@@ -10,7 +10,9 @@
 - **Updater Manifest Version**: Changed `rvt-latest-tauri.json` generation to advertise the stamped release version (`RELEASE_VERSION`) so prerelease/main installers do not repeatedly compare against the base product version.
 - **PWA Worker Apply Path**: Removed Angular `SwUpdate` registration for custom `sw.js` and routed checks/reload prompts through the native `ServiceWorkerRegistration.update()` + waiting-worker `SKIP_WAITING` path.
 - **PWA Contract Test**: Updated the static PWA contract to assert the native service-worker apply path instead of the removed snackbar copy.
+- **PWA Update UX**: Automatic worker updates now show a non-modal snackbar so update availability cannot interrupt keyboard/dialog workflows; explicit Settings apply still uses the reload confirmation dialog.
 - **Release Signing Safety**: Re-signed the Tauri updater signature after final Authenticode EXE signing and replaced the release upload glob list with a generated file list so optional `.sig` assets do not fail unsigned/manual-fallback releases.
+- **Prerelease Publishing**: Replaced the hardcoded `v16.1.0-alpha` release check with version-agnostic `-alpha` / `-rc` prerelease detection.
 - **Android Review Note**: Confirmed the P1 Android Kotlin compile issue is already covered by the prior `scripts/patch-android-shell.mjs` Kotlin Gradle injection and clean regenerated APK build verification.
 
 ### 2026-06-07 — PR47 CI Packaging Fixes

@@ -148,6 +148,9 @@ def test_release_manifest_contract_and_ci_validation():
     assert "ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}" in release_workflow
     assert "node scripts/generate-rvt-latest.mjs" in release_workflow
     assert "dist/rvt-latest.json" in release_workflow
+    assert "startsWith(github.ref_name, 'v16.1.0-alpha')" not in release_workflow
+    assert "contains(github.ref_name, '-alpha')" in release_workflow
+    assert "contains(github.ref_name, '-rc')" in release_workflow
     assert "actions/deploy-pages@v4" in release_workflow
     assert "group: pages" in release_workflow
     assert "gh-pages" not in release_workflow

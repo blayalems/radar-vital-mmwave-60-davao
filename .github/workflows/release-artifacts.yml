@@ -361,7 +361,7 @@ jobs:
           tag_name: ${{ needs.release_metadata.outputs.release_tag }}
           name: ${{ needs.release_metadata.outputs.release_name }}
           target_commitish: ${{ github.sha }}
-          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || startsWith(github.ref_name, 'v16.1.0-alpha') }}
+          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
           make_latest: false
           generate_release_notes: true
           body: |

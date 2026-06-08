@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-09 — PR48 Operator Profiles and PIN Lock
+
+- **Operator Auth Backend**: Added PBKDF2-backed operator profiles, 8-hour operator sessions, first-run unauthenticated bootstrap only when no profiles exist, authenticated profile creation after bootstrap, logout revocation, 5-attempt/30-second PIN lockout, and protected sensitive control routes while keeping discovery/update endpoints public.
+- **Dashboard Lock UX**: Added first-run operator onboarding, PIN keypad lock/unlock, desktop rail and mobile overflow actions for Lock profile / Switch operator, authenticated add-and-switch dialog, and isolated operator token storage under `rvt-operator-token`.
+- **Telemetry Auth**: Routed Angular API calls and SSE reconnects through the operator token, including short-lived SSE token flow, without changing public health/version/update-manifest access.
+- **Smoke/Test Isolation**: Added backend/operator unit coverage and Playwright operator smoke with isolated `.playwright-state/sessions` trainer storage; non-auth dashboard/OTA smokes seed a mock operator token so existing v11 parity tests still exercise the UI.
+- **Verification**: `npm run build:web`, `npm run build:check`, `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer`, `python -m rvt_trainer --help`, `python -m pytest -q tests/test_operator_auth.py tests/test_trainer_security_api.py` (15/15), `npm --prefix web run test:ci -- --include src/app/services/auth.service.spec.ts` (7/7), `npx playwright test tests/smoke/operator.spec.ts --project=desktop` (1/1), `npx playwright test tests/smoke/operator.spec.ts --project=pixel-7` (1/1), `npx playwright test tests/smoke/api.spec.ts --project=desktop` (9/9), `npx playwright test tests/smoke/ota.spec.ts --project=desktop` (5/5), and targeted dashboard layout smoke (4/4) passed; unsliced `npm test -- --reporter=line` timed out in the local tool window before returning a result. Angular still reports the known initial bundle budget warning.
+
 ### 2026-06-08 — PR47 Review Follow-up Fixes
 
 - **Updater Manifest Version**: Changed `rvt-latest-tauri.json` generation to advertise the stamped release version (`RELEASE_VERSION`) so prerelease/main installers do not repeatedly compare against the base product version.

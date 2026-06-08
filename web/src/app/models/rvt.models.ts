@@ -194,3 +194,21 @@ export interface ChartAnnotation {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface OperatorProfile {
+  operator_id: string;
+  display_name: string;
+  initials: string;
+}
+
+export interface OperatorProfilesResponse {
+  schema_version: string;
+  profiles: OperatorProfile[];
+}
+
+export interface LoginResponse {
+  token: string;
+  expires_at: number;
+  operator: OperatorProfile;
+}
+

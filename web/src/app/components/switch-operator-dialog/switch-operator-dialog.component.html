@@ -1,0 +1,94 @@
+<h2 mat-dialog-title>
+  @if (addingProfile()) {
+    <span>Add Operator</span>
+  } @else if (selectedOperator()) {
+    <span>Switch Operator</span>
+  } @else {
+    <span>Select Operator</span>
+  }
+</h2>
+
+<mat-dialog-content class="dialog-content">
+  @if (auth.loading() && auth.profiles().length === 0) {
+  <div class="loading-state">
+    <mat-spinner diameter="32"></mat-spinner>
+    <p>Loading profiles...</p>
+  </div>
+  }
+
+  @if (!(auth.loading() && auth.profiles().length === 0)) {
+  <div>
+    @if (!selectedOperator() && !addingProfile()) {
+    <div>
+      <p class="intro">Select an operator profile to switch to.</p>
+      <div class="profiles-list" role="listbox" aria-label="Operator profiles">
+        @for (op of auth.profiles(); track op.operator_id) {
+        <button mat-button type="button" class="profile-row" (click)="selectOperator(op)">
+          <div class="list-item-content">
+            <span class="avatar-sm">{{ op.initials }}</span>
+            <span class="name-text">{{ op.display_name }}</span>
+          </div>
+        </button>
+        }
+      </div>
+      <button mat-button type="button" class="add-profile-button" (click)="startAddProfile()">
+        <mat-icon>person_add</mat-icon>
+        Add operator
+      </button>
+    </div>
+    }
+
+    @if (selectedOperator()) {
+    <div>
+      <app-pin-keyboard
+        #pinKeyboard
+        [operator]="selectedOperator()"
+        [showCancel]="true"
+        [error]="auth.loginError()"
+        [loading]="auth.loading()"
+        [lockoutSeconds]="auth.lockoutRetryAfter()"
+        (submitPin)="handlePinSubmit($event)"
+        (cancel)="goBack()">
+      </app-pin-keyboard>
+    </div>
+    }
+
+    @if (addingProfile()) {
+    <div class="add-profile-form">
+      <p class="intro">Create a profile for another authorized operator.</p>
+      <mat-form-field appearance="outline">
+        <mat-label>Display name</mat-label>
+        <input matInput [value]="displayName" (input)="displayName = inputValue($event)" autocomplete="off">
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Initials</mat-label>
+        <input matInput [value]="initials" (input)="initials = inputValue($event)" autocomplete="off">
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>4-digit PIN</mat-label>
+        <input matInput [value]="pin" (input)="pin = inputValue($event)" type="password" inputmode="numeric" autocomplete="new-password">
+      </mat-form-field>
+      @if (auth.loginError()) {
+      <p class="error-text">{{ auth.loginError() }}</p>
+      }
+    </div>
+    }
+  </div>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  @if (selectedOperator() || addingProfile()) {
+  <button mat-button type="button" (click)="goBack()" [disabled]="auth.loading()">
+    Back
+  </button>
+  }
+  @if (addingProfile()) {
+  <button mat-flat-button type="button" (click)="createProfile()" [disabled]="!canCreateProfile() || auth.loading()">
+    Create and switch
+  </button>
+  }
+  <button mat-button type="button" (click)="close()" [disabled]="auth.loading()">
+    Cancel
+  </button>
+</mat-dialog-actions>

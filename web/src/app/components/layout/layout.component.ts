@@ -23,6 +23,8 @@ import { KeyboardShortcutsDialogComponent } from '../keyboard-shortcuts-dialog/k
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
 import { CommandPinningService } from '../../services/command-pinning.service';
 import { IdleLockOverlayComponent } from '../idle-lock-overlay/idle-lock-overlay.component';
+import { AuthService } from '../../services/auth.service';
+import { SwitchOperatorDialogComponent } from '../switch-operator-dialog/switch-operator-dialog.component';
 
 @Component({
   selector: 'app-layout',
@@ -53,6 +55,7 @@ import { IdleLockOverlayComponent } from '../idle-lock-overlay/idle-lock-overlay
 export class LayoutComponent implements OnInit {
   protected readonly state = inject(StateService);
   protected readonly api = inject(ApiService);
+  protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
@@ -171,7 +174,22 @@ export class LayoutComponent implements OnInit {
     });
   }
 
+  lockProfile(): void {
+    this.auth.lock();
+    this.state.triggerHaptic('tap');
+  }
+
+  switchOperator(): void {
+    this.dialog.open(SwitchOperatorDialogComponent, {
+      width: '440px',
+      maxWidth: '90vw',
+      panelClass: 'm3-dialog-panel'
+    });
+    this.state.triggerHaptic('tap');
+  }
+
   onKeyboardShortcut(event: KeyboardEvent) {
+    if (this.auth.isLocked()) return;
     if (event.defaultPrevented) return;
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest('input, textarea, select, [contenteditable], [role="textbox"]')) {

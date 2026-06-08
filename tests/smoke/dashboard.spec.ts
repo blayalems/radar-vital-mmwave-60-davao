@@ -39,6 +39,15 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 }
 
 test.describe('Dashboard smoke', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
+      setup.operator_label = 'Operator A';
+      localStorage.setItem('rvt-setup', JSON.stringify(setup));
+    });
+  });
+
   test('loads without console errors', async ({ page }) => {
     const consoleErrors: string[] = [];
     const pageErrors: string[] = [];

@@ -2,7 +2,6 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
@@ -16,6 +15,8 @@ import { ServerLifecycleService } from '../../services/server-lifecycle.service'
 import { SettingsComponent } from '../settings/settings.component';
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
 import { CommandPaletteComponent } from '../command-palette/command-palette.component';
+import { AuthService } from '../../services/auth.service';
+import { SwitchOperatorDialogComponent } from '../switch-operator-dialog/switch-operator-dialog.component';
 
 @Component({
   selector: 'app-topbar',
@@ -23,7 +24,6 @@ import { CommandPaletteComponent } from '../command-palette/command-palette.comp
     RouterModule,
     MatDialogModule,
     MatButtonModule,
-    MatButtonToggleModule,
     MatBadgeModule,
     MatIconModule,
     MatChipsModule,
@@ -37,10 +37,25 @@ import { CommandPaletteComponent } from '../command-palette/command-palette.comp
 export class TopbarComponent {
   protected readonly state = inject(StateService);
   protected readonly serverLifecycle = inject(ServerLifecycleService);
+  protected readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly telemetry = inject(TelemetryService);
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
+
+  lockProfile(): void {
+    this.auth.lock();
+    this.state.triggerHaptic('tap');
+  }
+
+  switchOperator(): void {
+    this.dialog.open(SwitchOperatorDialogComponent, {
+      width: '440px',
+      maxWidth: '90vw',
+      panelClass: 'm3-dialog-panel'
+    });
+    this.state.triggerHaptic('tap');
+  }
 
   togglePause() {
     this.state.paused.update(p => !p);

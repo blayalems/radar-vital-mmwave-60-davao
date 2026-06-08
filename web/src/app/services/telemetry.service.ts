@@ -3,6 +3,7 @@ import { LivePayload } from '../models/rvt.models';
 import { AudioService } from './audio.service';
 import { StateService } from './state.service';
 import { ApiService } from './api.service';
+import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
 
 @Injectable({
   providedIn: 'root',
@@ -120,21 +121,35 @@ export class TelemetryService {
     }
   }
 
-  private startSse() {
+  private async startSse() {
     if (typeof EventSource === 'undefined') return;
     // Tauri keeps browser CSP at connect-src 'self'. EventSource bypasses the
     // HttpClient interceptor, so the native shell uses origin-pinned polling.
     if (this.isTauriNative()) return;
     if (this.state.demoMode() || this.state.autoDemoActive()) return;
     if (!this.running) return;
-    if (this.api.hasPairToken()) {
+    if (this.api.hasPairToken() && !sessionStorage.getItem(OPERATOR_TOKEN_KEY)) {
       this.scheduleNextPoll(0);
       return;
     }
 
     try {
       const base = this.api.currentApiBase();
-      this.sse = new EventSource(`${base}/api/events/subscribe`);
+      let sseToken = '';
+      try {
+        const hasOperatorToken = sessionStorage.getItem(OPERATOR_TOKEN_KEY);
+        if (hasOperatorToken) {
+          const res = await this.api.request<{ sse_token: string }>('/api/auth/sse-token', { method: 'POST' });
+          if (res?.sse_token) {
+            sseToken = res.sse_token;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to obtain sse-token', err);
+      }
+
+      const url = sseToken ? `${base}/api/events/subscribe?token=${encodeURIComponent(sseToken)}` : `${base}/api/events/subscribe`;
+      this.sse = new EventSource(url);
 
       this.sse.onopen = () => {
         console.log('SSE connection successfully opened.');

@@ -40,6 +40,33 @@
   flex: 0 0 auto;
 }
 
+:host .seg {
+  align-items: center;
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 24px;
+  display: inline-flex;
+  gap: 2px;
+  height: 48px;
+  padding: 2px;
+}
+
+:host .seg-btn {
+  border-radius: 22px;
+  height: 42px;
+  min-width: 50px;
+  width: 50px;
+}
+
+:host .seg-btn.active {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+:host .seg-btn .material-symbols-rounded {
+  font-size: 20px;
+}
+
 :host #modeBadge.live {
   background: var(--md-sys-color-tertiary-container, #ccfbf1) !important;
   border-color: color-mix(in srgb, var(--md-sys-color-tertiary, #0f766e) 44%, transparent) !important;

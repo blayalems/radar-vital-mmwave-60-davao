@@ -3,6 +3,15 @@ import { test, expect } from '@playwright/test';
 test.describe('OTA Update and Version Info Smoke Tests', () => {
   test.use({ serviceWorkers: 'block' });
 
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
+      setup.operator_label = 'Operator A';
+      localStorage.setItem('rvt-setup', JSON.stringify(setup));
+    });
+  });
+
   test('displays product version and metadata in settings', async ({ page }) => {
     await page.goto('/settings', { waitUntil: 'domcontentloaded' });
     // Verify Update & Version Info card is visible

@@ -56,24 +56,24 @@
 
   <div class="topbar-actions" role="group" aria-label="Console actions">
     <!-- Zen/Live Mode Segment -->
-    <mat-button-toggle-group class="seg seg-sm tb-live-mode" [hideSingleSelectionIndicator]="true" [value]="state.zenMode() ? 'simple' : 'advanced'" aria-label="Telemetry detail">
-      <mat-button-toggle value="simple" (click)="setLiveMode('simple')" title="Simple view">
+    <div class="seg seg-sm tb-live-mode" role="radiogroup" aria-label="Telemetry detail">
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.zenMode()" [attr.aria-checked]="state.zenMode()" (click)="setLiveMode('simple')" title="Simple view">
         <span class="material-symbols-rounded">visibility</span>
-      </mat-button-toggle>
-      <mat-button-toggle value="advanced" (click)="setLiveMode('advanced')" title="Advanced view">
+      </button>
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="!state.zenMode()" [attr.aria-checked]="!state.zenMode()" (click)="setLiveMode('advanced')" title="Advanced view">
         <span class="material-symbols-rounded">data_exploration</span>
-      </mat-button-toggle>
-    </mat-button-toggle-group>
+      </button>
+    </div>
 
     <!-- Density Segment -->
-    <mat-button-toggle-group class="seg seg-sm tb-density" [hideSingleSelectionIndicator]="true" [value]="state.density()" aria-label="Density">
-      <mat-button-toggle value="comfortable" (click)="setDensity('comfortable')" title="Comfortable">
+    <div class="seg seg-sm tb-density" role="radiogroup" aria-label="Density">
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.density() === 'comfortable'" [attr.aria-checked]="state.density() === 'comfortable'" (click)="setDensity('comfortable')" title="Comfortable">
         <span class="material-symbols-rounded">density_medium</span>
-      </mat-button-toggle>
-      <mat-button-toggle value="compact" (click)="setDensity('compact')" title="Compact">
+      </button>
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.density() === 'compact'" [attr.aria-checked]="state.density() === 'compact'" (click)="setDensity('compact')" title="Compact">
         <span class="material-symbols-rounded">density_small</span>
-      </mat-button-toggle>
-    </mat-button-toggle-group>
+      </button>
+    </div>
 
     <!-- Pause/Resume Polling -->
     <button mat-icon-button class="ic-btn icon-btn tb-pause" [class.active]="state.paused()" (click)="togglePause()" type="button" title="Pause / resume live polling">
@@ -109,6 +109,8 @@
       <button mat-menu-item type="button" (click)="togglePause()"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon>Pause or resume</button>
       <button mat-menu-item type="button" (click)="openAlerts()"><mat-icon>notifications</mat-icon>Alerts</button>
       <button mat-menu-item type="button" (click)="openSettings()"><mat-icon>settings</mat-icon>Settings</button>
+      <button mat-menu-item type="button" (click)="lockProfile()"><mat-icon>lock</mat-icon>Lock profile</button>
+      <button mat-menu-item type="button" (click)="switchOperator()"><mat-icon>swap_horiz</mat-icon>Switch operator</button>
       <button mat-menu-item type="button" (click)="toggleTheme()"><mat-icon>palette</mat-icon>Cycle theme</button>
       <button mat-menu-item type="button" (click)="exportData()"><mat-icon>download</mat-icon>Export current payload</button>
     </mat-menu>

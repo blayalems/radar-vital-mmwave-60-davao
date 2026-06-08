@@ -1,0 +1,116 @@
+.pin-keyboard-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.operator-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.name {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface);
+}
+
+.pin-display {
+  display: flex;
+  gap: 16px;
+  margin-block: 8px;
+}
+
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--md-sys-color-outline);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pin-dot.filled {
+  background-color: var(--md-sys-color-primary);
+  border-color: var(--md-sys-color-primary);
+  transform: scale(1.15);
+}
+
+.error-text {
+  color: var(--md-sys-color-error);
+  font-size: 0.8125rem;
+  text-align: center;
+  min-height: 24px;
+  padding-inline: 16px;
+  font-weight: 500;
+}
+
+.keyboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 260px;
+}
+
+.keyboard-grid button {
+  height: 56px;
+  width: 56px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 15%, transparent);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  font-size: 1.35rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  min-width: unset;
+  transition: background-color 0.2s;
+}
+
+.keyboard-grid button:active {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.keyboard-grid button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.keyboard-grid button.key-clear {
+  color: var(--md-sys-color-error);
+  font-weight: 600;
+}
+
+.keyboard-grid button.key-backspace {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.keyboard-grid button.key-backspace span {
+  font-size: 1.35rem;
+}
+
+.actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}

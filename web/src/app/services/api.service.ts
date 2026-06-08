@@ -180,7 +180,11 @@ export class ApiService {
     if (cap?.isNativePlatform?.() && nativeHttp?.request) {
       try {
         const headers = new Headers(init?.headers || {});
-        const tok = this.pairToken();
+        let opTok = '';
+        try {
+          opTok = sessionStorage.getItem('rvt-operator-token') || '';
+        } catch (_) {}
+        const tok = opTok || this.pairToken();
         if (tok) headers.set('X-RVT-Auth', tok);
         const headerObj: Record<string, string> = {};
         headers.forEach((v, k) => { headerObj[k] = v; });
@@ -431,6 +435,54 @@ export class ApiService {
   }
 
   private sandboxApiJson(path: string, opts?: RequestInit): unknown {
+    if (path === '/api/operator-profiles') {
+      if (opts?.method === 'POST') {
+        let profiles: any[] = [];
+        try {
+          const stored = localStorage.getItem('rvt-demo-profiles');
+          if (stored) profiles = JSON.parse(stored);
+        } catch (_) {}
+        const body = typeof opts?.body === 'string' ? JSON.parse(opts.body) : {};
+        const newProfile = {
+          operator_id: 'op_' + Math.random().toString(36).substring(2, 9),
+          display_name: body.display_name || 'Operator',
+          initials: body.initials || 'OP'
+        };
+        profiles.push(newProfile);
+        localStorage.setItem('rvt-demo-profiles', JSON.stringify(profiles));
+        return { ok: true, operator: newProfile };
+      } else {
+        let profiles: any[] = [];
+        try {
+          const stored = localStorage.getItem('rvt-demo-profiles');
+          if (stored) profiles = JSON.parse(stored);
+        } catch (_) {}
+        return { schema_version: 'rvt-operator-profiles-v12.0', profiles };
+      }
+    }
+    if (path === '/api/auth/login') {
+      const body = typeof opts?.body === 'string' ? JSON.parse(opts.body) : {};
+      let profiles: any[] = [];
+      try {
+        const stored = localStorage.getItem('rvt-demo-profiles');
+        if (stored) profiles = JSON.parse(stored);
+      } catch (_) {}
+      const found = profiles.find(p => p.operator_id === body.operator_id);
+      if (!found) {
+        throw new Error('Operator profile not found.');
+      }
+      return {
+        token: 'sandbox_operator_token_' + Math.random().toString(36).substring(2, 15),
+        expires_at: Date.now() / 1000 + 8 * 3600,
+        operator: found
+      };
+    }
+    if (path === '/api/auth/logout') {
+      return { ok: true };
+    }
+    if (path === '/api/auth/sse-token') {
+      return { sse_token: 'sandbox_sse_token' };
+    }
     if (path === '/api/status') return { ok: true, mode: 'sandbox', message: 'Local dashboard sandbox active' };
     if (path === '/api/update/manifest') {
       const releaseUrl = 'https://github.com/blayalems/radar-vital-mmwave-60-davao/releases';

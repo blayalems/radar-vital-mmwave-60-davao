@@ -7,3 +7,5 @@ export const SERVER_URL_KEY = 'rvt.server.url';
 export const TOKEN_KEY = 'rvt-pair-token';
 export const IDLE_LOCK_TIMEOUT_KEY = 'rvt-idle-lock-timeout-minutes';
 export const PINNED_COMMANDS_KEY = 'rvt-pinned-cmds';
+export const OPERATOR_TOKEN_KEY = 'rvt-operator-token';
+

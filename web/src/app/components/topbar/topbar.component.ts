@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -38,10 +38,25 @@ export class TopbarComponent {
   protected readonly state = inject(StateService);
   protected readonly serverLifecycle = inject(ServerLifecycleService);
   protected readonly auth = inject(AuthService);
+  protected readonly mobileActionsOpen = signal(false);
   private readonly api = inject(ApiService);
   private readonly telemetry = inject(TelemetryService);
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
+
+  toggleMobileActions(): void {
+    this.mobileActionsOpen.update(open => !open);
+    this.state.triggerHaptic('tap');
+  }
+
+  closeMobileActions(): void {
+    this.mobileActionsOpen.set(false);
+  }
+
+  runMobileAction(action: () => void): void {
+    this.closeMobileActions();
+    action();
+  }
 
   lockProfile(): void {
     this.auth.lock();

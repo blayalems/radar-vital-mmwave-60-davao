@@ -201,9 +201,12 @@ def test_operator_profiles_migration_and_save_failures(temp_sessions_root):
     assert "op_migrated" in db.get("profiles", {})
     assert not old_path.exists()  # Old path should be deleted
     
-    # Save failures check
+    # Save failures check: make the target sessions_root a regular file so the
+    # nested operator_profiles.json path is invalid on both POSIX and Windows.
+    blocked_root = Path(temp_sessions_root).resolve().parent / "not_a_directory"
+    blocked_root.write_text("not a directory", encoding="utf-8")
     with pytest.raises(IOError):
-        save_operator_profiles("D:\\invalid?dir\\nonexistent", dummy_data)
+        save_operator_profiles(str(blocked_root), dummy_data)
 
 
 def test_create_operator_profile_display_name_validation(temp_sessions_root):

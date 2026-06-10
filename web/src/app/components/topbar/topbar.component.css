@@ -38,7 +38,6 @@
 
 :host .topbar-actions {
   flex: 0 0 auto;
-  position: relative;
 }
 
 :host .seg {
@@ -138,8 +137,7 @@
   /* Deprecated ::ng-deep overrides for tb-live-mode button toggles are moved to global styles.scss as non-encapsulated overrides. */
 }
 
-.tb-more,
-.mobile-actions-panel {
+.tb-more {
   display: none;
 }
 
@@ -219,7 +217,6 @@
     min-width: 48px !important;
     order: 2 !important;
     padding: 0 !important;
-    position: relative !important;
     width: auto !important;
   }
 
@@ -237,25 +234,6 @@
     display: inline-flex !important;
     height: 48px !important;
     width: 48px !important;
-  }
-
-  :host .mobile-actions-panel.open {
-    background: var(--md-sys-color-surface-container-highest);
-    border: 1px solid var(--md-sys-color-outline-variant);
-    border-radius: 18px;
-    display: grid !important;
-    gap: 4px;
-    min-width: 224px;
-    padding: 8px;
-    position: absolute;
-    right: 0;
-    top: 52px;
-    z-index: 1200;
-  }
-
-  :host .mobile-actions-panel button {
-    justify-content: flex-start;
-    width: 100%;
   }
 }
 

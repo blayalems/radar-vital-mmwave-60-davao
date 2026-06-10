@@ -173,3 +173,76 @@ def test_gating_rules(temp_sessions_root):
     handler = MockHandler(server, "/api/events/subscribe?token=sse_tok_123", "GET")
     assert handler._require_control_auth() is True
     assert "sse_tok_123" not in server.sse_tokens
+
+
+def test_operator_profiles_migration_and_save_failures(temp_sessions_root):
+    # Test migration from old path (parent of sessions_root)
+    old_path = Path(temp_sessions_root).resolve().parent / "operator_profiles.json"
+    dummy_data = {
+        "schema_version": "rvt-operator-profiles-v12.0",
+        "profiles": {
+            "op_migrated": {
+                "operator_id": "op_migrated",
+                "display_name": "Migrated Operator",
+                "initials": "MO",
+                "pin_hash": "dummy_hash",
+                "pin_salt": "dummy_salt",
+                "failed_attempts": 0,
+                "locked_until": 0.0
+            }
+        }
+    }
+    
+    with open(old_path, "w", encoding="utf-8") as f:
+        json.dump(dummy_data, f)
+        
+    # Loading profiles should trigger migration
+    db = load_operator_profiles(temp_sessions_root)
+    assert "op_migrated" in db.get("profiles", {})
+    assert not old_path.exists()  # Old path should be deleted
+    
+    # Save failures check
+    with pytest.raises(IOError):
+        save_operator_profiles("D:\\invalid?dir\\nonexistent", dummy_data)
+
+
+def test_create_operator_profile_display_name_validation(temp_sessions_root):
+    server = MockServer(temp_sessions_root)
+    # Long display name (e.g. 65 chars)
+    long_name = "a" * 65
+    body = {"display_name": long_name, "initials": "SC", "pin": "1234"}
+    status, payload = create_operator_profile(server, body)
+    assert status == 400
+    assert payload["error"]["code"] == "VALIDATION_FAILED"
+
+
+def test_lockout_enforced_even_when_save_fails(temp_sessions_root):
+    """P2-B: lockout 429 must fire even when save_operator_profiles raises."""
+    server = MockServer(temp_sessions_root)
+
+    # Create a profile with PIN 1234
+    body = {"display_name": "Test Operator", "initials": "TO", "pin": "1234"}
+    status, payload = create_operator_profile(server, body)
+    assert status == 200
+    op_id = payload["operator"]["operator_id"]
+
+    # Burn through 4 bad PINs
+    for _ in range(4):
+        s, _ = login_operator(server, op_id, "0000")
+        assert s == 401
+
+    # Patch save_operator_profiles to always raise
+    import unittest.mock as mock
+    with mock.patch("rvt_trainer.api.auth.save_operator_profiles", side_effect=IOError("disk full")):
+        # 5th bad PIN should still return 429 lockout, not 401
+        s, b = login_operator(server, op_id, "0000")
+        assert s == 429, f"Expected 429 lockout but got {s}"
+        assert b["error"]["code"] == "LOCKOUT_ACTIVE"
+
+
+def test_help_schema_is_public(temp_sessions_root):
+    """P1-B: /api/help/schema should bypass auth like /api/health."""
+    server = MockServer(temp_sessions_root)
+    handler = MockHandler(server, "/api/help/schema", "GET")
+    assert handler._require_control_auth() is True
+    assert len(handler.sent_responses) == 0

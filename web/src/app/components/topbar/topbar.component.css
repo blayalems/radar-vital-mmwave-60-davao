@@ -141,7 +141,7 @@
   display: none;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 1023px) {
   :host .topbar {
     align-items: center !important;
     background: var(--md-sys-color-surface-container);

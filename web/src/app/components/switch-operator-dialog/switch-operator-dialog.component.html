@@ -46,7 +46,7 @@
         [showCancel]="true"
         [error]="auth.loginError()"
         [loading]="auth.loading()"
-        [lockoutSeconds]="auth.lockoutRetryAfter()"
+        [lockoutSeconds]="auth.lockoutForOperator(selectedOperator()?.operator_id)"
         (submitPin)="handlePinSubmit($event)"
         (cancel)="goBack()">
       </app-pin-keyboard>

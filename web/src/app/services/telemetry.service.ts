@@ -3,6 +3,7 @@ import { LivePayload } from '../models/rvt.models';
 import { AudioService } from './audio.service';
 import { StateService } from './state.service';
 import { ApiService } from './api.service';
+import { AuthService } from './auth.service';
 import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
 
 @Injectable({
@@ -12,6 +13,7 @@ export class TelemetryService {
   private state = inject(StateService);
   private api = inject(ApiService);
   private audio = inject(AudioService);
+  private auth = inject(AuthService);
 
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -28,11 +30,19 @@ export class TelemetryService {
     this.start();
     effect(() => {
       const simulating = this.state.demoMode() || this.state.autoDemoActive();
-      if (simulating) {
+      const isLocked = this.auth.isLocked();
+      if (isLocked) {
+        this.stopSse();
+        this.clearPollTimer();
+        this.clearReconnectTimer();
+      } else if (simulating) {
         this.stopSse();
         this.clearReconnectTimer();
         this.scheduleNextPoll(0);
-      } else if (this.running && !this.sseMode) {
+      } else if (this.running) {
+        this.stopSse();
+        this.clearPollTimer();
+        this.clearReconnectTimer();
         void this.api.detectControlMode().then(() => {
           this.scheduleNextPoll(0);
           this.startSse();
@@ -128,6 +138,8 @@ export class TelemetryService {
     if (this.isTauriNative()) return;
     if (this.state.demoMode() || this.state.autoDemoActive()) return;
     if (!this.running) return;
+    // Guard: prevent duplicate EventSource if one is already connected
+    if (this.sse) return;
     if (this.api.hasPairToken() && !sessionStorage.getItem(OPERATOR_TOKEN_KEY)) {
       this.scheduleNextPoll(0);
       return;

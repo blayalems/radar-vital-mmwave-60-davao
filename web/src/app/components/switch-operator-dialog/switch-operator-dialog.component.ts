@@ -48,6 +48,7 @@ export class SwitchOperatorDialogComponent implements OnInit {
   selectOperator(op: OperatorProfile): void {
     this.addingProfile.set(false);
     this.selectedOperator.set(op);
+    this.auth.loginError.set(null);
     this.pinKeyboard?.reset();
   }
 

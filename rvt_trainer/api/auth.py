@@ -159,12 +159,25 @@ _OPERATOR_LOCK = threading.Lock()
 
 
 def _operator_profiles_path(sessions_root: str) -> Path:
-    return Path(sessions_root).resolve().parent / "operator_profiles.json"
+    return Path(sessions_root).resolve() / "operator_profiles.json"
 
 
 def load_operator_profiles(sessions_root: str) -> dict:
     path = _operator_profiles_path(sessions_root)
     if not path.exists():
+        old_path = Path(sessions_root).resolve().parent / "operator_profiles.json"
+        if old_path.exists():
+            try:
+                with open(old_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                save_operator_profiles(sessions_root, data)
+                try:
+                    old_path.unlink()
+                except Exception:
+                    pass
+                return data
+            except Exception:
+                pass
         return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}}
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -184,12 +197,12 @@ def save_operator_profiles(sessions_root: str, data: dict):
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         temp_path.replace(path)
-    except Exception:
+    except Exception as e:
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-        except Exception:
-            pass
+        except Exception as e2:
+            raise IOError(f"Failed to persist operator profiles: {e2}") from e
 
 
 def hash_pin(pin: str, salt: str, iterations: int = 200000) -> str:
@@ -207,13 +220,31 @@ def verify_pin(pin: str, salt: str, pin_hash: str, iterations: int = 200000) -> 
 def login_operator(server, operator_id: str, pin: str) -> Tuple[int, dict]:
     """Authenticate an operator and return token or lockout info."""
     with _OPERATOR_LOCK:
+        now = time.time()
+
+        # Clean up expired sessions & sse tokens to prevent unbounded memory growth (P3-A)
+        if hasattr(server, "operator_sessions"):
+            expired_tokens = [
+                t for t, s in server.operator_sessions.items()
+                if now >= float(s.get("expires_at", 0.0))
+            ]
+            for t in expired_tokens:
+                server.operator_sessions.pop(t, None)
+
+        if hasattr(server, "sse_tokens"):
+            expired_sse = [
+                t for t, s in server.sse_tokens.items()
+                if now >= float(s.get("expires_at", 0.0))
+            ]
+            for t in expired_sse:
+                server.sse_tokens.pop(t, None)
+
         db = load_operator_profiles(server.sessions_root)
         profiles = db.get("profiles", {})
         if operator_id not in profiles:
             return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid operator ID or PIN"}}
 
         profile = profiles[operator_id]
-        now = time.time()
 
         # Check lockout
         locked_until = float(profile.get("locked_until", 0.0))
@@ -238,13 +269,19 @@ def login_operator(server, operator_id: str, pin: str) -> Tuple[int, dict]:
             profile["failed_attempts"] = 0
             profile["locked_until"] = 0.0
             profile["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-            save_operator_profiles(server.sessions_root, db)
+
+            try:
+                save_operator_profiles(server.sessions_root, db)
+            except Exception as e:
+                import sys
+                print(f"[ERROR] Failed to save operator profiles database on successful login: {e}", file=sys.stderr)
 
             token = secrets.token_urlsafe(24)
             expires_at = now + 8 * 3600  # 8 hours
 
             if not hasattr(server, "operator_sessions"):
                 server.operator_sessions = {}
+
             server.operator_sessions[token] = {
                 "operator_id": operator_id,
                 "expires_at": expires_at,
@@ -269,7 +306,15 @@ def login_operator(server, operator_id: str, pin: str) -> Tuple[int, dict]:
 
             if attempts >= 5:
                 profile["locked_until"] = now + 30.0
+
+            try:
                 save_operator_profiles(server.sessions_root, db)
+            except Exception as e:
+                import sys
+                print(f"[ERROR] Failed to save operator profiles database on invalid PIN attempt: {e}", file=sys.stderr)
+                # Lockout is enforced in-memory regardless of save outcome
+
+            if attempts >= 5:
                 return 429, {
                     "ok": False,
                     "error": {
@@ -279,7 +324,6 @@ def login_operator(server, operator_id: str, pin: str) -> Tuple[int, dict]:
                     }
                 }
             else:
-                save_operator_profiles(server.sessions_root, db)
                 return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid operator ID or PIN"}}
 
 
@@ -290,6 +334,8 @@ def create_operator_profile(server, body: dict) -> Tuple[int, dict]:
 
     if not display_name:
         return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "display_name is required"}}
+    if len(display_name) > 64:
+        return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "display_name must not exceed 64 characters"}}
     if not re.fullmatch(r"[A-Z]{2,5}", initials):
         return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "initials must be 2 to 5 uppercase letters"}}
     if not re.fullmatch(r"\d{4}", pin):
@@ -323,7 +369,12 @@ def create_operator_profile(server, body: dict) -> Tuple[int, dict]:
 
         profiles[operator_id] = profile
         db["profiles"] = profiles
-        save_operator_profiles(server.sessions_root, db)
+        try:
+            save_operator_profiles(server.sessions_root, db)
+        except Exception as e:
+            import sys
+            print(f"[ERROR] Failed to save operator profiles database on profile creation: {e}", file=sys.stderr)
+            return 500, {"ok": False, "error": {"code": "INTERNAL_SERVER_ERROR", "message": "Failed to persist operator profile."}}
 
         return 200, {
             "ok": True,

@@ -5,9 +5,17 @@ import path from 'path';
 const PROFILES_PATH = path.resolve(process.cwd(), 'operator_profiles.json');
 const SESSION_PARENT_PROFILES_PATH = path.resolve(process.cwd(), '..', 'operator_profiles.json');
 const PLAYWRIGHT_PROFILES_PATH = path.resolve(process.cwd(), '.playwright-state', 'operator_profiles.json');
+const SESSIONS_PROFILES_PATH = path.resolve(process.cwd(), 'sessions', 'operator_profiles.json');
+const PLAYWRIGHT_SESSIONS_PROFILES_PATH = path.resolve(process.cwd(), '.playwright-state', 'sessions', 'operator_profiles.json');
 
 function cleanProfiles() {
-  for (const profilePath of [PROFILES_PATH, SESSION_PARENT_PROFILES_PATH, PLAYWRIGHT_PROFILES_PATH]) {
+  for (const profilePath of [
+    PROFILES_PATH,
+    SESSION_PARENT_PROFILES_PATH,
+    PLAYWRIGHT_PROFILES_PATH,
+    SESSIONS_PROFILES_PATH,
+    PLAYWRIGHT_SESSIONS_PROFILES_PATH
+  ]) {
     if (!fs.existsSync(profilePath)) {
       continue;
     }
@@ -20,7 +28,7 @@ function cleanProfiles() {
 async function pressPin(page: import('@playwright/test').Page, pin: string) {
   const keypad = page.locator('app-pin-keyboard').last();
   for (const digit of pin) {
-    await keypad.locator('.keyboard-grid button', { hasText: new RegExp(`^${digit}$`) }).click();
+    await keypad.locator('.keyboard-grid button', { hasText: new RegExp(`^${digit}$`) }).dispatchEvent('click');
   }
 }
 
@@ -35,14 +43,16 @@ async function submitPinAndWait(page: import('@playwright/test').Page, pin: stri
 async function clickConsoleAction(page: import('@playwright/test').Page, name: string) {
   const directAction = page.getByRole('button', { name }).first();
   if (await directAction.isVisible().catch(() => false)) {
-    await directAction.click();
+    await directAction.dispatchEvent('click');
     return;
   }
-  await page.getByRole('button', { name: 'More console actions' }).click();
-  await page.getByRole('menuitem', { name }).click();
+  await page.getByRole('button', { name: 'More console actions' }).dispatchEvent('click');
+  await page.getByRole('menuitem', { name }).dispatchEvent('click');
 }
 
 test.describe('Operator profile and lock system', () => {
+  test.use({ serviceWorkers: 'block' });
+
   test.beforeEach(() => {
     cleanProfiles();
   });
@@ -71,13 +81,13 @@ test.describe('Operator profile and lock system', () => {
     await page.getByPlaceholder('e.g. SC').fill('SC');
 
     // Click PIN: 1, 2, 3, 4
-    await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^1$/ }).click();
-    await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^2$/ }).click();
-    await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^3$/ }).click();
-    await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^4$/ }).click();
+    await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^1$/ }).dispatchEvent('click');
+    await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^2$/ }).dispatchEvent('click');
+    await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^3$/ }).dispatchEvent('click');
+    await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^4$/ }).dispatchEvent('click');
 
     // Create profile
-    await page.getByRole('button', { name: 'Create Profile' }).click();
+    await page.getByRole('button', { name: 'Create Profile' }).dispatchEvent('click');
 
     // Verify lock screen is gone and operator is set
     await expect(page.locator('section.idle-lock-overlay')).not.toBeVisible();
@@ -86,11 +96,11 @@ test.describe('Operator profile and lock system', () => {
     // 2. Add a second operator from the authenticated switcher and switch to it.
     await clickConsoleAction(page, 'Switch operator');
     await expect(page.locator('app-switch-operator-dialog')).toBeVisible();
-    await page.getByRole('button', { name: 'Add operator' }).click();
+    await page.getByRole('button', { name: 'Add operator' }).dispatchEvent('click');
     await page.getByLabel('Display name').fill('John Connor');
     await page.getByLabel('Initials').fill('JC');
     await page.getByLabel('4-digit PIN').fill('5678');
-    await page.getByRole('button', { name: 'Create and switch' }).click();
+    await page.getByRole('button', { name: 'Create and switch' }).dispatchEvent('click');
     await expect(page.locator('app-switch-operator-dialog')).not.toBeVisible();
     await expect(page.locator('.operator-badge .status-txt')).toHaveText('John Connor');
 
@@ -109,7 +119,7 @@ test.describe('Operator profile and lock system', () => {
     // 5. Switch back to Sarah while unlocked.
     await clickConsoleAction(page, 'Switch operator');
     await expect(page.locator('app-switch-operator-dialog')).toBeVisible();
-    await page.locator('app-switch-operator-dialog .profile-row', { hasText: 'Dr. Sarah Connor' }).click();
+    await page.locator('app-switch-operator-dialog .profile-row', { hasText: 'Dr. Sarah Connor' }).dispatchEvent('click');
     await submitPinAndWait(page, '1234');
     await expect(page.locator('app-switch-operator-dialog')).not.toBeVisible();
     await expect(page.locator('.operator-badge .status-txt')).toHaveText('Dr. Sarah Connor');

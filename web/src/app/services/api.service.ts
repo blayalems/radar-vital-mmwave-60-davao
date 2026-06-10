@@ -230,7 +230,11 @@ export class ApiService {
     const base = this.currentApiBase();
     const target = /^[a-z][a-z0-9+.-]*:\/\//i.test(path) ? path : base + path;
     const headers = new Headers();
-    const token = this.pairToken();
+    let opTok = '';
+    try {
+      opTok = sessionStorage.getItem('rvt-operator-token') || '';
+    } catch (_) {}
+    const token = opTok || this.pairToken();
     if (token) headers.set('X-RVT-Auth', token);
     const tauri = (window as Window & { __TAURI__?: TauriBridge }).__TAURI__?.core;
     if (tauri?.invoke && base) {
@@ -281,6 +285,24 @@ export class ApiService {
     } catch (error: unknown) {
       if (attempt !== this.connectionAttempt) return false;
       const message = error instanceof Error ? error.message : 'Control API unavailable';
+      if (
+        message.includes('401') ||
+        message.includes('Unauthorized') ||
+        message.includes('unauthenticated') ||
+        message.includes('Operator session') ||
+        message.includes('session token') ||
+        message.includes('LAN pair token') ||
+        message.includes('pair token')
+      ) {
+        this.state.ctlOn.set(true);
+        this.state.autoDemoActive.set(false);
+        this.state.ctlStatus.set({
+          ok: true,
+          mode: 'live',
+          reason: 'unauthenticated'
+        });
+        return false;
+      }
       this.enableSandboxControlMode(message);
       return false;
     }
@@ -475,6 +497,23 @@ export class ApiService {
         token: 'sandbox_operator_token_' + Math.random().toString(36).substring(2, 15),
         expires_at: Date.now() / 1000 + 8 * 3600,
         operator: found
+      };
+    }
+    if (path === '/api/auth/validate') {
+      let profiles: any[] = [];
+      try {
+        const stored = localStorage.getItem('rvt-demo-profiles');
+        if (stored) profiles = JSON.parse(stored);
+      } catch (_) {}
+      let op: any = null;
+      if (profiles.length > 0) {
+        op = profiles[0];
+      } else {
+        op = { operator_id: 'op_sandbox_test', display_name: 'Sandbox Operator', initials: 'SO' };
+      }
+      return {
+        ok: true,
+        operator: op
       };
     }
     if (path === '/api/auth/logout') {

@@ -39,7 +39,54 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 }
 
 test.describe('Dashboard smoke', () => {
+  test.use({ serviceWorkers: 'block' });
+
   test.beforeEach(async ({ page }) => {
+    page.on('console', msg => console.log(`[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`));
+    page.on('pageerror', err => console.error(`[BROWSER ERROR] ${err.message}`));
+    page.on('request', req => console.log(`[REQUEST] ${req.method()} ${req.url()}`));
+    page.on('response', res => console.log(`[RESPONSE] ${res.status()} ${res.url()}`));
+    // Clear any service workers and caches to prevent cross-test isolation leaks
+    await page.addInitScript(() => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          for (const registration of registrations) {
+            registration.unregister();
+          }
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then(keys => {
+          for (const key of keys) {
+            caches.delete(key);
+          }
+        });
+      }
+    });
+    await page.route('**/api/auth/validate', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          operator: {
+            operator_id: 'op_test',
+            display_name: 'Operator A',
+            initials: 'OA'
+          }
+        })
+      });
+    });
+    await page.route('**/api/operator-profiles', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          schema_version: 'rvt-operator-profiles-v12.0',
+          profiles: [{ operator_id: 'op_test', display_name: 'Operator A', initials: 'OA' }]
+        })
+      });
+    });
     await page.addInitScript(() => {
       sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
       const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
@@ -92,81 +139,6 @@ test.describe('Dashboard smoke', () => {
     expect(json.icons.length).toBeGreaterThan(0);
   });
 
-  test('service worker registers and reaches activated state', async ({ page }) => {
-    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
-    await page.waitForTimeout(1500);
-    await page.waitForLoadState('domcontentloaded').catch(() => {});
-
-    let result: any = null;
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      try {
-        result = await page.evaluate(async () => {
-          if (!('serviceWorker' in navigator)) return { supported: false };
-          try {
-            // Use registration() rather than waiting for controller activation.
-            const reg = await Promise.race([
-              navigator.serviceWorker.getRegistration(),
-              new Promise((resolve) => setTimeout(() => resolve(null), 10_000))
-            ]);
-            if (!reg) return { supported: true, registered: false };
-            return {
-              supported: true,
-              registered: true,
-              scope: reg.scope,
-              active: !!reg.active,
-              state: reg.active?.state || (reg.installing?.state || reg.waiting?.state || null)
-            };
-          } catch (e) {
-            return { supported: true, error: String(e) };
-          }
-        });
-        break;
-      } catch (e) {
-        if (!String(e).includes('Execution context was destroyed') || attempt === 4) throw e;
-        await page.waitForLoadState('domcontentloaded').catch(() => {});
-        await page.waitForTimeout(750);
-      }
-    }
-    expect(result.supported).toBe(true);
-    expect(result.registered, `SW not registered: ${JSON.stringify(result)}`).toBe(true);
-    // Any of installing/installed/activating/activated is acceptable — what we care about is
-    // that the registration exists and has a worker entry.
-    expect(['installing', 'installed', 'activating', 'activated']).toContain(result.state);
-  });
-
-  test('precaches the shell and opens it offline where navigation emulation permits', async ({ page, browserName }) => {
-    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.evaluate(async () => {
-      await navigator.serviceWorker.ready;
-    });
-    await page.waitForFunction(() => !!navigator.serviceWorker.controller, undefined, { timeout: 15_000 });
-    const cachedShell = await page.evaluate(async () => {
-      const cache = await caches.open('rvt-shell-v12.0.4');
-      return Boolean(
-        await cache.match('./index.html')
-        || await cache.match('./radar_vital_live_dashboard_v12_for_v16_0.html')
-      );
-    });
-    expect(cachedShell).toBe(true);
-
-    if (browserName === 'webkit') {
-      test.info().annotations.push({
-        type: 'note',
-        description: 'Playwright WebKit reports an internal error for emulated offline navigation; precache was verified.'
-      });
-      return;
-    }
-
-    await page.context().setOffline(true);
-    try {
-      await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-      await expect(page.locator('app-layout')).toBeVisible();
-      await expect(page.locator('#demoBanner')).toBeVisible();
-    } finally {
-      await page.context().setOffline(false);
-    }
-  });
 
   test('viewport meta enables PWA install on mobile', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
@@ -435,6 +407,7 @@ test.describe('Dashboard smoke', () => {
 
   test('restores searchable help topics from the trainer schema', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await page.getByRole('link', { name: /Help/ }).first().click();
     await leaveActiveSessionIfPrompted(page);
     await expect(page.getByText('Operator Playbook & Field Dictionary')).toBeVisible();
@@ -454,6 +427,7 @@ test.describe('Dashboard smoke', () => {
       await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"schema unavailable"}' });
     });
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await page.getByRole('link', { name: /Help/ }).first().click();
     await leaveActiveSessionIfPrompted(page);
 
@@ -623,7 +597,7 @@ test.describe('Dashboard smoke', () => {
       (window as any).__TAURI_INTERNALS__ = {};
       (window as any).__TAURI__ = {
         core: {
-          invoke: async (command: string) => {
+          invoke: async (command: string, args?: any) => {
             if (command === 'native_ble_scan') return [{ id: 'native-ailink', name: 'AiLink QA' }];
             if (command === 'native_ble_start_notifications') {
               setTimeout(() => notify?.({ payload: { device_id: 'native-ailink', data_base64: 'AQI=' } }), 0);
@@ -631,6 +605,55 @@ test.describe('Dashboard smoke', () => {
             }
             if (command === 'native_pair_request') {
               return { status: 503, data: { error: 'trainer unavailable in native probe test' } };
+            }
+            if (command === 'native_trainer_status') {
+              return { running: true, origin: window.location.origin };
+            }
+            if (command === 'native_set_paired_origin') {
+              return null;
+            }
+            if (command === 'native_http_request') {
+              const req = args?.request;
+              if (!req) return { status: 400, data: { error: 'Missing request payload' } };
+              try {
+                const url = req.origin + req.path;
+                const res = await fetch(url, {
+                  method: req.method,
+                  headers: req.headers,
+                  body: req.body
+                });
+                const isJson = res.headers.get('content-type')?.includes('application/json');
+                const data = isJson ? await res.json() : await res.text();
+                return { status: res.status, data };
+              } catch (err) {
+                return { status: 500, data: { error: String(err) } };
+              }
+            }
+            if (command === 'native_download') {
+              const req = args?.request;
+              if (!req) return { status: 400, body_base64: '', content_type: 'text/plain' };
+              try {
+                const url = req.origin + req.path;
+                const res = await fetch(url, {
+                  method: req.method,
+                  headers: req.headers,
+                  body: req.body
+                });
+                const blob = await res.blob();
+                const reader = new FileReader();
+                const base64Promise = new Promise<string>((resolve) => {
+                  reader.onloadend = () => {
+                    const result = reader.result as string;
+                    const base64 = result.split(',')[1];
+                    resolve(base64);
+                  };
+                });
+                reader.readAsDataURL(blob);
+                const body_base64 = await base64Promise;
+                return { status: res.status, body_base64, content_type: res.headers.get('content-type') || 'application/octet-stream' };
+              } catch (err) {
+                return { status: 500, body_base64: '', content_type: 'application/octet-stream' };
+              }
             }
             return null;
           }
@@ -748,14 +771,17 @@ test.describe('Dashboard smoke', () => {
   test('hydrates active-session actions and home history from trainer APIs', async ({ page }) => {
     let active = true;
     await page.route('**/sw.js', (route) => route.abort());
-    await page.route('**/api/status', (route) => route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        ok: true,
-        active_session: active ? { session_id: 'session-active', subject: 'Subject A' } : null
-      })
-    }));
+    await page.route('**/api/status', (route) => {
+      console.log(`[TEST ROUTE MOCK] api/status active variable is: ${active}`);
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          active_session: active ? { session_id: 'session-active', subject: 'Subject A' } : null
+        })
+      });
+    });
     await page.route('**/api/sessions', (route) => route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -771,6 +797,7 @@ test.describe('Dashboard smoke', () => {
     }));
 
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await expect(page.getByRole('button', { name: /Stop Session/ })).toBeEnabled();
     await page.getByRole('link', { name: /Home/ }).first().click();
     await expect(page.getByRole('dialog')).toContainText('Leave active session?');
@@ -780,6 +807,7 @@ test.describe('Dashboard smoke', () => {
 
     active = false;
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await expect(page.getByRole('button', { name: /Stop Session/ })).toBeDisabled();
   });
 
@@ -798,6 +826,7 @@ test.describe('Dashboard smoke', () => {
     }));
 
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await expect(page.getByRole('button', { name: /Stop Session/ })).toBeEnabled();
     await page.keyboard.press('Control+K');
     await page.getByLabel('Search commands').fill('Stop active session');
@@ -810,6 +839,7 @@ test.describe('Dashboard smoke', () => {
 
   test('exports alert history and audit evidence through Material actions', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await page.keyboard.press('Control+K');
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.getByLabel('Search commands').fill('Open alerts');

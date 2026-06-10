@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-10 — PR48 Operator Profiles and PIN Lock Fixes
+
+- **Help Tab Auth Bypass**: Added `/api/help/schema` to the public endpoint bypass list so the Help tab loads successfully without an operator session token.
+- **Lockout Database Persistence Safety**: Fixed a brute-force lockout bypass where a failed database write on invalid attempts allowed attackers to retry PIN PIN verification by forcing the 429 lockout logic to fire unconditionally in memory.
+- **SSE Connection De-duplication**: Guarded TelemetryService to prevent duplicate EventSource connections on rapid lock/unlock transitions.
+- **SSE Memory Leak Prevention**: Added periodic reaping of expired SSE and session tokens during new token generation to prevent unbounded memory growth.
+- **Verification & Test Coverage**: Added a unit test validating 429 lockout enforcement on disk failure, and resolved Playwright smoke test flakiness by introducing Angular bootstrap loading overlay waits before UI click/input interactions.
+
 ### 2026-06-09 — PR48 Operator Profiles and PIN Lock
 
 - **Operator Auth Backend**: Added PBKDF2-backed operator profiles, 8-hour operator sessions, first-run unauthenticated bootstrap only when no profiles exist, authenticated profile creation after bootstrap, logout revocation, 5-attempt/30-second PIN lockout, and protected sensitive control routes while keeping discovery/update endpoints public.

@@ -164,7 +164,8 @@
     width: auto !important;
   }
 
-  .app.rail-collapsed .rail .operator {
+  .app.rail-collapsed .rail .operator,
+  .app.rail-collapsed .rail .operator-actions {
     display: none !important;
   }
 }

@@ -18,32 +18,47 @@ export class AuthService {
   readonly loading = signal<boolean>(false);
   readonly loginError = signal<string | null>(null);
   readonly lockoutRetryAfter = signal<number>(0);
+  readonly operatorLockouts = signal<Record<string, number>>({});
 
-  private lockoutTimer: any = null;
+  private lockoutTimers = new Map<string, any>();
 
   constructor() {
-    this.checkAuthInit();
+    void this.checkAuthInit();
   }
 
-  private checkAuthInit(): void {
+  private async checkAuthInit(): Promise<void> {
     try {
       const token = sessionStorage.getItem(OPERATOR_TOKEN_KEY);
-      if (token) {
-        this.isLocked.set(false);
-        const label = this.state.setup().operator_label;
-        if (label) {
-          this.currentOperator.set({
-            operator_id: '',
-            display_name: label,
-            initials: label.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-          });
-        }
-      } else {
+      if (!token) {
         this.isLocked.set(true);
+        return;
+      }
+
+      this.loading.set(true);
+      try {
+        const res = await this.api.request<{ ok: boolean; operator?: OperatorProfile }>('/api/auth/validate');
+        if (res?.ok && res.operator) {
+          this.currentOperator.set(res.operator);
+          this.isLocked.set(false);
+          this.bootstrapping.set(false);
+          void this.api.detectControlMode();
+        } else {
+          this.clearLocalSession();
+        }
+      } catch (err) {
+        console.error('Failed to validate operator token on startup', err);
+        this.clearLocalSession();
+      } finally {
+        this.loading.set(false);
       }
     } catch (_) {
       this.isLocked.set(true);
     }
+  }
+
+  lockoutForOperator(operatorId: string | undefined): number {
+    if (!operatorId) return 0;
+    return this.operatorLockouts()[operatorId] || 0;
   }
 
   async loadProfiles(): Promise<void> {
@@ -80,10 +95,24 @@ export class AuthService {
         this.loginError.set(null);
         this.lockoutRetryAfter.set(0);
 
+        // Reset lockout for this operator on successful login
+        this.operatorLockouts.update(map => {
+          const next = { ...map };
+          delete next[operator_id];
+          return next;
+        });
+        const timer = this.lockoutTimers.get(operator_id);
+        if (timer) {
+          clearInterval(timer);
+          this.lockoutTimers.delete(operator_id);
+        }
+
         this.state.setup.update(s => ({
           ...s,
           operator_label: res.operator.display_name
         }));
+
+        void this.api.detectControlMode();
         return true;
       }
       return false;
@@ -96,7 +125,7 @@ export class AuthService {
         if (match) {
           retryAfter = parseInt(match[1], 10);
         }
-        this.startLockoutCountdown(retryAfter);
+        this.startLockoutCountdown(operator_id, retryAfter);
         this.loginError.set(`Too many failed attempts. Try again in ${retryAfter} seconds.`);
       } else {
         this.loginError.set(msg || 'Invalid PIN.');
@@ -147,6 +176,7 @@ export class AuthService {
     sessionStorage.removeItem(OPERATOR_TOKEN_KEY);
     this.currentOperator.set(null);
     this.isLocked.set(true);
+    void this.api.detectControlMode();
   }
 
   private async revokeToken(token: string | null): Promise<void> {
@@ -159,20 +189,42 @@ export class AuthService {
     } catch (_) {}
   }
 
-  private startLockoutCountdown(seconds: number): void {
-    if (this.lockoutTimer) clearInterval(this.lockoutTimer);
-    this.lockoutRetryAfter.set(seconds);
-    this.lockoutTimer = setInterval(() => {
-      const current = this.lockoutRetryAfter();
+  startLockoutCountdown(operatorIdOrSeconds: string | number, seconds?: number): void {
+    let operatorId = '';
+    let secs = 30;
+    if (typeof operatorIdOrSeconds === 'number') {
+      secs = operatorIdOrSeconds;
+      operatorId = 'global';
+    } else {
+      operatorId = operatorIdOrSeconds;
+      secs = seconds !== undefined ? seconds : 30;
+    }
+
+    const existing = this.lockoutTimers.get(operatorId);
+    if (existing) clearInterval(existing);
+
+    this.operatorLockouts.update(map => ({ ...map, [operatorId]: secs }));
+    this.lockoutRetryAfter.set(secs);
+
+    const timer = setInterval(() => {
+      const current = this.operatorLockouts()[operatorId] || 0;
       if (current <= 1) {
+        this.operatorLockouts.update(map => {
+          const next = { ...map };
+          delete next[operatorId];
+          return next;
+        });
         this.lockoutRetryAfter.set(0);
         this.loginError.set(null);
-        clearInterval(this.lockoutTimer);
-        this.lockoutTimer = null;
+        const t = this.lockoutTimers.get(operatorId);
+        if (t) clearInterval(t);
+        this.lockoutTimers.delete(operatorId);
       } else {
+        this.operatorLockouts.update(map => ({ ...map, [operatorId]: current - 1 }));
         this.lockoutRetryAfter.set(current - 1);
-        this.loginError.set(`Too many failed attempts. Try again in ${current - 1} seconds.`);
       }
     }, 1000);
+
+    this.lockoutTimers.set(operatorId, timer);
   }
 }

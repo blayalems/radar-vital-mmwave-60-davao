@@ -6191,12 +6191,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             "/api/health",
             "/api/version",
             "/api/update/manifest",
+            "/api/help/schema",
         }:
             return True
 
         # 2. Extract authorization token
         token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if getattr(self, "headers", None) else "").strip()
-        if not token:
+        is_sse_path = (path in {"/api/session/events", "/api/events/subscribe"}) or (path.startswith("/api/sessions/") and path.endswith("/events"))
+        if not token and is_sse_path:
             q = parse_qs(parsed.query)
             token = (q.get("token") or [""])[-1].strip()
 
@@ -6346,6 +6348,25 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     self._send_json(200, payload)
                 except Exception as e:
                     self._send_json(502, {"ok": False, "error": {"code": "PROXY_ERROR", "message": f"Failed to fetch update manifest: {str(e)}"}} )
+            return
+        if path == "/api/auth/validate":
+            token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if getattr(self, "headers", None) else "").strip()
+            if token and hasattr(self.server, "operator_sessions") and token in self.server.operator_sessions:
+                sess = self.server.operator_sessions[token]
+                self._send_json(200, {
+                    "ok": True,
+                    "operator": {
+                        "operator_id": sess.get("operator_id"),
+                        "display_name": sess.get("display_name"),
+                        "initials": sess.get("initials")
+                    }
+                })
+            else:
+                self._send_json(200, {
+                    "ok": True,
+                    "bootstrap": True,
+                    "operator": None
+                })
             return
         if path == "/api/health":
             t0 = time.perf_counter()
@@ -6703,8 +6724,13 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             token = secrets.token_urlsafe(24)
             if not hasattr(self.server, "sse_tokens"):
                 self.server.sse_tokens = {}
+            # Reap expired SSE tokens to prevent unbounded memory growth
+            now = time.time()
+            expired = [t for t, s in self.server.sse_tokens.items() if now >= s.get("expires_at", 0.0)]
+            for t in expired:
+                self.server.sse_tokens.pop(t, None)
             self.server.sse_tokens[token] = {
-                "expires_at": time.time() + 30.0
+                "expires_at": now + 30.0
             }
             self._send_json(200, {"sse_token": token})
             return

@@ -28,6 +28,7 @@ export class TelemetryService {
 
   constructor() {
     this.start();
+    window.addEventListener('rvt-operator-authenticated', () => this.reconnect());
     effect(() => {
       const simulating = this.state.demoMode() || this.state.autoDemoActive();
       const isLocked = this.auth.isLocked();
@@ -55,6 +56,19 @@ export class TelemetryService {
     this.running = true;
     this.scheduleNextPoll(1000);
     this.startSse();
+  }
+
+  reconnect(): void {
+    this.stopSse();
+    this.clearPollTimer();
+    this.clearReconnectTimer();
+    this.sseReconnectAttempts = 0;
+    this.httpPollFailures = 0;
+    if (!this.running) {
+      this.running = true;
+    }
+    this.scheduleNextPoll(0);
+    void this.startSse();
   }
 
   stop() {

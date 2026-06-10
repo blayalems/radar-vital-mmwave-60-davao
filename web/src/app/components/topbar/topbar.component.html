@@ -24,7 +24,6 @@
       <span class="status-txt">{{ serverLifecycle.statusLabel() }}</span>
     </mat-chip>
 
-    <!-- Connection Health -->
     <mat-chip class="status-pill conn" [class.active]="state.ctlStatus()?.ok" [class.failed]="state.ctlStatus()?.ok === false" id="conn" role="status" aria-live="polite">
       <span class="status-dot dot"></span>
       <span class="status-txt">
@@ -36,7 +35,6 @@
       <span class="status-sub">{{ state.ctlStatus()?.latency ? state.ctlStatus()?.latency + 'ms' : '--' }}</span>
     </mat-chip>
 
-    <!-- Source Mode -->
     <mat-chip class="status-pill mode mode-badge" [class.sandbox]="state.ctlStatus()?.mode === 'sandbox'" [class.live]="state.ctlStatus()?.mode === 'live'" id="modeBadge" title="Source mode">
       <span class="status-dot dot"></span>
       <span class="material-symbols-rounded" id="modeBadgeIcon">
@@ -46,7 +44,6 @@
       <span class="status-sub">{{ state.ctlStatus()?.mode === 'sandbox' ? 'Sandbox' : (state.ctlStatus()?.ok ? 'Trainer API' : '--') }}</span>
     </mat-chip>
 
-    <!-- Current Operator -->
     <mat-chip class="status-pill operator-badge" id="homeOperatorBadge" title="Current operator">
       <span class="material-symbols-rounded">person</span>
       <span class="status-txt">{{ state.setup().operator_label || 'Operator A' }}</span>
@@ -55,7 +52,6 @@
   </mat-chip-set>
 
   <div class="topbar-actions" role="group" aria-label="Console actions">
-    <!-- Zen/Live Mode Segment -->
     <div class="seg seg-sm tb-live-mode" role="radiogroup" aria-label="Telemetry detail">
       <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.zenMode()" [attr.aria-checked]="state.zenMode()" (click)="setLiveMode('simple')" title="Simple view">
         <span class="material-symbols-rounded">visibility</span>
@@ -65,7 +61,6 @@
       </button>
     </div>
 
-    <!-- Density Segment -->
     <div class="seg seg-sm tb-density" role="radiogroup" aria-label="Density">
       <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.density() === 'comfortable'" [attr.aria-checked]="state.density() === 'comfortable'" (click)="setDensity('comfortable')" title="Comfortable">
         <span class="material-symbols-rounded">density_medium</span>
@@ -75,28 +70,23 @@
       </button>
     </div>
 
-    <!-- Pause/Resume Polling -->
     <button mat-icon-button class="ic-btn icon-btn tb-pause" [class.active]="state.paused()" (click)="togglePause()" type="button" title="Pause / resume live polling">
       <span class="material-symbols-rounded">{{ state.paused() ? 'play_arrow' : 'pause' }}</span>
     </button>
 
-    <!-- Settings Button -->
     <button mat-icon-button class="ic-btn icon-btn tb-alerts" (click)="openAlerts()" type="button" title="Alerts"
       [matBadge]="state.alertHistory().length" [matBadgeHidden]="state.alertHistory().length === 0" matBadgeColor="warn">
       <span class="material-symbols-rounded">notifications</span>
     </button>
 
-    <!-- Settings Button -->
     <button mat-icon-button class="ic-btn icon-btn tb-settings" (click)="openSettings()" type="button" title="Settings">
       <span class="material-symbols-rounded">settings</span>
     </button>
 
-    <!-- Cycle Theme -->
     <button mat-icon-button class="ic-btn icon-btn tb-theme" (click)="toggleTheme()" type="button" title="Cycle theme">
       <span class="material-symbols-rounded">dark_mode</span>
     </button>
 
-    <!-- Export JSON Button -->
     <button mat-flat-button class="fab btn-primary tb-export" (click)="exportData()" type="button" title="Export JSON payload">
       <span class="material-symbols-rounded">download</span>Export
     </button>
@@ -105,14 +95,14 @@
       <mat-icon>more_vert</mat-icon>
     </button>
     <div class="mobile-actions-panel" [class.open]="mobileActionsOpen()" role="menu" aria-label="More console actions menu">
-      <button mat-button type="button" role="menuitem" (click)="runMobileAction(openPalette.bind(this))"><mat-icon>search</mat-icon>Search commands</button>
-      <button mat-button type="button" role="menuitem" (click)="runMobileAction(togglePause.bind(this))"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon>Pause or resume</button>
-      <button mat-button type="button" role="menuitem" (click)="runMobileAction(openAlerts.bind(this))"><mat-icon>notifications</mat-icon>Alerts</button>
-      <button mat-button type="button" role="menuitem" (click)="runMobileAction(openSettings.bind(this))"><mat-icon>settings</mat-icon>Settings</button>
-      <button mat-button type="button" role="menuitem" (click)="runMobileAction(lockProfile.bind(this))"><mat-icon>lock</mat-icon>Lock profile</button>
-      <button mat-button type="button" role="menuitem" (click)="runMobileAction(switchOperator.bind(this))"><mat-icon>swap_horiz</mat-icon>Switch operator</button>
-      <button mat-button type="button" role="menuitem" (click)="runMobileAction(toggleTheme.bind(this))"><mat-icon>palette</mat-icon>Cycle theme</button>
-      <button mat-button type="button" role="menuitem" (click)="runMobileAction(exportData.bind(this))"><mat-icon>download</mat-icon>Export current payload</button>
+      <button mat-button type="button" role="menuitem" (click)="closeMobileActions(); openPalette()"><mat-icon>search</mat-icon>Search commands</button>
+      <button mat-button type="button" role="menuitem" (click)="closeMobileActions(); togglePause()"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon>Pause or resume</button>
+      <button mat-button type="button" role="menuitem" (click)="closeMobileActions(); openAlerts()"><mat-icon>notifications</mat-icon>Alerts</button>
+      <button mat-button type="button" role="menuitem" (click)="closeMobileActions(); openSettings()"><mat-icon>settings</mat-icon>Settings</button>
+      <button mat-button type="button" role="menuitem" (click)="closeMobileActions(); lockProfile()"><mat-icon>lock</mat-icon>Lock profile</button>
+      <button mat-button type="button" role="menuitem" (click)="closeMobileActions(); switchOperator()"><mat-icon>swap_horiz</mat-icon>Switch operator</button>
+      <button mat-button type="button" role="menuitem" (click)="closeMobileActions(); toggleTheme()"><mat-icon>palette</mat-icon>Cycle theme</button>
+      <button mat-button type="button" role="menuitem" (click)="closeMobileActions(); exportData()"><mat-icon>download</mat-icon>Export current payload</button>
     </div>
   </div>
 </mat-toolbar>

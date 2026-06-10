@@ -39,9 +39,14 @@ export class AuthService {
         const res = await this.api.request<{ ok: boolean; operator?: OperatorProfile }>('/api/auth/validate');
         if (res?.ok && res.operator) {
           this.currentOperator.set(res.operator);
+          this.state.setup.update(s => ({
+            ...s,
+            operator_label: res.operator?.display_name || s.operator_label
+          }));
           this.isLocked.set(false);
           this.bootstrapping.set(false);
-          void this.api.detectControlMode();
+          await this.api.detectControlMode();
+          this.notifyAuthenticated();
         } else {
           this.clearLocalSession();
         }
@@ -112,7 +117,8 @@ export class AuthService {
           operator_label: res.operator.display_name
         }));
 
-        void this.api.detectControlMode();
+        await this.api.detectControlMode();
+        this.notifyAuthenticated();
         return true;
       }
       return false;
@@ -177,6 +183,12 @@ export class AuthService {
     this.currentOperator.set(null);
     this.isLocked.set(true);
     void this.api.detectControlMode();
+  }
+
+  private notifyAuthenticated(): void {
+    try {
+      window.dispatchEvent(new CustomEvent('rvt-operator-authenticated'));
+    } catch (_) {}
   }
 
   private async revokeToken(token: string | null): Promise<void> {

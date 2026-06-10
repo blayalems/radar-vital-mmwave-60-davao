@@ -133,11 +133,13 @@ export class LayoutComponent implements OnInit {
   ngOnInit() {
     this.setRailCollapsed(localStorage.getItem('rvt-rail-collapsed') === '1');
     this.syncCurrentView(this.router.url);
+    this.refreshControlStatusForView(this.router.url);
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(event => {
       this.syncCurrentView(event.urlAfterRedirects);
+      this.refreshControlStatusForView(event.urlAfterRedirects);
     });
 
     // Wire up Capacitor App backButton listener to Router navigation for back gesture (A5)
@@ -437,6 +439,13 @@ export class LayoutComponent implements OnInit {
     const path = url.split(/[/?#]/).filter(Boolean)[0] || 'home';
     this.state.currentView.set(path);
     document.body.dataset['view'] = path;
+  }
+
+  private refreshControlStatusForView(url: string): void {
+    const path = url.split(/[/?#]/).filter(Boolean)[0] || 'home';
+    if (path === 'live') {
+      void this.api.detectControlMode();
+    }
   }
 
   private setRailCollapsed(collapsed: boolean): void {

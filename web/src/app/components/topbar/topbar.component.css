@@ -38,6 +38,7 @@
 
 :host .topbar-actions {
   flex: 0 0 auto;
+  position: relative;
 }
 
 :host .seg {
@@ -137,7 +138,8 @@
   /* Deprecated ::ng-deep overrides for tb-live-mode button toggles are moved to global styles.scss as non-encapsulated overrides. */
 }
 
-.tb-more {
+.tb-more,
+.mobile-action {
   display: none;
 }
 
@@ -217,6 +219,7 @@
     min-width: 48px !important;
     order: 2 !important;
     padding: 0 !important;
+    position: relative !important;
     width: auto !important;
   }
 
@@ -235,6 +238,30 @@
     height: 48px !important;
     width: 48px !important;
   }
+
+  :host .topbar-actions.mobile-actions-open > .mobile-action {
+    align-items: center !important;
+    background: var(--md-sys-color-surface-container-highest);
+    border: 1px solid var(--md-sys-color-outline-variant);
+    display: inline-flex !important;
+    gap: 8px;
+    justify-content: flex-start;
+    min-height: 44px;
+    min-width: 220px;
+    padding-inline: 14px;
+    position: absolute;
+    right: 0;
+    z-index: 1200;
+  }
+
+  :host .topbar-actions.mobile-actions-open > .mobile-action:nth-of-type(2) { top: 52px; }
+  :host .topbar-actions.mobile-actions-open > .mobile-action:nth-of-type(3) { top: 100px; }
+  :host .topbar-actions.mobile-actions-open > .mobile-action:nth-of-type(4) { top: 148px; }
+  :host .topbar-actions.mobile-actions-open > .mobile-action:nth-of-type(5) { top: 196px; }
+  :host .topbar-actions.mobile-actions-open > .mobile-action:nth-of-type(6) { top: 244px; }
+  :host .topbar-actions.mobile-actions-open > .mobile-action:nth-of-type(7) { top: 292px; }
+  :host .topbar-actions.mobile-actions-open > .mobile-action:nth-of-type(8) { top: 340px; }
+  :host .topbar-actions.mobile-actions-open > .mobile-action:nth-of-type(9) { top: 388px; }
 }
 
 :host-context(html[data-theme='hc']) .topbar,

@@ -70,7 +70,7 @@ async function main() {
     inlinedStylesheets.add(cssPath);
     console.log(`Inlining stylesheet: ${cssPath}`);
     const cssContent = await fs.readFile(path.join(WWW, cssPath), 'utf8');
-    indexHtml = indexHtml.replace(fullTag, `<style>\n${cssContent}\n</style>`);
+    indexHtml = indexHtml.replace(fullTag, () => `<style>\n${cssContent}\n</style>`);
   }
 
   // 2. Gather all JS bundle matches first (M4) to prevent stateful global regex mutation bugs
@@ -102,7 +102,7 @@ async function main() {
       console.warn(`Esbuild bundling failed or skipped for ${jsPath}, falling back to direct read.`);
       jsContent = await fs.readFile(path.join(WWW, jsPath), 'utf8');
     }
-    indexHtml = indexHtml.replace(fullTag, `<script${scriptType}>\n${jsContent}\n</script>`);
+    indexHtml = indexHtml.replace(fullTag, () => `<script${scriptType}>\n${jsContent}\n</script>`);
   }
   // Remove unused modulepreload link tags since all JS chunks are fully bundled by esbuild
   indexHtml = indexHtml.replace(/<link[^>]*rel="modulepreload"[^>]*>/g, '');

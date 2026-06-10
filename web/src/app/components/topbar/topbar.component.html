@@ -54,7 +54,7 @@
     </mat-chip>
   </mat-chip-set>
 
-  <div class="topbar-actions" [class.mobile-actions-open]="mobileActionsOpen()" role="group" aria-label="Console actions">
+  <div class="topbar-actions" role="group" aria-label="Console actions">
     <!-- Zen/Live Mode Segment -->
     <div class="seg seg-sm tb-live-mode" role="radiogroup" aria-label="Telemetry detail">
       <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.zenMode()" [attr.aria-checked]="state.zenMode()" (click)="setLiveMode('simple')" title="Simple view">
@@ -104,13 +104,15 @@
     <button mat-icon-button class="tb-more" type="button" (click)="toggleMobileActions()" aria-label="More console actions" [attr.aria-expanded]="mobileActionsOpen()">
       <mat-icon>more_vert</mat-icon>
     </button>
-    <button mat-button class="mobile-action" type="button" role="menuitem" (click)="runMobileAction(openPalette.bind(this))"><mat-icon>search</mat-icon>Search commands</button>
-    <button mat-button class="mobile-action" type="button" role="menuitem" (click)="runMobileAction(togglePause.bind(this))"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon>Pause or resume</button>
-    <button mat-button class="mobile-action" type="button" role="menuitem" (click)="runMobileAction(openAlerts.bind(this))"><mat-icon>notifications</mat-icon>Alerts</button>
-    <button mat-button class="mobile-action" type="button" role="menuitem" (click)="runMobileAction(openSettings.bind(this))"><mat-icon>settings</mat-icon>Settings</button>
-    <button mat-button class="mobile-action" type="button" role="menuitem" (click)="runMobileAction(lockProfile.bind(this))"><mat-icon>lock</mat-icon>Lock profile</button>
-    <button mat-button class="mobile-action" type="button" role="menuitem" (click)="runMobileAction(switchOperator.bind(this))"><mat-icon>swap_horiz</mat-icon>Switch operator</button>
-    <button mat-button class="mobile-action" type="button" role="menuitem" (click)="runMobileAction(toggleTheme.bind(this))"><mat-icon>palette</mat-icon>Cycle theme</button>
-    <button mat-button class="mobile-action" type="button" role="menuitem" (click)="runMobileAction(exportData.bind(this))"><mat-icon>download</mat-icon>Export current payload</button>
+    <div class="mobile-actions-panel" [class.open]="mobileActionsOpen()" role="menu" aria-label="More console actions menu">
+      <button mat-button type="button" role="menuitem" (click)="runMobileAction(openPalette.bind(this))"><mat-icon>search</mat-icon>Search commands</button>
+      <button mat-button type="button" role="menuitem" (click)="runMobileAction(togglePause.bind(this))"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon>Pause or resume</button>
+      <button mat-button type="button" role="menuitem" (click)="runMobileAction(openAlerts.bind(this))"><mat-icon>notifications</mat-icon>Alerts</button>
+      <button mat-button type="button" role="menuitem" (click)="runMobileAction(openSettings.bind(this))"><mat-icon>settings</mat-icon>Settings</button>
+      <button mat-button type="button" role="menuitem" (click)="runMobileAction(lockProfile.bind(this))"><mat-icon>lock</mat-icon>Lock profile</button>
+      <button mat-button type="button" role="menuitem" (click)="runMobileAction(switchOperator.bind(this))"><mat-icon>swap_horiz</mat-icon>Switch operator</button>
+      <button mat-button type="button" role="menuitem" (click)="runMobileAction(toggleTheme.bind(this))"><mat-icon>palette</mat-icon>Cycle theme</button>
+      <button mat-button type="button" role="menuitem" (click)="runMobileAction(exportData.bind(this))"><mat-icon>download</mat-icon>Export current payload</button>
+    </div>
   </div>
 </mat-toolbar>

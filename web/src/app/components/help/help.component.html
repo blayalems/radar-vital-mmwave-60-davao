@@ -68,13 +68,15 @@
                 {{ entry.title }}
               </mat-panel-title>
             </mat-expansion-panel-header>
-            <div class="faq-body-text">
-              <strong>{{ entry.summary }}</strong>
-              @if (entry.detail) { <p>{{ entry.detail }}</p> }
-              @if (advancedMode() && entry.advanced) {
-                <div class="advanced-note"><mat-icon>science</mat-icon><span>{{ entry.advanced }}</span></div>
-              }
-            </div>
+            @if (selectedTopic() !== entry.id) {
+              <div class="faq-body-text">
+                <strong>{{ entry.summary }}</strong>
+                @if (entry.detail) { <p>{{ entry.detail }}</p> }
+                @if (advancedMode() && entry.advanced) {
+                  <div class="advanced-note"><mat-icon>science</mat-icon><span>{{ entry.advanced }}</span></div>
+                }
+              </div>
+            }
           </mat-expansion-panel>
         }
       </mat-accordion>

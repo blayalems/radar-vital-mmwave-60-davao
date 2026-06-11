@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR53: Session Quality Scorecard in Report
+
+- **Quality Card**: Report renders a "Session Quality" card sourced entirely from the existing `/api/sessions/<id>/summary` payload (no new API surface): `signal_quality` stat tiles (PQI lock %, session quality score, internal consistency, locked/settling coverage), an HR/RR accuracy table (RMSE/MAE/bias/coverage vs the reference), readiness gate chips (pass/fail/deferred), and the ML-readiness verdict `categories[]` with remediation text for non-pass items. Card hides entirely when a summary carries none of these blocks (older sessions degrade gracefully).
+- **Demo Parity**: The sandbox `/summary` response now includes a simulated quality block + structured verdict with categories so the card is demo-visible; the hero banner still shows "DEMO — Simulated Data Only" via the `sandbox` flag.
+- **Verification**: `npm --prefix web run build` clean (known budget warning); `npm run build:web` round-trip clean; `npm --prefix web run test:ci` 42/42; new scorecard smoke + adjacent report review/print specs 3/3 on desktop Chromium. Visual baselines pending the Windows refresh pass noted in PR52.
+
 ### 2026-06-12 — PR52: Live Signal Lock-State, Confidence, Motion & Readiness Surfacing
 
 - **Lock-State Chip**: The Live command strip now shows the firmware presence/DSP phase (`radar.session_phase_name`: No subject / Warming up / Settling / Signal locked / Recovering after motion / Subject leaving) with per-phase Material color tokens and icons; values were already published per second by the trainer and previously unconsumed (grep-verified zero UI usage).

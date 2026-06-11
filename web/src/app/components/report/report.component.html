@@ -60,6 +60,99 @@
       </div>
     </mat-card>
 
+    <!-- SESSION QUALITY SCORECARD -->
+    @if (hasQualityData()) {
+      <mat-card class="quality-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="header-avatar-ic">analytics</mat-icon>
+          <mat-card-title>Session Quality</mat-card-title>
+          <mat-card-subtitle>Signal quality, accuracy against the reference, and readiness gates from the recorded analysis.</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          @if (signalQuality(); as sq) {
+            <div class="quality-stat-grid">
+              <div class="quality-stat">
+                <span class="quality-stat-label">PQI lock</span>
+                <strong>{{ qualityStat(sq, 'pqi_lock_pct', 1, '%') }}</strong>
+              </div>
+              <div class="quality-stat">
+                <span class="quality-stat-label">Session quality score</span>
+                <strong>{{ qualityStat(sq, 'session_quality_score', 1) }}</strong>
+              </div>
+              <div class="quality-stat">
+                <span class="quality-stat-label">Internal consistency</span>
+                <strong>{{ qualityStat(sq, 'internal_consistency_score', 1) }}</strong>
+              </div>
+              <div class="quality-stat">
+                <span class="quality-stat-label">Coverage (locked)</span>
+                <strong>{{ qualityStat(sq, 'coverage_locked', 1, '%') }}</strong>
+              </div>
+              <div class="quality-stat">
+                <span class="quality-stat-label">Coverage (settling)</span>
+                <strong>{{ qualityStat(sq, 'coverage_settling', 1, '%') }}</strong>
+              </div>
+            </div>
+          }
+
+          @if (hrMetrics() || rrMetrics()) {
+            <table class="quality-metrics-table" aria-label="Accuracy against the reference device">
+              <thead>
+                <tr><th scope="col">Metric</th><th scope="col">RMSE</th><th scope="col">MAE</th><th scope="col">Bias</th><th scope="col">Coverage</th></tr>
+              </thead>
+              <tbody>
+                @if (hrMetrics(); as hr) {
+                  <tr>
+                    <th scope="row">Heart rate (bpm)</th>
+                    <td>{{ qualityStat(hr, 'rmse', 2) }}</td>
+                    <td>{{ qualityStat(hr, 'mae', 2) }}</td>
+                    <td>{{ qualityStat(hr, 'bias', 2) }}</td>
+                    <td>{{ qualityStat(hr, 'coverage_pct', 1, '%') }}</td>
+                  </tr>
+                }
+                @if (rrMetrics(); as rr) {
+                  <tr>
+                    <th scope="row">Respiration (br/min)</th>
+                    <td>{{ qualityStat(rr, 'rmse', 2) }}</td>
+                    <td>{{ qualityStat(rr, 'mae', 2) }}</td>
+                    <td>{{ qualityStat(rr, 'bias', 2) }}</td>
+                    <td>{{ qualityStat(rr, 'coverage_pct', 1, '%') }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+
+          @if (qualityGates().length) {
+            <div class="quality-gates-row" role="list" aria-label="Readiness gates">
+              @for (gate of qualityGates(); track gate.id) {
+                <span class="quality-gate-chip" role="listitem" [attr.data-passed]="gate.passed">
+                  <mat-icon aria-hidden="true">{{ gate.passed === true ? 'check_circle' : gate.passed === false ? 'cancel' : 'pending' }}</mat-icon>
+                  {{ gate.id }}: {{ gate.status }}
+                </span>
+              }
+            </div>
+          }
+
+          @if (verdictCategories().length) {
+            <ul class="quality-category-list">
+              @for (cat of verdictCategories(); track cat.id) {
+                <li class="quality-category" [attr.data-status]="cat.status">
+                  <mat-icon aria-hidden="true">{{ cat.status === 'pass' ? 'check_circle' : cat.status === 'warn' ? 'warning' : 'cancel' }}</mat-icon>
+                  <div class="quality-category-copy">
+                    <strong>{{ cat.label }}</strong>
+                    @if (cat.detail) { <span>{{ cat.detail }}</span> }
+                    @if (cat.remediation && cat.status !== 'pass') {
+                      <span class="quality-remediation">Fix: {{ cat.remediation }}</span>
+                    }
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        </mat-card-content>
+      </mat-card>
+    }
+
     <div class="report-two-column">
       <!-- SESSION PROPERTY ATTRIBUTES -->
       <mat-card class="attributes-card">

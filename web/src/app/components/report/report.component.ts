@@ -169,6 +169,66 @@ export class ReportComponent implements OnInit, AfterViewInit {
     return this.selectedSummary || this.selectedSession || { session_id: '' };
   }
 
+  // ---- Session quality scorecard (all values come from the existing
+  // /api/sessions/<id>/summary payload; nothing here adds API surface) ----
+
+  private summaryObject(key: string): Record<string, unknown> | null {
+    const value = this.selectedSummary?.[key];
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  }
+
+  signalQuality(): Record<string, unknown> | null {
+    return this.summaryObject('signal_quality');
+  }
+
+  hrMetrics(): Record<string, unknown> | null {
+    return this.summaryObject('hr_metrics');
+  }
+
+  rrMetrics(): Record<string, unknown> | null {
+    return this.summaryObject('rr_metrics');
+  }
+
+  qualityGates(): Array<{ id: string; passed: boolean | null; status: string }> {
+    const gates = this.summaryObject('gates');
+    if (!gates) return [];
+    return Object.entries(gates)
+      .filter(([, value]) => value && typeof value === 'object')
+      .map(([id, value]) => {
+        const gate = value as Record<string, unknown>;
+        const passed = typeof gate['passed'] === 'boolean' ? gate['passed'] as boolean : null;
+        return { id, passed, status: String(gate['status'] ?? (passed === null ? 'n/a' : passed ? 'pass' : 'fail')) };
+      });
+  }
+
+  verdictCategories(): Array<{ id: string; label: string; status: string; detail: string; remediation: string }> {
+    const verdict = this.reportRecord()?.verdict;
+    const categories = typeof verdict === 'object' && verdict !== null ? (verdict as Record<string, unknown>)['categories'] : null;
+    if (!Array.isArray(categories)) return [];
+    return categories
+      .filter(entry => entry && typeof entry === 'object')
+      .map(entry => {
+        const cat = entry as Record<string, unknown>;
+        return {
+          id: String(cat['id'] ?? ''),
+          label: String(cat['label'] ?? cat['id'] ?? ''),
+          status: String(cat['status'] ?? '').toLowerCase(),
+          detail: String(cat['detail'] ?? ''),
+          remediation: String(cat['remediation'] ?? '')
+        };
+      });
+  }
+
+  hasQualityData(): boolean {
+    return !!(this.signalQuality() || this.hrMetrics() || this.rrMetrics()
+      || this.qualityGates().length || this.verdictCategories().length);
+  }
+
+  qualityStat(block: Record<string, unknown> | null, key: string, digits = 1, suffix = ''): string {
+    const value = Number(block?.[key]);
+    return Number.isFinite(value) ? `${value.toFixed(digits)}${suffix}` : '--';
+  }
+
   reportVerdict(): string {
     const raw = this.reportRecord()?.verdict;
     return String(typeof raw === 'object' && raw !== null ? raw['verdict'] || raw['readiness_kind'] || '' : raw || '').toLowerCase();

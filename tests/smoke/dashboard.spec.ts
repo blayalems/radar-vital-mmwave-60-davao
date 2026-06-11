@@ -65,7 +65,18 @@ async function mockDemoReportSession(page: Page): Promise<void> {
     subject_label: 'Sandbox',
     operator_label: 'Operator A',
     summary: 'Simulated trace for report review.',
-    verdict: 'ready',
+    verdict: {
+      verdict: 'ready',
+      readiness_kind: 'ready',
+      categories: [
+        { id: 'firmware', label: 'Firmware contract', status: 'pass', detail: '207-column contract intact.', remediation: '' },
+        { id: 'reference', label: 'Reference coverage', status: 'warn', detail: 'BLE coverage 72%.', remediation: 'Keep the oximeter within range for the full session.' }
+      ]
+    },
+    signal_quality: { pqi_lock_pct: 84.2, session_quality_score: 8.7, internal_consistency_score: 9.1, coverage_locked: 81.5, coverage_settling: 11.2 },
+    hr_metrics: { rmse: 2.41, mae: 1.92, bias: -0.4, coverage_pct: 88.1 },
+    rr_metrics: { rmse: 0.82, mae: 0.61, bias: 0.1, coverage_pct: 90.4 },
+    gates: { primary: { passed: true, status: 'pass' }, secondary: { passed: false, status: 'deferred' } },
     sandbox: true,
     message: 'Demo report data for operator review.',
     downloads: []
@@ -898,6 +909,22 @@ test.describe('Dashboard smoke', () => {
     await page.getByLabel('Validation comments').fill('Simulation marked non-clinical.');
     await page.getByRole('button', { name: /Record sign-off/ }).click();
     await expect(page.getByText(/Signed/).first()).toBeVisible();
+  });
+
+  test('renders the session quality scorecard from the summary payload', async ({ page }) => {
+    await mockDemoReportSession(page);
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/report');
+
+    const card = page.locator('.quality-card');
+    await expect(card).toBeVisible();
+    await expect(card.getByText('PQI lock')).toBeVisible();
+    await expect(card.getByText('84.2%')).toBeVisible();
+    await expect(card.locator('.quality-metrics-table tbody tr')).toHaveCount(2);
+    await expect(card.locator('.quality-gate-chip[data-passed="true"]')).toContainText('primary');
+    await expect(card.locator('.quality-gate-chip[data-passed="false"]')).toContainText('secondary');
+    // Non-pass categories show their remediation text.
+    await expect(card.locator('.quality-remediation')).toContainText('oximeter');
   });
 
   test('keeps simulated provenance visible when printing a demo report', async ({ page }) => {

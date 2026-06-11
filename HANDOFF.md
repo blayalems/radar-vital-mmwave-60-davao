@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR57: Additive Field-Diagnostics Telemetry Columns
+
+- **CSV v15.1 Contract**: Firmware and trainer schema now emit/expect 219 CSV columns, preserving the original 207-column v15 prefix exactly and appending loop timing, heap, radar/CRC, I2C/LCD, watchdog, command, and uptime diagnostics as columns 208-219.
+- **Legacy Tolerance**: Trainer parsing pads 207-column v15 rows and older supported legacy rows to the current right edge without failing ML readiness or contract diagnosis solely because field diagnostics are absent.
+- **Live Audit Surfacing**: Angular Live Audit surfaces loop mean/max, heap free/min, firmware uptime, and fault counters with demo-mode values; docs/help/static contract tests updated to describe the 219-column current contract.
+- **Verification**: `python -m pytest -q tests/test_v12_static_contract.py` 16/16; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer` clean; `python -m rvt_trainer --help` clean; `npm --prefix web run build` clean with known bundle warning; `npm run build:web` and `npm run build:check` clean; `npm --prefix web run test:ci` 42/42; focused Playwright Live diagnostics/lock-state smoke 8/8 across desktop, Pixel 7, iPhone 14, and iPad; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6` clean with existing LiquidCrystal architecture warning. Full `dashboard.spec.ts` timed out locally before completion.
+
 ### 2026-06-12 — PR56: Subject Placement Guidance & Advisory Start Gate on Home
 
 - **Placement Zone Chip**: The Home radar-scope Range metric now classifies live `distance_cm` into the firmware's distance-confidence bands (Too close <40 cm / Optimal 40–100 / Good ≤140 / Acceptable ≤180 / Out of range) with per-zone color tokens and an actionable hint line (mirrors Seeed's ≤1.5 m chest-height guidance for the MR60BHA2).

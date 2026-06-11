@@ -434,7 +434,7 @@ export class ApiService {
             verdict: 'ready',
             readiness_kind: 'ready',
             categories: [
-              { id: 'firmware', label: 'Firmware contract', status: 'pass', detail: 'Simulated 207-column contract intact.', remediation: '' },
+              { id: 'firmware', label: 'Firmware contract', status: 'pass', detail: 'Simulated 219-column contract intact; 207-column prefix preserved.', remediation: '' },
               { id: 'reference', label: 'Reference coverage', status: 'warn', detail: 'Simulated BLE coverage 72%.', remediation: 'Keep the oximeter within range for the full session.' }
             ]
           }

@@ -311,11 +311,43 @@ def test_frozen_serial_protocol_contract():
     )
     columns = ast.literal_eval(columns_assignment.value)
 
-    assert len(columns) == 207
-    assert columns[-1] == "correction_params_hash"
-    assert "EXPECTED_RADAR_LOG_COLUMN_COUNT = 207" in trainer
-    assert "#define CSV_COLUMN_COUNT 207" in ino
+    assert len(columns) == 219
+    assert columns[206] == "correction_params_hash"
+    assert columns[-12:] == [
+        "loop_dt_mean_ms",
+        "loop_dt_max_ms",
+        "heap_free_kb",
+        "heap_min_free_kb",
+        "radar_uart_overflow_count",
+        "radar_crc_err_count",
+        "i2c_recover_count",
+        "lcd_reinit_count",
+        "wdt_near_miss_count",
+        "cmd_rx_count",
+        "cmd_err_count",
+        "fw_uptime_s",
+    ]
+    assert "EXPECTED_RADAR_LOG_COLUMN_COUNT = 219" in trainer
+    assert "LEGACY_V15_COLUMN_COUNT = 207" in trainer
+    assert "#define CSV_COLUMN_COUNT 219" in ino
     assert re.search(r"\bSerial\.begin\(115200\)", ino)
+
+
+def test_trainer_pads_legacy_207_rows_to_v15_1_contract():
+    from rvt_trainer import monolith as m
+
+    kind, row, detail = m._parse_radar_data_line(
+        "DATA," + ",".join(["1"] * m.LEGACY_V15_COLUMN_COUNT),
+        m.RADAR_LOG_COLUMNS,
+    )
+
+    assert kind == "data", detail
+    assert row is not None
+    assert len(row) == m.EXPECTED_RADAR_LOG_COLUMN_COUNT
+    assert row[: m.LEGACY_V15_COLUMN_COUNT] == ["1"] * m.LEGACY_V15_COLUMN_COUNT
+    assert row[m.LEGACY_V15_COLUMN_COUNT :] == [""] * (
+        m.EXPECTED_RADAR_LOG_COLUMN_COUNT - m.LEGACY_V15_COLUMN_COUNT
+    )
 
 
 def test_packaging_scaffolds_exist():

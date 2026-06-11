@@ -174,6 +174,18 @@ export interface LivePayload {
     doppler_motion?: number;
     pqi_heart?: number;
     pqi_breath?: number;
+    loop_dt_mean_ms?: number;
+    loop_dt_max_ms?: number;
+    heap_free_kb?: number;
+    heap_min_free_kb?: number;
+    radar_uart_overflow_count?: number;
+    radar_crc_err_count?: number;
+    i2c_recover_count?: number;
+    lcd_reinit_count?: number;
+    wdt_near_miss_count?: number;
+    cmd_rx_count?: number;
+    cmd_err_count?: number;
+    fw_uptime_s?: number;
   };
   ble: Record<string, unknown> & {
     address?: string;

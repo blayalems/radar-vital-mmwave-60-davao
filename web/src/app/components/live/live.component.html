@@ -410,6 +410,9 @@
                     <tr><td>Reported RR</td><td>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) + ' br/m' : '--' }}</td></tr>
                     <tr><td>Candidate HR</td><td>{{ state.lastPayload()?.radar?.candidate_hr ? Math.round(state.lastPayload()?.radar?.candidate_hr ?? 0) + ' bpm' : '--' }}</td></tr>
                     <tr><td>Candidate RR</td><td>{{ state.lastPayload()?.radar?.candidate_rr ? Math.round(state.lastPayload()?.radar?.candidate_rr ?? 0) + ' br/m' : '--' }}</td></tr>
+                    <tr><td>Loop mean / max</td><td>{{ metricText('loop_dt_mean_ms', 2, ' ms') }} / {{ metricText('loop_dt_max_ms', 0, ' ms') }}</td></tr>
+                    <tr><td>Heap free / min</td><td>{{ metricText('heap_free_kb', 1, ' KB') }} / {{ metricText('heap_min_free_kb', 1, ' KB') }}</td></tr>
+                    <tr><td>Firmware uptime</td><td>{{ metricText('fw_uptime_s', 0, ' s') }}</td></tr>
                   </tbody>
                 </table>
               </mat-card-content>
@@ -432,6 +435,17 @@
             <mat-card class="diagnostics-mini-card">
               <mat-card-header><mat-card-title>Mismatches / Faults</mat-card-title></mat-card-header>
               <mat-card-content class="diagnostics-table-wrap">
+                <table class="diagnostics-table">
+                  <tbody>
+                    <tr><td>Radar UART overflow</td><td>{{ metricText('radar_uart_overflow_count', 0) }}</td></tr>
+                    <tr><td>Radar CRC errors</td><td>{{ metricText('radar_crc_err_count', 0) }}</td></tr>
+                    <tr><td>I2C recoveries</td><td>{{ metricText('i2c_recover_count', 0) }}</td></tr>
+                    <tr><td>LCD re-inits</td><td>{{ metricText('lcd_reinit_count', 0) }}</td></tr>
+                    <tr><td>WDT near misses</td><td>{{ metricText('wdt_near_miss_count', 0) }}</td></tr>
+                    <tr><td>Command RX / errors</td><td>{{ metricText('cmd_rx_count', 0) }} / {{ metricText('cmd_err_count', 0) }}</td></tr>
+                    <tr><td>Active faults</td><td>{{ state.lastPayload()?.faults?.length || 0 }}</td></tr>
+                  </tbody>
+                </table>
                 @if ((state.lastPayload()?.faults?.length || 0) > 0) {
                   <div class="faults-list-container">
                     @for (fault of state.lastPayload()?.faults || []; track $index) {
@@ -914,6 +928,24 @@
                 <tr><td>Module valid</td><td><strong>{{ analysisNested('fw_truthfulness', 'module_version_valid') }}</strong></td></tr>
                 <tr><td>HR eval bins</td><td><strong>{{ analysisNested('gate_audit', 'hr_eval_bins') }}</strong></td></tr>
                 <tr><td>RR eval bins</td><td><strong>{{ analysisNested('gate_audit', 'rr_eval_bins') }}</strong></td></tr>
+              </tbody></table>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="diagnostics-card">
+            <mat-card-header><mat-card-title>Firmware Field Diagnostics</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Loop timing, memory headroom, and fault counters.</mat-card-subtitle>
+            <mat-card-content class="diagnostics-table-wrap">
+              <table class="diagnostics-table"><tbody>
+                <tr><td>Loop mean / max</td><td>{{ metricText('loop_dt_mean_ms', 2, ' ms') }} / {{ metricText('loop_dt_max_ms', 0, ' ms') }}</td></tr>
+                <tr><td>Heap free / min</td><td>{{ metricText('heap_free_kb', 1, ' KB') }} / {{ metricText('heap_min_free_kb', 1, ' KB') }}</td></tr>
+                <tr><td>Firmware uptime</td><td>{{ metricText('fw_uptime_s', 0, ' s') }}</td></tr>
+                <tr><td>Radar UART overflow</td><td>{{ metricText('radar_uart_overflow_count', 0) }}</td></tr>
+                <tr><td>Radar CRC errors</td><td>{{ metricText('radar_crc_err_count', 0) }}</td></tr>
+                <tr><td>I2C recoveries</td><td>{{ metricText('i2c_recover_count', 0) }}</td></tr>
+                <tr><td>LCD re-inits</td><td>{{ metricText('lcd_reinit_count', 0) }}</td></tr>
+                <tr><td>WDT near misses</td><td>{{ metricText('wdt_near_miss_count', 0) }}</td></tr>
+                <tr><td>Command RX / errors</td><td>{{ metricText('cmd_rx_count', 0) }} / {{ metricText('cmd_err_count', 0) }}</td></tr>
               </tbody></table>
             </mat-card-content>
           </mat-card>

@@ -6,7 +6,7 @@ The repository ships three coupled artefacts:
 
 | Component | File | Role |
 |---|---|---|
-| **Firmware** | [`radar_vital_v16_1_0.ino`](./radar_vital_v16_1_0.ino) | XIAO ESP32-C6 + MR60BHA2 driver. Emits a 207-column CSV at 115 200 baud over USB. v16 gates an optional NimBLE GATT path behind `ENABLE_BLE` (Phase 4F). |
+| **Firmware** | [`radar_vital_v16_1_0.ino`](./radar_vital_v16_1_0.ino) | XIAO ESP32-C6 + MR60BHA2 driver. Emits the v15.1 219-column CSV at 115 200 baud over USB; the first 207 columns remain the frozen v15 contract and columns 208-219 are right-edge diagnostics. v16 gates an optional NimBLE GATT path behind `ENABLE_BLE` (Phase 4F). |
 | **Trainer** | [`radar_vital_trainer_v12_for_v16_0.py`](./radar_vital_trainer_v12_for_v16_0.py) + [`rvt_trainer/`](./rvt_trainer/) | Python 3.11 `ThreadingHTTPServer`. The root script is a compatibility shim over the package entrypoint. It reads the firmware CSV, manages sessions, runs preflight/ML-readiness/audit, writes `live_dashboard.json` once per second, and serves the dashboard plus its REST/SSE API. |
 | **Dashboard** | [`web/src/`](./web/src/) -> [`radar_vital_live_dashboard_v12_for_v16_0.html`](./radar_vital_live_dashboard_v12_for_v16_0.html) | Standalone Angular 21 + Material 3 application compiled to a committed single-file PWA artefact and `www/` packages. Polls or subscribes to `/api/events/subscribe`, renders live KPIs, waveforms, alerts, reports, pairing and scoped offline state. |
 

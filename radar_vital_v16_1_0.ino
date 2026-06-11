@@ -4,17 +4,17 @@
  * + Active Buzzer for audio feedback
  *
  * Firmware release: v16.1.0
- * CSV schema release: v15.0.0 / trainer contract v12.0.0
+ * CSV schema release: v15.1.0 / trainer contract v12.0.0
  *
 * Manuscript-facing calibration / release notes
 * -------------------------------------------
 * + FW_VERSION is v16.1.0.
-* + v16.1.0 keeps the v15 serial DATA telemetry contract by default and adds
+* + v16.1.0 keeps the v15 serial DATA telemetry prefix and adds
 *   a gated BLE bridge path for the v12 dashboard / native app milestone.
 * + ENABLE_BLE defaults to false; with BLE off, the serial DSP path is
 *   behaviorally identical to v15.0.0.
-* + v15.0.0 expands DATA telemetry to 207 columns for the v11 trainer/dashboard
-*   audit contract while preserving the v14.1 DSP constants.
+* + v15.1.0 expands DATA telemetry to 219 columns by appending field diagnostics;
+*   the first 207 columns remain the frozen v15 trainer/dashboard audit contract.
 * + The raw CSV now exposes both sketch identity and radar-module identity:
 *   sketch_major/sketch_sub/sketch_mod and
 *   module_fw_major/module_fw_sub/module_fw_mod.
@@ -513,6 +513,20 @@ static const unsigned long RADAR_RECOVERY_GRACE_MS = 3000UL;
 static const unsigned long BH1750_RETRY_INTERVAL_MS = 10000UL;
 static unsigned long lastBh1750RetryMs = 0UL;
 static unsigned long lastLcdRescanMs = 0UL;
+static uint32_t diagLoopLastMs = 0UL;
+static uint32_t diagLoopWindowStartMs = 0UL;
+static uint32_t diagLoopSumMs = 0UL;
+static uint32_t diagLoopMaxMs = 0UL;
+static uint32_t diagLoopCount = 0UL;
+static float diagLoopMeanMsLogged = 0.0f;
+static uint32_t diagLoopMaxMsLogged = 0UL;
+static uint32_t diagRadarUartOverflowCount = 0UL;
+static uint32_t diagRadarCrcErrCount = 0UL;
+static uint32_t diagI2cRecoverCount = 0UL;
+static uint32_t diagLcdReinitCount = 0UL;
+static uint32_t diagWdtNearMissCount = 0UL;
+static uint32_t diagCmdRxCount = 0UL;
+static uint32_t diagCmdErrCount = 0UL;
 static inline void wdtReset() { if (wdtActive) esp_task_wdt_reset(); }
 static inline void wdtResetEvery(int i, int interval) { if (interval > 0 && (i % interval) == 0) wdtReset(); }
 static const size_t MMWAVE_RX_BUFFER_SIZE = 4096;
@@ -929,6 +943,7 @@ const char* getHRZone(float hr) {
 // I2C / LCD INIT
 // =========================================================================
 void i2cRecover() {
+  diagI2cRecoverCount++;
   wdtReset(); Wire.end();
   delay(10); wdtReset();
   gpio_reset_pin((gpio_num_t)SCL); gpio_reset_pin((gpio_num_t)SDA);
@@ -952,6 +967,7 @@ void i2cRecover() {
 
 void lcdReInit() {
   if (!lcdPtr) return;
+  diagLcdReinitCount++;
   if (!probeI2C(lcdAddr)) {
     i2cRecover();
     if (!probeI2C(lcdAddr)) {
@@ -4153,6 +4169,25 @@ void setup() {
 void loop() {
   wdtReset();
   unsigned long now=millis();
+  if (diagLoopLastMs == 0UL) {
+    diagLoopLastMs = (uint32_t)now;
+    diagLoopWindowStartMs = (uint32_t)now;
+  } else {
+    uint32_t loopDt = (uint32_t)safeElapsedMs(now, diagLoopLastMs);
+    diagLoopLastMs = (uint32_t)now;
+    diagLoopSumMs += loopDt;
+    diagLoopCount++;
+    if (loopDt > diagLoopMaxMs) diagLoopMaxMs = loopDt;
+    if (loopDt > 4000UL) diagWdtNearMissCount++;
+    if (safeElapsedMs(now, diagLoopWindowStartMs) >= 1000UL) {
+      diagLoopMeanMsLogged = diagLoopCount ? ((float)diagLoopSumMs / (float)diagLoopCount) : 0.0f;
+      diagLoopMaxMsLogged = diagLoopMaxMs;
+      diagLoopWindowStartMs = (uint32_t)now;
+      diagLoopSumMs = 0UL;
+      diagLoopMaxMs = 0UL;
+      diagLoopCount = 0UL;
+    }
+  }
   buzzerUpdate();
 
   { static unsigned long lastDecayCheckMs=0;
@@ -6722,8 +6757,10 @@ void loop() {
                      "near_field_reflector_suspect,agc_floor_suspect,phase_backed_publish_ready,hr_anchor_drift_suspect,phase_gap_fill_count,clutter_rewarm_count,rewarm_triggered,rewarm_reason,experimental_profile_enabled,fs_effective,fs_snap_used,hr_fs_guard_min,hr_autocorr_best_conf,phase_zero_fill_pct,fs_fallback_used,module_fw_valid,hr_trust_age_ms,rr_trust_age_ms,skipdsp_run_len,agc_floor_run_len,buffer_zero_injected,hr_raw_minus_anchor_bpm,hr_phase_minus_anchor_bpm,hr_raw_minus_phase_bpm,rr_candidate_present,rr_candidate_source,rr_source_reject_reason,rr_source_latched_ok,hr_publish_block_stage,rr_publish_block_stage,hr_raw_age_ms,hr_raw_disagree_subreason,rr_phase_backed_publish_ready,"
                      "rr_source_current_ok,logged_rr_valid_current,logged_rr_valid_latched,hr_publish_source_class,rr_publish_source_class,hr_freeze_suspect,hr_value_frozen_confirmed,hr_freeze_duration_ms,hr_no_fresh_update_duration_ms,hr_raw_disagree_anchor_drift_suspect,hr_raw_disagree_phase_stale_suspect,hr_raw_disagree_high_bias_suspect,hr_raw_disagree_low_dynamic_range_suspect,hr_raw_disagree_sumfreq_suspect,hr_raw_disagree_rr_harmonic_k,"
                      // v15.0 Stage A: 8 columns reserved (final-schema-first).
-                     // Stage B activates 200, Stage C activates 201-204, Stage E/v12 activates 205-207.
-                     "presence_fsm_debug,pqi_heart_v15,pqi_breath_v15,phase_buffer_valid_pct,pqi_v15_pair_coverage_min,correction_shadow_delta_bpm,correction_source,correction_params_hash");
+                    // Stage B activates 200, Stage C activates 201-204, Stage E/v12 activates 205-207.
+                    // v15.1 activates 208-219 field diagnostics.
+                    "presence_fsm_debug,pqi_heart_v15,pqi_breath_v15,phase_buffer_valid_pct,pqi_v15_pair_coverage_min,correction_shadow_delta_bpm,correction_source,correction_params_hash,"
+                    "loop_dt_mean_ms,loop_dt_max_ms,heap_free_kb,heap_min_free_kb,radar_uart_overflow_count,radar_crc_err_count,i2c_recover_count,lcd_reinit_count,wdt_near_miss_count,cmd_rx_count,cmd_err_count,fw_uptime_s");
       logHeaderPrinted=true;
     }
 
@@ -6822,11 +6859,10 @@ void loop() {
         presenceFsmDebugLogged = (uint8_t)(state3 | (drop3 << 3) | sawBit);
       }
 
-      // CSV column count widened for v15.0 Stage A (final-schema-first).
-      // 199 v14.1 columns + 8 v15 reserved columns = 207. Stage B activates col 200,
-      // Stage C activates cols 201-204, Stage E/v12 activates cols 205-207.
+      // CSV column count widened for v15.1 diagnostics (final-schema-first).
+      // 199 v14.1 columns + 8 v15 columns + 12 v15.1 diagnostics = 219.
       // Update this comment whenever columns are added or removed.
-      #define CSV_COLUMN_COUNT 207
+      #define CSV_COLUMN_COUNT 219
 #define CSVU(v) do { Serial.print((unsigned long)(v)); Serial.print(','); _csvColCount++; } while (0)
 #define CSVI(v) do { Serial.print((int)(v)); Serial.print(','); _csvColCount++; } while (0)
 #define CSVF(v,p) do { float __csv_v = (float)(v); Serial.print(isfinite(__csv_v) ? __csv_v : -1.0f, (p)); Serial.print(','); _csvColCount++; } while (0)
@@ -7049,6 +7085,7 @@ CSVI((int)hrRawDisagreeSumfreqSuspectLogged);
 CSVI((int)hrRawDisagreeRrHarmonicKLogged);
 // v15.0 Stage A: 8 columns reserved (final-schema-first).
 // Stage B activates 200, Stage C activates 201-204, Stage E/v12 activates 205-207.
+// v15.1 appends field diagnostics in cols 208-219.
 CSVI(presenceFsmDebugLogged);          // col 200: presence_fsm_debug (Stage B activates)
 CSVF(pqiHeartV15Logged, 4);            // col 201: pqi_heart_v15 (Stage C activates, default -1)
 CSVF(pqiBreathV15Logged, 4);           // col 202: pqi_breath_v15 (Stage C activates, default -1)
@@ -7056,7 +7093,19 @@ CSVF(phaseBufferValidPctLogged, 2);    // col 203: phase_buffer_valid_pct (Stage
 CSVF(pqiV15PairCoverageMinLogged, 4);  // col 204: pqi_v15_pair_coverage_min (Stage C activates, default -1)
 CSVF(correctionShadowDeltaBpmLogged, 3); // col 205: correction_shadow_delta_bpm (Stage E activates, default -1)
 CSVI((int)correctionSourceLogged);     // col 206: correction_source (Stage E/v12 activates, default 0)
-Serial.println((unsigned int)correctionParamsHashLogged); _csvColCount++;  // col 207: correction_params_hash (Stage E/v12, default 0)
+CSVU(correctionParamsHashLogged);       // col 207: correction_params_hash (Stage E/v12, default 0)
+CSVF(diagLoopMeanMsLogged, 2);          // col 208: loop_dt_mean_ms
+CSVU(diagLoopMaxMsLogged);              // col 209: loop_dt_max_ms
+CSVF(((float)ESP.getFreeHeap()) / 1024.0f, 2);     // col 210: heap_free_kb
+CSVF(((float)ESP.getMinFreeHeap()) / 1024.0f, 2);  // col 211: heap_min_free_kb
+CSVU(diagRadarUartOverflowCount);       // col 212: radar_uart_overflow_count
+CSVU(diagRadarCrcErrCount);             // col 213: radar_crc_err_count
+CSVU(diagI2cRecoverCount);              // col 214: i2c_recover_count
+CSVU(diagLcdReinitCount);               // col 215: lcd_reinit_count
+CSVU(diagWdtNearMissCount);             // col 216: wdt_near_miss_count
+CSVU(diagCmdRxCount);                   // col 217: cmd_rx_count (reserved until command channel lands)
+CSVU(diagCmdErrCount);                  // col 218: cmd_err_count (reserved until command channel lands)
+Serial.println((unsigned long)(now / 1000UL)); _csvColCount++;  // col 219: fw_uptime_s
       if (sessionStats.active && !_csvFirstEmitDone) {
         _csvFirstEmitDone = true;
         if (_csvColCount != CSV_COLUMN_COUNT) {

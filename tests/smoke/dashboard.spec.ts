@@ -69,7 +69,7 @@ async function mockDemoReportSession(page: Page): Promise<void> {
       verdict: 'ready',
       readiness_kind: 'ready',
       categories: [
-        { id: 'firmware', label: 'Firmware contract', status: 'pass', detail: '207-column contract intact.', remediation: '' },
+        { id: 'firmware', label: 'Firmware contract', status: 'pass', detail: '219-column contract intact; 207-column prefix preserved.', remediation: '' },
         { id: 'reference', label: 'Reference coverage', status: 'warn', detail: 'BLE coverage 72%.', remediation: 'Keep the oximeter within range for the full session.' }
       ]
     },
@@ -1288,6 +1288,11 @@ test.describe('Dashboard smoke', () => {
     await expect(page.getByText('Live Validation')).toBeVisible();
     await expect(page.getByText('Reason Histograms')).toBeVisible();
     await expect(page.getByText('BLE Reference Quality')).toBeVisible();
+    await expect(page.getByText('Loop mean / max')).toBeVisible();
+    await expect(page.getByText('Heap free / min')).toBeVisible();
+    await expect(page.getByText('Firmware uptime')).toBeVisible();
+    await expect(page.getByText('Radar UART overflow')).toBeVisible();
+    await expect(page.getByText('Command RX / errors')).toBeVisible();
     await expectVisibleCardsContained();
     await page.getByRole('tab', { name: 'Snaps' }).click();
     await expect(page.locator('.snap-card')).toHaveCount(1);

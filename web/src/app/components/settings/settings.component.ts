@@ -151,6 +151,14 @@ export class SettingsComponent {
   protected readonly isSharing = computed(() => this.serverLifecycle.bindMode() === 'lan');
 
   async onShareToggleChange(checked: boolean): Promise<void> {
+    const confirmed = await this.confirmServerRestart(
+      checked ? 'Share trainer on the local network?' : 'Stop sharing on the local network?',
+      checked
+        ? 'The bundled trainer must restart in LAN mode. This interrupts any live session, closes the SSE stream, stops serial capture, and invalidates existing phone pairings.'
+        : 'The bundled trainer must restart in local mode. This interrupts any live session, closes the SSE stream, stops serial capture, and invalidates existing phone pairings.',
+      checked ? 'Restart and share' : 'Restart local only'
+    );
+    if (!confirmed) return;
     this.connectionBusy.set(true);
     try {
       const mode = checked ? 'lan' : 'local';
@@ -168,6 +176,12 @@ export class SettingsComponent {
   }
 
   async restartInLanMode(): Promise<void> {
+    const confirmed = await this.confirmServerRestart(
+      'Generate a new pairing PIN?',
+      'The bundled trainer must restart to mint a new PIN. This interrupts any live session, closes the SSE stream, stops serial capture, and invalidates existing phone pairings.',
+      'Restart and mint PIN'
+    );
+    if (!confirmed) return;
     this.connectionBusy.set(true);
     try {
       await this.serverLifecycle.restartServer('lan');
@@ -181,6 +195,24 @@ export class SettingsComponent {
     } finally {
       this.connectionBusy.set(false);
     }
+  }
+
+  async copyPairingLink(): Promise<void> {
+    const link = this.serverLifecycle.pairingUrl();
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      this.snackBar.open('Pairing link copied.', 'Dismiss', { duration: 3000 });
+    } catch (_) {
+      this.snackBar.open('Copy failed; select and copy the pairing link manually.', 'Dismiss', { duration: 5000 });
+    }
+  }
+
+  private async confirmServerRestart(title: string, message: string, confirmLabel: string): Promise<boolean> {
+    return Boolean(await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+      data: { title, message, confirmLabel },
+      restoreFocus: true
+    }).afterClosed()));
   }
 
   async startPythonServer(): Promise<void> {

@@ -42,11 +42,12 @@ By default the trainer binds `127.0.0.1` so nothing leaks to the network. Opt in
 python3 radar_vital_trainer_v12_for_v16_0.py serve --bind lan
 ```
 
-`--bind lan` generates a six-digit PIN (five-minute TTL, single-use), prints the pairing page URL, and supplies a QR link encoding `http://<lan-ip>:8765/?pair=<PIN>`. The Angular Settings view consumes a QR PIN or manual PIN and keeps the issued `X-RVT-Auth` token in session storage only. Five invalid PIN exchanges from one client within a minute trigger a one-minute pairing cooldown; reopen the pairing flow after the cooldown or mint a new PIN if an operator mistyped repeatedly.
+`--bind lan` generates a six-digit PIN (five-minute TTL, single-use), prints the pairing page URL, and supplies a QR link encoding `http://<lan-ip>:8765/?pair=<PIN>`. The public `/api/server-info` route is metadata-only and does not serve a QR image or expose the PIN. The Windows EXE Settings card reads PIN details through the native bridge from loopback-only `/api/native-pairing-info`; phone/APK/PWA clients use the printed QR, `/pair`, or manual PIN entry. The Angular Settings view keeps the issued `X-RVT-Auth` token in session storage only. Five invalid PIN exchanges from one client within a minute trigger a one-minute pairing cooldown; reopen the pairing flow after the cooldown or mint a new PIN if an operator mistyped repeatedly.
 
 | Endpoint set | Auth | Examples |
 |---|---|---|
 | Bootstrap/public | None | shell assets, `/pair`, `/api/health`, `/api/version`, `/api/server-info`, `/api/auth/exchange`, `/api/help/schema` |
+| EXE native loopback bootstrap | Loopback-only native bridge | `/api/native-pairing-info` |
 | Physiological/session/hardware | `X-RVT-Auth` required in LAN mode | `/api/status`, `/api/events/subscribe`, `/api/session/*`, `/api/sessions/*`, `/api/ble/scan`, `/api/serial/ports`, `/api/preflight` |
 | Control/mutation | `X-RVT-Auth` required in LAN mode | `/api/session/start`, `/api/session/stop`, notes/sign-off/tags updates, analysis reruns |
 

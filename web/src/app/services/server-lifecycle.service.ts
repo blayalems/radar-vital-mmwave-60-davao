@@ -25,8 +25,9 @@ interface TauriLifecycleResponse {
 
 export interface PairingInfo {
   pair_required?: boolean;
+  origin?: string;
+  active_pin?: string;
   active_pin_expires_at?: number;
-  ttl_seconds?: number;
 }
 
 interface NativeTrainerStatus {
@@ -51,6 +52,22 @@ export class ServerLifecycleService {
   readonly serverAddress = signal(this.readServerAddress());
   readonly bindMode = signal<'local' | 'lan'>('local');
   readonly pairingInfo = signal<PairingInfo | null>(null);
+  private readonly nowEpochS = signal(Math.floor(Date.now() / 1000));
+  readonly pairingTtlSeconds = computed<number | null>(() => {
+    const expiresAt = this.pairingInfo()?.active_pin_expires_at;
+    if (!expiresAt) return null;
+    return Math.max(0, Math.floor(expiresAt - this.nowEpochS()));
+  });
+  readonly pairingUrl = computed<string>(() => {
+    const info = this.pairingInfo();
+    if (!info?.origin) return '';
+    const origin = info.origin.replace(/\/+$/, '');
+    const ttl = this.pairingTtlSeconds();
+    if (info.active_pin && (ttl === null || ttl > 0)) {
+      return `${origin}/?pair=${info.active_pin}`;
+    }
+    return `${origin}/pair`;
+  });
   readonly platform = computed<ServerLifecyclePlatform>(() => this.hasTauriDesktop() ? 'exe' : 'remote');
   readonly blocksLive = computed(() => !this.state.demoMode() && ['offline', 'error', 'stopped'].includes(this.status()));
   readonly statusLabel = computed(() => {
@@ -65,10 +82,14 @@ export class ServerLifecycleService {
 
   private bootstrapStarted = false;
   private pollTimer: number | null = null;
+  private pairingTicker: number | null = null;
   private lastSyncedOrigin = '';
 
   constructor() {
-    this.destroyRef.onDestroy(() => this.stopPolling());
+    this.destroyRef.onDestroy(() => {
+      this.stopPolling();
+      this.stopPairingTicker();
+    });
     void this.bootstrap();
   }
 
@@ -181,29 +202,71 @@ export class ServerLifecycleService {
       }
       if (this.bindMode() === 'lan') {
         try {
-          const info = await this.api.request<any>('/api/server-info', undefined, true);
-          const now = Math.floor(Date.now() / 1000);
-          const expiresAt = Number(info.active_pin_expires_at) || 0;
-          const ttl = Math.max(0, Math.floor(expiresAt - now));
-          this.pairingInfo.set({
-            pair_required: info.pair_required,
-            active_pin_expires_at: expiresAt,
-            ttl_seconds: ttl
-          });
+          const info = await this.api.request<Record<string, unknown>>('/api/native-pairing-info', undefined, true);
+          this.setPairingInfo(this.parsePairingInfo(info));
         } catch (_) {
-          this.pairingInfo.set(null);
+          try {
+            const info = await this.api.request<Record<string, unknown>>('/api/server-info', undefined, true);
+            this.setPairingInfo(this.parsePairingInfo(info));
+          } catch (_) {
+            this.setPairingInfo(null);
+          }
         }
       } else {
-        this.pairingInfo.set(null);
+        this.setPairingInfo(null);
       }
     } else if (detail.running) {
       this.status.set('starting');
-      this.pairingInfo.set(null);
+      this.setPairingInfo(null);
     } else {
       this.status.set('stopped');
-      this.pairingInfo.set(null);
+      this.setPairingInfo(null);
     }
     await this.refreshLogTail();
+  }
+
+  private parsePairingInfo(raw: Record<string, unknown> | null | undefined): PairingInfo {
+    const envelope = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+    const payload = (envelope['data'] && typeof envelope['data'] === 'object'
+      ? envelope['data']
+      : envelope) as Record<string, unknown>;
+    const host = typeof payload['host'] === 'string' ? payload['host'] : '';
+    const port = Number(payload['port']);
+    const origin = typeof payload['origin'] === 'string' && payload['origin']
+      ? String(payload['origin'])
+      : (host && Number.isFinite(port) && port > 0 ? `http://${host}:${port}` : '');
+    const pinRaw = payload['active_pin'];
+    const pin = typeof pinRaw === 'string' || typeof pinRaw === 'number' ? String(pinRaw) : '';
+    const expiresAt = Number(payload['active_pin_expires_at']);
+    return {
+      pair_required: payload['pair_required'] === true,
+      origin: origin || undefined,
+      active_pin: /^\d{6}$/.test(pin) ? pin : undefined,
+      active_pin_expires_at: Number.isFinite(expiresAt) && expiresAt > 0 ? expiresAt : undefined
+    };
+  }
+
+  private setPairingInfo(info: PairingInfo | null): void {
+    this.pairingInfo.set(info);
+    if (info?.active_pin_expires_at) {
+      this.nowEpochS.set(Math.floor(Date.now() / 1000));
+      this.startPairingTicker();
+    } else {
+      this.stopPairingTicker();
+    }
+  }
+
+  private startPairingTicker(): void {
+    if (typeof window === 'undefined' || this.pairingTicker !== null) return;
+    this.pairingTicker = window.setInterval(() => {
+      this.nowEpochS.set(Math.floor(Date.now() / 1000));
+    }, 1000);
+  }
+
+  private stopPairingTicker(): void {
+    if (typeof window === 'undefined' || this.pairingTicker === null) return;
+    window.clearInterval(this.pairingTicker);
+    this.pairingTicker = null;
   }
 
   private startPolling(): void {

@@ -76,7 +76,7 @@
         </div>
 
         @if (serverLifecycle.platform() === 'exe') {
-          <div class="settings-row" style="margin-bottom: 0.5rem;">
+          <div class="settings-row share-toggle-row">
             <div class="settings-copy">
               <span class="row-title">Phone access — share on local network</span>
               <span class="row-description">Allow phones on the same local network to pair and view real-time telemetry.</span>
@@ -85,27 +85,37 @@
           </div>
 
           @if (isSharing() && serverLifecycle.bindMode() === 'lan' && serverLifecycle.status() === 'running') {
-            <div class="sharing-qr-container" style="margin-bottom: 1rem;">
+            <div class="sharing-qr-container">
               <div class="firewall-notice">
                 <mat-icon>info</mat-icon>
                 <span>Accept the Windows Firewall prompt if prompted to allow connection.</span>
               </div>
-              
-              <div class="qr-wrapper">
-                <img [src]="serverLifecycle.serverAddress() + '/api/server-info?format=qr'" alt="Pairing QR code" class="qr-image">
-              </div>
 
               @if (serverLifecycle.pairingInfo(); as info) {
+                <div class="pairing-address-block">
+                  <span class="pairing-label">Open on the phone</span>
+                  @if (serverLifecycle.pairingUrl(); as link) {
+                    <code class="pairing-address">{{ link }}</code>
+                    <button mat-flat-button type="button" class="mat-tonal-button" (click)="copyPairingLink()">
+                      <mat-icon>content_copy</mat-icon>Copy pairing link
+                    </button>
+                  } @else {
+                    <span class="pairing-expiry">The trainer prints the LAN pairing URL and PIN at startup; see the server log below.</span>
+                  }
+                </div>
                 <div class="pairing-details">
                   <div class="pairing-pin-row">
-                    <span class="pairing-label">Pairing PIN Required</span>
-                    <span class="pairing-expiry">
-                      @if (info.ttl_seconds !== undefined && info.ttl_seconds > 0) {
-                        Expires in {{ info.ttl_seconds }}s
-                      } @else {
-                        Expired
-                      }
-                    </span>
+                    <span class="pairing-label">One-time pairing PIN</span>
+                    @if (info.active_pin) {
+                      <span class="pairing-pin">{{ info.active_pin }}</span>
+                    } @else {
+                      <span class="pairing-expiry">This trainer build does not expose the PIN over the native channel; read it from the server log or the /pair page.</span>
+                    }
+                    @if (serverLifecycle.pairingTtlSeconds(); as ttl) {
+                      <span class="pairing-expiry">Expires in {{ ttl }}s and is consumed after first use.</span>
+                    } @else {
+                      <span class="pairing-expiry">Expired or not currently minted.</span>
+                    }
                   </div>
                   <button mat-flat-button type="button" class="mat-tonal-button new-pin-btn" (click)="restartInLanMode()" [disabled]="connectionBusy()">
                     <mat-icon>refresh</mat-icon>New PIN

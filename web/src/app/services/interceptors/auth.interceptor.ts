@@ -1,10 +1,10 @@
 import { HttpInterceptorFn } from '@angular/common/http';
-import { API_BASE_KEY, TOKEN_KEY } from '../rvt-storage-keys';
+import { API_BASE_KEY, TOKEN_KEY, OPERATOR_TOKEN_KEY } from '../rvt-storage-keys';
 
 export const rvtAuthInterceptor: HttpInterceptorFn = (req, next) => {
   let token = '';
   try {
-    token = sessionStorage.getItem(TOKEN_KEY) || '';
+    token = sessionStorage.getItem(OPERATOR_TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY) || '';
   } catch (_) {}
 
   // Retrieve current API base without injecting ApiService directly

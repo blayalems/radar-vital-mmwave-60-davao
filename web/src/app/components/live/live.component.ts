@@ -160,6 +160,11 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   });
   protected readonly ghostSessionActive = signal(false);
   protected readonly ghostSessionLabel = signal<string | null>(null);
+  protected readonly canStopSession = computed(() => {
+    const status = this.state.ctlStatus();
+    if (status && !status.active_session && !status.session) return false;
+    return this.state.sessionActive();
+  });
   private readonly ghostHrData = signal<number[]>([]);
   private readonly ghostRrData = signal<number[]>([]);
 

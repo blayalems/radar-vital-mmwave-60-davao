@@ -3,6 +3,39 @@ import { test, expect } from '@playwright/test';
 test.describe('OTA Update and Version Info Smoke Tests', () => {
   test.use({ serviceWorkers: 'block' });
 
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/auth/validate', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          operator: {
+            operator_id: 'op_test',
+            display_name: 'Operator A',
+            initials: 'OA'
+          }
+        })
+      });
+    });
+    await page.route('**/api/operator-profiles', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          schema_version: 'rvt-operator-profiles-v12.0',
+          profiles: [{ operator_id: 'op_test', display_name: 'Operator A', initials: 'OA' }]
+        })
+      });
+    });
+    await page.addInitScript(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
+      setup.operator_label = 'Operator A';
+      localStorage.setItem('rvt-setup', JSON.stringify(setup));
+    });
+  });
+
   test('displays product version and metadata in settings', async ({ page }) => {
     await page.goto('/settings', { waitUntil: 'domcontentloaded' });
     // Verify Update & Version Info card is visible

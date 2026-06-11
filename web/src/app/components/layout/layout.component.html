@@ -97,13 +97,23 @@
         <span class="r-ic"><span class="material-symbols-rounded">search</span></span><span class="r-label">Command</span>
       </button>
       
-      <a class="operator" title="Edit operator and station" routerLink="/home" aria-label="Edit operator and station">
+      <div class="operator" title="Current operator">
         <div class="op-avatar">{{ state.setup().operator_label ? state.setup().operator_label.substring(0, 2).toUpperCase() : 'OP' }}</div>
         <div class="op-meta">
           <div class="op-name">{{ state.setup().operator_label || 'Operator A' }}</div>
           <div class="op-role">{{ state.setup().station_label || 'Lab · Station 3' }}</div>
         </div>
-      </a>
+      </div>
+      <div class="operator-actions" role="group" aria-label="Operator profile actions">
+        <button mat-button type="button" class="operator-action" (click)="lockProfile()">
+          <mat-icon>lock</mat-icon>
+          <span>Lock profile</span>
+        </button>
+        <button mat-button type="button" class="operator-action" (click)="switchOperator()">
+          <mat-icon>swap_horiz</mat-icon>
+          <span>Switch operator</span>
+        </button>
+      </div>
     </div>
   </mat-sidenav>
 
@@ -136,7 +146,13 @@
     }
 
     <main class="main-content-scroll" id="mainContent" tabindex="-1" #mainContentScroll (scroll)="onMainScroll($event)">
-      <router-outlet></router-outlet>
+      @if (!auth.isLocked()) {
+        <router-outlet></router-outlet>
+      } @else {
+        <div class="locked-placeholder">
+          Console is locked. Please enter your operator PIN to unlock.
+        </div>
+      }
     </main>
 
     <!-- SCROLL TO TOP FAB -->

@@ -30,6 +30,7 @@ tests/visual/actual/
 # Trainer runtime scratch
 control_server.json
 subject_profiles.json
+operator_profiles.json
 sessions/
 
 # Editor

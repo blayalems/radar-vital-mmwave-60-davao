@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -75,13 +76,30 @@ def test_lan_sensitive_reads_require_token_and_public_shell_remains_available(tm
     base = f"http://127.0.0.1:{server.httpd.server_port}"
     try:
         assert _request(base, "/api/health")[0] == 200
-        assert _request(base, "/api/server-info")[0] == 200
+        assert _request(base, "/api/server-info")[0] == 401
         assert _request(base, "/api/status")[0] == 401
         assert _request(base, "/api/subject-profiles")[0] == 401
         assert _request(base, "/api/events/subscribe")[0] == 401
-        server.httpd.auth_tokens.add("accepted-token")
-        assert _request(base, "/api/status", token="accepted-token")[0] == 200
-        assert _request(base, "/api/subject-profiles", token="accepted-token")[0] == 200
+        
+        # Add a pairing token
+        server.httpd.auth_tokens.add("accepted-pairing-token")
+        assert _request(base, "/api/server-info", token="accepted-pairing-token")[0] == 200
+        
+        # Verify that pairing token is NOT enough for sensitive endpoints under PR48
+        assert _request(base, "/api/status", token="accepted-pairing-token")[0] == 401
+        assert _request(base, "/api/subject-profiles", token="accepted-pairing-token")[0] == 401
+        
+        # Add a valid operator session token
+        if not hasattr(server.httpd, "operator_sessions"):
+            server.httpd.operator_sessions = {}
+        server.httpd.operator_sessions["accepted-op-token"] = {
+            "operator_id": "op_test",
+            "expires_at": time.time() + 3600
+        }
+        
+        # Verify operator session token allows access to sensitive endpoints
+        assert _request(base, "/api/status", token="accepted-op-token")[0] == 200
+        assert _request(base, "/api/subject-profiles", token="accepted-op-token")[0] == 200
     finally:
         server.stop()
 

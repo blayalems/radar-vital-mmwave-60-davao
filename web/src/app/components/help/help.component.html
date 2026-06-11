@@ -46,6 +46,19 @@
 
   <div class="help-layout">
     <section class="help-accordion-content" aria-label="Help topics">
+      @for (entry of filteredEntries(); track entry.id) {
+        @if (selectedTopic() === entry.id) {
+          <mat-card class="faq-panel selected-topic-card" [attr.data-help-selected-topic]="entry.id">
+            <div class="faq-body-text">
+              <strong>{{ entry.summary }}</strong>
+              @if (entry.detail) { <p>{{ entry.detail }}</p> }
+              @if (advancedMode() && entry.advanced) {
+                <div class="advanced-note"><mat-icon>science</mat-icon><span>{{ entry.advanced }}</span></div>
+              }
+            </div>
+          </mat-card>
+        }
+      }
       <mat-accordion class="help-accordion" multi>
         @for (entry of filteredEntries(); track entry.id) {
           <mat-expansion-panel class="faq-panel" [expanded]="selectedTopic() === entry.id" [attr.data-help-topic]="entry.id">
@@ -55,13 +68,15 @@
                 {{ entry.title }}
               </mat-panel-title>
             </mat-expansion-panel-header>
-            <div class="faq-body-text">
-              <strong>{{ entry.summary }}</strong>
-              @if (entry.detail) { <p>{{ entry.detail }}</p> }
-              @if (advancedMode() && entry.advanced) {
-                <div class="advanced-note"><mat-icon>science</mat-icon><span>{{ entry.advanced }}</span></div>
-              }
-            </div>
+            @if (selectedTopic() !== entry.id) {
+              <div class="faq-body-text">
+                <strong>{{ entry.summary }}</strong>
+                @if (entry.detail) { <p>{{ entry.detail }}</p> }
+                @if (advancedMode() && entry.advanced) {
+                  <div class="advanced-note"><mat-icon>science</mat-icon><span>{{ entry.advanced }}</span></div>
+                }
+              </div>
+            }
           </mat-expansion-panel>
         }
       </mat-accordion>

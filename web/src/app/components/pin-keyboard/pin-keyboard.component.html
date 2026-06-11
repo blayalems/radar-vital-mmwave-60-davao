@@ -1,0 +1,45 @@
+<div class="pin-keyboard-container">
+  <div class="operator-info" *ngIf="operator">
+    <div class="avatar">{{ operator.initials || 'OP' }}</div>
+    <div class="name">{{ operator.display_name }}</div>
+  </div>
+
+  <div class="pin-display">
+    <span class="pin-dot" [class.filled]="pin.length >= 1"></span>
+    <span class="pin-dot" [class.filled]="pin.length >= 2"></span>
+    <span class="pin-dot" [class.filled]="pin.length >= 3"></span>
+    <span class="pin-dot" [class.filled]="pin.length >= 4"></span>
+  </div>
+
+  <div class="error-text" *ngIf="error || lockoutSeconds > 0">
+    <span *ngIf="lockoutSeconds > 0">Too many failed attempts. Try again in {{ lockoutSeconds }} seconds.</span>
+    <span *ngIf="error && lockoutSeconds === 0">{{ error }}</span>
+  </div>
+
+  <div class="keyboard-grid">
+    <button mat-button type="button" (click)="pressKey('1')" [disabled]="loading || lockoutSeconds > 0">1</button>
+    <button mat-button type="button" (click)="pressKey('2')" [disabled]="loading || lockoutSeconds > 0">2</button>
+    <button mat-button type="button" (click)="pressKey('3')" [disabled]="loading || lockoutSeconds > 0">3</button>
+
+    <button mat-button type="button" (click)="pressKey('4')" [disabled]="loading || lockoutSeconds > 0">4</button>
+    <button mat-button type="button" (click)="pressKey('5')" [disabled]="loading || lockoutSeconds > 0">5</button>
+    <button mat-button type="button" (click)="pressKey('6')" [disabled]="loading || lockoutSeconds > 0">6</button>
+
+    <button mat-button type="button" (click)="pressKey('7')" [disabled]="loading || lockoutSeconds > 0">7</button>
+    <button mat-button type="button" (click)="pressKey('8')" [disabled]="loading || lockoutSeconds > 0">8</button>
+    <button mat-button type="button" (click)="pressKey('9')" [disabled]="loading || lockoutSeconds > 0">9</button>
+
+    <button mat-button type="button" (click)="pressKey('clear')" [disabled]="loading || lockoutSeconds > 0" title="Clear PIN" class="key-clear">C</button>
+    <button mat-button type="button" (click)="pressKey('0')" [disabled]="loading || lockoutSeconds > 0">0</button>
+    <button mat-button type="button" (click)="pressKey('backspace')" [disabled]="loading || lockoutSeconds > 0" title="Backspace" class="key-backspace">
+      <span class="material-symbols-rounded">backspace</span>
+    </button>
+  </div>
+
+  <div class="actions-row" *ngIf="showCancel || loading">
+    <button mat-button type="button" *ngIf="showCancel" (click)="cancel.emit()" [disabled]="loading">
+      Cancel
+    </button>
+    <mat-spinner diameter="20" *ngIf="loading"></mat-spinner>
+  </div>
+</div>

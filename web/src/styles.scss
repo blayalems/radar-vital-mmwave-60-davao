@@ -708,6 +708,11 @@ h1, h2, h3, h4, h5, h6,
     padding: 0 14px !important;
   }
 
+  body[data-view] app-topbar .tb-live-mode .mat-pseudo-checkbox,
+  body[data-view] app-topbar .tb-density .mat-pseudo-checkbox {
+    display: none !important;
+  }
+
   body[data-view] app-topbar .tb-live-mode .material-symbols-rounded {
     font-size: 20px !important;
   }

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-11 — Multi-PR Improvement Plan (UI/UX + Firmware Tracks)
+
+- **Planning Document**: Added `docs/multi-pr-improvement-plan.md` defining two coordinated tracks of independently-mergeable PRs (PR-49 through PR-60): Track A covers Live view decomposition/perf, a11y & i18n foundation, mobile ergonomics/haptics, trend compare/annotations, session workflow/reporting, and connection/pairing status UX; Track B covers firmware hygiene & v17 debt prep, a CRC-guarded serial command channel, telemetry columns 208+, I2C/NVS/brownout robustness, presence-gated power/thermal management, and the gated BLE Phase 4F activation.
+- **Constraints Encoded**: Each PR entry restates the AGENTS.md invariants it touches (frozen 207-column serial contract with right-side additions only, no second UI framework, demo/live IndexedDB scoping, watchdog no-`delay()` rule, BLE default-off until physical GATT acceptance) plus per-PR acceptance criteria, verification additions, dependency ordering, and a five-milestone grouping.
+- **Verification**: Documentation-only change; no code paths touched. Standard build/test protocol not applicable beyond markdown review.
+
 ### 2026-06-08 — PR47 Review Follow-up Fixes
 
 - **Updater Manifest Version**: Changed `rvt-latest-tauri.json` generation to advertise the stamped release version (`RELEASE_VERSION`) so prerelease/main installers do not repeatedly compare against the base product version.

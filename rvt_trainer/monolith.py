@@ -40,6 +40,7 @@ Primary workflow
 
 import argparse
 import asyncio
+import base64
 import hashlib
 import inspect
 import importlib.util
@@ -6220,6 +6221,15 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         elif path == "/api/operator-profiles" and self.command == "POST" and is_bootstrap:
             is_discovery = True
 
+        # 4b. Loopback-only native bootstrap: the EXE shell reads pairing details
+        # over 127.0.0.1 with no pairing token (tokens belong to phones). The route
+        # handler independently rejects non-loopback clients with 403, so this
+        # never opens an unauthenticated LAN path.
+        client_address = getattr(self, "client_address", None)
+        client_host = str(client_address[0]) if client_address else ""
+        if path == "/api/native-pairing-info" and self.command == "GET" and client_host in {"127.0.0.1", "::1", "localhost"}:
+            return True
+
         # 5. Check operator session token validity
         is_real_valid_operator = False
         if token and hasattr(self.server, "operator_sessions") and token in self.server.operator_sessions:
@@ -6438,7 +6448,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             if client_host not in {"127.0.0.1", "::1", "localhost"}:
                 self._send_json(403, {"ok": False, "error": {"code": "LOOPBACK_ONLY", "message": "native pairing info is loopback-only"}}, cache_control="no-store")
                 return
-            self._send_json(200, {
+            pairing_payload = {
                 "ok": True,
                 "origin": _advertised_origin(self.server),
                 "scheme": _server_scheme(self.server),
@@ -6446,7 +6456,16 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "pair_required": getattr(self.server, "bind_mode", "local") == "lan",
                 "active_pin": getattr(self.server, "active_pin", "") or "",
                 "active_pin_expires_at": getattr(self.server, "active_pin_expires_at", 0.0),
-            }, cache_control="no-store")
+            }
+            if pairing_payload["bind_mode"] == "lan" and parse_qs(parsed.query).get("format", [""])[-1] == "qr":
+                pin = pairing_payload["active_pin"]
+                pair_url = _advertised_origin(self.server) + (f"/?pair={pin}" if pin else "/pair")
+                try:
+                    pairing_payload["qr_png_base64"] = base64.b64encode(_qr_png_bytes(pair_url)).decode("ascii")
+                    pairing_payload["qr_target_url"] = pair_url
+                except Exception:
+                    pass  # QR stays optional; the textual pairing link is always present
+            self._send_json(200, pairing_payload, cache_control="no-store")
             return
         if path == "/api/session/events" or path == "/api/events/subscribe":
             self._send_sse()

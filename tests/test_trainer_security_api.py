@@ -356,3 +356,61 @@ def test_update_manifest_proxy_caching_and_expiration(tmp_path: Path):
             assert call_count == 2
     finally:
         server.stop()
+
+
+def test_public_server_info_never_exposes_pin_material(tmp_path: Path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="lan", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    try:
+        # LAN bind requires a pairing token even for server-info (PR48 contract).
+        assert _request(base, "/api/server-info")[0] == 401
+        server.httpd.auth_tokens.add("paired-token")
+        status, payload = _request(base, "/api/server-info", token="paired-token")
+        assert status == 200
+        assert "active_pin" not in payload
+        assert "qr_png_base64" not in payload
+
+        # The legacy ?format=qr variant must also stay metadata-only.
+        status_qr, payload_qr = _request(base, "/api/server-info?format=qr", token="paired-token")
+        assert status_qr == 200
+        assert "active_pin" not in payload_qr
+        assert "qr_png_base64" not in payload_qr
+    finally:
+        server.stop()
+
+
+def test_native_pairing_qr_is_lan_gated(tmp_path: Path):
+    import base64 as _b64
+
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+
+    # Local bind: pairing info responds but never mints QR material.
+    local_server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    local_server.start()
+    base = f"http://127.0.0.1:{local_server.httpd.server_port}"
+    try:
+        status, payload = _request(base, "/api/native-pairing-info?format=qr")
+        assert status == 200
+        assert payload["bind_mode"] == "local"
+        assert "qr_png_base64" not in payload
+    finally:
+        local_server.stop()
+
+    # LAN bind: format=qr returns a PNG (base64) pointing at the pairing URL.
+    lan_server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="lan", mock=True)
+    lan_server.start()
+    base = f"http://127.0.0.1:{lan_server.httpd.server_port}"
+    try:
+        status, payload = _request(base, "/api/native-pairing-info?format=qr")
+        assert status == 200
+        assert payload["bind_mode"] == "lan"
+        assert payload.get("qr_png_base64"), "LAN pairing info should include QR material"
+        png = _b64.b64decode(payload["qr_png_base64"])
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"
+        assert payload["qr_target_url"].startswith("http")
+    finally:
+        lan_server.stop()

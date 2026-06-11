@@ -235,7 +235,9 @@ fn trainer_sidecar_args<'a>(mode: &str, port_arg: &'a str, sessions_root_arg: &'
 }
 
 fn ensure_lan_port_available() -> Result<(), String> {
-    TcpListener::bind((LOCAL_TRAINER_HOST, LAN_TRAINER_PORT))
+    // LAN mode binds the wildcard address, so probe 0.0.0.0 rather than loopback —
+    // a conflict bound only to a LAN interface would pass a 127.0.0.1 probe.
+    TcpListener::bind(("0.0.0.0", LAN_TRAINER_PORT))
         .map(|listener| drop(listener))
         .map_err(|error| format!("Port {LAN_TRAINER_PORT} is already in use; stop the other trainer or choose local mode. {error}"))
 }

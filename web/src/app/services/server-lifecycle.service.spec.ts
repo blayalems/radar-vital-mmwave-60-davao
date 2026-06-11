@@ -121,7 +121,8 @@ describe('ServerLifecycleService', () => {
       origin: 'http://192.168.1.50:8765',
       pair_required: true,
       active_pin: '123456',
-      active_pin_expires_at: now + 120
+      active_pin_expires_at: now + 120,
+      qr_png_base64: 'iVBORw0KGgo='
     });
     const invoke = vi.fn((command: string) => {
       if (command === 'trainer_start') return Promise.resolve({ state: 'starting' });
@@ -131,15 +132,20 @@ describe('ServerLifecycleService', () => {
     const service = configure(invoke);
     await service.startServer('lan');
 
-    expect(api.request).toHaveBeenCalledWith('/api/native-pairing-info', undefined, true);
+    expect(api.request).toHaveBeenCalledWith('/api/native-pairing-info?format=qr', undefined, true);
     expect(service.pairingInfo()?.active_pin).toBe('123456');
     expect(service.pairingUrl()).toBe('http://192.168.1.50:8765/?pair=123456');
+    expect(service.pairingQrDataUrl()).toBe('data:image/png;base64,iVBORw0KGgo=');
     expect(service.pairingTtlSeconds()).toBeGreaterThan(0);
   });
 
   it('keeps the pairing card usable when the trainer omits PIN fields', async () => {
-    api.request.mockRejectedValueOnce(new Error('native pairing info unavailable'));
-    api.request.mockResolvedValueOnce({ host: '192.168.1.50', port: 8765, pair_required: true });
+    // Path-keyed mock: order-independent against the constructor bootstrap race.
+    api.request.mockImplementation((path: string) =>
+      path.startsWith('/api/native-pairing-info')
+        ? Promise.reject(new Error('native pairing info unavailable'))
+        : Promise.resolve({ host: '192.168.1.50', port: 8765, pair_required: true })
+    );
     const invoke = vi.fn((command: string) => {
       if (command === 'trainer_start') return Promise.resolve({ state: 'starting' });
       if (command === 'native_trainer_status') return Promise.resolve({ running: true, ready: true, origin: 'http://127.0.0.1:8765', bind_mode: 'lan' });

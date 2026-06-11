@@ -28,6 +28,7 @@ export interface PairingInfo {
   origin?: string;
   active_pin?: string;
   active_pin_expires_at?: number;
+  qr_png_base64?: string;
 }
 
 interface NativeTrainerStatus {
@@ -67,6 +68,10 @@ export class ServerLifecycleService {
       return `${origin}/?pair=${info.active_pin}`;
     }
     return `${origin}/pair`;
+  });
+  readonly pairingQrDataUrl = computed<string>(() => {
+    const qr = this.pairingInfo()?.qr_png_base64;
+    return qr ? `data:image/png;base64,${qr}` : '';
   });
   readonly platform = computed<ServerLifecyclePlatform>(() => this.hasTauriDesktop() ? 'exe' : 'remote');
   readonly blocksLive = computed(() => !this.state.demoMode() && ['offline', 'error', 'stopped'].includes(this.status()));
@@ -202,7 +207,7 @@ export class ServerLifecycleService {
       }
       if (this.bindMode() === 'lan') {
         try {
-          const info = await this.api.request<Record<string, unknown>>('/api/native-pairing-info', undefined, true);
+          const info = await this.api.request<Record<string, unknown>>('/api/native-pairing-info?format=qr', undefined, true);
           this.setPairingInfo(this.parsePairingInfo(info));
         } catch (_) {
           try {
@@ -238,11 +243,14 @@ export class ServerLifecycleService {
     const pinRaw = payload['active_pin'];
     const pin = typeof pinRaw === 'string' || typeof pinRaw === 'number' ? String(pinRaw) : '';
     const expiresAt = Number(payload['active_pin_expires_at']);
+    const qrRaw = payload['qr_png_base64'];
+    const qr = typeof qrRaw === 'string' && /^[A-Za-z0-9+/=]+$/.test(qrRaw) ? qrRaw : '';
     return {
       pair_required: payload['pair_required'] === true,
       origin: origin || undefined,
       active_pin: /^\d{6}$/.test(pin) ? pin : undefined,
-      active_pin_expires_at: Number.isFinite(expiresAt) && expiresAt > 0 ? expiresAt : undefined
+      active_pin_expires_at: Number.isFinite(expiresAt) && expiresAt > 0 ? expiresAt : undefined,
+      qr_png_base64: qr || undefined
     };
   }
 

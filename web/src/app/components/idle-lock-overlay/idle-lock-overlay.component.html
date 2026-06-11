@@ -1,28 +1,140 @@
-@if (locked()) {
-  <section class="idle-lock-overlay" role="dialog" aria-modal="true" aria-labelledby="idleLockTitle">
-    <div class="idle-lock-panel">
-      <div class="lock-icon" aria-hidden="true">
-        <mat-icon>lock</mat-icon>
+@if (isLocked()) {
+<section class="idle-lock-overlay" role="dialog" aria-modal="true" aria-labelledby="idleLockTitle">
+  <div class="idle-lock-panel" cdkTrapFocus [cdkTrapFocusAutoCapture]="true">
+
+    <!-- 1. Onboarding Mode (Bootstrapping or adding new profile) -->
+    @if (auth.bootstrapping() || isAddingNewOperator()) {
+    <div class="onboarding-flow">
+      <div class="lock-header">
+        <div class="lock-icon">
+          <span class="material-symbols-rounded">person_add</span>
+        </div>
+        <p class="eyebrow">First-run setup</p>
+        <h2 id="idleLockTitle">Create Operator</h2>
+        <p class="lock-copy">Create a profile and PIN to secure access to the Radar Vital Console.</p>
       </div>
-      <p class="eyebrow">Privacy screen</p>
-      <h2 id="idleLockTitle">Session active</h2>
-      <p class="lock-copy">
-        Telemetry continues in the background. Destructive controls stay covered until the operator resumes the dashboard.
-      </p>
-      <dl>
-        <div>
-          <dt>Session</dt>
-          <dd>{{ sessionLabel() }}</dd>
+
+      <div class="onboarding-form">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Display Name</mat-label>
+          <input matInput [value]="displayName" (input)="displayName = inputValue($event)" placeholder="e.g. Dr. Sarah Connor" autocomplete="off">
+          <mat-hint>Min 3 characters</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Initials</mat-label>
+          <input matInput [value]="initials" (input)="initials = inputValue($event)" placeholder="e.g. SC" autocomplete="off" style="text-transform: uppercase;">
+          <mat-hint>Exactly 2 characters</mat-hint>
+        </mat-form-field>
+
+        <div class="pin-section">
+          <p class="section-label">Choose a 4-Digit PIN</p>
+          <div class="pin-display">
+            <span class="pin-dot" [class.filled]="onboardingPin.length >= 1"></span>
+            <span class="pin-dot" [class.filled]="onboardingPin.length >= 2"></span>
+            <span class="pin-dot" [class.filled]="onboardingPin.length >= 3"></span>
+            <span class="pin-dot" [class.filled]="onboardingPin.length >= 4"></span>
         </div>
-        <div>
-          <dt>Source</dt>
-          <dd>{{ sourceLabel() }}</dd>
+
+        @if (auth.loginError()) {
+        <div class="error-text">
+          {{ auth.loginError() }}
         </div>
-      </dl>
-      <button mat-flat-button type="button" (click)="resumeDashboard()">
-        <mat-icon>visibility</mat-icon>
-        Resume dashboard
-      </button>
+        }
+
+          <div class="keyboard-grid">
+            <button mat-button type="button" (click)="pressOnboardingPin('1')">1</button>
+            <button mat-button type="button" (click)="pressOnboardingPin('2')">2</button>
+            <button mat-button type="button" (click)="pressOnboardingPin('3')">3</button>
+            <button mat-button type="button" (click)="pressOnboardingPin('4')">4</button>
+            <button mat-button type="button" (click)="pressOnboardingPin('5')">5</button>
+            <button mat-button type="button" (click)="pressOnboardingPin('6')">6</button>
+            <button mat-button type="button" (click)="pressOnboardingPin('7')">7</button>
+            <button mat-button type="button" (click)="pressOnboardingPin('8')">8</button>
+            <button mat-button type="button" (click)="pressOnboardingPin('9')">9</button>
+            <button mat-button type="button" (click)="pressOnboardingPin('clear')" class="key-clear">C</button>
+            <button mat-button type="button" (click)="pressOnboardingPin('0')">0</button>
+            <button mat-button type="button" (click)="pressOnboardingPin('backspace')" class="key-backspace">
+              <span class="material-symbols-rounded">backspace</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions-row">
+        @if (isAddingNewOperator() && !auth.bootstrapping()) {
+        <button mat-button type="button" (click)="hideAddOperator()" [disabled]="auth.loading()">
+          Cancel
+        </button>
+        }
+        <button mat-flat-button type="button" (click)="submitOnboarding()" [disabled]="!isOnboardingValid() || auth.loading()">
+          @if (auth.loading()) {
+          <span class="spinner-container">
+            <mat-spinner diameter="16"></mat-spinner>
+          </span>
+          }
+          Create Profile
+        </button>
+      </div>
     </div>
-  </section>
+    }
+
+    <!-- 2. Lock / Login Screen Mode -->
+    @if (!auth.bootstrapping() && !isAddingNewOperator()) {
+    <div class="login-flow">
+      <!-- Operator Selection Screen (when multiple exist and none selected) -->
+      @if (!selectedOperator()) {
+      <div class="select-operator-screen">
+        <div class="lock-header">
+          <div class="lock-icon">
+            <span class="material-symbols-rounded">lock</span>
+          </div>
+          <p class="eyebrow">Authentication required</p>
+          <h2 id="idleLockTitle">Select Operator</h2>
+        </div>
+
+        <div class="profiles-list-container">
+          <div class="profiles-list" role="listbox" aria-label="Operator profiles">
+            @for (op of auth.profiles(); track op.operator_id) {
+            <button mat-button type="button" class="profile-row" (click)="selectOperator(op)">
+              <div class="list-item-content">
+                <span class="avatar-sm">{{ op.initials }}</span>
+                <span class="name-text">{{ op.display_name }}</span>
+              </div>
+            </button>
+            }
+          </div>
+        </div>
+
+      </div>
+      }
+
+      <!-- PIN Keyboard Screen for selected Operator -->
+      @if (selectedOperator()) {
+      <div class="pin-entry-screen">
+        <div class="lock-header">
+          <div class="lock-icon">
+            <span class="material-symbols-rounded">lock</span>
+          </div>
+          <p class="eyebrow">Unlock dashboard</p>
+          <h2 id="idleLockTitle">Enter PIN</h2>
+        </div>
+
+        <app-pin-keyboard
+          #pinKeyboard
+          [operator]="selectedOperator()"
+          [showCancel]="true"
+          [error]="auth.loginError()"
+          [loading]="auth.loading()"
+          [lockoutSeconds]="auth.lockoutForOperator(selectedOperator()?.operator_id)"
+          (submitPin)="handlePinSubmit($event)"
+          (cancel)="deselectOperator()">
+        </app-pin-keyboard>
+      </div>
+      }
+    </div>
+    }
+
+  </div>
+</section>
 }

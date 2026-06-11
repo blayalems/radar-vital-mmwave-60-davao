@@ -30,6 +30,7 @@ export class SwUpdateService {
     if (!this.supportsServiceWorker()) return false;
     try {
       const registration = await this.ensureRegistration();
+      if (!registration) return false;
       await registration.update();
       const waiting = registration.waiting;
       if (waiting && navigator.serviceWorker.controller) {
@@ -64,21 +65,27 @@ export class SwUpdateService {
     return true;
   }
 
-  private async registerCustomWorker(): Promise<ServiceWorkerRegistration> {
-    const registration = await navigator.serviceWorker.register('./sw.js');
-    this.registration = registration;
-    this.watchRegistration(registration);
-    if (registration.waiting && navigator.serviceWorker.controller) {
-      this.notifyWaitingWorker(registration.waiting);
-    }
+  private async registerCustomWorker(): Promise<ServiceWorkerRegistration | null> {
+    try {
+      const registration = await navigator.serviceWorker.register('./sw.js');
+      if (!registration) return null;
+      this.registration = registration;
+      this.watchRegistration(registration);
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        this.notifyWaitingWorker(registration.waiting);
+      }
 
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (this.applyingUpdate) location.reload();
-    });
-    return registration;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (this.applyingUpdate) location.reload();
+      });
+      return registration;
+    } catch (_) {
+      return null;
+    }
   }
 
-  private watchRegistration(registration: ServiceWorkerRegistration): void {
+  private watchRegistration(registration: ServiceWorkerRegistration | null): void {
+    if (!registration) return;
     registration.addEventListener('updatefound', () => {
       const worker = registration.installing;
       if (!worker) return;
@@ -106,7 +113,7 @@ export class SwUpdateService {
     });
   }
 
-  private async ensureRegistration(): Promise<ServiceWorkerRegistration> {
+  private async ensureRegistration(): Promise<ServiceWorkerRegistration | null> {
     if (this.registration) return this.registration;
     const existing = await navigator.serviceWorker.getRegistration('./');
     if (existing) {

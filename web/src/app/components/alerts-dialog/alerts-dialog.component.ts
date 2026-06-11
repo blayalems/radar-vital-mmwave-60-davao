@@ -24,6 +24,7 @@ export class AlertsDialogComponent {
   private readonly router = inject(Router);
   private readonly dialogRef = inject(MatDialogRef<AlertsDialogComponent>);
   protected readonly filter = signal<'active' | 'all' | 'info' | 'warn' | 'critical' | 'pinned'>('active');
+  protected readonly exportMenuOpen = signal(false);
 
   protected readonly alerts = computed(() => {
     const now = Date.now();
@@ -46,6 +47,10 @@ export class AlertsDialogComponent {
     this.state.pushAlert('Test alert: verify notifications, tone, and operator response.', 'warn');
   }
 
+  toggleExportMenu(): void {
+    this.exportMenuOpen.update(open => !open);
+  }
+
   snooze(alert: AlertEvent, minutes: number): void {
     this.state.snoozeAlert(alert.id, minutes);
   }
@@ -66,6 +71,7 @@ export class AlertsDialogComponent {
   }
 
   exportHistory(format: 'json' | 'csv'): void {
+    this.exportMenuOpen.set(false);
     const alerts = this.state.alertHistory();
     const content = format === 'json'
       ? JSON.stringify(alerts, null, 2)

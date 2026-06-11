@@ -5,6 +5,32 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-11 — PR48 CI Readiness Fixes
+
+- **Telemetry Session Reconciliation**: Made live payload `meta.status` / `session_id` authoritative for active-session state so stopped or idle trainer payloads clear the Angular navigation guard and Stop Session affordance.
+- **Session Start Payload Contract**: Re-aligned the shared Angular API service with the trainer `/api/session/start` contract (`subject_label`, `subject_profile_id`, `advanced.notify_char`) after the rebased PR branch exposed stale setup field references.
+- **Sandbox Report Contract**: Restored demo-mode report/session API shapes (`items` + `sessions`, summary/data/notes/signoff/compare/status payloads) and preserved the `16.1.0` static product-version literal.
+- **Mobile Actions Menu**: Replaced the custom mobile overflow panel with an Angular Material menu so Search, Lock, and Switch Operator actions are present and focusable across phone/tablet projects.
+- **SSE Startup Stability**: Kept TelemetryService reconnect startup outside Angular signal tracking while preserving the PR48 duplicate-connection guard.
+- **Smoke Test Determinism**: Mocked active-session SSE/live-dashboard payloads, reopened the selected Help topic before checking advanced copy, and cleared the PIN keypad before lockout attempts.
+- **Visual Baselines**: Seeded the authenticated operator context in v12 visual tests and refreshed the committed Windows baselines for the locked PR48 dashboard shell.
+- **Verification**: `npm --prefix web run build`, `npm run build:web`, `npm run build:check`, `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer`, `python -m rvt_trainer --help`, `python -m pytest tests -q` (90/90), `npm run test:unit:web` (39/39), `node scripts/generate-rvt-latest.mjs --self-test`, `npx playwright test tests/smoke --reporter=list` (184/184), and `npx playwright test tests/visual --reporter=list` (96/96) passed; Angular still reports the known initial bundle budget warning.
+
+### 2026-06-10 — PR48 Operator Profiles and PIN Lock Fixes
+
+- **Help Tab Auth Bypass**: Added `/api/help/schema` to the public endpoint bypass list so the Help tab loads successfully without an operator session token.
+- **Lockout Database Persistence Safety**: Fixed a brute-force lockout bypass where a failed database write on invalid attempts allowed attackers to retry PIN PIN verification by forcing the 429 lockout logic to fire unconditionally in memory.
+- **SSE Connection De-duplication**: Guarded TelemetryService to prevent duplicate EventSource connections on rapid lock/unlock transitions.
+- **SSE Memory Leak Prevention**: Added periodic reaping of expired SSE and session tokens during new token generation to prevent unbounded memory growth.
+- **Verification & Test Coverage**: Added a unit test validating 429 lockout enforcement on disk failure, and resolved Playwright smoke test flakiness by introducing Angular bootstrap loading overlay waits before UI click/input interactions.
+
+### 2026-06-09 — PR48 Operator Profiles and PIN Lock
+
+- **Operator Auth Backend**: Added PBKDF2-backed operator profiles, 8-hour operator sessions, first-run unauthenticated bootstrap only when no profiles exist, authenticated profile creation after bootstrap, logout revocation, 5-attempt/30-second PIN lockout, and protected sensitive control routes while keeping discovery/update endpoints public.
+- **Dashboard Lock UX**: Added first-run operator onboarding, PIN keypad lock/unlock, desktop rail and mobile overflow actions for Lock profile / Switch operator, authenticated add-and-switch dialog, and isolated operator token storage under `rvt-operator-token`.
+- **Telemetry Auth**: Routed Angular API calls and SSE reconnects through the operator token, including short-lived SSE token flow, without changing public health/version/update-manifest access.
+- **Smoke/Test Isolation**: Added backend/operator unit coverage and Playwright operator smoke with isolated `.playwright-state/sessions` trainer storage; non-auth dashboard/OTA smokes seed a mock operator token so existing v11 parity tests still exercise the UI.
+- **Verification**: `npm run build:web`, `npm run build:check`, `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer`, `python -m rvt_trainer --help`, `python -m pytest -q tests/test_operator_auth.py tests/test_trainer_security_api.py` (15/15), `npm --prefix web run test:ci -- --include src/app/services/auth.service.spec.ts` (7/7), `npx playwright test tests/smoke/operator.spec.ts --project=desktop` (1/1), `npx playwright test tests/smoke/operator.spec.ts --project=pixel-7` (1/1), `npx playwright test tests/smoke/api.spec.ts --project=desktop` (9/9), `npx playwright test tests/smoke/ota.spec.ts --project=desktop` (5/5), and targeted dashboard layout smoke (4/4) passed; unsliced `npm test -- --reporter=line` timed out in the local tool window before returning a result. Angular still reports the known initial bundle budget warning.
 ### 2026-06-11 — Multi-PR Improvement Plan (UI/UX + Firmware Tracks)
 
 - **Planning Document**: Added `docs/multi-pr-improvement-plan.md` defining two coordinated tracks of independently-mergeable PRs (PR-49 through PR-60): Track A covers Live view decomposition/perf, a11y & i18n foundation, mobile ergonomics/haptics, trend compare/annotations, session workflow/reporting, and connection/pairing status UX; Track B covers firmware hygiene & v17 debt prep, a CRC-guarded serial command channel, telemetry columns 208+, I2C/NVS/brownout robustness, presence-gated power/thermal management, and the gated BLE Phase 4F activation.

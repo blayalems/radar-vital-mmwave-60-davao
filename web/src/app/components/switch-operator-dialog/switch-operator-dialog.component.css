@@ -1,0 +1,77 @@
+.dialog-content {
+  min-width: 300px;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-block: 8px;
+}
+
+.intro {
+  margin: 0 0 12px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.875rem;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 0;
+}
+
+.list-item-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profiles-list {
+  display: grid;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.profile-row {
+  justify-content: flex-start;
+  min-height: 56px;
+  border-radius: 0;
+}
+
+.avatar-sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  display: grid;
+  place-items: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.name-text {
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface);
+}
+
+.add-profile-button {
+  margin-top: 12px;
+}
+
+.add-profile-form {
+  display: grid;
+  gap: 12px;
+}
+
+.add-profile-form mat-form-field {
+  width: 100%;
+}
+
+.error-text {
+  color: var(--md-sys-color-error);
+  font-size: 0.8125rem;
+  margin: 0;
+}

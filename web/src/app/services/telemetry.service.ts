@@ -1,8 +1,10 @@
-import { Injectable, effect, inject } from '@angular/core';
+import { Injectable, effect, inject, untracked } from '@angular/core';
 import { LivePayload } from '../models/rvt.models';
 import { AudioService } from './audio.service';
 import { StateService } from './state.service';
 import { ApiService } from './api.service';
+import { AuthService } from './auth.service';
+import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
 
 @Injectable({
   providedIn: 'root',
@@ -11,6 +13,7 @@ export class TelemetryService {
   private state = inject(StateService);
   private api = inject(ApiService);
   private audio = inject(AudioService);
+  private auth = inject(AuthService);
 
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -25,16 +28,27 @@ export class TelemetryService {
 
   constructor() {
     this.start();
+    window.addEventListener('rvt-operator-authenticated', () => this.reconnect());
     effect(() => {
       const simulating = this.state.demoMode() || this.state.autoDemoActive();
-      if (simulating) {
+      const isLocked = this.auth.isLocked();
+      if (isLocked) {
+        this.stopSse();
+        this.clearPollTimer();
+        this.clearReconnectTimer();
+      } else if (simulating) {
         this.stopSse();
         this.clearReconnectTimer();
         this.scheduleNextPoll(0);
-      } else if (this.running && !this.sseMode) {
-        void this.api.detectControlMode().then(() => {
-          this.scheduleNextPoll(0);
-          this.startSse();
+      } else if (this.running) {
+        this.stopSse();
+        this.clearPollTimer();
+        this.clearReconnectTimer();
+        untracked(() => {
+          void this.api.detectControlMode().then(() => {
+            this.scheduleNextPoll(0);
+            this.startSse();
+          });
         });
       }
     });
@@ -44,6 +58,19 @@ export class TelemetryService {
     this.running = true;
     this.scheduleNextPoll(1000);
     this.startSse();
+  }
+
+  reconnect(): void {
+    this.stopSse();
+    this.clearPollTimer();
+    this.clearReconnectTimer();
+    this.sseReconnectAttempts = 0;
+    this.httpPollFailures = 0;
+    if (!this.running) {
+      this.running = true;
+    }
+    this.scheduleNextPoll(0);
+    void this.startSse();
   }
 
   stop() {
@@ -120,21 +147,37 @@ export class TelemetryService {
     }
   }
 
-  private startSse() {
+  private async startSse() {
     if (typeof EventSource === 'undefined') return;
     // Tauri keeps browser CSP at connect-src 'self'. EventSource bypasses the
     // HttpClient interceptor, so the native shell uses origin-pinned polling.
     if (this.isTauriNative()) return;
     if (this.state.demoMode() || this.state.autoDemoActive()) return;
     if (!this.running) return;
-    if (this.api.hasPairToken()) {
+    // Guard: prevent duplicate EventSource if one is already connected
+    if (this.sse) return;
+    if (this.api.hasPairToken() && !sessionStorage.getItem(OPERATOR_TOKEN_KEY)) {
       this.scheduleNextPoll(0);
       return;
     }
 
     try {
       const base = this.api.currentApiBase();
-      this.sse = new EventSource(`${base}/api/events/subscribe`);
+      let sseToken = '';
+      try {
+        const hasOperatorToken = sessionStorage.getItem(OPERATOR_TOKEN_KEY);
+        if (hasOperatorToken) {
+          const res = await this.api.request<{ sse_token: string }>('/api/auth/sse-token', { method: 'POST' });
+          if (res?.sse_token) {
+            sseToken = res.sse_token;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to obtain sse-token', err);
+      }
+
+      const url = sseToken ? `${base}/api/events/subscribe?token=${encodeURIComponent(sseToken)}` : `${base}/api/events/subscribe`;
+      this.sse = new EventSource(url);
 
       this.sse.onopen = () => {
         console.log('SSE connection successfully opened.');
@@ -388,6 +431,15 @@ export class TelemetryService {
     this.state.lastLivePayload.set(normalized);
     this.state.liveReceivedAt.set(receivedAt);
     this.state.telemetryStale.set(false);
+    const payloadStatus = String(normalized.meta['status'] || '').toLowerCase();
+    const payloadSessionId = String(normalized.meta['session_id'] || normalized.meta['active_session_id'] || '');
+    if (['idle', 'waiting', 'stopped', 'complete', 'completed'].includes(payloadStatus)) {
+      this.state.sessionActive.set(false);
+      this.state.currentSessionId.set(null);
+    } else if (payloadSessionId && ['running', 'active', 'recording'].includes(payloadStatus)) {
+      this.state.sessionActive.set(true);
+      this.state.currentSessionId.set(payloadSessionId);
+    }
     if (this.staleTimer) clearTimeout(this.staleTimer);
     this.staleTimer = setTimeout(() => this.state.telemetryStale.set(true), 3500);
 

@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 const PYTHON = process.env.PYTHON || 'python3';
 const TRAINER_PORT = process.env.RVT_TEST_PORT ? parseInt(process.env.RVT_TEST_PORT, 10) : 8989;
 const BASE_URL = `http://127.0.0.1:${TRAINER_PORT}`;
+const TRAINER_SESSIONS_ROOT = process.env.RVT_TEST_SESSIONS_ROOT || '.playwright-state/sessions';
 
 export default defineConfig({
   testDir: 'tests',
@@ -27,7 +28,7 @@ export default defineConfig({
     { name: 'ipad',        use: { ...devices['iPad (gen 7)'] } }
   ],
   webServer: {
-    command: `${PYTHON} radar_vital_trainer_v12_for_v16_0.py serve --mock --no-browser --control-port ${TRAINER_PORT} --host 127.0.0.1`,
+    command: `${PYTHON} radar_vital_trainer_v12_for_v16_0.py serve --mock --no-browser --control-port ${TRAINER_PORT} --host 127.0.0.1 --sessions-root ${TRAINER_SESSIONS_ROOT}`,
     url: `${BASE_URL}/api/health`,
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe',

@@ -164,7 +164,8 @@
     width: auto !important;
   }
 
-  .app.rail-collapsed .rail .operator {
+  .app.rail-collapsed .rail .operator,
+  .app.rail-collapsed .rail .operator-actions {
     display: none !important;
   }
 }
@@ -179,6 +180,46 @@
 
 .main-content-scroll:focus {
   outline: none;
+}
+
+.rail .operator {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 16px;
+  color: inherit;
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.rail .operator-actions {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.rail .operator-action {
+  justify-content: flex-start;
+  min-height: 40px;
+  width: 100%;
+}
+
+.rail .operator-action mat-icon {
+  margin-right: 8px;
+}
+
+.locked-placeholder {
+  align-items: center;
+  color: var(--md-sys-color-on-surface-variant);
+  display: flex;
+  flex: 1;
+  font-size: 0.875rem;
+  justify-content: center;
+  min-height: 400px;
 }
 
 .bottom-nav {

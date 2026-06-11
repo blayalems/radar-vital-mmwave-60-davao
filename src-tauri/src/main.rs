@@ -34,7 +34,6 @@ struct NativeState {
     trainer_log: Mutex<VecDeque<String>>,
 }
 
-#[derive(Default)]
 struct TrainerSidecarState {
     origin: Option<String>,
     running: bool,
@@ -45,6 +44,24 @@ struct TrainerSidecarState {
     stop_requested: bool,
     started_at_ms: Option<u128>,
     sessions_root: Option<String>,
+    bind_mode: String,
+}
+
+impl Default for TrainerSidecarState {
+    fn default() -> Self {
+        Self {
+            origin: None,
+            running: false,
+            ready: false,
+            error: None,
+            child: None,
+            child_pid: None,
+            stop_requested: false,
+            started_at_ms: None,
+            sessions_root: None,
+            bind_mode: "local".to_string(),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -92,6 +109,7 @@ struct TrainerSidecarStatus {
     error: Option<String>,
     started_at_ms: Option<u128>,
     sessions_root: Option<String>,
+    bind_mode: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -298,6 +316,7 @@ fn trainer_status_snapshot(state: &State<'_, NativeState>) -> TrainerSidecarStat
             error: guard.error.clone(),
             started_at_ms: guard.started_at_ms,
             sessions_root: guard.sessions_root.clone(),
+            bind_mode: guard.bind_mode.clone(),
         },
         Err(_) => TrainerSidecarStatus {
             enabled: true,
@@ -307,6 +326,7 @@ fn trainer_status_snapshot(state: &State<'_, NativeState>) -> TrainerSidecarStat
             error: Some("Native trainer state is unavailable.".to_string()),
             started_at_ms: None,
             sessions_root: None,
+            bind_mode: "local".to_string(),
         },
     }
 }
@@ -326,9 +346,14 @@ fn shutdown_local_trainer(state: &State<'_, NativeState>) {
     }
 }
 
-fn start_local_trainer_sidecar(app: &AppHandle, state: &State<'_, NativeState>) -> Result<(), String> {
-    let port = reserve_loopback_port()?;
-    let origin = format!("http://{LOCAL_TRAINER_HOST}:{port}");
+fn start_local_trainer_sidecar(bind_mode: Option<String>, app: &AppHandle, state: &State<'_, NativeState>) -> Result<(), String> {
+    let mode = bind_mode.unwrap_or_else(|| "local".to_string());
+    let (port, origin) = if mode == "lan" {
+        (8765, "http://127.0.0.1:8765".to_string())
+    } else {
+        let p = reserve_loopback_port()?;
+        (p, format!("http://{LOCAL_TRAINER_HOST}:{p}"))
+    };
     let data_dir = app.path().app_data_dir().map_err(|error| format!("Could not resolve app data dir: {error}"))?;
     let sessions_root = data_dir.join("sessions");
     create_dir_all(&sessions_root).map_err(|error| format!("Could not create sessions dir: {error}"))?;
@@ -339,8 +364,20 @@ fn start_local_trainer_sidecar(app: &AppHandle, state: &State<'_, NativeState>) 
         .shell()
         .sidecar("rvt-trainer")
         .map_err(|error| format!("Bundled trainer sidecar is not available: {error}"))?;
-    let (mut events, child) = sidecar
-        .args([
+
+    let args = if mode == "lan" {
+        vec![
+            "serve",
+            "--bind",
+            "lan",
+            "--port",
+            &port_arg,
+            "--sessions-root",
+            &sessions_root_arg,
+            "--no-browser",
+        ]
+    } else {
+        vec![
             "serve",
             "--bind",
             "local",
@@ -351,7 +388,11 @@ fn start_local_trainer_sidecar(app: &AppHandle, state: &State<'_, NativeState>) 
             "--sessions-root",
             &sessions_root_arg,
             "--no-browser",
-        ])
+        ]
+    };
+
+    let (mut events, child) = sidecar
+        .args(args)
         .spawn()
         .map_err(|error| format!("Failed to start bundled trainer: {error}"))?;
     let child_pid = child.pid();
@@ -367,6 +408,7 @@ fn start_local_trainer_sidecar(app: &AppHandle, state: &State<'_, NativeState>) 
         trainer.sessions_root = Some(sessions_root_arg);
         trainer.child_pid = Some(child_pid);
         trainer.child = Some(child);
+        trainer.bind_mode = mode;
     }
     if let Ok(mut paired) = state.paired_origin.lock() {
         *paired = Some(origin.clone());
@@ -440,7 +482,7 @@ fn trainer_status(state: State<'_, NativeState>) -> TrainerLifecycleState {
 }
 
 #[tauri::command]
-fn trainer_start(app: AppHandle, state: State<'_, NativeState>) -> TrainerLifecycleState {
+fn trainer_start(bind_mode: Option<String>, app: AppHandle, state: State<'_, NativeState>) -> TrainerLifecycleState {
     {
         let trainer = match state.trainer.lock() {
             Ok(trainer) => trainer,
@@ -451,7 +493,7 @@ fn trainer_start(app: AppHandle, state: State<'_, NativeState>) -> TrainerLifecy
         }
     }
 
-    if let Err(error) = start_local_trainer_sidecar(&app, &state) {
+    if let Err(error) = start_local_trainer_sidecar(bind_mode, &app, &state) {
         if let Ok(mut trainer) = state.trainer.lock() {
             trainer.running = false;
             trainer.ready = false;
@@ -747,6 +789,15 @@ mod tests {
         assert_eq!(log.front().unwrap(), "[stdout] line 5");
         assert_eq!(log.back().unwrap(), "[stdout] line 24");
     }
+
+    #[test]
+    fn trainer_lifecycle_includes_bind_mode() {
+        let state = TrainerSidecarState {
+            bind_mode: "lan".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(state.bind_mode, "lan");
+    }
 }
 
 fn main() {
@@ -757,7 +808,7 @@ fn main() {
         .setup(|app| {
             let app_handle = app.handle().clone();
             let state = app.state::<NativeState>();
-            if let Err(error) = start_local_trainer_sidecar(&app_handle, &state) {
+            if let Err(error) = start_local_trainer_sidecar(None, &app_handle, &state) {
                 let app_handle = app.handle().clone();
                 let state = app.state::<NativeState>();
                 if let Ok(mut trainer) = state.trainer.lock() {

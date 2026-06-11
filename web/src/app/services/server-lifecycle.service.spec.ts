@@ -53,7 +53,7 @@ describe('ServerLifecycleService', () => {
     await service.startServer();
 
     expect(service.platform()).toBe('exe');
-    expect(invoke).toHaveBeenCalledWith('trainer_start', undefined);
+    expect(invoke).toHaveBeenCalledWith('trainer_start', { bindMode: 'local' });
   });
 
   it('transitions to running when Tauri trainer reports ready', async () => {
@@ -97,7 +97,20 @@ describe('ServerLifecycleService', () => {
     const service = configure(invoke);
     await service.startServer();
 
-    expect(invoke).toHaveBeenCalledWith('trainer_start', undefined);
+    expect(invoke).toHaveBeenCalledWith('trainer_start', { bindMode: 'local' });
+  });
+
+  it('startServer passes bindMode: lan to Tauri command', async () => {
+    const invoke = vi.fn((command: string) => {
+      if (command === 'trainer_start') return Promise.resolve({ state: 'starting' });
+      if (command === 'native_trainer_status') return Promise.resolve({ running: true, ready: true, origin: 'http://127.0.0.1:8765', bind_mode: 'lan' });
+      return Promise.resolve([]);
+    });
+    const service = configure(invoke);
+    await service.startServer('lan');
+
+    expect(invoke).toHaveBeenCalledWith('trainer_start', { bindMode: 'lan' });
+    expect(service.bindMode()).toBe('lan');
   });
 
   it('startServer retries the remote connection outside Tauri', async () => {

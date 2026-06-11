@@ -148,10 +148,45 @@ export class SettingsComponent {
     }
   }
 
+  protected readonly isSharing = computed(() => this.serverLifecycle.bindMode() === 'lan');
+
+  async onShareToggleChange(checked: boolean): Promise<void> {
+    this.connectionBusy.set(true);
+    try {
+      const mode = checked ? 'lan' : 'local';
+      await this.serverLifecycle.restartServer(mode);
+      this.endpointInput.set(this.serverLifecycle.serverAddress());
+    } catch (error: unknown) {
+      this.snackBar.open(
+        error instanceof Error ? error.message : 'Could not change sharing mode.',
+        'Dismiss',
+        { duration: 5000 }
+      );
+    } finally {
+      this.connectionBusy.set(false);
+    }
+  }
+
+  async restartInLanMode(): Promise<void> {
+    this.connectionBusy.set(true);
+    try {
+      await this.serverLifecycle.restartServer('lan');
+      this.endpointInput.set(this.serverLifecycle.serverAddress());
+    } catch (error: unknown) {
+      this.snackBar.open(
+        error instanceof Error ? error.message : 'Could not generate a new PIN.',
+        'Dismiss',
+        { duration: 5000 }
+      );
+    } finally {
+      this.connectionBusy.set(false);
+    }
+  }
+
   async startPythonServer(): Promise<void> {
     this.connectionBusy.set(true);
     try {
-      await this.serverLifecycle.startServer();
+      await this.serverLifecycle.startServer(this.serverLifecycle.bindMode());
       this.endpointInput.set(this.serverLifecycle.serverAddress());
     } finally {
       this.connectionBusy.set(false);

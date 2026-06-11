@@ -23,6 +23,7 @@ The installer should not require the operator to manually run `radar_vital_train
 - Serial port discovery and live session start remain trainer-owned.
 - Closing the Tauri window terminates the sidecar process.
 - The app can still connect to an external LAN trainer through the existing Settings/PIN path when needed.
+- The Settings page provides a "Phone access — share on local network" toggle (Tauri/EXE only) that restarts the sidecar in `--bind lan` mode on port 8765, rendering a pairing QR code, PIN details/TTL, a "New PIN" button, and a Windows Firewall instruction.
 
 ## Android APK
 

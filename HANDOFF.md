@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — One-Click Phone Sharing from Windows EXE and Request Timeout Fix
+
+- **Tauri Companion Sidecar Parametrization**: Added `bind_mode` parameter to Tauri state and `trainer_start` command to allow launching the companion Python trainer in LAN mode (`--bind lan` on port 8765) or local mode (random loopback port).
+- **Angular Settings Interface**: Integrated a "Phone access — share on local network" slide toggle in the Tauri-only Settings card, with inline pairing QR rendering from `/api/server-info?format=qr`, PIN expiration countdown, a "New PIN" restart trigger, and Windows Firewall copy.
+- **Request Timeout Fix**: Increased request timeout from 10s to 30s in `api.service.ts` to handle PBKDF2 hashing overhead during operator creation.
+- **Verification**: `cargo test --manifest-path src-tauri/Cargo.toml` (9/9), `python -m pytest -q tests` (90/90), and Playwright smoke verification (`npm test`) passed; verified that the share toggle is hidden in standard browser contexts.
+
 ### 2026-06-11 — PR48 CI Readiness Fixes
 
 - **Telemetry Session Reconciliation**: Made live payload `meta.status` / `session_id` authoritative for active-session state so stopped or idle trainer payloads clear the Angular navigation guard and Stop Session affordance.

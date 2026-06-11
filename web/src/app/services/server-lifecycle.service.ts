@@ -23,11 +23,18 @@ interface TauriLifecycleResponse {
   message?: string;
 }
 
+export interface PairingInfo {
+  pair_required?: boolean;
+  active_pin_expires_at?: number;
+  ttl_seconds?: number;
+}
+
 interface NativeTrainerStatus {
   running?: boolean;
   ready?: boolean;
   origin?: string | null;
   error?: string | null;
+  bind_mode?: 'local' | 'lan';
 }
 
 @Injectable({
@@ -42,6 +49,8 @@ export class ServerLifecycleService {
   readonly lastError = signal<string | null>(null);
   readonly logTail = signal<string[]>([]);
   readonly serverAddress = signal(this.readServerAddress());
+  readonly bindMode = signal<'local' | 'lan'>('local');
+  readonly pairingInfo = signal<PairingInfo | null>(null);
   readonly platform = computed<ServerLifecyclePlatform>(() => this.hasTauriDesktop() ? 'exe' : 'remote');
   readonly blocksLive = computed(() => !this.state.demoMode() && ['offline', 'error', 'stopped'].includes(this.status()));
   readonly statusLabel = computed(() => {
@@ -82,7 +91,7 @@ export class ServerLifecycleService {
     return normalized;
   }
 
-  async startServer(): Promise<void> {
+  async startServer(bindMode?: 'local' | 'lan'): Promise<void> {
     if (!this.hasTauriDesktop()) {
       await this.retryConnection();
       return;
@@ -90,7 +99,7 @@ export class ServerLifecycleService {
     this.status.set('starting');
     this.lastError.set(null);
     try {
-      const lifecycle = await this.invoke<TauriLifecycleResponse>('trainer_start');
+      const lifecycle = await this.invoke<TauriLifecycleResponse>('trainer_start', { bindMode: bindMode || 'local' });
       this.applyLifecycle(lifecycle);
       await this.refreshTauriDetails();
       this.startPolling();
@@ -113,10 +122,10 @@ export class ServerLifecycleService {
     }
   }
 
-  async restartServer(): Promise<void> {
+  async restartServer(bindMode?: 'local' | 'lan'): Promise<void> {
     if (this.hasTauriDesktop()) {
       await this.stopServer();
-      await this.startServer();
+      await this.startServer(bindMode);
     } else {
       await this.retryConnection();
     }
@@ -158,18 +167,41 @@ export class ServerLifecycleService {
     if (detail.origin) {
       this.setServerAddress(detail.origin);
     }
+    if (detail.bind_mode) {
+      this.bindMode.set(detail.bind_mode);
+    }
     if (detail.error) {
       this.setError(detail.error);
+      this.pairingInfo.set(null);
     } else if (detail.running && detail.ready) {
       this.status.set('running');
       if (detail.origin && detail.origin !== this.lastSyncedOrigin) {
         this.lastSyncedOrigin = detail.origin;
         await this.api.detectControlMode();
       }
+      if (this.bindMode() === 'lan') {
+        try {
+          const info = await this.api.request<any>('/api/server-info', undefined, true);
+          const now = Math.floor(Date.now() / 1000);
+          const expiresAt = Number(info.active_pin_expires_at) || 0;
+          const ttl = Math.max(0, Math.floor(expiresAt - now));
+          this.pairingInfo.set({
+            pair_required: info.pair_required,
+            active_pin_expires_at: expiresAt,
+            ttl_seconds: ttl
+          });
+        } catch (_) {
+          this.pairingInfo.set(null);
+        }
+      } else {
+        this.pairingInfo.set(null);
+      }
     } else if (detail.running) {
       this.status.set('starting');
+      this.pairingInfo.set(null);
     } else {
       this.status.set('stopped');
+      this.pairingInfo.set(null);
     }
     await this.refreshLogTail();
   }

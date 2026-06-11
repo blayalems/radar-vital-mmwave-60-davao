@@ -1089,6 +1089,30 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('.snap-card')).toHaveCount(1);
   });
 
+  test('surfaces signal lock-state, confidence and readiness chips in demo mode', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      localStorage.setItem('rvt-demo-mode', '1');
+    });
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await waitForUnlockedShell(page);
+    await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+
+    // Phase chip renders one of the firmware lock-state labels.
+    const phaseChip = page.locator('.signal-status-chips .phase-chip');
+    await expect(phaseChip).toBeVisible();
+    await expect(phaseChip).toHaveText(
+      /No subject detected|Warming up|Settling|Signal locked|Recovering after motion|Subject leaving/
+    );
+
+    // HR confidence badge renders a percentage from the demo payload.
+    await expect(page.locator('.kpi-hr .kpi-conf-badge')).toContainText(/\d+%/);
+
+    // Demo analysis advertises a readiness verdict chip.
+    await expect(page.locator('.signal-status-chips .verdict-chip')).toContainText('Readiness:');
+  });
+
   test('restores live diagnostics and functional Material actions in demo mode', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => {

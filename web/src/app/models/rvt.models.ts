@@ -164,6 +164,16 @@ export interface LivePayload {
     motion?: number;
     human?: boolean;
     rows?: number;
+    session_phase?: number;
+    session_phase_name?: string;
+    hr_locked_live?: number;
+    hr_confidence?: number | null;
+    hr_confidence_source_name?: string;
+    logged_hr_valid?: number;
+    logged_rr_valid?: number;
+    doppler_motion?: number;
+    pqi_heart?: number;
+    pqi_breath?: number;
   };
   ble: Record<string, unknown> & {
     address?: string;

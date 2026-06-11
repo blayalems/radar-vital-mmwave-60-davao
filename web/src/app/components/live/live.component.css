@@ -1289,3 +1289,112 @@
 .drag-icon:active {
   cursor: grabbing;
 }
+
+/* ---- Signal lock-state / confidence / motion surfacing ---- */
+.signal-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.status-chip mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.phase-chip[data-phase='LOCKED'] {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-color: transparent;
+}
+
+.phase-chip[data-phase='POST_MOTION'],
+.phase-chip[data-phase='LEAVING'] {
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+  border-color: transparent;
+}
+
+.phase-chip[data-phase='ABSENT'] {
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.motion-chip {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  border-color: transparent;
+}
+
+.verdict-chip[data-verdict='ready'] {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-color: transparent;
+}
+
+.verdict-chip[data-verdict='degraded_signal'],
+.verdict-chip[data-verdict='not_ready'],
+.verdict-chip[data-verdict='firmware_rejected'] {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  border-color: transparent;
+}
+
+.status-chip.stale-dim {
+  opacity: 0.5;
+  filter: grayscale(0.4);
+}
+
+.kpi-conf-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.kpi-card-value.kpi-holding strong {
+  opacity: 0.55;
+}
+
+.holding-tag {
+  align-self: flex-start;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+@media (max-width: 900px) {
+  .signal-status-chips {
+    width: 100%;
+    order: 3;
+  }
+}

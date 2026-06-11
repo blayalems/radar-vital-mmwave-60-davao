@@ -300,6 +300,11 @@ export class TelemetryService {
     const N = 120;
     const hrBase = 72 + 4 * Math.sin(t / 12);
     const rrBase = 15 + 1.5 * Math.sin(t / 18 + 1);
+    // Simulated lock-state lifecycle: warmup -> settling -> locked, with a short
+    // motion burst every 45 s so the motion chip and "holding" states are demo-visible.
+    const inMotion = t % 45 >= 42 ? 1 : 0;
+    const phaseName = inMotion ? 'POST_MOTION' : t < 6 ? 'WARMUP' : t < 14 ? 'SETTLING' : 'LOCKED';
+    const phaseCode = ({ WARMUP: 1, SETTLING: 2, LOCKED: 3, POST_MOTION: 4 } as Record<string, number>)[phaseName];
     const ts: number[] = [];
     const rep_hr: number[] = [];
     const can_hr: number[] = [];
@@ -364,6 +369,14 @@ export class TelemetryService {
         pqi_breath: 0.88,
         trusted_hr_fresh: true,
         trusted_rr_fresh: true,
+        session_phase: phaseCode,
+        session_phase_name: phaseName,
+        hr_locked_live: phaseName === 'LOCKED' ? 1 : 0,
+        hr_confidence: Math.max(0.05, Math.min(0.95, 0.78 + 0.08 * Math.sin(t / 7) - (inMotion ? 0.35 : 0))),
+        hr_confidence_source_name: 'AUTO_PHASE',
+        logged_hr_valid: inMotion ? 0 : 1,
+        logged_rr_valid: 1,
+        doppler_motion: inMotion,
       },
       ble: {
         address: this.state.setup().ble_address,
@@ -407,6 +420,7 @@ export class TelemetryService {
         rr_gate_reason_histogram: { OK: 120 },
         agc_anomaly_flags: { gain_floor_pct: 0, near_field_pct: 0, skipdsp_pct: 0 },
         ble_ref_quality: { status: 'good', raw_packets: 120, parsed_rows: 120, packet_loss_pct: 0, decode_error_pct: 0 },
+        ml_readiness_verdict: { verdict: 'ready', headline: 'Demo telemetry — simulated data only' },
       },
     };
     this.applyLivePayload(payload);

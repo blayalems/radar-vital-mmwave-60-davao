@@ -52,6 +52,25 @@
         </div>
       </div>
 
+      <!-- SIGNAL LOCK-STATE / MOTION / READINESS CHIPS -->
+      <div class="signal-status-chips" role="status" aria-live="polite" aria-atomic="false">
+        @if (sessionPhaseLabel(); as phaseLabel) {
+          <span class="status-chip phase-chip" [attr.data-phase]="sessionPhaseName()" [class.stale-dim]="state.telemetryStale()">
+            <mat-icon aria-hidden="true">{{ sessionPhaseIcon() }}</mat-icon>{{ phaseLabel }}
+          </span>
+        }
+        @if (motionActive()) {
+          <span class="status-chip motion-chip" [class.stale-dim]="state.telemetryStale()">
+            <mat-icon aria-hidden="true">directions_run</mat-icon>Motion — readings hold briefly
+          </span>
+        }
+        @if (liveVerdictLabel(); as verdictLabel) {
+          <span class="status-chip verdict-chip" [attr.data-verdict]="liveVerdict()" [class.stale-dim]="state.telemetryStale()">
+            <mat-icon aria-hidden="true">fact_check</mat-icon>{{ verdictLabel }}
+          </span>
+        }
+      </div>
+
       <div class="command-actions">
         <!-- PAUSE / RESUME BUTTON -->
         <button mat-flat-button (click)="togglePause()" class="mat-tonal-button cmd-btn">
@@ -106,13 +125,23 @@
                 <div class="kpi-card-header">
                   <span>Heart Rate</span>
                   <div class="kpi-header-icons">
+                    @if (hrConfidencePct() !== null) {
+                      <span class="kpi-conf-badge"
+                            [attr.title]="'Heart-rate confidence' + (hrConfidenceSource() ? ' — source: ' + hrConfidenceSource() : '')"
+                            [attr.aria-label]="'Heart-rate confidence ' + hrConfidencePct() + ' percent' + (hrConfidenceSource() ? ', source ' + hrConfidenceSource() : '')">
+                        {{ hrConfidencePct() }}%
+                      </span>
+                    }
                     <mat-icon class="drag-icon">drag_indicator</mat-icon>
                     <mat-icon>ecg_heart</mat-icon>
                   </div>
                 </div>
-                <div class="kpi-card-value">
+                <div class="kpi-card-value" [class.kpi-holding]="hrHolding()">
                   <strong>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) : '--' }}</strong>
                   <small>bpm</small>
+                  @if (hrHolding()) {
+                    <span class="holding-tag" title="The firmware is not publishing a fresh heart-rate value this second; the display holds the last accepted reading.">holding</span>
+                  }
                 </div>
                 <div class="kpi-card-spark">
                   <canvas #overviewHrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Heart rate recent trend', 'reported_hr', 'beats per minute')"></canvas>
@@ -140,9 +169,12 @@
                     <mat-icon>air</mat-icon>
                   </div>
                 </div>
-                <div class="kpi-card-value">
+                <div class="kpi-card-value" [class.kpi-holding]="rrHolding()">
                   <strong>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) : '--' }}</strong>
                   <small>br/min</small>
+                  @if (rrHolding()) {
+                    <span class="holding-tag" title="The firmware is not publishing a fresh respiration value this second; the display holds the last accepted reading.">holding</span>
+                  }
                 </div>
                 <div class="kpi-card-spark">
                   <canvas #overviewRrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Respiration recent trend', 'reported_rr', 'breaths per minute')"></canvas>

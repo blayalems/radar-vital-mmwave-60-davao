@@ -914,6 +914,68 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     return median > 0 ? (1 / median).toFixed(1) : '--';
   });
 
+  // ---- Signal lock-state / confidence / motion surfacing (fields already
+  // published per second by the trainer inside the radar block) ----
+  private static readonly PHASE_LABELS: Record<string, string> = {
+    ABSENT: 'No subject detected',
+    WARMUP: 'Warming up',
+    SETTLING: 'Settling',
+    LOCKED: 'Signal locked',
+    POST_MOTION: 'Recovering after motion',
+    LEAVING: 'Subject leaving'
+  };
+  private static readonly PHASE_ICONS: Record<string, string> = {
+    ABSENT: 'person_off',
+    WARMUP: 'hourglass_top',
+    SETTLING: 'av_timer',
+    LOCKED: 'gpp_good',
+    POST_MOTION: 'directions_run',
+    LEAVING: 'logout'
+  };
+  private static readonly VERDICT_LABELS: Record<string, string> = {
+    ready: 'Readiness: READY',
+    conditional: 'Readiness: CONDITIONAL',
+    deferred: 'Readiness: DEFERRED',
+    degraded_signal: 'Readiness: DEGRADED SIGNAL',
+    not_ready: 'Readiness: NOT READY',
+    firmware_rejected: 'Readiness: FIRMWARE REJECTED',
+    schema_warning: 'Readiness: SCHEMA WARNING',
+    provenance_warning: 'Readiness: PROVENANCE WARNING'
+  };
+
+  protected readonly sessionPhaseName = computed(() =>
+    String(this.state.lastPayload()?.radar?.session_phase_name ?? '').toUpperCase());
+  protected readonly sessionPhaseLabel = computed(() =>
+    LiveComponent.PHASE_LABELS[this.sessionPhaseName()] ?? '');
+  protected readonly sessionPhaseIcon = computed(() =>
+    LiveComponent.PHASE_ICONS[this.sessionPhaseName()] ?? 'sensors');
+  protected readonly motionActive = computed(() => {
+    const radar = this.state.lastPayload()?.radar;
+    return Number(radar?.doppler_motion ?? 0) >= 1 || Number(radar?.motion ?? 0) >= 1;
+  });
+  protected readonly hrConfidencePct = computed<number | null>(() => {
+    const value = Number(this.state.lastPayload()?.radar?.hr_confidence);
+    return Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value * 100))) : null;
+  });
+  protected readonly hrConfidenceSource = computed(() =>
+    String(this.state.lastPayload()?.radar?.hr_confidence_source_name ?? ''));
+  protected readonly hrHolding = computed(() => {
+    const value = this.state.lastPayload()?.radar?.logged_hr_valid;
+    return value !== undefined && value !== null && Number(value) === 0;
+  });
+  protected readonly rrHolding = computed(() => {
+    const value = this.state.lastPayload()?.radar?.logged_rr_valid;
+    return value !== undefined && value !== null && Number(value) === 0;
+  });
+  protected readonly liveVerdict = computed(() => {
+    const analysis = this.state.lastPayload()?.analysis as Record<string, unknown> | null;
+    const verdictObj = analysis?.['ml_readiness_verdict'] as Record<string, unknown> | undefined;
+    const verdict = typeof verdictObj?.['verdict'] === 'string' ? String(verdictObj['verdict']) : '';
+    return verdict in LiveComponent.VERDICT_LABELS ? verdict : '';
+  });
+  protected readonly liveVerdictLabel = computed(() =>
+    this.liveVerdict() ? LiveComponent.VERDICT_LABELS[this.liveVerdict()] : '');
+
   protected readonly hrBiasBuckets = computed(() => {
     const raw = this.seriesNumbers('raw_hr_uncorrected', 'raw_hr');
     const reference = this.seriesNumbers('ref_hr', 'ble_hr');

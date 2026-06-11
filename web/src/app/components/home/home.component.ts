@@ -380,6 +380,29 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     return ['good', 'pass', 'ready', 'ok'].includes(check.status.toLowerCase());
   }
 
+  // Placement zones mirror the firmware's distance-confidence bands
+  // (optimal 40–100 cm, good ≤140 cm, acceptable ≤180 cm) and Seeed's
+  // ≤1.5 m chest-height guidance for the MR60BHA2.
+  placementZone(): { id: string; label: string; hint: string } {
+    const distance = Number(this.state.lastPayload()?.radar?.distance_cm);
+    if (!Number.isFinite(distance) || distance <= 0) {
+      return { id: 'searching', label: 'No target', hint: 'Seat the subject facing the radar at chest height.' };
+    }
+    if (distance < 40) {
+      return { id: 'close', label: 'Too close', hint: 'Move back to 40–100 cm for the cleanest signal.' };
+    }
+    if (distance <= 100) {
+      return { id: 'optimal', label: 'Optimal', hint: 'Hold this position for the session.' };
+    }
+    if (distance <= 140) {
+      return { id: 'good', label: 'Good', hint: 'Slightly closer (40–100 cm) may improve heart-rate quality.' };
+    }
+    if (distance <= 180) {
+      return { id: 'acceptable', label: 'Acceptable', hint: 'Best results within 1.5 m of the radar.' };
+    }
+    return { id: 'far', label: 'Out of range', hint: 'Bring the subject within 1.5 m of the radar.' };
+  }
+
   setSessionFilter(filter: 'all' | 'pass' | 'warn' | 'fail' | 'tagged') {
     this.sessionFilter = filter;
     this.state.triggerHaptic('tap');

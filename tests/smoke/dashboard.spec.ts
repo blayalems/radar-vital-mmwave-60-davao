@@ -911,6 +911,17 @@ test.describe('Dashboard smoke', () => {
     await expect(page.getByText(/Signed/).first()).toBeVisible();
   });
 
+  test('shows subject placement zone guidance on the Home radar scope', async ({ page }) => {
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/home');
+
+    const chip = page.locator('.placement-zone-chip');
+    await expect(chip).toBeVisible();
+    // Demo telemetry oscillates around 50 cm — inside the optimal band.
+    await expect(chip).toHaveText(/Optimal|Good|Too close|Acceptable|Out of range|No target/);
+    await expect(page.locator('.placement-hint')).not.toBeEmpty();
+  });
+
   test('wires Ctrl+H handoff, Ctrl+Z undo feedback and D demo-toggle shortcuts', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => {

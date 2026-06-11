@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR56: Subject Placement Guidance & Advisory Start Gate on Home
+
+- **Placement Zone Chip**: The Home radar-scope Range metric now classifies live `distance_cm` into the firmware's distance-confidence bands (Too close <40 cm / Optimal 40–100 / Good ≤140 / Acceptable ≤180 / Out of range) with per-zone color tokens and an actionable hint line (mirrors Seeed's ≤1.5 m chest-height guidance for the MR60BHA2).
+- **Advisory Start Gate**: When preflight has non-blocking unpassed checks, a hint above Start states how many need review while making explicit that starting is still allowed — blocking semantics unchanged (`canStartSession()` untouched).
+- **Verification**: Build clean; monolith round-trip clean; new placement smoke spec 1/1 on desktop Chromium.
+
 ### 2026-06-12 — PR55: Operator-Selectable Session Comparison Overlay & Delta Table
 
 - **Comparison Picker**: The Report "Session Comparison" card (previously fixed Selected/Previous/Best stats from `/api/sessions/<id>/compare`) gains a mat-select to compare against any other recorded session, fetching only the existing `/summary` + `/data?points=1000` routes (read-only; no new API surface).

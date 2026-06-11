@@ -911,6 +911,34 @@ test.describe('Dashboard smoke', () => {
     await expect(page.getByText(/Signed/).first()).toBeVisible();
   });
 
+  test('wires Ctrl+H handoff, Ctrl+Z undo feedback and D demo-toggle shortcuts', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      localStorage.setItem('rvt-demo-mode', '1');
+    });
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await waitForUnlockedShell(page);
+    await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+
+    // Ctrl+H opens the operator handoff brief instead of a placeholder snackbar.
+    await page.keyboard.press('Control+h');
+    await expect(page.getByRole('heading', { name: 'Operator handoff' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('heading', { name: 'Operator handoff' })).toHaveCount(0);
+
+    // Ctrl+Z reports the undo state truthfully (empty stack here).
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('simple-snack-bar').last()).toContainText(/Nothing to undo|Undid/);
+
+    // D toggles demo mode off and back on with an explanatory snackbar.
+    await page.keyboard.press('d');
+    await expect(page.locator('simple-snack-bar').last()).toContainText('Demo mode off');
+    await page.keyboard.press('d');
+    await expect(page.locator('simple-snack-bar').last()).toContainText('Demo mode on');
+    await expect(page.locator('#demoBanner')).toBeVisible();
+  });
+
   test('renders the session quality scorecard from the summary payload', async ({ page }) => {
     await mockDemoReportSession(page);
     await seedDemoMode(page);

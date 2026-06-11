@@ -23,6 +23,9 @@ import { KeyboardShortcutsDialogComponent } from '../keyboard-shortcuts-dialog/k
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
 import { CommandPinningService } from '../../services/command-pinning.service';
 import { IdleLockOverlayComponent } from '../idle-lock-overlay/idle-lock-overlay.component';
+import { UndoService } from '../../services/undo.service';
+import { IdleLockService } from '../../services/idle-lock.service';
+import { OperatorHandoffDialogComponent } from '../operator-handoff-dialog/operator-handoff-dialog.component';
 import { AuthService } from '../../services/auth.service';
 import { SwitchOperatorDialogComponent } from '../switch-operator-dialog/switch-operator-dialog.component';
 
@@ -62,6 +65,8 @@ export class LayoutComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly breakpointObserver = inject(BreakpointObserver);
   protected readonly pinning = inject(CommandPinningService);
+  private readonly undoService = inject(UndoService);
+  private readonly idleLock = inject(IdleLockService);
 
   @ViewChild('mainContentScroll', { static: false }) mainContentScroll?: ElementRef<HTMLElement>;
   @ViewChild(MatSidenavContainer) sidenavContainer?: MatSidenavContainer;
@@ -209,19 +214,28 @@ export class LayoutComponent implements OnInit {
     if (primaryModifier && !event.altKey && !event.shiftKey && key === 'z') {
       event.preventDefault();
       this.state.triggerHaptic('tap');
-      this.snackBar.open('Shortcut recognized: Undo is not yet available in the modern dashboard.', 'Dismiss', { duration: 3000 });
+      if (this.undoService.canUndo()) {
+        const label = this.undoService.undo();
+        this.snackBar.open(label ? `Undid: ${label}` : 'Last action undone.', 'Dismiss', { duration: 3000 });
+      } else {
+        this.snackBar.open('Nothing to undo.', 'Dismiss', { duration: 2000 });
+      }
       return;
     }
     if (primaryModifier && !event.altKey && !event.shiftKey && key === 'h') {
       event.preventDefault();
       this.state.triggerHaptic('tap');
-      this.snackBar.open('Shortcut recognized: Operator handoff modal is not yet available. Use Ctrl+Shift+C to copy operator brief.', 'Dismiss', { duration: 4000 });
+      this.dialog.open(OperatorHandoffDialogComponent, {
+        maxWidth: 'calc(100vw - 24px)',
+        restoreFocus: true,
+        panelClass: 'm3-dialog-panel'
+      });
       return;
     }
     if (primaryModifier && !event.altKey && !event.shiftKey && key === 'l') {
       event.preventDefault();
       this.state.triggerHaptic('tap');
-      this.snackBar.open('Shortcut recognized: Idle auto-lock is not yet available.', 'Dismiss', { duration: 3000 });
+      this.idleLock.lock();
       return;
     }
     if (primaryModifier && !event.altKey && key === 'k') {
@@ -276,6 +290,20 @@ export class LayoutComponent implements OnInit {
     if (key === 'a') {
       event.preventDefault();
       this.openAlerts();
+      return;
+    }
+    if (key === 'd') {
+      event.preventDefault();
+      const enabled = !this.state.demoMode();
+      this.state.demoMode.set(enabled);
+      this.state.triggerHaptic('tap');
+      this.snackBar.open(
+        enabled
+          ? 'Demo mode on — simulated vitals only.'
+          : 'Demo mode off. Reconnect from Settings if telemetry stays stale.',
+        'Dismiss',
+        { duration: 3500 }
+      );
       return;
     }
     if (key === 'e' || key === 'x') {

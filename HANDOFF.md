@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR54: Keyboard Parity — Wire Ctrl+Z/H/L Stubs and D Demo Toggle
+
+- **Stubs Replaced With Real Features**: The layout shell's Ctrl+Z / Ctrl+H / Ctrl+L handlers still showed "not yet available" snackbars even though `UndoService`, the operator-handoff dialog, and `IdleLockService` shipped in PR43/44. Ctrl+Z now performs the undo (with "Undid: <label>" / "Nothing to undo." feedback), Ctrl+H opens the handoff brief (same dialog options as the palette path), Ctrl+L locks the station immediately.
+- **`D` Demo Toggle (v11 parity)**: Plain `d` toggles demo mode with explanatory snackbars; turning demo off does not force a reconnect (Settings remains the explicit reconnect path).
+- **Cheat-Sheet Sync**: The keyboard-shortcuts dialog documents the four newly-live bindings. Audit note: the remaining v11 single-key map (1-5/h/l/r/w/s, t, space, a, e/x, b/v, [, Shift+F, ?, Alt+1-0) was verified already implemented — the legacy-parity gap list overstated this; chart zoom remains out (v12 draws raw canvas; Chart.js+zoom plugin are vendored for the legacy contract only, so zoom needs a custom-canvas design, deferred deliberately).
+- **Verification**: Build clean; `npm --prefix web run test:ci` 42/42; new shortcut smoke spec 1/1 on desktop Chromium; monolith round-trip clean.
+
 ### 2026-06-12 — PR53: Session Quality Scorecard in Report
 
 - **Quality Card**: Report renders a "Session Quality" card sourced entirely from the existing `/api/sessions/<id>/summary` payload (no new API surface): `signal_quality` stat tiles (PQI lock %, session quality score, internal consistency, locked/settling coverage), an HR/RR accuracy table (RMSE/MAE/bias/coverage vs the reference), readiness gate chips (pass/fail/deferred), and the ML-readiness verdict `categories[]` with remediation text for non-pass items. Card hides entirely when a summary carries none of these blocks (older sessions degrade gracefully).

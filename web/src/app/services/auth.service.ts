@@ -91,7 +91,7 @@ export class AuthService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ operator_id, pin })
-      });
+      }, false, 30000);
 
       if (res?.token) {
         sessionStorage.setItem(OPERATOR_TOKEN_KEY, res.token);
@@ -150,7 +150,7 @@ export class AuthService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_name: displayName, initials, pin })
-      });
+      }, false, 30000);
 
       if (res?.ok && res.operator) {
         await this.loadProfiles();

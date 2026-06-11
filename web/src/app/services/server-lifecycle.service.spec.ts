@@ -10,6 +10,7 @@ describe('ServerLifecycleService', () => {
     setApiBase: ReturnType<typeof vi.fn>;
     checkConnection: ReturnType<typeof vi.fn>;
     detectControlMode: ReturnType<typeof vi.fn>;
+    request: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -19,7 +20,8 @@ describe('ServerLifecycleService', () => {
       currentApiBase: vi.fn(() => ''),
       setApiBase: vi.fn((value: string) => value.replace(/\/+$/, '')),
       checkConnection: vi.fn().mockResolvedValue(true),
-      detectControlMode: vi.fn().mockResolvedValue(true)
+      detectControlMode: vi.fn().mockResolvedValue(true),
+      request: vi.fn().mockResolvedValue({})
     };
   });
 
@@ -53,7 +55,7 @@ describe('ServerLifecycleService', () => {
     await service.startServer();
 
     expect(service.platform()).toBe('exe');
-    expect(invoke).toHaveBeenCalledWith('trainer_start', undefined);
+    expect(invoke).toHaveBeenCalledWith('trainer_start', { bindMode: 'local' });
   });
 
   it('transitions to running when Tauri trainer reports ready', async () => {
@@ -97,7 +99,58 @@ describe('ServerLifecycleService', () => {
     const service = configure(invoke);
     await service.startServer();
 
-    expect(invoke).toHaveBeenCalledWith('trainer_start', undefined);
+    expect(invoke).toHaveBeenCalledWith('trainer_start', { bindMode: 'local' });
+  });
+
+  it('startServer passes bindMode: lan to Tauri command', async () => {
+    const invoke = vi.fn((command: string) => {
+      if (command === 'trainer_start') return Promise.resolve({ state: 'starting' });
+      if (command === 'native_trainer_status') return Promise.resolve({ running: true, ready: true, origin: 'http://127.0.0.1:8765', bind_mode: 'lan' });
+      return Promise.resolve([]);
+    });
+    const service = configure(invoke);
+    await service.startServer('lan');
+
+    expect(invoke).toHaveBeenCalledWith('trainer_start', { bindMode: 'lan' });
+    expect(service.bindMode()).toBe('lan');
+  });
+
+  it('parses native pairing details while sharing on LAN', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    api.request.mockResolvedValue({
+      origin: 'http://192.168.1.50:8765',
+      pair_required: true,
+      active_pin: '123456',
+      active_pin_expires_at: now + 120
+    });
+    const invoke = vi.fn((command: string) => {
+      if (command === 'trainer_start') return Promise.resolve({ state: 'starting' });
+      if (command === 'native_trainer_status') return Promise.resolve({ running: true, ready: true, origin: 'http://127.0.0.1:8765', bind_mode: 'lan' });
+      return Promise.resolve([]);
+    });
+    const service = configure(invoke);
+    await service.startServer('lan');
+
+    expect(api.request).toHaveBeenCalledWith('/api/native-pairing-info', undefined, true);
+    expect(service.pairingInfo()?.active_pin).toBe('123456');
+    expect(service.pairingUrl()).toBe('http://192.168.1.50:8765/?pair=123456');
+    expect(service.pairingTtlSeconds()).toBeGreaterThan(0);
+  });
+
+  it('keeps the pairing card usable when the trainer omits PIN fields', async () => {
+    api.request.mockRejectedValueOnce(new Error('native pairing info unavailable'));
+    api.request.mockResolvedValueOnce({ host: '192.168.1.50', port: 8765, pair_required: true });
+    const invoke = vi.fn((command: string) => {
+      if (command === 'trainer_start') return Promise.resolve({ state: 'starting' });
+      if (command === 'native_trainer_status') return Promise.resolve({ running: true, ready: true, origin: 'http://127.0.0.1:8765', bind_mode: 'lan' });
+      return Promise.resolve([]);
+    });
+    const service = configure(invoke);
+    await service.startServer('lan');
+
+    expect(service.pairingInfo()?.active_pin).toBeUndefined();
+    expect(service.pairingTtlSeconds()).toBeNull();
+    expect(service.pairingUrl()).toBe('http://192.168.1.50:8765/pair');
   });
 
   it('startServer retries the remote connection outside Tauri', async () => {

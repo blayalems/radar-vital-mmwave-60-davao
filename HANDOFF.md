@@ -5,6 +5,22 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR51 Blocking Review Fixes
+
+- **Pairing PIN Leak Closed**: Removed the public `/api/server-info?format=qr` image behavior and kept `/api/server-info` metadata-only; added loopback-only `/api/native-pairing-info` for the Windows EXE native bridge to read the active PIN/TTL without exposing it to LAN clients.
+- **EXE Sharing UX Hardened**: Replaced the WebView `<img>` QR fetch with a copyable pairing link, visible one-time PIN when supplied by the native loopback path, live 1 s TTL countdown, and confirmation dialogs before share-mode or "New PIN" restarts that interrupt sessions/SSE/serial capture.
+- **Tauri Sidecar Hardening**: Validated `bind_mode`, checked LAN port 8765 before spawning, and replaced the tautological bind-mode unit test with sidecar argument-vector coverage.
+- **Request Timeout Scoped**: Restored the default Angular request timeout to 10 s and applied 30 s only to PBKDF2-heavy login/profile creation calls.
+- **Docs/Coverage Updated**: Documented the native loopback bootstrap route in README/scope docs and added smoke/unit coverage for metadata-only server-info, native pairing parsing, and missing-PIN fallback.
+- **Verification**: Not run per human instruction; pushed directly after code changes.
+
+### 2026-06-12 — One-Click Phone Sharing from Windows EXE and Request Timeout Fix
+
+- **Tauri Companion Sidecar Parametrization**: Added `bind_mode` parameter to Tauri state and `trainer_start` command to allow launching the companion Python trainer in LAN mode (`--bind lan` on port 8765) or local mode (random loopback port).
+- **Angular Settings Interface**: Integrated a "Phone access — share on local network" slide toggle in the Tauri-only Settings card, with inline pairing QR rendering from `/api/server-info?format=qr`, PIN expiration countdown, a "New PIN" restart trigger, and Windows Firewall copy.
+- **Request Timeout Fix**: Increased request timeout from 10s to 30s in `api.service.ts` to handle PBKDF2 hashing overhead during operator creation.
+- **Verification**: `cargo test --manifest-path src-tauri/Cargo.toml` (9/9), `python -m pytest -q tests` (90/90), and Playwright smoke verification (`npm test`) passed; verified that the share toggle is hidden in standard browser contexts.
+
 ### 2026-06-11 — PR48 CI Readiness Fixes
 
 - **Telemetry Session Reconciliation**: Made live payload `meta.status` / `session_id` authoritative for active-session state so stopped or idle trainer payloads clear the Angular navigation guard and Stop Session affordance.

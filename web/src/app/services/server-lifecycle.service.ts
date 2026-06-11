@@ -23,11 +23,19 @@ interface TauriLifecycleResponse {
   message?: string;
 }
 
+export interface PairingInfo {
+  pair_required?: boolean;
+  origin?: string;
+  active_pin?: string;
+  active_pin_expires_at?: number;
+}
+
 interface NativeTrainerStatus {
   running?: boolean;
   ready?: boolean;
   origin?: string | null;
   error?: string | null;
+  bind_mode?: 'local' | 'lan';
 }
 
 @Injectable({
@@ -42,6 +50,24 @@ export class ServerLifecycleService {
   readonly lastError = signal<string | null>(null);
   readonly logTail = signal<string[]>([]);
   readonly serverAddress = signal(this.readServerAddress());
+  readonly bindMode = signal<'local' | 'lan'>('local');
+  readonly pairingInfo = signal<PairingInfo | null>(null);
+  private readonly nowEpochS = signal(Math.floor(Date.now() / 1000));
+  readonly pairingTtlSeconds = computed<number | null>(() => {
+    const expiresAt = this.pairingInfo()?.active_pin_expires_at;
+    if (!expiresAt) return null;
+    return Math.max(0, Math.floor(expiresAt - this.nowEpochS()));
+  });
+  readonly pairingUrl = computed<string>(() => {
+    const info = this.pairingInfo();
+    if (!info?.origin) return '';
+    const origin = info.origin.replace(/\/+$/, '');
+    const ttl = this.pairingTtlSeconds();
+    if (info.active_pin && (ttl === null || ttl > 0)) {
+      return `${origin}/?pair=${info.active_pin}`;
+    }
+    return `${origin}/pair`;
+  });
   readonly platform = computed<ServerLifecyclePlatform>(() => this.hasTauriDesktop() ? 'exe' : 'remote');
   readonly blocksLive = computed(() => !this.state.demoMode() && ['offline', 'error', 'stopped'].includes(this.status()));
   readonly statusLabel = computed(() => {
@@ -56,10 +82,14 @@ export class ServerLifecycleService {
 
   private bootstrapStarted = false;
   private pollTimer: number | null = null;
+  private pairingTicker: number | null = null;
   private lastSyncedOrigin = '';
 
   constructor() {
-    this.destroyRef.onDestroy(() => this.stopPolling());
+    this.destroyRef.onDestroy(() => {
+      this.stopPolling();
+      this.stopPairingTicker();
+    });
     void this.bootstrap();
   }
 
@@ -82,7 +112,7 @@ export class ServerLifecycleService {
     return normalized;
   }
 
-  async startServer(): Promise<void> {
+  async startServer(bindMode?: 'local' | 'lan'): Promise<void> {
     if (!this.hasTauriDesktop()) {
       await this.retryConnection();
       return;
@@ -90,7 +120,7 @@ export class ServerLifecycleService {
     this.status.set('starting');
     this.lastError.set(null);
     try {
-      const lifecycle = await this.invoke<TauriLifecycleResponse>('trainer_start');
+      const lifecycle = await this.invoke<TauriLifecycleResponse>('trainer_start', { bindMode: bindMode || 'local' });
       this.applyLifecycle(lifecycle);
       await this.refreshTauriDetails();
       this.startPolling();
@@ -113,10 +143,10 @@ export class ServerLifecycleService {
     }
   }
 
-  async restartServer(): Promise<void> {
+  async restartServer(bindMode?: 'local' | 'lan'): Promise<void> {
     if (this.hasTauriDesktop()) {
       await this.stopServer();
-      await this.startServer();
+      await this.startServer(bindMode);
     } else {
       await this.retryConnection();
     }
@@ -158,20 +188,85 @@ export class ServerLifecycleService {
     if (detail.origin) {
       this.setServerAddress(detail.origin);
     }
+    if (detail.bind_mode) {
+      this.bindMode.set(detail.bind_mode);
+    }
     if (detail.error) {
       this.setError(detail.error);
+      this.pairingInfo.set(null);
     } else if (detail.running && detail.ready) {
       this.status.set('running');
       if (detail.origin && detail.origin !== this.lastSyncedOrigin) {
         this.lastSyncedOrigin = detail.origin;
         await this.api.detectControlMode();
       }
+      if (this.bindMode() === 'lan') {
+        try {
+          const info = await this.api.request<Record<string, unknown>>('/api/native-pairing-info', undefined, true);
+          this.setPairingInfo(this.parsePairingInfo(info));
+        } catch (_) {
+          try {
+            const info = await this.api.request<Record<string, unknown>>('/api/server-info', undefined, true);
+            this.setPairingInfo(this.parsePairingInfo(info));
+          } catch (_) {
+            this.setPairingInfo(null);
+          }
+        }
+      } else {
+        this.setPairingInfo(null);
+      }
     } else if (detail.running) {
       this.status.set('starting');
+      this.setPairingInfo(null);
     } else {
       this.status.set('stopped');
+      this.setPairingInfo(null);
     }
     await this.refreshLogTail();
+  }
+
+  private parsePairingInfo(raw: Record<string, unknown> | null | undefined): PairingInfo {
+    const envelope = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+    const payload = (envelope['data'] && typeof envelope['data'] === 'object'
+      ? envelope['data']
+      : envelope) as Record<string, unknown>;
+    const host = typeof payload['host'] === 'string' ? payload['host'] : '';
+    const port = Number(payload['port']);
+    const origin = typeof payload['origin'] === 'string' && payload['origin']
+      ? String(payload['origin'])
+      : (host && Number.isFinite(port) && port > 0 ? `http://${host}:${port}` : '');
+    const pinRaw = payload['active_pin'];
+    const pin = typeof pinRaw === 'string' || typeof pinRaw === 'number' ? String(pinRaw) : '';
+    const expiresAt = Number(payload['active_pin_expires_at']);
+    return {
+      pair_required: payload['pair_required'] === true,
+      origin: origin || undefined,
+      active_pin: /^\d{6}$/.test(pin) ? pin : undefined,
+      active_pin_expires_at: Number.isFinite(expiresAt) && expiresAt > 0 ? expiresAt : undefined
+    };
+  }
+
+  private setPairingInfo(info: PairingInfo | null): void {
+    this.pairingInfo.set(info);
+    if (info?.active_pin_expires_at) {
+      this.nowEpochS.set(Math.floor(Date.now() / 1000));
+      this.startPairingTicker();
+    } else {
+      this.stopPairingTicker();
+    }
+  }
+
+  private startPairingTicker(): void {
+    if (typeof window === 'undefined' || this.pairingTicker !== null) return;
+    this.pairingTicker = window.setInterval(() => {
+      this.nowEpochS.set(Math.floor(Date.now() / 1000));
+    }, 1000);
+  }
+
+  private stopPairingTicker(): void {
+    if (typeof window === 'undefined' || this.pairingTicker === null) return;
+    window.clearInterval(this.pairingTicker);
+    this.pairingTicker = null;
   }
 
   private startPolling(): void {

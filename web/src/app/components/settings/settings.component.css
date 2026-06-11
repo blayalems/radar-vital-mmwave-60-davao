@@ -726,3 +726,92 @@ mat-button-toggle {
   color: inherit;
 }
 
+.share-toggle-row {
+  margin-bottom: 0.5rem;
+}
+
+.sharing-qr-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.firewall-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.firewall-notice mat-icon {
+  flex-shrink: 0;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.pairing-address-block {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.pairing-address {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  font-size: 0.8rem;
+}
+
+.pairing-details {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.pairing-pin-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pairing-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--md-sys-color-on-surface);
+}
+
+.pairing-pin {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--md-sys-color-primary);
+}
+
+.pairing-expiry {
+  font-size: 0.8rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.new-pin-btn {
+  border-radius: 8px;
+}

@@ -710,6 +710,12 @@ test.describe('Dashboard smoke', () => {
     expect(compactGap).toBeLessThan(comfortableGap);
   });
 
+  test('does not render the phone access sharing card/toggle in browser-served non-Tauri settings', async ({ page }) => {
+    await gotoDashboardRoute(page, '/settings');
+    await expect(page.locator('.sharing-qr-container')).toHaveCount(0);
+    await expect(page.getByText('Phone access — share on local network', { exact: false })).toHaveCount(0);
+  });
+
   test('scans and applies a BLE reference device from Material settings', async ({ page }) => {
     // Keep this API-mock flow on direct browser requests; PWA behavior is covered by the service-worker tests above.
     await page.route('**/sw.js', route => route.abort());

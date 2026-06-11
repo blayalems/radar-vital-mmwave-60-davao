@@ -172,7 +172,7 @@ export class ApiService {
     }
   }
 
-  async request<T = unknown>(path: string, init?: RequestInit, bypassSandbox = false): Promise<T> {
+  async request<T = unknown>(path: string, init?: RequestInit, bypassSandbox = false, timeoutMs = 10000): Promise<T> {
     const isSandbox = !bypassSandbox && (
       this.state.autoDemoActive()
       || this.state.demoMode()
@@ -202,7 +202,7 @@ export class ApiService {
           method,
           headers: headerObj,
           data: init?.body
-        }), 10000, 'Request timeout');
+        }), timeoutMs, 'Request timeout');
 
         const status = Number(resp.status || 0);
         const data = resp.data;
@@ -225,7 +225,7 @@ export class ApiService {
         responseType: 'json',
         observe: 'body'
       });
-      return await this.withTimeout(firstValueFrom(response), 10000, 'Request timeout');
+      return await this.withTimeout(firstValueFrom(response), timeoutMs, 'Request timeout');
     } catch (err: any) {
       if (err && typeof err === 'object' && 'status' in err) {
         throw new Error(this.errorMessage(err.error, `HTTP ${err.status}`));

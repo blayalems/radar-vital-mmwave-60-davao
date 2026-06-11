@@ -71,6 +71,27 @@ test.describe('Trainer API smoke', () => {
     expect(hasOrigin || hasHostPort, `server-info missing origin or host/port: ${JSON.stringify(payload)}`).toBe(true);
     expect(typeof payload.pair_required).toBe('boolean');
     expect(payload.trainer_version).toBeTruthy();
+    expect(payload.active_pin).toBeUndefined();
+  });
+
+  test('/api/server-info?format=qr does not expose a public QR/PIN image', async ({ request }) => {
+    const resp = await request.get('/api/server-info?format=qr');
+    expect(resp.status()).toBe(200);
+    expect(resp.headers()['content-type']).toMatch(/json/);
+    const json = await resp.json();
+    const payload = json.data ?? json;
+    expect(payload.active_pin).toBeUndefined();
+  });
+
+  test('/api/native-pairing-info is loopback-only pairing metadata', async ({ request }) => {
+    const resp = await request.get('/api/native-pairing-info');
+    expect([200, 403]).toContain(resp.status());
+    if (resp.status() === 200) {
+      const json = await resp.json();
+      const payload = json.data ?? json;
+      expect(typeof payload.pair_required).toBe('boolean');
+      if (payload.active_pin) expect(String(payload.active_pin)).toMatch(/^\d{6}$/);
+    }
   });
 
   test('/api/auth/exchange rejects an unknown PIN with 4xx', async ({ request }) => {

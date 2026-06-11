@@ -140,7 +140,9 @@ export const rvtTauriInterceptor: HttpInterceptorFn = (req, next) => {
       headersObj[key] = req.headers.get(key) || '';
     });
 
-    const command = path.startsWith('/api/auth/exchange') || path.startsWith('/api/server-info')
+    const command = path.startsWith('/api/auth/exchange')
+      || path.startsWith('/api/server-info')
+      || path.startsWith('/api/native-pairing-info')
       ? 'native_pair_request'
       : 'native_http_request';
 

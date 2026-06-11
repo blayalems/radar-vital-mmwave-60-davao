@@ -6211,6 +6211,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         is_discovery = False
         if path == "/api/server-info" and self.command == "GET":
             is_discovery = True
+        elif path == "/api/native-pairing-info" and self.command == "GET":
+            is_discovery = True
         elif path == "/api/operator-profiles" and self.command == "GET":
             is_discovery = True
         elif path == "/api/auth/login" and self.command == "POST":
@@ -6429,11 +6431,22 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "pair_required": getattr(self.server, "bind_mode", "local") == "lan",
                 "active_pin_expires_at": getattr(self.server, "active_pin_expires_at", 0.0),
             }
-            if parse_qs(parsed.query).get("format", [""])[-1] == "qr":
-                pair_url = _advertised_origin(self.server) + ("/?pair=" + getattr(self.server, "active_pin", "") if getattr(self.server, "active_pin", "") else "/pair")
-                self._send_bytes(200, _qr_png_bytes(pair_url), "image/png", cache_control="no-store")
-            else:
-                self._send_json(200, payload, cache_control="no-store")
+            self._send_json(200, payload, cache_control="no-store")
+            return
+        if path == "/api/native-pairing-info":
+            client_host = str(self.client_address[0] if self.client_address else "")
+            if client_host not in {"127.0.0.1", "::1", "localhost"}:
+                self._send_json(403, {"ok": False, "error": {"code": "LOOPBACK_ONLY", "message": "native pairing info is loopback-only"}}, cache_control="no-store")
+                return
+            self._send_json(200, {
+                "ok": True,
+                "origin": _advertised_origin(self.server),
+                "scheme": _server_scheme(self.server),
+                "bind_mode": getattr(self.server, "bind_mode", "local"),
+                "pair_required": getattr(self.server, "bind_mode", "local") == "lan",
+                "active_pin": getattr(self.server, "active_pin", "") or "",
+                "active_pin_expires_at": getattr(self.server, "active_pin_expires_at", 0.0),
+            }, cache_control="no-store")
             return
         if path == "/api/session/events" or path == "/api/events/subscribe":
             self._send_sse()

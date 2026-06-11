@@ -306,6 +306,40 @@
           </section>
         }
       </mat-card-content>
+
+      <mat-card-content class="compare-picker-wrap">
+        <mat-form-field appearance="outline" class="compare-picker-field">
+          <mat-label>Compare against another session</mat-label>
+          <mat-select [value]="compareSessionId" (selectionChange)="loadCompareSession($event.value)" [disabled]="compareLoading || !compareCandidates().length">
+            <mat-option value="">None</mat-option>
+            @for (candidate of compareCandidates(); track candidate.session_id) {
+              <mat-option [value]="candidate.session_id">{{ candidate.session_id }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        @if (compareSummary) {
+          <p class="compare-overlay-note">
+            <mat-icon aria-hidden="true">show_chart</mat-icon>
+            The trend charts above overlay <strong>{{ compareSummary.session_id }}</strong> as a dashed line on the selected session's axis.
+          </p>
+          <table class="compare-delta-table" aria-label="Delta between the selected and comparison sessions">
+            <thead>
+              <tr><th scope="col">Metric</th><th scope="col">Selected</th><th scope="col">Comparison</th><th scope="col">Δ</th></tr>
+            </thead>
+            <tbody>
+              @for (row of compareDeltaRows(); track row.label) {
+                <tr>
+                  <th scope="row">{{ row.label }}</th>
+                  <td>{{ row.selected }}</td>
+                  <td>{{ row.compare }}</td>
+                  <td class="delta-cell" [attr.data-tone]="row.tone">{{ row.delta }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </mat-card-content>
     </mat-card>
 
     @if ((selectedSummary?.downloads?.length || 0) > 0) {

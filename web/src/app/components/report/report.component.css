@@ -498,3 +498,44 @@
   color: var(--md-sys-color-on-surface-variant);
   font-style: italic;
 }
+
+/* ---- Operator-selectable session comparison ---- */
+.compare-picker-wrap {
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  padding-top: 1rem;
+}
+
+.compare-picker-field {
+  width: min(360px, 100%);
+}
+
+.compare-overlay-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.82rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.compare-overlay-note mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.compare-delta-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.compare-delta-table th,
+.compare-delta-table td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.delta-cell[data-tone='better'] { color: var(--md-sys-color-primary); font-weight: 700; }
+.delta-cell[data-tone='worse'] { color: var(--md-sys-color-error); font-weight: 700; }

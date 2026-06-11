@@ -57,6 +57,10 @@ export class ReportComponent implements OnInit, AfterViewInit {
   selectedSession: SessionRecord | null = null;
   selectedSummary: SessionRecord | null = null;
   comparison: { selected?: SessionRecord | null; previous?: SessionRecord | null; best?: SessionRecord | null } | null = null;
+  compareSessionId = '';
+  compareSummary: SessionRecord | null = null;
+  compareRows: Array<Record<string, number | string | null>> = [];
+  compareLoading = false;
   analysisStatus: { status?: string; progress_pct?: number; last_line?: string } | null = null;
   sessionDataRows: Array<Record<string, number | string | null>> = [];
   summaryLoading = false;
@@ -100,6 +104,10 @@ export class ReportComponent implements OnInit, AfterViewInit {
     this.analysisStatus = null;
     this.sessionDataRows = [];
     this.summaryError = '';
+    // A stale dashed overlay against a different selected session is misleading.
+    this.compareSessionId = '';
+    this.compareSummary = null;
+    this.compareRows = [];
     if (this.selectedSession) {
       this.sessionNotesInput = this.state.sessionNotes()[this.selectedSessionId] || this.selectedSession.summary || '';
       this.summaryLoading = true;
@@ -346,13 +354,106 @@ export class ReportComponent implements OnInit, AfterViewInit {
   }
 
   // Only render recorded or currently streamed series; never invent report data.
+  // ---- Operator-selectable session comparison (read-only; reuses the
+  // existing /data and /summary routes for the second session) ----
+
+  compareCandidates(): SessionRecord[] {
+    return this.sessions.filter(item => item.session_id && item.session_id !== this.selectedSessionId);
+  }
+
+  async loadCompareSession(sessionId: string): Promise<void> {
+    this.compareSessionId = sessionId;
+    if (!sessionId) {
+      this.compareSummary = null;
+      this.compareRows = [];
+      setTimeout(() => this.drawReportTrends(), 0);
+      return;
+    }
+    this.compareLoading = true;
+    try {
+      const sessionPath = `/api/sessions/${encodeURIComponent(sessionId)}`;
+      const [summary, data] = await Promise.all([
+        this.api.request<SessionRecord>(`${sessionPath}/summary`),
+        this.api.request<{ rows?: Array<Record<string, number | string | null>> }>(`${sessionPath}/data?points=1000`)
+      ]);
+      this.compareSummary = summary;
+      this.compareRows = Array.isArray(data?.rows) ? data.rows : [];
+    } catch (error: unknown) {
+      this.compareSummary = null;
+      this.compareRows = [];
+      this.snackBar.open(error instanceof Error ? error.message : 'Comparison session could not be loaded.', 'Dismiss', { duration: 5000 });
+    } finally {
+      this.compareLoading = false;
+      setTimeout(() => this.drawReportTrends(), 0);
+    }
+  }
+
+  private seriesMean(rows: Array<Record<string, number | string | null>>, key: string): number | null {
+    const values = rows.map(row => Number(row[key])).filter(Number.isFinite);
+    if (!values.length) return null;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+
+  private verdictText(record: SessionRecord | null): string {
+    const raw = record?.verdict;
+    return String(typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>)['verdict'] || '' : raw || '--');
+  }
+
+  compareDeltaRows(): Array<{ label: string; selected: string; compare: string; delta: string; tone: 'better' | 'worse' | 'neutral' }> {
+    if (!this.compareSummary) return [];
+    const fmt = (value: number | null, digits = 1) => (value === null ? '--' : value.toFixed(digits));
+    const rows: Array<{ label: string; selected: string; compare: string; delta: string; tone: 'better' | 'worse' | 'neutral' }> = [];
+
+    const meanPairs: Array<{ label: string; key: string }> = [
+      { label: 'Mean HR (bpm)', key: 'reported_hr' },
+      { label: 'Mean RR (br/min)', key: 'reported_rr' }
+    ];
+    for (const pair of meanPairs) {
+      const a = this.seriesMean(this.sessionDataRows, pair.key);
+      const b = this.seriesMean(this.compareRows, pair.key);
+      rows.push({
+        label: pair.label,
+        selected: fmt(a),
+        compare: fmt(b),
+        delta: a !== null && b !== null ? (a - b >= 0 ? '+' : '') + (a - b).toFixed(1) : '--',
+        tone: 'neutral'
+      });
+    }
+
+    const coverageOf = (record: SessionRecord | null) => {
+      const metrics = record?.['hr_metrics'];
+      const value = Number((metrics && typeof metrics === 'object' ? (metrics as Record<string, unknown>)['coverage_pct'] : null));
+      return Number.isFinite(value) ? value : null;
+    };
+    const covA = coverageOf(this.selectedSummary);
+    const covB = coverageOf(this.compareSummary);
+    rows.push({
+      label: 'HR coverage (%)',
+      selected: fmt(covA),
+      compare: fmt(covB),
+      delta: covA !== null && covB !== null ? (covA - covB >= 0 ? '+' : '') + (covA - covB).toFixed(1) : '--',
+      tone: covA !== null && covB !== null ? (covA > covB ? 'better' : covA < covB ? 'worse' : 'neutral') : 'neutral'
+    });
+
+    rows.push({
+      label: 'Verdict',
+      selected: this.verdictText(this.reportRecord()),
+      compare: this.verdictText(this.compareSummary),
+      delta: '--',
+      tone: 'neutral'
+    });
+    return rows;
+  }
+
   private drawReportTrends() {
     if (!this.hrReportCanvas || !this.rrReportCanvas) return;
 
     const hrPoints = this.sessionDataRows.map(row => Number(row['reported_hr'])).filter(Number.isFinite);
     const rrPoints = this.sessionDataRows.map(row => Number(row['reported_rr'])).filter(Number.isFinite);
+    const hrCompare = this.compareRows.map(row => Number(row['reported_hr'])).filter(Number.isFinite);
+    const rrCompare = this.compareRows.map(row => Number(row['reported_rr'])).filter(Number.isFinite);
 
-    const plotReportTrend = (canvasRef: ElementRef<HTMLCanvasElement>, color: string, points: number[]) => {
+    const plotReportTrend = (canvasRef: ElementRef<HTMLCanvasElement>, color: string, points: number[], overlay: number[] = []) => {
       const canvas = canvasRef.nativeElement;
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
@@ -390,28 +491,43 @@ export class ReportComponent implements OnInit, AfterViewInit {
         ctx.stroke();
       }
 
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-
-      const minV = Math.min(...points) - 5;
-      const maxV = Math.max(...points) + 5;
+      // Shared vertical scale so the dashed comparison overlay is read against
+      // the same axis as the selected session.
+      const scalePool = overlay.length >= 2 ? points.concat(overlay) : points;
+      const minV = Math.min(...scalePool) - 5;
+      const maxV = Math.max(...scalePool) + 5;
       const diff = maxV - minV;
 
-      points.forEach((val, idx) => {
-        const x = pad + (idx / (count - 1)) * innerW;
-        const y = pad + innerH - ((val - minV) / diff) * innerH;
+      const traceLine = (series: number[]) => {
+        ctx.beginPath();
+        series.forEach((val, idx) => {
+          const x = pad + (idx / (series.length - 1)) * innerW;
+          const y = pad + innerH - ((val - minV) / diff) * innerH;
+          if (idx === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+        ctx.stroke();
+      };
 
-        if (idx === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-      ctx.stroke();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      traceLine(points);
+
+      if (overlay.length >= 2) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = 0.65;
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([6, 4]);
+        traceLine(overlay);
+        ctx.restore();
+      }
     };
 
-    plotReportTrend(this.hrReportCanvas, 'rgba(0, 164, 150, 0.95)', hrPoints);
-    plotReportTrend(this.rrReportCanvas, 'rgba(97, 105, 198, 0.95)', rrPoints);
+    plotReportTrend(this.hrReportCanvas, 'rgba(0, 164, 150, 0.95)', hrPoints, hrCompare);
+    plotReportTrend(this.rrReportCanvas, 'rgba(97, 105, 198, 0.95)', rrPoints, rrCompare);
   }
 }

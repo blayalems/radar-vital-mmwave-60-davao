@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR55: Operator-Selectable Session Comparison Overlay & Delta Table
+
+- **Comparison Picker**: The Report "Session Comparison" card (previously fixed Selected/Previous/Best stats from `/api/sessions/<id>/compare`) gains a mat-select to compare against any other recorded session, fetching only the existing `/summary` + `/data?points=1000` routes (read-only; no new API surface).
+- **Trend Overlay**: The HR/RR report trend canvases overlay the comparison series as a dashed, 65 %-alpha line on a shared vertical axis with the selected session; an explanatory note names the overlaid session.
+- **Delta Table**: Mean HR Δ, mean RR Δ (neutral tone), HR coverage Δ (better/worse colored), and both verdicts. Switching the selected session clears the overlay to avoid stale cross-session reads.
+- **Verification**: Build clean; vitest 42/42; new comparison smoke spec 1/1 on desktop Chromium (covers picker, overlay note, delta rows, and stale-overlay clearing); monolith round-trip clean.
+
 ### 2026-06-12 — PR54: Keyboard Parity — Wire Ctrl+Z/H/L Stubs and D Demo Toggle
 
 - **Stubs Replaced With Real Features**: The layout shell's Ctrl+Z / Ctrl+H / Ctrl+L handlers still showed "not yet available" snackbars even though `UndoService`, the operator-handoff dialog, and `IdleLockService` shipped in PR43/44. Ctrl+Z now performs the undo (with "Undid: <label>" / "Nothing to undo." feedback), Ctrl+H opens the handoff brief (same dialog options as the palette path), Ctrl+L locks the station immediately.

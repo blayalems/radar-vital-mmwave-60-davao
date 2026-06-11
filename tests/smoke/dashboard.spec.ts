@@ -955,6 +955,27 @@ test.describe('Dashboard smoke', () => {
     await expect(card.locator('.quality-remediation')).toContainText('oximeter');
   });
 
+  test('overlays an operator-selected comparison session with a delta table', async ({ page }) => {
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/report');
+
+    const picker = page.getByLabel('Compare against another session');
+    await picker.click();
+    // Demo mode seeds two sandbox sessions; pick the one that is not selected.
+    await page.getByRole('option').nth(1).click();
+
+    await expect(page.locator('.compare-overlay-note')).toContainText('dashed line');
+    const table = page.locator('.compare-delta-table');
+    await expect(table).toBeVisible();
+    await expect(table).toContainText('Mean HR (bpm)');
+    await expect(table).toContainText('Verdict');
+
+    // Switching the selected session clears the stale overlay.
+    await page.locator('.selector-card mat-select').first().click();
+    await page.getByRole('option').nth(1).click();
+    await expect(table).toHaveCount(0);
+  });
+
   test('keeps simulated provenance visible when printing a demo report', async ({ page }) => {
     await seedDemoMode(page);
     await gotoDashboardRoute(page, '/report');

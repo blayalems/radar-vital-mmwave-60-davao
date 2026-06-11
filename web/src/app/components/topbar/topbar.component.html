@@ -101,20 +101,18 @@
       <span class="material-symbols-rounded">download</span>Export
     </button>
 
-    <button mat-icon-button class="tb-more" type="button" (click)="toggleMobileActions()" aria-label="More console actions" [attr.aria-expanded]="mobileActionsOpen()">
+    <button mat-icon-button class="tb-more" type="button" [matMenuTriggerFor]="mobileActionsMenu" aria-label="More console actions">
       <mat-icon>more_vert</mat-icon>
     </button>
-    @if (mobileActionsOpen()) {
-      <div class="mobile-actions-panel" role="menu" aria-label="More console actions menu">
-        <button mat-button type="button" role="menuitem" (click)="runMobileAction(openPalette.bind(this))"><mat-icon>search</mat-icon>Search commands</button>
-        <button mat-button type="button" role="menuitem" (click)="runMobileAction(togglePause.bind(this))"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon>Pause or resume</button>
-        <button mat-button type="button" role="menuitem" (click)="runMobileAction(openAlerts.bind(this))"><mat-icon>notifications</mat-icon>Alerts</button>
-        <button mat-button type="button" role="menuitem" (click)="runMobileAction(openSettings.bind(this))"><mat-icon>settings</mat-icon>Settings</button>
-        <button mat-button type="button" role="menuitem" (click)="runMobileAction(lockProfile.bind(this))"><mat-icon>lock</mat-icon>Lock profile</button>
-        <button mat-button type="button" role="menuitem" (click)="runMobileAction(switchOperator.bind(this))"><mat-icon>swap_horiz</mat-icon>Switch operator</button>
-        <button mat-button type="button" role="menuitem" (click)="runMobileAction(toggleTheme.bind(this))"><mat-icon>palette</mat-icon>Cycle theme</button>
-        <button mat-button type="button" role="menuitem" (click)="runMobileAction(exportData.bind(this))"><mat-icon>download</mat-icon>Export current payload</button>
-      </div>
-    }
+    <mat-menu #mobileActionsMenu="matMenu" xPosition="before" yPosition="below" aria-label="More console actions menu">
+      <button mat-menu-item type="button" (click)="openPalette()"><mat-icon>search</mat-icon><span>Search commands</span></button>
+      <button mat-menu-item type="button" (click)="togglePause()"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon><span>Pause or resume</span></button>
+      <button mat-menu-item type="button" (click)="openAlerts()"><mat-icon>notifications</mat-icon><span>Alerts</span></button>
+      <button mat-menu-item type="button" (click)="openSettings()"><mat-icon>settings</mat-icon><span>Settings</span></button>
+      <button mat-menu-item type="button" (click)="lockProfile()"><mat-icon>lock</mat-icon><span>Lock profile</span></button>
+      <button mat-menu-item type="button" (click)="switchOperator()"><mat-icon>swap_horiz</mat-icon><span>Switch operator</span></button>
+      <button mat-menu-item type="button" (click)="toggleTheme()"><mat-icon>palette</mat-icon><span>Cycle theme</span></button>
+      <button mat-menu-item type="button" (click)="exportData()"><mat-icon>download</mat-icon><span>Export current payload</span></button>
+    </mat-menu>
   </div>
 </mat-toolbar>

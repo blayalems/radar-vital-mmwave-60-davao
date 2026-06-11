@@ -40,14 +40,21 @@ async function submitPinAndWait(page: import('@playwright/test').Page, pin: stri
   return loginResponse;
 }
 
+async function clearPin(page: import('@playwright/test').Page) {
+  const keypad = page.locator('app-pin-keyboard').last();
+  await keypad.locator('.keyboard-grid button', { hasText: /^C$/ }).dispatchEvent('click');
+}
+
 async function clickConsoleAction(page: import('@playwright/test').Page, name: string) {
   const directAction = page.getByRole('button', { name }).first();
   if (await directAction.isVisible().catch(() => false)) {
     await directAction.dispatchEvent('click');
     return;
   }
-  await page.getByRole('button', { name: 'More console actions' }).dispatchEvent('click');
-  await page.getByRole('menuitem', { name }).dispatchEvent('click');
+  await page.getByRole('button', { name: 'More console actions' }).click();
+  const menuItem = page.getByRole('menuitem', { name });
+  await expect(menuItem).toBeVisible();
+  await menuItem.click();
 }
 
 test.describe('Operator profile and lock system', () => {
@@ -127,6 +134,8 @@ test.describe('Operator profile and lock system', () => {
     // 6. Lock again and test invalid PIN + lockout warning.
     await clickConsoleAction(page, 'Lock profile');
     await expect(page.locator('section.idle-lock-overlay')).toBeVisible();
+    await expect(page.locator('.pin-entry-screen')).toBeVisible();
+    await clearPin(page);
 
     // Enter wrong PIN 5 times to trigger lockout
     // 1st wrong attempt

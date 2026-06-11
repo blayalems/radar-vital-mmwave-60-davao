@@ -1,4 +1,4 @@
-import { Injectable, effect, inject } from '@angular/core';
+import { Injectable, effect, inject, untracked } from '@angular/core';
 import { LivePayload } from '../models/rvt.models';
 import { AudioService } from './audio.service';
 import { StateService } from './state.service';
@@ -44,9 +44,11 @@ export class TelemetryService {
         this.stopSse();
         this.clearPollTimer();
         this.clearReconnectTimer();
-        void this.api.detectControlMode().then(() => {
-          this.scheduleNextPoll(0);
-          this.startSse();
+        untracked(() => {
+          void this.api.detectControlMode().then(() => {
+            this.scheduleNextPoll(0);
+            this.startSse();
+          });
         });
       }
     });
@@ -429,6 +431,15 @@ export class TelemetryService {
     this.state.lastLivePayload.set(normalized);
     this.state.liveReceivedAt.set(receivedAt);
     this.state.telemetryStale.set(false);
+    const payloadStatus = String(normalized.meta['status'] || '').toLowerCase();
+    const payloadSessionId = String(normalized.meta['session_id'] || normalized.meta['active_session_id'] || '');
+    if (['idle', 'waiting', 'stopped', 'complete', 'completed'].includes(payloadStatus)) {
+      this.state.sessionActive.set(false);
+      this.state.currentSessionId.set(null);
+    } else if (payloadSessionId && ['running', 'active', 'recording'].includes(payloadStatus)) {
+      this.state.sessionActive.set(true);
+      this.state.currentSessionId.set(payloadSessionId);
+    }
     if (this.staleTimer) clearTimeout(this.staleTimer);
     this.staleTimer = setTimeout(() => this.state.telemetryStale.set(true), 3500);
 

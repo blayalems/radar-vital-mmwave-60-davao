@@ -179,7 +179,7 @@ export class ApiService {
       || (this.state.ctlOn() && this.state.ctlStatus()?.mode === 'sandbox')
     );
 
-    if (isSandbox && path.startsWith('/api/')) {
+    if (isSandbox && path.startsWith('/api/') && !this.isAuthPath(path)) {
       return this.sandboxApiJson(path, init) as T;
     }
 
@@ -232,6 +232,15 @@ export class ApiService {
       }
       throw new Error(err.message || 'HTTP Request failed');
     }
+  }
+
+  private isAuthPath(path: string): boolean {
+    const pathname = new URL(path, window.location.origin).pathname;
+    return pathname === '/api/auth/validate'
+      || pathname === '/api/auth/login'
+      || pathname === '/api/auth/logout'
+      || pathname === '/api/auth/sse-token'
+      || pathname === '/api/operator-profiles';
   }
 
   async download(path: string, filename: string): Promise<void> {
@@ -370,13 +379,26 @@ export class ApiService {
     return existing;
   }
 
+  private parseJsonBody<T extends object>(body: BodyInit | null | undefined): Partial<T> {
+    if (typeof body !== 'string') return {};
+    try {
+      const parsed = JSON.parse(body);
+      return typeof parsed === 'object' && parsed !== null ? parsed as Partial<T> : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
   private sandboxApiJson(path: string, init?: RequestInit): unknown {
     const url = new URL(path, window.location.origin);
     const method = String(init?.method || 'GET').toUpperCase();
     if (url.pathname === '/api/status') return { ok: true, mode: 'sandbox', active_session: this.state.sessionActive() ? { session_id: this.state.currentSessionId() || 'sandbox_active', sandbox: true } : null };
     if (url.pathname === '/api/health') return { ok: true, version: 'sandbox' };
-    if (url.pathname === '/api/version') return { trainer: 'sandbox', dashboard: 'sandbox', firmware_expected: 'sandbox' };
-    if (url.pathname === '/api/sessions') return { ok: true, sessions: this.sandboxLoadSessions() };
+    if (url.pathname === '/api/version') return { product_version: '16.1.0', trainer: 'sandbox', dashboard: 'sandbox', firmware_expected: 'sandbox' };
+    if (url.pathname === '/api/sessions') {
+      const sessions = this.sandboxLoadSessions();
+      return { ok: true, sessions, items: sessions };
+    }
     if (url.pathname === '/api/session/current') return this.state.sessionActive() ? { session_id: this.state.currentSessionId() || 'sandbox_active', sandbox: true } : { ok: false, error: { code: 'NO_ACTIVE_SESSION' } };
     if (url.pathname === '/api/session/current/live_dashboard.json') return { meta: { sandbox: true, status: this.state.sessionActive() ? 'running' : 'waiting' } };
     if (url.pathname === '/api/session/start' && method === 'POST') {
@@ -389,14 +411,48 @@ export class ApiService {
       this.state.sessionActive.set(false);
       const id = this.state.currentSessionId() || `sandbox_${Date.now()}`;
       this.state.currentSessionId.set(null);
-      const session: SessionRecord = { session_id: id, started_at: new Date(Date.now() - 120000).toISOString(), duration_s: 120, subject: this.state.setup().subject || 'sandbox-subject', operator: this.state.setup().operator_label || 'Demo operator', verdict: 'demo', summary: 'Sandbox session stopped locally; trainer was unavailable.', sandbox: true };
+      const setup = this.state.setup();
+      const session: SessionRecord = { session_id: id, started_at: new Date(Date.now() - 120000).toISOString(), duration_s: 120, subject: setup.subject_label || 'sandbox-subject', subject_label: setup.subject_label || 'sandbox-subject', operator: setup.operator_label || 'Demo operator', verdict: 'demo', summary: 'Sandbox session stopped locally; trainer was unavailable.', sandbox: true };
       this.state.sessionItems.update(items => [session, ...items.filter(item => item.session_id !== id)]);
       return { ok: true, session_id: id, session, sandbox: true };
     }
-    if (url.pathname.startsWith('/api/sessions/') && url.pathname.endsWith('/notes')) return { ok: true, sandbox: true };
-    if (url.pathname.startsWith('/api/sessions/') && url.pathname.endsWith('/signoff')) return { ok: true, sandbox: true };
-    if (url.pathname === '/api/defaults') return { radar_port: 'COM10', ble_address: '', ble_profile: 'ailink_oximeter' };
-    if (url.pathname === '/api/preflight') return { ok: true, checks: [] };
+    if (url.pathname.startsWith('/api/sessions/')) {
+      const parts = url.pathname.split('/');
+      const sessionId = decodeURIComponent(parts[3] || '');
+      const session = this.sandboxLoadSessions().find(item => item.session_id === sessionId)
+        || { session_id: sessionId, sandbox: true, verdict: 'demo', summary: 'Sandbox session summary.' };
+      if (url.pathname.endsWith('/summary')) return { ...session, sandbox: true };
+      if (url.pathname.endsWith('/data')) {
+        return {
+          rows: [
+            { t: 0, reported_hr: 72, reported_rr: 14 },
+            { t: 1, reported_hr: 73, reported_rr: 15 },
+            { t: 2, reported_hr: 71, reported_rr: 14 }
+          ]
+        };
+      }
+      if (url.pathname.endsWith('/compare')) return { selected: session, previous: null, best: session };
+      if (url.pathname.endsWith('/analyse/status')) {
+        return { status: 'complete', progress_pct: 100, last_line: 'Sandbox analysis complete.' };
+      }
+      if (url.pathname.endsWith('/notes')) {
+        const body = method === 'PUT' ? this.parseJsonBody<{ review_summary?: string }>(init?.body) : {};
+        return { review_summary: body.review_summary || session.summary || '', sandbox: true };
+      }
+      if (url.pathname.endsWith('/signoff')) {
+        const body = method === 'PUT' ? this.parseJsonBody<SessionSignoff>(init?.body) : {};
+        return {
+          session_id: sessionId,
+          operator_name: body.operator_name || '',
+          initials: body.initials || '',
+          validation_comment: body.validation_comment || '',
+          signed_at: method === 'PUT' ? new Date().toISOString() : null,
+          sandbox: true
+        };
+      }
+    }
+    if (url.pathname === '/api/defaults') return { sandbox: true, radar_port: 'COM10', ble_address: '', ble_profile: 'ailink_oximeter' };
+    if (url.pathname === '/api/preflight') return { ok: true, checks: [{ name: 'Sandbox trainer', ok: true, message: 'Demo mode is available.' }] };
     if (url.pathname === '/api/ble/scan') return { ok: true, devices: [] };
     if (url.pathname === '/api/operator-profiles') return { schema_version: 'sandbox', profiles: [] };
     return { ok: true, sandbox: true };
@@ -410,15 +466,18 @@ export class ApiService {
   }
 
   async startSession(): Promise<{ session_id?: string }> {
+    const setup = this.state.setup();
     const payload = {
-      subject: this.state.setup().subject,
-      duration_s: this.state.setup().duration_s,
-      radar_port: this.state.setup().radar_port,
-      ble_address: this.state.setup().ble_address,
-      ble_profile: this.state.setup().ble_profile,
-      operator: this.state.setup().operator_label,
-      station_label: this.state.setup().station_label,
-      protocol: this.state.setup().protocol
+      duration_s: setup.duration_s,
+      radar_port: setup.radar_port,
+      ble_address: setup.ble_address,
+      subject_label: setup.subject_label,
+      operator_label: setup.operator_label,
+      station_label: setup.station_label,
+      subject_profile_id: setup.subject_profile_id,
+      ble_profile: setup.ble_profile,
+      skip_countdown: setup.skip_countdown,
+      advanced: { notify_char: setup.notify_char }
     };
     const result = await this.request<{ session_id?: string }>('/api/session/start', {
       method: 'POST',

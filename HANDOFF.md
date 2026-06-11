@@ -5,6 +5,17 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-11 — PR48 CI Readiness Fixes
+
+- **Telemetry Session Reconciliation**: Made live payload `meta.status` / `session_id` authoritative for active-session state so stopped or idle trainer payloads clear the Angular navigation guard and Stop Session affordance.
+- **Session Start Payload Contract**: Re-aligned the shared Angular API service with the trainer `/api/session/start` contract (`subject_label`, `subject_profile_id`, `advanced.notify_char`) after the rebased PR branch exposed stale setup field references.
+- **Sandbox Report Contract**: Restored demo-mode report/session API shapes (`items` + `sessions`, summary/data/notes/signoff/compare/status payloads) and preserved the `16.1.0` static product-version literal.
+- **Mobile Actions Menu**: Replaced the custom mobile overflow panel with an Angular Material menu so Search, Lock, and Switch Operator actions are present and focusable across phone/tablet projects.
+- **SSE Startup Stability**: Kept TelemetryService reconnect startup outside Angular signal tracking while preserving the PR48 duplicate-connection guard.
+- **Smoke Test Determinism**: Mocked active-session SSE/live-dashboard payloads, reopened the selected Help topic before checking advanced copy, and cleared the PIN keypad before lockout attempts.
+- **Visual Baselines**: Seeded the authenticated operator context in v12 visual tests and refreshed the committed Windows baselines for the locked PR48 dashboard shell.
+- **Verification**: `npm --prefix web run build`, `npm run build:web`, `npm run build:check`, `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer`, `python -m rvt_trainer --help`, `python -m pytest tests -q` (90/90), `npm run test:unit:web` (39/39), `node scripts/generate-rvt-latest.mjs --self-test`, `npx playwright test tests/smoke --reporter=list` (184/184), and `npx playwright test tests/visual --reporter=list` (96/96) passed; Angular still reports the known initial bundle budget warning.
+
 ### 2026-06-10 — PR48 Operator Profiles and PIN Lock Fixes
 
 - **Help Tab Auth Bypass**: Added `/api/help/schema` to the public endpoint bypass list so the Help tab loads successfully without an operator session token.

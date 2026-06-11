@@ -213,11 +213,11 @@ export class HelpComponent implements OnInit {
     this.selectedTopic.set(topicId);
     this.writeStorage('rvt-help-topic', topicId);
     this.state.triggerHaptic('tap');
-    this.cdr.markForCheck();
+    this.cdr.detectChanges();
     if (scroll) {
       setTimeout(() => {
         document.querySelector(`[data-help-topic="${topicId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        this.cdr.markForCheck();
+        this.cdr.detectChanges();
       });
     }
   }
@@ -305,13 +305,13 @@ export class HelpComponent implements OnInit {
         Object.entries(schema.tooltips || {}).map(([key, value]) => ({ key, value })),
         tip => tip.key
       ));
-      this.cdr.markForCheck();
+      this.cdr.detectChanges();
     } catch (_) {
       this.snackBar.open('Trainer help schema is unavailable; showing embedded guidance.', 'Dismiss', { duration: 5000 });
-      this.cdr.markForCheck();
+      this.cdr.detectChanges();
     } finally {
       this.loading.set(false);
-      this.cdr.markForCheck();
+      this.cdr.detectChanges();
     }
   }
 

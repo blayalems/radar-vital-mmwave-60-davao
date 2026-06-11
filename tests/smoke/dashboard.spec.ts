@@ -10,6 +10,156 @@ async function leaveActiveSessionIfPrompted(page: Page): Promise<void> {
   }
 }
 
+async function waitForUnlockedShell(page: Page): Promise<void> {
+  await page.locator('#rvtLoadingOverlay').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  const overlay = page.locator('section.idle-lock-overlay');
+  if (await overlay.isVisible({ timeout: 1000 }).catch(() => false)) {
+    if (await overlay.getByRole('heading', { name: /Create Operator/ }).isVisible().catch(() => false)) {
+      await overlay.getByLabel('Display Name').fill('Operator A');
+      await overlay.getByLabel('Initials').fill('OA');
+      for (const digit of ['1', '2', '3', '4']) {
+        await overlay.getByRole('button', { name: digit }).click();
+      }
+      await overlay.getByRole('button', { name: /Create Profile/ }).click();
+    } else if (await overlay.getByRole('heading', { name: /Enter PIN/ }).isVisible().catch(() => false)) {
+      for (const digit of ['1', '2', '3', '4']) {
+        await overlay.getByRole('button', { name: digit }).click();
+      }
+    }
+  }
+  if (await overlay.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await page.addInitScript(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
+      setup.operator_label = 'Operator A';
+      localStorage.setItem('rvt-setup', JSON.stringify(setup));
+    });
+    await page.evaluate(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
+      setup.operator_label = 'Operator A';
+      localStorage.setItem('rvt-setup', JSON.stringify(setup));
+    });
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.locator('#rvtLoadingOverlay').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  }
+  await expect(page.locator('section.idle-lock-overlay')).toHaveCount(0, { timeout: 15000 });
+}
+
+async function seedDemoMode(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+    localStorage.setItem('rvt-demo-mode', '1');
+    const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
+    setup.operator_label = 'Operator A';
+    localStorage.setItem('rvt-setup', JSON.stringify(setup));
+  });
+}
+
+async function mockDemoReportSession(page: Page): Promise<void> {
+  const session = {
+    session_id: 'session-demo-report',
+    started_at: '2026-05-24T00:00:00Z',
+    duration_s: 60,
+    subject: 'Sandbox',
+    subject_label: 'Sandbox',
+    operator_label: 'Operator A',
+    summary: 'Simulated trace for report review.',
+    verdict: 'ready',
+    sandbox: true,
+    message: 'Demo report data for operator review.',
+    downloads: []
+  };
+  const rows = [
+    { t: 0, reported_hr: 72, reported_rr: 14 },
+    { t: 1, reported_hr: 73, reported_rr: 15 }
+  ];
+
+  await page.route('**/api/sessions**', async (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname;
+    if (path === '/api/sessions') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [session] })
+      });
+      return;
+    }
+    if (path === `/api/sessions/${session.session_id}/summary`) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(session) });
+      return;
+    }
+    if (path === `/api/sessions/${session.session_id}/data`) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rows }) });
+      return;
+    }
+    if (path === `/api/sessions/${session.session_id}/compare`) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ selected: session, previous: null, best: session })
+      });
+      return;
+    }
+    if (path === `/api/sessions/${session.session_id}/analyse/status`) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'complete', progress_pct: 100, last_line: 'Demo analysis complete.' })
+      });
+      return;
+    }
+    if (path === `/api/sessions/${session.session_id}/notes`) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ review_summary: route.request().method() === 'PUT' ? 'Reviewed simulated trace only.' : '' })
+      });
+      return;
+    }
+    if (path === `/api/sessions/${session.session_id}/signoff`) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          session_id: session.session_id,
+          operator_name: 'Field Operator',
+          initials: 'FO',
+          validation_comment: 'Simulation marked non-clinical.',
+          signed_at: '2026-05-24T00:01:00Z'
+        })
+      });
+      return;
+    }
+    await route.fallback();
+  });
+}
+
+async function gotoDashboardRoute(page: Page, route: '/home' | '/live' | '/report' | '/settings'): Promise<void> {
+  if (page.url() === 'about:blank') {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+  }
+  await waitForUnlockedShell(page);
+  const names: Record<typeof route, RegExp> = {
+    '/home': /Home/,
+    '/live': /Live monitoring/,
+    '/report': /Report review/,
+    '/settings': /Settings/
+  };
+  if (!new URL(page.url()).pathname.endsWith(route)) {
+    const navLink = page.getByRole('link', { name: names[route] }).first();
+    if (await navLink.isVisible().catch(() => false)) {
+      await navLink.click();
+      await leaveActiveSessionIfPrompted(page);
+    } else {
+      await page.goto(route, { waitUntil: 'domcontentloaded' });
+    }
+    await expect(page).toHaveURL(new RegExp(`${route}$`));
+    await waitForUnlockedShell(page);
+  }
+}
+
 async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   const overflow = await page.evaluate(() => {
     const viewportWidth = document.documentElement.clientWidth;
@@ -77,7 +227,37 @@ test.describe('Dashboard smoke', () => {
         })
       });
     });
+    await page.route('**/api/auth/login', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          token: 'mock-test-operator-token',
+          operator: {
+            operator_id: 'op_test',
+            display_name: 'Operator A',
+            initials: 'OA'
+          }
+        })
+      });
+    });
     await page.route('**/api/operator-profiles', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            operator: {
+              operator_id: 'op_test',
+              display_name: 'Operator A',
+              initials: 'OA'
+            }
+          })
+        });
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -176,7 +356,7 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('#mainContent')).toBeFocused();
 
     await page.evaluate(() => localStorage.setItem('rvt-demo-mode', '1'));
-    await page.goto('/live', { waitUntil: 'domcontentloaded' });
+    await gotoDashboardRoute(page, '/live');
     await expect(page.locator('.kpi-hr')).toHaveAttribute('role', 'status');
     await expect(page.locator('.kpi-hr')).toHaveAttribute('aria-live', 'polite');
     await expect(page.locator('.kpi-hr canvas')).toHaveAttribute('role', 'img');
@@ -189,8 +369,8 @@ test.describe('Dashboard smoke', () => {
   });
 
   test('restores v11 live keyboard workflows in the Angular operator console', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
-    await page.goto('/live', { waitUntil: 'domcontentloaded' });
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/live');
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
 
     await page.keyboard.press('?');
@@ -215,8 +395,8 @@ test.describe('Dashboard smoke', () => {
   });
 
   test('allocates legible height to Live overview graphs', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
-    await page.goto('/live', { waitUntil: 'domcontentloaded' });
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/live');
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
 
     const graphHeights = await page.locator('.kpi-card-spark').evaluateAll(elements =>
@@ -230,8 +410,8 @@ test.describe('Dashboard smoke', () => {
     if ((page.viewportSize()?.width || 0) >= 1024) {
       await page.setViewportSize({ width: 1280, height: 720 });
     }
-    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
-    await page.goto('/live', { waitUntil: 'domcontentloaded' });
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/live');
 
     const viewportWidth = page.viewportSize()?.width || 0;
     const simpleView = page.getByTitle('Simple view');
@@ -291,8 +471,8 @@ test.describe('Dashboard smoke', () => {
 
   test('renders desktop topbar controls without duplicate surfaces or selection indicators', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
-    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
-    await page.goto('/live', { waitUntil: 'domcontentloaded' });
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/live');
     await expect(page.locator('.topbar-status')).toBeVisible();
 
     const hasUnboxedGroups = await page.evaluate(() =>
@@ -436,6 +616,7 @@ test.describe('Dashboard smoke', () => {
     }
 
     await page.locator('.topic-links button').filter({ hasText: 'Firmware' }).click();
+    await page.locator('[data-help-topic="firmware_truthfulness"]').getByRole('button').click();
     await expect(page.getByText(/Firmware, trainer and dashboard contracts/)).toBeVisible();
     await page.getByRole('switch', { name: /Advanced detail/ }).click();
     await expect(page.getByText(/serial DATA header is a fixed contract/)).toBeVisible();
@@ -519,7 +700,7 @@ test.describe('Dashboard smoke', () => {
   });
 
   test('applies compact density to Angular settings spacing', async ({ page }) => {
-    await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+    await gotoDashboardRoute(page, '/settings');
     const settingsGrid = page.locator('.settings-grid');
     const comfortableGap = await settingsGrid.evaluate(element => parseFloat(getComputedStyle(element).gap));
 
@@ -545,7 +726,7 @@ test.describe('Dashboard smoke', () => {
         })
       });
     });
-    await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+    await gotoDashboardRoute(page, '/settings');
     await page.getByRole('button', { name: /Scan BLE/ }).click();
     await expect(page.getByText('2 devices found.')).toBeVisible();
     await page.getByRole('button', { name: /Use BLE device AiLink QA Oximeter/ }).click();
@@ -666,7 +847,7 @@ test.describe('Dashboard smoke', () => {
         }
       };
     });
-    await page.goto('/home', { waitUntil: 'domcontentloaded' });
+    await gotoDashboardRoute(page, '/home');
     await page.getByRole('button', { name: /Validate native GATT/ }).click();
     await expect(page.getByRole('status')).toContainText(/Native GATT verified: received 2 bytes from AiLink QA/);
     await expect(page.getByRole('status')).toContainText(/trainer telemetry remains the session source/i);
@@ -690,7 +871,7 @@ test.describe('Dashboard smoke', () => {
         return originalFetch(input, init);
       };
     });
-    await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+    await gotoDashboardRoute(page, '/settings');
     await page.getByLabel('Six-digit LAN pairing PIN').fill('482931');
     await page.getByRole('button', { name: /Pair with PIN/ }).click();
     await expect(page.locator('simple-snack-bar').last()).toContainText(/paired/i);
@@ -700,9 +881,10 @@ test.describe('Dashboard smoke', () => {
   });
 
   test('persists demo report review and structured sign-off through Material controls', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
-    await page.goto('/report', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText(/DEMO - Simulated Data Only/)).toBeVisible();
+    await mockDemoReportSession(page);
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/report');
+    await expect(page.getByText(/DEMO MODE - simulated vitals only/)).toBeVisible();
     await page.getByLabel('Operator report notes').fill('Reviewed simulated trace only.');
     await page.getByRole('button', { name: /Save Report Notes/ }).click();
     await page.getByLabel('Operator name').fill('Field Operator');
@@ -713,8 +895,8 @@ test.describe('Dashboard smoke', () => {
   });
 
   test('keeps simulated provenance visible when printing a demo report', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('rvt-demo-mode', '1'));
-    await page.goto('/report', { waitUntil: 'domcontentloaded' });
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/report');
     await page.emulateMedia({ media: 'print' });
     await expect(page.locator('#demoBanner')).toBeVisible();
     await expect(page.locator('#demoBanner')).toContainText('simulated vitals only');
@@ -771,6 +953,17 @@ test.describe('Dashboard smoke', () => {
   test('hydrates active-session actions and home history from trainer APIs', async ({ page }) => {
     let active = true;
     await page.route('**/sw.js', (route) => route.abort());
+    await page.route('**/api/events/subscribe**', (route) => route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive'
+      },
+      body: active
+        ? 'event: ping\ndata: {"ok":true}\n\n'
+        : 'event: stopped\ndata: {"session_id":"session-active","reason":"completed"}\n\n'
+    }));
     await page.route('**/api/status', (route) => {
       console.log(`[TEST ROUTE MOCK] api/status active variable is: ${active}`);
       return route.fulfill({
@@ -782,6 +975,20 @@ test.describe('Dashboard smoke', () => {
         })
       });
     });
+    await page.route('**/api/session/current/live_dashboard.json**', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        meta: active
+          ? { status: 'running', session_id: 'session-active', elapsed_s: 5, remaining_s: 25 }
+          : { status: 'idle', session_id: null, elapsed_s: 0, remaining_s: 0 },
+        radar: {},
+        ble: {},
+        faults: [],
+        events: [],
+        series: {}
+      })
+    }));
     await page.route('**/api/sessions', (route) => route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -798,7 +1005,7 @@ test.describe('Dashboard smoke', () => {
 
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await expect(page.getByRole('button', { name: /Stop Session/ })).toBeEnabled();
+    await expect(page.locator('.stop-btn:visible')).toBeEnabled();
     await page.getByRole('link', { name: /Home/ }).first().click();
     await expect(page.getByRole('dialog')).toContainText('Leave active session?');
     await page.getByRole('dialog').getByRole('button', { name: /Leave view/ }).click();
@@ -808,7 +1015,7 @@ test.describe('Dashboard smoke', () => {
     active = false;
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await expect(page.getByRole('button', { name: /Stop Session/ })).toBeDisabled();
+    await expect(page.getByText(/Standby \/ Polling Data/)).toBeVisible();
   });
 
   test('stopping through the command palette clears the active-session navigation guard', async ({ page }) => {
@@ -861,8 +1068,12 @@ test.describe('Dashboard smoke', () => {
 
   test('explicit demo mode streams telemetry and preserves snapshot capture', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.evaluate(() => localStorage.setItem('rvt-demo-mode', '1'));
-    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      localStorage.setItem('rvt-demo-mode', '1');
+    });
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await waitForUnlockedShell(page);
 
     await expect(page.locator('#demoBanner')).toBeVisible();
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
@@ -874,8 +1085,12 @@ test.describe('Dashboard smoke', () => {
 
   test('restores live diagnostics and functional Material actions in demo mode', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.evaluate(() => localStorage.setItem('rvt-demo-mode', '1'));
-    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      localStorage.setItem('rvt-demo-mode', '1');
+    });
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await waitForUnlockedShell(page);
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
     const demoHeaderContained = await page.evaluate(() => {
       const banner = document.querySelector('#demoBanner')?.getBoundingClientRect();

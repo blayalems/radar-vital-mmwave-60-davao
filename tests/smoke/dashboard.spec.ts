@@ -866,8 +866,9 @@ test.describe('Dashboard smoke', () => {
     });
     await gotoDashboardRoute(page, '/home');
     await page.getByRole('button', { name: /Validate native GATT/ }).click();
-    await expect(page.getByRole('status')).toContainText(/Native GATT verified: received 2 bytes from AiLink QA/);
-    await expect(page.getByRole('status')).toContainText(/trainer telemetry remains the session source/i);
+    // Scope to the probe's own status element — Home now has multiple role="status" regions.
+    await expect(page.locator('.native-ble-result')).toContainText(/Native GATT verified: received 2 bytes from AiLink QA/);
+    await expect(page.locator('.native-ble-result')).toContainText(/trainer telemetry remains the session source/i);
   });
 
   test('exchanges a one-time pairing PIN without exposing a raw token input', async ({ page }) => {

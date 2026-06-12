@@ -210,8 +210,13 @@ export class ReportComponent implements OnInit, AfterViewInit {
   }
 
   verdictCategories(): Array<{ id: string; label: string; status: string; detail: string; remediation: string }> {
+    // Real trainer summaries keep the short string in `verdict` and the
+    // category/remediation detail under `ml_readiness_verdict`; the sandbox
+    // shape nests categories directly in the verdict object. Support both.
+    const mlVerdict = this.summaryObject('ml_readiness_verdict');
     const verdict = this.reportRecord()?.verdict;
-    const categories = typeof verdict === 'object' && verdict !== null ? (verdict as Record<string, unknown>)['categories'] : null;
+    const fromVerdictObj = typeof verdict === 'object' && verdict !== null ? (verdict as Record<string, unknown>)['categories'] : null;
+    const categories = Array.isArray(mlVerdict?.['categories']) ? mlVerdict['categories'] : fromVerdictObj;
     if (!Array.isArray(categories)) return [];
     return categories
       .filter(entry => entry && typeof entry === 'object')
@@ -389,7 +394,9 @@ export class ReportComponent implements OnInit, AfterViewInit {
   }
 
   private seriesMean(rows: Array<Record<string, number | string | null>>, key: string): number | null {
-    const values = rows.map(row => Number(row[key])).filter(Number.isFinite);
+    // The firmware publishes 0 for invalid/held frames — exclude those
+    // placeholders so motion gaps don't drag the mean down artificially.
+    const values = rows.map(row => Number(row[key])).filter(value => Number.isFinite(value) && value > 0);
     if (!values.length) return null;
     return values.reduce((sum, value) => sum + value, 0) / values.length;
   }

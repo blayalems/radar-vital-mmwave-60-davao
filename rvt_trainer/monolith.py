@@ -6306,7 +6306,12 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             is_valid_pairing = True
 
         # 8. Apply routing gating rules
-        if getattr(self.server, "bind_mode", "local") == "lan":
+        # Loopback clients (the EXE shell / same-machine processes) bypass the LAN
+        # *pairing* gate: pairing tokens exist to gate network peers, and the EXE's
+        # own WebView holds none after a share-mode sidecar restart. Sensitive
+        # endpoints below still require a valid operator session, and same-machine
+        # callers already have filesystem access to everything the API serves.
+        if getattr(self.server, "bind_mode", "local") == "lan" and client_host not in {"127.0.0.1", "::1", "localhost"}:
             if not is_valid_pairing and not is_real_valid_operator and not is_valid_sse:
                 self._send_json(401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "LAN pair token required"}})
                 return False

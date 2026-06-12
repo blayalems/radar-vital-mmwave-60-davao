@@ -76,7 +76,11 @@ def test_lan_sensitive_reads_require_token_and_public_shell_remains_available(tm
     base = f"http://127.0.0.1:{server.httpd.server_port}"
     try:
         assert _request(base, "/api/health")[0] == 200
-        assert _request(base, "/api/server-info")[0] == 401
+        # Loopback clients (the EXE shell) bypass the LAN pairing gate for
+        # discovery routes; sensitive endpoints below still require an
+        # operator session. Network peers keep the 401 pairing requirement,
+        # which these loopback-only tests cannot exercise directly.
+        assert _request(base, "/api/server-info")[0] == 200
         assert _request(base, "/api/status")[0] == 401
         assert _request(base, "/api/subject-profiles")[0] == 401
         assert _request(base, "/api/events/subscribe")[0] == 401
@@ -365,8 +369,11 @@ def test_public_server_info_never_exposes_pin_material(tmp_path: Path):
     server.start()
     base = f"http://127.0.0.1:{server.httpd.server_port}"
     try:
-        # LAN bind requires a pairing token even for server-info (PR48 contract).
-        assert _request(base, "/api/server-info")[0] == 401
+        # Loopback discovery is allowed in LAN bind, but must stay metadata-only.
+        status_bare, payload_bare = _request(base, "/api/server-info")
+        assert status_bare == 200
+        assert "active_pin" not in payload_bare
+        assert "qr_png_base64" not in payload_bare
         server.httpd.auth_tokens.add("paired-token")
         status, payload = _request(base, "/api/server-info", token="paired-token")
         assert status == 200

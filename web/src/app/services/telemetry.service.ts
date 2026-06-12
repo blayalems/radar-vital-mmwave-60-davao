@@ -1,4 +1,4 @@
-import { Injectable, effect, inject, untracked } from '@angular/core';
+import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { LivePayload } from '../models/rvt.models';
 import { AudioService } from './audio.service';
 import { StateService } from './state.service';
@@ -25,6 +25,8 @@ export class TelemetryService {
   private sseErrors: number[] = [];
   private httpPollFailures = 0;
   private demoT = 0;
+  /** Epoch ms of the next scheduled SSE reconnect attempt (null when connected). */
+  readonly nextRetryAtMs = signal<number | null>(null);
 
   constructor() {
     this.start();
@@ -184,6 +186,7 @@ export class TelemetryService {
         this.sseMode = true;
         this.sseErrors = [];
         this.sseReconnectAttempts = 0;
+        this.nextRetryAtMs.set(null);
         this.clearPollTimer();
         this.clearReconnectTimer();
       };
@@ -199,7 +202,12 @@ export class TelemetryService {
 
       this.sse.addEventListener('session_warning', (ev: MessageEvent) => {
         const payload = this.parseSseJson(ev);
-        const message = this.eventMessage(payload, 'Session warning from telemetry stream.');
+        // The contractual 12 h stream deadline (AGENTS.md invariant 11) is routine:
+        // tell the operator it is automatic instead of raising a scary warning.
+        const isDeadline = !!payload && (payload as Record<string, unknown>)['reason'] === 'deadline_approaching';
+        const message = isDeadline
+          ? 'Live stream renews in 60 seconds — automatic, no action needed.'
+          : this.eventMessage(payload, 'Session warning from telemetry stream.');
         this.emitAlert(message, 'warn', 'sse-session-warning');
       });
 
@@ -276,8 +284,10 @@ export class TelemetryService {
     const backoffSeconds = this.sseReconnectAttempts === 0 ? 15 : this.sseReconnectAttempts === 1 ? 30 : 60;
     const jitterMs = Math.floor(Math.random() * 2000) - 1000;
     const delayMs = Math.max(1000, backoffSeconds * 1000 + jitterMs);
+    this.nextRetryAtMs.set(Date.now() + delayMs);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
+      this.nextRetryAtMs.set(null);
       if (!this.running) return;
       this.sseReconnectAttempts++;
       this.startSse();

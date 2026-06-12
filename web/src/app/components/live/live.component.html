@@ -137,7 +137,7 @@
                   </div>
                 </div>
                 <div class="kpi-card-value" [class.kpi-holding]="hrHolding()">
-                  <strong>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) : '--' }}</strong>
+                  <strong>{{ hrValueDisplay() }}</strong>
                   <small>bpm</small>
                   @if (hrHolding()) {
                     <span class="holding-tag" title="The firmware is not publishing a fresh heart-rate value this second; the display holds the last accepted reading.">holding</span>
@@ -170,7 +170,7 @@
                   </div>
                 </div>
                 <div class="kpi-card-value" [class.kpi-holding]="rrHolding()">
-                  <strong>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) : '--' }}</strong>
+                  <strong>{{ rrValueDisplay() }}</strong>
                   <small>br/min</small>
                   @if (rrHolding()) {
                     <span class="holding-tag" title="The firmware is not publishing a fresh respiration value this second; the display holds the last accepted reading.">holding</span>

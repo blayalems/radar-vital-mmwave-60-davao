@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — Connection Clarity, LAN Loopback Gate & PR52 Review Fixes
+
+- **Connection Clarity**: Topbar disconnected state shows a live "auto-retry in Ns" countdown driven by the telemetry service's SSE reconnect schedule (`nextRetryAtMs` signal, cleared on connect); the contractual 12 h SSE `session_warning` (`deadline_approaching`) renders as "Live stream renews in 60 seconds — automatic, no action needed" instead of a generic warning.
+- **Review P1 (LAN sharing locked the EXE out)**: Loopback clients now bypass the LAN *pairing*-token gate in `_require_control_auth` — after a share-mode sidecar restart the EXE's WebView holds no pairing token and previously got 401 for everything including `/api/auth/login`. Operator-session rules for sensitive endpoints are unchanged; network peers keep the 401 pairing requirement. PR48's LAN contract test updated accordingly (loopback `/api/server-info` 200 and metadata-only; sensitive routes still 401 without an operator session); the share/New-PIN confirm dialogs warn "You will be asked to sign in again afterwards."
+- **Review P2 Fixes**: comparison means exclude the firmware's 0-value invalid-publish placeholders; Report verdict categories read the trainer's real `ml_readiness_verdict` block (sandbox shape still supported); the Live "holding" state shows the last accepted HR/RR value instead of `--`.
+- **CI Test Job Fix**: the placement chip's `role="status"` made the BLE-probe spec's strict `getByRole('status')` ambiguous — that spec now targets `.native-ble-result` precisely.
+- **Verification**: `python -m pytest -q tests` 93/93; `npm --prefix web run test:ci` 42/42; 5 affected smoke specs green on desktop Chromium; monolith round-trip clean. Visual job stays expected-red until the Windows baseline refresh pass.
+
 ### 2026-06-12 — PR58: Firmware Robustness Backoff, Reset Forensics, and NVS Failure Escalation
 
 - **Peripheral Backoff**: Firmware now uses bounded exponential retry state for MLX90614, BH1750, and LCD recovery (3 s doubling to 5 min cap), resetting on successful recovery and continuing to increment the PR57 I2C/LCD diagnostic counters.

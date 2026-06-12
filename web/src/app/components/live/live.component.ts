@@ -193,6 +193,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         const ble = payload.ble || {};
         const radarHr = Number(radar.reported_hr);
         const radarRr = Number(radar.reported_rr);
+        // Cache the last accepted publish so the "holding" state can keep
+        // showing it (the firmware emits 0 while a publish is held).
+        if (radarHr > 0) this.lastGoodHr.set(Math.round(radarHr));
+        if (radarRr > 0) this.lastGoodRr.set(Math.round(radarRr));
         const bleHr = Number(ble.hr);
         const bleRr = Number(ble.rr);
         const pqiHr = Number((radar['candidate_conf'] !== undefined && radar['candidate_conf'] !== null && radar['candidate_conf'] !== '') ? radar['candidate_conf'] : (this.telemetryValue('candidate_hr_conf') ?? 0.5));
@@ -942,6 +946,23 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     schema_warning: 'Readiness: SCHEMA WARNING',
     provenance_warning: 'Readiness: PROVENANCE WARNING'
   };
+
+  protected readonly lastGoodHr = signal<number | null>(null);
+  protected readonly lastGoodRr = signal<number | null>(null);
+
+  protected hrValueDisplay(): string {
+    const value = Number(this.state.lastPayload()?.radar?.reported_hr);
+    if (value > 0) return String(Math.round(value));
+    const held = this.lastGoodHr();
+    return this.hrHolding() && held !== null ? String(held) : '--';
+  }
+
+  protected rrValueDisplay(): string {
+    const value = Number(this.state.lastPayload()?.radar?.reported_rr);
+    if (value > 0) return String(Math.round(value));
+    const held = this.lastGoodRr();
+    return this.rrHolding() && held !== null ? String(held) : '--';
+  }
 
   protected readonly sessionPhaseName = computed(() =>
     String(this.state.lastPayload()?.radar?.session_phase_name ?? '').toUpperCase());

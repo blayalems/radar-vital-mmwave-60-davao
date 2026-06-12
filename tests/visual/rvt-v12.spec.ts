@@ -43,10 +43,11 @@ test.describe('v12 dashboard visual baseline', () => {
 
   for (const theme of themes) {
     for (const view of views) {
-      test(`${theme} ${view}`, async ({ page }) => {
+      test(`${theme} ${view}`, async ({ page }, testInfo) => {
+        const stabilizeHomeTelemetry = view === 'home' && ['iphone-14', 'ipad'].includes(testInfo.project.name);
         // Block external font loading to prevent screenshot hanging in offline/sandboxed environments
         await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
-        if (view === 'home') {
+        if (stabilizeHomeTelemetry) {
           await page.route('**/api/status', async (route) => {
             await route.fulfill({
               status: 200,
@@ -67,32 +68,54 @@ test.describe('v12 dashboard visual baseline', () => {
               })
             });
           });
+        }
+        if (view === 'home') {
           // Suppress streamed changes before taking the Home layout/theme capture.
           // Plot rendering remains asserted on the Live route.
-          await page.addInitScript(() => {
+          await page.addInitScript(({ stabilizeHomeTelemetry }) => {
             Date.now = () => 1_700_000_000_000;
-            Object.defineProperty(window, 'EventSource', {
-              configurable: true,
-              value: class VisualBaselineEventSource {
-                private openHandler: ((event: Event) => void) | null = null;
-                onerror: ((event: Event) => void) | null = null;
-                onmessage: ((event: MessageEvent) => void) | null = null;
+            if (stabilizeHomeTelemetry) {
+              Object.defineProperty(window, 'EventSource', {
+                configurable: true,
+                value: class VisualBaselineEventSource {
+                  private openHandler: ((event: Event) => void) | null = null;
+                  onerror: ((event: Event) => void) | null = null;
+                  onmessage: ((event: MessageEvent) => void) | null = null;
 
-                set onopen(handler: ((event: Event) => void) | null) {
-                  this.openHandler = handler;
-                  queueMicrotask(() => this.openHandler?.(new Event('open')));
+                  set onopen(handler: ((event: Event) => void) | null) {
+                    this.openHandler = handler;
+                    queueMicrotask(() => this.openHandler?.(new Event('open')));
+                  }
+
+                  get onopen(): ((event: Event) => void) | null {
+                    return this.openHandler;
+                  }
+
+                  addEventListener(): void {}
+                  removeEventListener(): void {}
+                  close(): void {}
+                  dispatchEvent(): boolean { return true; }
                 }
+              });
+            } else {
+              Object.defineProperty(window, 'EventSource', {
+                configurable: true,
+                value: class VisualBaselineEventSource {
+                  onopen: ((event: Event) => void) | null = null;
+                  onerror: ((event: Event) => void) | null = null;
+                  onmessage: ((event: MessageEvent) => void) | null = null;
 
-                get onopen(): ((event: Event) => void) | null {
-                  return this.openHandler;
+                  constructor() {
+                    setTimeout(() => this.onopen?.(new Event('open')), 0);
+                  }
+
+                  addEventListener(): void {}
+                  removeEventListener(): void {}
+                  close(): void {}
+                  dispatchEvent(): boolean { return true; }
                 }
-
-                addEventListener(): void {}
-                removeEventListener(): void {}
-                close(): void {}
-                dispatchEvent(): boolean { return true; }
-              }
-            });
+              });
+            }
             // Preflight is hardware-dependent and arrives asynchronously.
             // Intercept it before Angular boots; API behavior is covered by
             // smoke and Python contract suites rather than screenshots.
@@ -120,7 +143,7 @@ test.describe('v12 dashboard visual baseline', () => {
               }
               return nativeFetch(input, init);
             };
-          });
+          }, { stabilizeHomeTelemetry });
         }
 
         await page.addInitScript(({ theme }) => {
@@ -144,7 +167,7 @@ test.describe('v12 dashboard visual baseline', () => {
           // baselines still cover rendered plots; hide only these moving
           // pixels so home comparisons validate layout and theme surfaces.
           await page.addStyleTag({
-            content: `
+            content: stabilizeHomeTelemetry ? `
               .scope-canvas, .trend-canvas-graph { visibility: hidden !important; }
               .session-progress-bar .mdc-linear-progress__bar,
               .session-progress-bar .mdc-linear-progress__primary-bar,
@@ -154,14 +177,16 @@ test.describe('v12 dashboard visual baseline', () => {
               .session-progress-bar .mdc-linear-progress__bar-inner {
                 border-color: transparent !important;
               }
-            `
+            ` : '.scope-canvas, .trend-canvas-graph { visibility: hidden !important; }'
           });
-          await page.evaluate(() => {
-            const cards = Array.from(document.querySelectorAll<HTMLElement>('.home-stat-card'));
-            const environmentCard = cards.find(card => card.textContent?.includes('Environment'));
-            const subtitle = environmentCard?.querySelector<HTMLElement>('.home-stat-sub');
-            if (subtitle) subtitle.textContent = 'Awaiting live telemetry';
-          });
+          if (stabilizeHomeTelemetry) {
+            await page.evaluate(() => {
+              const cards = Array.from(document.querySelectorAll<HTMLElement>('.home-stat-card'));
+              const environmentCard = cards.find(card => card.textContent?.includes('Environment'));
+              const subtitle = environmentCard?.querySelector<HTMLElement>('.home-stat-sub');
+              if (subtitle) subtitle.textContent = 'Awaiting live telemetry';
+            });
+          }
         }
         const snapshotName = theme === 'hc' && view === 'live'
           ? 'v12-hc-live-dark-inverse-controls.png'

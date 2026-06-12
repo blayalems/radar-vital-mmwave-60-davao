@@ -30,6 +30,13 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
   insertion into settings.component after the "Update & Version Info" card.
 - Trainer `/about` page (`support_matrix_html`) now includes a copyright footer
   with all three author names, program, university, and dynamically computed year.
+- Google Play closed-testing groundwork: `patch-android-shell.mjs` pins
+  `compileSdk`/`targetSdk` to 35 (fails loudly if gradle pattern is absent),
+  installs adaptive launcher icon (mipmap-anydpi-v26 XMLs with monochrome layer,
+  foreground vector drawable, `#0E5E63` background color resource);
+  `docs/play/store-listing.md` and `docs/play/data-safety.md` covering app
+  identity, descriptions, screenshot shot-list, content-rating answers, closed-
+  testing constraints, and Play Data Safety form answers mirroring PRIVACY.md.
 
 ## [16.2.0] — 2026-06-12
 

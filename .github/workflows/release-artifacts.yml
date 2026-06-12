@@ -175,8 +175,9 @@ jobs:
             requirements.txt
             requirements-v12.txt
 
-      # Keep release packaging aligned with build-exe.yml; Rust 1.95 currently
-      # rejects tauri-utils 2.9.2 with an upstream coherence conflict.
+      # Keep release packaging aligned with build-exe.yml. The app Cargo.lock
+      # pins Tauri transitive deps so CI does not float to the time 0.3.48 /
+      # tauri-utils 2.9.2 coherence break.
       - uses: dtolnay/rust-toolchain@1.94.1
 
       - uses: swatinem/rust-cache@v2

@@ -11,6 +11,7 @@ The repository ships three coupled artefacts:
 | **Dashboard** | [`web/src/`](./web/src/) -> [`radar_vital_live_dashboard_v12_for_v16_0.html`](./radar_vital_live_dashboard_v12_for_v16_0.html) | Standalone Angular 21 + Material 3 application compiled to a committed single-file PWA artefact and `www/` packages. Polls or subscribes to `/api/events/subscribe`, renders live KPIs, waveforms, alerts, reports, pairing and scoped offline state. |
 
 The mobile-first redesign plan that this branch implements is documented in [`AGENTS.md`](./AGENTS.md).
+For a non-developer operator setup guide (EXE/APK/PWA pairing, placement, signal quality, troubleshooting) see [`docs/operator-quickstart.md`](./docs/operator-quickstart.md).
 
 ---
 
@@ -63,12 +64,13 @@ python3 radar_vital_trainer_v12_for_v16_0.py serve --bind lan
 
 `--bind lan` generates a six-digit PIN (five-minute TTL, single-use), prints the pairing page URL, and supplies a QR link encoding `http://<lan-ip>:8765/?pair=<PIN>`. The public `/api/server-info` route is metadata-only and does not serve a QR image or expose the PIN. The Windows EXE Settings card reads PIN details through the native bridge from loopback-only `/api/native-pairing-info`; phone/APK/PWA clients use the printed QR, `/pair`, or manual PIN entry. The Angular Settings view keeps the issued `X-RVT-Auth` token in session storage only. Five invalid PIN exchanges from one client within a minute trigger a one-minute pairing cooldown; reopen the pairing flow after the cooldown or mint a new PIN if an operator mistyped repeatedly.
 
-| Endpoint set | Auth | Examples |
+| Endpoint set | Auth | Routes (verified against `rvt_trainer/monolith.py`) |
 |---|---|---|
-| Bootstrap/public | None | shell assets, `/pair`, `/api/health`, `/api/version`, `/api/server-info`, `/api/auth/exchange`, `/api/help/schema` |
-| EXE native loopback bootstrap | Loopback-only native bridge | `/api/native-pairing-info` |
-| Physiological/session/hardware | `X-RVT-Auth` required in LAN mode | `/api/status`, `/api/events/subscribe`, `/api/session/*`, `/api/sessions/*`, `/api/ble/scan`, `/api/serial/ports`, `/api/preflight` |
-| Control/mutation | `X-RVT-Auth` required in LAN mode | `/api/session/start`, `/api/session/stop`, notes/sign-off/tags updates, analysis reruns |
+| Bootstrap/public | None | shell assets, `/pair`, `/api/health`, `/api/version`, `/api/update/manifest`, `/api/server-info`, `/api/auth/exchange`, `/api/help/schema` |
+| EXE native loopback bootstrap | Loopback-only native bridge | `/api/native-pairing-info` (GET; `?format=qr` adds `qr_png_base64` in LAN bind) |
+| Auth / operator management | Operator session token (`X-RVT-Auth`) | `/api/auth/validate` (GET), `/api/auth/login` (POST), `/api/auth/logout` (POST), `/api/auth/sse-token` (POST), `/api/operator-profiles` (GET/POST), `/api/subject-profiles` (GET), `/api/defaults` (GET/POST) |
+| Physiological / session / hardware | `X-RVT-Auth` required in LAN mode | `/api/status`, `/api/events/subscribe`, `/api/session/events`, `/api/session/current`, `/api/session/current/live_dashboard.json`, `/api/session/buffer`, `/api/sessions`, `/api/sessions/<id>/summary`, `/api/sessions/<id>/data`, `/api/sessions/<id>/notes` (GET), `/api/sessions/<id>/signoff` (GET), `/api/sessions/<id>/annotations` (GET), `/api/sessions/<id>/compare`, `/api/sessions/<id>/analyse/status`, `/api/sessions/<id>/training/status`, `/api/sessions/<id>/predict`, `/api/sessions/<id>/files/<rel>`, `/api/ble/scan`, `/api/serial/ports`, `/api/preflight`, `/api/preflight/<id>` (single-check rerun), `/api/trainer/log`, `/api/report/export` |
+| Control / mutation | `X-RVT-Auth` required in LAN mode | `/api/session/start` (POST), `/api/session/stop` (POST), `/api/session/annotate` (POST), `/api/session/annotations` (POST), `/api/sessions/<id>/notes` (PUT), `/api/sessions/<id>/signoff` (PUT), `/api/sessions/<id>/tags` (PUT), `/api/sessions/<id>/analyse` (POST — rerun), `/api/sessions/<id>` (DELETE — soft-trashes to `.trash/`) |
 
 Tokens live in the trainer's memory only — re-pair after every trainer restart.
 

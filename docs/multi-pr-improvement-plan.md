@@ -1,5 +1,54 @@
 # Multi-PR Improvement Plan — UI/UX, Features, and Firmware
 
+---
+
+## Status update (2026-06-12)
+
+### Track A — Dashboard (PR-49 … PR-54)
+
+The PR #52 stacked series has landed, superseding the individual PR-49 through
+PR-54 plan items. Specifically:
+
+- **Signal-quality surfacing** — SQI progress-bar ribbons below the Waves tab
+  waveforms, PQI confidence colouring on the Bland-Altman scatter plot, and
+  funnel-survival / gate-reason histograms in the Live Audit tab are present in
+  `live.component.html` / `live.component.ts`.
+- **Quality scorecard** — the Analysis Readiness Outcome banner (READY /
+  CONDITIONAL / NOT READY) and Session Comparison (HR RMSE, HR r) are in
+  `report.component.html`.
+- **Comparison overlay** — ghost-session overlay on the HR and RR trend charts
+  (layers toggle, `ghostSessionActive()`, `ghostPointCount()`) is in
+  `live.component.html`.
+- **Keyboard parity** — keyboard controls, shortcut actions, and
+  `aria-label` coverage are present across the Live template.
+- **Connection clarity** — the Publishing Policy card, Payload freshness
+  indicator (LIVE / STALE / WAITING), and server-blocker screen in
+  `live.component.html` surface connection state.
+- **Placement guidance** — the Home Live Radar Scope Preview ("placement cues"
+  subtitle, live `distance_cm` readout) and the Preflight Pipeline card provide
+  placement feedback; sensor distance guidance is documented in
+  `docs/operator-quickstart.md`.
+- **SQI ribbons** — `pqi_breath` / `pqi_heart` progress bars with `qualityLabel`
+  / `qualityPercent` and the `.sqi-ribbon` CSS are confirmed in the Waves tab.
+
+### Track B — Firmware (PR-55 … PR-60)
+
+- **PR-57 and PR-58 landed**: field diagnostics columns 208–219 (loop timing,
+  heap health, radar UART/CRC error counters, I2C/LCD recovery counts, WDT near-
+  miss count, command channel stats, firmware uptime) are implemented per the plan.
+  Robustness and NVS forensics (exponential backoff for peripheral recovery,
+  reset-reason ring in NVS via `esp_reset_reason()`, NVS write-failure escalation,
+  radar UART staged escalation) are also landed.
+- **PR-59 in flight**: power and thermal management (`RV_POWER_SAVE` gate,
+  idle-state duty cycling, chip temperature telemetry, LCD backlight scheduling)
+  is in progress.
+- **PR-55 retired by policy**: the `.ino` header-tab split (moving cohesive
+  sections into `.h` Arduino IDE tabs) is retired. No `.ino` file restructuring
+  will proceed. The serial contract, `setup()`/`loop()` structure, and
+  single-file layout are preserved as-is.
+
+---
+
 Date: 2026-06-11
 Baseline: `main` @ PR #47 merged (OTA install, v16.2.0)
 Scope: Two coordinated tracks of small, independently-mergeable PRs.

@@ -5,6 +5,15 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — Review Closure: B1/B2 Blockers, M1–M3 Must-Fixes, A1 Advisory
+
+- **B2 (EXE re-auth after LAN restart)**: `ServerLifecycleService.restartServer()` now calls `auth.lock()` after the sidecar restart — the sidecar wipes in-memory operator sessions, so the station locks immediately and the existing lock overlay walks the operator through PIN re-login against the on-disk profiles instead of leaving a half-broken authenticated UI.
+- **B1 (release verification exit code)**: the artifact-verification step sets `$ErrorActionPreference = 'Stop'` and throws on non-zero `$LASTEXITCODE`, so a corrupted APK/EXE can no longer pass green.
+- **M1**: comparison means now also exclude frames flagged invalid by `logged_hr_valid`/`logged_rr_valid` (stale-held non-zero values), falling back to zero-exclusion for legacy rows. **M2**: malformed `ml_readiness_verdict` shapes log a console contract warning instead of failing silently. **M3/A6**: baseline-refresh workflow permissions scoped to the job with a header note on intentional check re-triggering and branch-protection behavior.
+- **A1**: Live holding caches (`lastGoodHr/Rr`) and SQI ribbon histories reset when the active session id changes — back-to-back sessions never flash the previous session's values. A2 confirmed already capped (`slice(-59)`); A4 `.gitignore` duplicate did not reproduce; `_is_supported_radar_contract_length` confirmed wired at two call sites.
+- **PR61 Salvage + PR63 Docs**: recovered the reliability test agent's uncommitted work (parser/lifecycle/verdict pytest modules + bounded `_ANALYSIS_JOBS` eviction; schema assertions updated to the 219-column v15.1 contract) and integrated the operator quickstart/API-table docs with corrections (placement-zone chip and Session Quality card claims fixed to match the implemented UI).
+- **Verification**: `python -m pytest -q tests` 174/174; `npm --prefix web run test:ci` 42/42; build + monolith round-trip clean; comparison/scorecard/signal-chip smoke specs 3/3 on desktop Chromium.
+
 ### 2026-06-12 — PR63: Refresh Windows Visual Baselines
 
 - **Baseline Refresh + OTA Fixture**: Regenerated the committed Windows Playwright baselines for the intentional Help, Live, Settings, SQI ribbon, and v16.2 UI changes across desktop, Pixel 7, iPhone 14, and iPad projects. OTA smoke's newer-product fixture now advertises `16.2.1` so it remains newer than the PR64 `16.2.0` product baseline.

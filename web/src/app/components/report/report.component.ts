@@ -217,7 +217,12 @@ export class ReportComponent implements OnInit, AfterViewInit {
     const verdict = this.reportRecord()?.verdict;
     const fromVerdictObj = typeof verdict === 'object' && verdict !== null ? (verdict as Record<string, unknown>)['categories'] : null;
     const categories = Array.isArray(mlVerdict?.['categories']) ? mlVerdict['categories'] : fromVerdictObj;
-    if (!Array.isArray(categories)) return [];
+    if (!Array.isArray(categories)) {
+      if (mlVerdict) {
+        console.warn('ml_readiness_verdict present but categories[] missing or malformed', mlVerdict);
+      }
+      return [];
+    }
     return categories
       .filter(entry => entry && typeof entry === 'object')
       .map(entry => {
@@ -394,9 +399,21 @@ export class ReportComponent implements OnInit, AfterViewInit {
   }
 
   private seriesMean(rows: Array<Record<string, number | string | null>>, key: string): number | null {
-    // The firmware publishes 0 for invalid/held frames — exclude those
-    // placeholders so motion gaps don't drag the mean down artificially.
-    const values = rows.map(row => Number(row[key])).filter(value => Number.isFinite(value) && value > 0);
+    // Exclude invalid publishes: the firmware emits 0 for held frames, and a
+    // held frame can also carry a stale non-zero value flagged by the
+    // logged_*_valid columns. Legacy rows without validity columns fall back
+    // to zero-exclusion only.
+    const validityKey = key === 'reported_hr' ? 'logged_hr_valid' : key === 'reported_rr' ? 'logged_rr_valid' : '';
+    const values = rows
+      .filter(row => {
+        const value = Number(row[key]);
+        if (!Number.isFinite(value) || value <= 0) return false;
+        if (validityKey && row[validityKey] !== undefined && row[validityKey] !== null && Number(row[validityKey]) === 0) {
+          return false;
+        }
+        return true;
+      })
+      .map(row => Number(row[key]));
     if (!values.length) return null;
     return values.reduce((sum, value) => sum + value, 0) / values.length;
   }

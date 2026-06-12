@@ -13,12 +13,17 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
-
 jobs:
   refresh:
     name: Regenerate committed Windows baselines
+    # contents: write is scoped to this job (GitHub's narrowest granularity);
+    # the push step below re-triggers the PR checks intentionally so the
+    # refreshed baselines prove green — recursion is impossible because this
+    # workflow only runs on manual dispatch. If branch protection is ever
+    # enabled on the target branch, this push will fail and the refresh must
+    # be downloaded from the run artifacts instead.
+    permissions:
+      contents: write
     runs-on: windows-latest
     timeout-minutes: 35
     steps:

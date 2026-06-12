@@ -345,7 +345,11 @@ jobs:
           $exeZip = Join-Path $tmpDir "radar-vital-exe.zip"
           Compress-Archive -LiteralPath $apkSrc -DestinationPath $apkZip
           Compress-Archive -LiteralPath $exeSrc -DestinationPath $exeZip
+          $ErrorActionPreference = 'Stop'
           $results = & scripts/verify-release-artifacts.ps1 -ApkZip $apkZip -ExeZip $exeZip
+          if ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) {
+            throw "Release artifact integrity verification failed with exit code $LASTEXITCODE"
+          }
           $results | Format-Table -AutoSize
           Remove-Item $tmpDir -Recurse -Force
 

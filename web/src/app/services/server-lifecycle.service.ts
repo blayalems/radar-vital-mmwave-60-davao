@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 
 import { ApiService } from './api.service';
+import { AuthService } from './auth.service';
 import { SERVER_URL_KEY } from './rvt-storage-keys';
 import { StateService } from './state.service';
 
@@ -44,6 +45,7 @@ interface NativeTrainerStatus {
 })
 export class ServerLifecycleService {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
   private readonly state = inject(StateService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -152,6 +154,11 @@ export class ServerLifecycleService {
     if (this.hasTauriDesktop()) {
       await this.stopServer();
       await this.startServer(bindMode);
+      // The sidecar restart wipes the trainer's in-memory operator sessions, so
+      // the pre-restart token is dead. Lock the station immediately: the lock
+      // overlay walks the operator through PIN re-login against the on-disk
+      // profiles instead of leaving a half-broken authenticated UI.
+      this.auth.lock();
     } else {
       await this.retryConnection();
     }

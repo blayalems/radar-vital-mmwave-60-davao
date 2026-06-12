@@ -955,6 +955,20 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     provenance_warning: 'Readiness: PROVENANCE WARNING'
   };
 
+  // Reset per-session caches when the active session changes so back-to-back
+  // sessions never flash the previous session's held values or SQI history.
+  private lastSeenSessionId: string | null | undefined = undefined;
+  private readonly sessionCacheReset = effect(() => {
+    const sessionId = this.state.currentSessionId();
+    if (this.lastSeenSessionId !== undefined && sessionId !== this.lastSeenSessionId) {
+      this.lastGoodHr.set(null);
+      this.lastGoodRr.set(null);
+      this.pqiHeartHist.set([]);
+      this.pqiBreathHist.set([]);
+    }
+    this.lastSeenSessionId = sessionId;
+  });
+
   protected readonly lastGoodHr = signal<number | null>(null);
   protected readonly lastGoodRr = signal<number | null>(null);
 

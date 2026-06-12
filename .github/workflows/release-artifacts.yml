@@ -112,15 +112,37 @@ jobs:
         id: android_signing
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+          required=(
+            ANDROID_KEYSTORE_BASE64
+            ANDROID_KEYSTORE_PASSWORD
+            ANDROID_KEY_ALIAS
+            ANDROID_KEY_PASSWORD
+          )
+          configured=0
+          missing=()
+          for name in "${required[@]}"; do
+            if [ -n "${!name}" ]; then
+              configured=$((configured + 1))
+            else
+              missing+=("$name")
+            fi
+          done
+          if [ "$configured" -eq "${#required[@]}" ]; then
             echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release.keystore
             echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
+          elif [ "$configured" -eq 0 ]; then
+            echo "Android signing secrets not configured; building debug APK fallback."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            printf 'Android signing is partially configured. Missing: %s\n' "${missing[*]}" >&2
+            exit 1
           fi
 
-      - name: Build signed release APK
+      - name: Build signed release APK and AAB
         if: steps.android_signing.outputs.enabled == 'true'
         working-directory: android
         env:
@@ -129,13 +151,14 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace \
+          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace \
             -Pandroid.injected.signing.store.file="$PWD/release.keystore" \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
             -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
           mkdir -p ../dist
           cp app/build/outputs/apk/release/*.apk ../dist/radar-vital-release.apk
+          cp app/build/outputs/bundle/release/*.aab ../dist/radar-vital-release.aab
 
       - name: Build debug APK fallback
         if: steps.android_signing.outputs.enabled != 'true'
@@ -150,7 +173,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: radar-vital-apk-release-asset
-          path: dist/*.apk
+          path: |
+            dist/*.apk
+            dist/*.aab
           if-no-files-found: error
           retention-days: 30
 
@@ -232,7 +257,68 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Sign EXE when certificate is configured
+      - name: Resolve Windows signing mode
+        id: windows_signing
+        shell: pwsh
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+        run: |
+          $required = @(
+            "AZURE_CLIENT_ID",
+            "AZURE_TENANT_ID",
+            "AZURE_SUBSCRIPTION_ID",
+            "AZURE_TRUSTED_SIGNING_ENDPOINT",
+            "AZURE_TRUSTED_SIGNING_ACCOUNT",
+            "AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE"
+          )
+          $missing = @()
+          foreach ($name in $required) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              $missing += $name
+            }
+          }
+          $configured = $required.Count - $missing.Count
+          if ($configured -gt 0 -and $missing.Count -gt 0) {
+            throw "Azure Trusted Signing is partially configured. Missing: $($missing -join ', ')"
+          }
+          $enabled = $configured -eq $required.Count
+          "trusted_signing_enabled=$($enabled.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          if ($enabled) {
+            Write-Host "Azure Trusted Signing is configured; PFX signing will be skipped."
+          } else {
+            Write-Host "Azure Trusted Signing not configured; using PFX fallback when available."
+          }
+
+      - name: Azure login for Trusted Signing
+        if: steps.windows_signing.outputs.trusted_signing_enabled == 'true'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign EXE with Azure Trusted Signing
+        if: steps.windows_signing.outputs.trusted_signing_enabled == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
+          files-folder: ${{ github.workspace }}\src-tauri\target\release\bundle\nsis
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Radar Vital Windows installer
+          description-url: https://github.com/blayalems/radar-vital-mmwave-60-davao
+
+      - name: Sign EXE with PFX fallback
+        if: steps.windows_signing.outputs.trusted_signing_enabled != 'true'
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
@@ -327,6 +413,9 @@ jobs:
         run: |
           mkdir -p dist
           cp release-assets/radar-vital-apk-release-asset/*.apk dist/
+          if compgen -G "release-assets/radar-vital-apk-release-asset/*.aab" > /dev/null; then
+            cp release-assets/radar-vital-apk-release-asset/*.aab dist/
+          fi
           cp release-assets/radar-vital-exe-release-asset/*.exe dist/
           cp release-assets/radar-vital-exe-release-asset/*.sig dist/ || true
 
@@ -336,17 +425,26 @@ jobs:
           # The download-artifact action extracts files; re-zip each artifact so
           # verify-release-artifacts.ps1 can inspect zip contents and SHA-256.
           $apkSrc = (Get-ChildItem release-assets/radar-vital-apk-release-asset -Filter *.apk | Select-Object -First 1).FullName
+          $aab = Get-ChildItem release-assets/radar-vital-apk-release-asset -Filter *.aab | Select-Object -First 1
           $exeSrc = (Get-ChildItem release-assets/radar-vital-exe-release-asset -Filter *.exe | Select-Object -First 1).FullName
           if (-not $apkSrc) { throw "APK artifact not found under release-assets/" }
           if (-not $exeSrc) { throw "EXE artifact not found under release-assets/" }
           $tmpDir = Join-Path ([IO.Path]::GetTempPath()) ("rvt-verify-" + [Guid]::NewGuid().ToString("N"))
           New-Item -ItemType Directory -Path $tmpDir | Out-Null
           $apkZip = Join-Path $tmpDir "radar-vital-apk.zip"
+          $aabZip = Join-Path $tmpDir "radar-vital-aab.zip"
           $exeZip = Join-Path $tmpDir "radar-vital-exe.zip"
           Compress-Archive -LiteralPath $apkSrc -DestinationPath $apkZip
+          $verifyArgs = @("-ApkZip", $apkZip, "-ExeZip", $exeZip)
+          if ($aab) {
+            Compress-Archive -LiteralPath $aab.FullName -DestinationPath $aabZip
+            $verifyArgs += @("-AabZip", $aabZip)
+          } else {
+            Write-Host "No AAB artifact found; signed APK-only or debug fallback release."
+          }
           Compress-Archive -LiteralPath $exeSrc -DestinationPath $exeZip
           $ErrorActionPreference = 'Stop'
-          $results = & scripts/verify-release-artifacts.ps1 -ApkZip $apkZip -ExeZip $exeZip
+          $results = & scripts/verify-release-artifacts.ps1 @verifyArgs
           if ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) {
             throw "Release artifact integrity verification failed with exit code $LASTEXITCODE"
           }
@@ -368,7 +466,7 @@ jobs:
         shell: bash
         run: |
           {
-            find release-assets -type f \( -name '*.apk' -o -name '*.exe' -o -name '*.sig' \)
+            find release-assets -type f \( -name '*.apk' -o -name '*.aab' -o -name '*.exe' -o -name '*.sig' \)
             printf '%s\n' dist/rvt-latest.json dist/rvt-latest-tauri.json
           } | sort > release-files.txt
           cat release-files.txt
@@ -388,9 +486,9 @@ jobs:
           make_latest: false
           generate_release_notes: true
           body: |
-            Radar Vital ${{ needs.release_metadata.outputs.release_tag }} installable APK and standalone Windows EXE generated from `${{ github.sha }}`.
+            Radar Vital ${{ needs.release_metadata.outputs.release_tag }} installable Android package and standalone Windows EXE generated from `${{ github.sha }}`.
 
-            The Windows installer includes the bundled Python trainer sidecar. APK builds remain LAN companion clients that connect to a trainer over Wi-Fi/LAN.
+            The Windows installer includes the bundled Python trainer sidecar. APK builds remain LAN companion clients that connect to a trainer over Wi-Fi/LAN. When Android signing secrets are configured, the release also includes the signed AAB for Google Play closed testing.
 
             `rvt-latest.json` is published with SHA-256 hashes, byte sizes, release URLs, and compatibility metadata for manual update guidance. Automated `main` releases use a monotonically increasing `v<app-version>-main.<workflow-run>` tag. GitHub-generated release notes below are the changelog for this build.
           fail_on_unmatched_files: true

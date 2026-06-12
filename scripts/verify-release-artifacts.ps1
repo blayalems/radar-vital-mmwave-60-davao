@@ -3,7 +3,10 @@ param(
   [string]$ApkZip,
 
   [Parameter(Mandatory = $true)]
-  [string]$ExeZip
+  [string]$ExeZip,
+
+  [Parameter(Mandatory = $false)]
+  [string]$AabZip
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,6 +36,7 @@ function Test-ArtifactArchive {
       }
       $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName
       [PSCustomObject]@{
+        Kind = $Extension.ToUpperInvariant()
         File = $file.Name
         Bytes = $file.Length
         SHA256 = $hash.Hash.ToLowerInvariant()
@@ -45,4 +49,7 @@ function Test-ArtifactArchive {
 }
 
 Test-ArtifactArchive -ZipPath $ApkZip -Extension 'apk' -MinimumBytes 1000000
+if ($AabZip) {
+  Test-ArtifactArchive -ZipPath $AabZip -Extension 'aab' -MinimumBytes 1000000
+}
 Test-ArtifactArchive -ZipPath $ExeZip -Extension 'exe' -MinimumBytes 1000000

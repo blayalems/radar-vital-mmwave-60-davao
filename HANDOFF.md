@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR63: Refresh Windows Visual Baselines
+
+- **Baseline Refresh + OTA Fixture**: Regenerated the committed Windows Playwright baselines for the intentional Help, Live, Settings, SQI ribbon, and v16.2 UI changes across desktop, Pixel 7, iPhone 14, and iPad projects. OTA smoke's newer-product fixture now advertises `16.2.1` so it remains newer than the PR64 `16.2.0` product baseline.
+- **Verification**: `npx playwright test tests/visual --update-snapshots` passed 96/96 and refreshed 21 PNGs; `npx playwright test tests/visual` passed 96/96 against the regenerated baselines.
+
 ### 2026-06-12 — PR61: Playwright Operator Smoke Isolation
 
 - **Smoke Isolation**: `tests/smoke/operator.spec.ts` now removes the operator profile file under the active `RVT_TEST_SESSIONS_ROOT`, not only the default `.playwright-state/sessions` path. This keeps the four Playwright projects independent when CI or local runs use a custom sessions root.

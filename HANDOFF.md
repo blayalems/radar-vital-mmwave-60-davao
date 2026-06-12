@@ -5,6 +5,17 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — v16.3 Wave 1-A: First-Run Consent Gate + Onboarding Tutorial (WS1-A)
+
+- **FirstRunService** (`web/src/app/services/first-run.service.ts`): reads/writes `rvt-consent-record` (CONSENT_KEY) + `rvt-tutorial-done` (TUTORIAL_DONE_KEY); `consentRequired()` computed signal gated on TERMS_VERSION; `acceptConsent()`, `tutorialDone()`, `markTutorialDone()`, `replayTutorial()` (sets `tutorialOpen` signal for Wave 2 command palette wiring); auto-opens tutorial on `rvt-operator-authenticated` CustomEvent, once per session.
+- **ConsentDialogComponent** (`web/src/app/components/consent-dialog/`): standalone, opened with `disableClose:true` + `panelClass:'m3-dialog-panel'`; condensed RA 10173 / UM research summary; Decline swaps to blocking panel with Back-to-Terms action; Accept closes with `true`.
+- **OnboardingTutorialComponent** (`web/src/app/components/onboarding-tutorial/`): 6-step skippable coach-mark dialog; platform-aware connect step (exe/native/pwa) via `ServerLifecycleService.platform()` + Capacitor check; arrow-key nav; Done/Skip both call `markTutorialDone()`.
+- **Root shell wiring** (`web/src/app/app.ts`): `maybeOpenConsentGate()` on init; `effect()` on `tutorialOpen` signal opens `OnboardingTutorialComponent`.
+- **Smoke test seeding sweep**: `seedFirstRunComplete(page)` added to `beforeEach` in `dashboard.spec.ts`, `ota.spec.ts`, and `operator.spec.ts` so the new gate doesn't break existing suites.
+- **New spec**: `tests/smoke/first-run.spec.ts` — consent gate, decline/back, accept, tutorial auto-show once, reload = no gates.
+- **Vitest**: `npm --prefix web run test:ci` — 8 test files, 60 tests, all passed.
+- **Angular build**: `ng build --configuration=development` — clean, no errors.
+
 ### 2026-06-12 — v16.3 Wave 0: Legal Drafts, Repo Hygiene & Shared Feature Contracts
 
 - **Legal/Support Artifacts**: TERMS.md + PRIVACY.md (RA 10173-framed drafts with explicit University of Mindanao legal/REC review banners), LICENSE (academic evaluation, © Lemuel Blaya, Angelo Diaz, Blessie Mugat), CHANGELOG.md (Keep-a-Changelog with 16.0–16.2 backfill), CONTRIBUTING.md, `.github/ISSUE_TEMPLATE/` bug/feature forms + config (blank issues off). Bug-form field ids (`description`, `steps`, `product_version`, `platform`, `connection_mode`, `diagnostics`) are contractual — the upcoming in-app issue reporter prefills them.

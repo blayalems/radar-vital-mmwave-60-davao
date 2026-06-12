@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { seedFirstRunComplete } from './helpers/first-run';
 
 test.describe('OTA Update and Version Info Smoke Tests', () => {
   test.use({ serviceWorkers: 'block' });
@@ -28,6 +29,7 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
         })
       });
     });
+    await seedFirstRunComplete(page);
     await page.addInitScript(() => {
       sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
       const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');

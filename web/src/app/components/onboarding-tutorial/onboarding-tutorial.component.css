@@ -1,0 +1,82 @@
+:host {
+  display: contents;
+}
+
+.tutorial-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tutorial-title mat-icon {
+  color: var(--md-sys-color-primary);
+  font-size: 1.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+}
+
+.tutorial-content {
+  min-height: 120px;
+  padding: 0 24px 8px;
+}
+
+.tutorial-body {
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--md-sys-color-on-surface-variant);
+  margin: 0;
+}
+
+.tutorial-body strong {
+  color: var(--md-sys-color-on-surface);
+}
+
+.tutorial-body kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.8rem;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* Progress dots */
+.tutorial-progress {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 24px 0;
+}
+
+.progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: var(--md-sys-color-outline-variant);
+  transition: background 0.2s, transform 0.15s;
+}
+
+.progress-dot.active {
+  background: var(--md-sys-color-primary);
+  transform: scale(1.25);
+}
+
+.progress-dot:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 3px;
+}
+
+.tutorial-actions {
+  padding-top: 4px;
+}
+
+.tutorial-skip-btn {
+  color: var(--md-sys-color-outline);
+  margin-right: auto;
+}

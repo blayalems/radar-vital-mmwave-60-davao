@@ -9,6 +9,14 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 ### Added
 - Terms & Conditions, Privacy Notice (RA 10173-framed drafts), LICENSE,
   CONTRIBUTING guide, issue templates, and wiki source pages.
+- First-run consent gate: `FirstRunService` reads/writes localStorage under
+  `CONSENT_KEY`/`TUTORIAL_DONE_KEY`; consent dialog (standalone, Material 3,
+  `disableClose:true`) with RA 10173 summary, Decline → blocking panel with
+  Back-to-Terms, Accept records consent; terms re-prompt on TERMS_VERSION bump.
+- Onboarding tutorial: 6-step skippable coach-mark dialog (no MatStepper);
+  platform-aware connect step (exe/native/pwa); arrow-key navigation;
+  auto-triggered once after `rvt-operator-authenticated`; re-playable via
+  `FirstRunService.replayTutorial()` (Wave 2 wires to command palette).
 
 ## [16.2.0] — 2026-06-12
 

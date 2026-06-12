@@ -368,6 +368,28 @@ def test_firmware_pr58_robustness_guards_present():
     assert "[NVS] write_count_boot=" in ino
 
 
+def test_firmware_pr59_power_thermal_guards_present():
+    ino = text(FW)
+
+    assert "#define RV_POWER_SAVE 0" in ino
+    assert "#define RV_LCD_LUX_BACKLIGHT RV_POWER_SAVE" in ino
+    assert "POWER_SAVE_ABSENT_MS = 60000UL" in ino
+    assert "POWER_SAVE_MLX_INTERVAL_MS = 10000UL" in ino
+    assert "setCpuFrequencyMhz(80)" in ino
+    assert "getCpuFrequencyMhz()" in ino
+    assert "setLcdBacklightDimmed(true)" in ino
+    assert "setLcdBacklightDimmed(false)" in ino
+    assert "if (powerSaveActive && brite > 4) brite = 4;" in ino
+    assert "if (powerSaveActive) mlxReadInterval = POWER_SAVE_MLX_INTERVAL_MS;" in ino
+    assert "THERMAL_SAMPLE_INTERVAL_MS = 10000UL" in ino
+    assert "THERMAL_WARN_C = 75.0f" in ino
+    assert "temperatureRead()" in ino
+    assert "[THERMAL] chip_temp_c=" in ino
+    assert "LCD_DIM_LUX_ON = 8.0f" in ino
+    assert "LCD_DIM_LUX_OFF = 15.0f" in ino
+    assert "#define CSV_COLUMN_COUNT 219" in ino
+
+
 def test_packaging_scaffolds_exist():
     assert (ROOT / "packaging" / "capacitor" / "capacitor.config.ts").exists()
     assert (ROOT / "packaging" / "tauri" / "tauri.conf.json").exists()

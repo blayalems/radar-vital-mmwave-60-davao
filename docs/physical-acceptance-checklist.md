@@ -47,6 +47,15 @@ Ensure the following hardware components are available:
 - [ ] Power-cycle the controller eight times and verify `[BOOT] reset_reason=<n> (<name>)` logs appear and the NVS reset-reason ring advances across boots.
 - [ ] Force or simulate repeated NVS write failures and verify three consecutive failures trigger one namespace reopen attempt, then NVS writes are disabled for the rest of that boot with a loud log line.
 
+### Phase E: PR59 Power and Thermal Management
+- [ ] Build and flash default firmware (`RV_POWER_SAVE 0`) and verify DATA cadence remains 1 Hz ±2 % for at least 30 min with no LCD/LED/MLX behavior change versus v16.1.0.
+- [ ] Build with `RV_POWER_SAVE 1`, leave the radar scene empty for at least 60 s, and verify `[POWER] idle power save entered` logs with CPU frequency at 80 MHz and MLX poll interval at 10 s.
+- [ ] While power save is active, introduce a subject and verify `[POWER] idle power save exited` appears within one display frame and presence reacquisition latency matches v16.1.0 bench timing.
+- [ ] Record idle current before and after the `RV_POWER_SAVE 1` transition, including LCD backlight state and LED duty, and attach the measured mA delta to the release notes.
+- [ ] Verify the radar UART/DSP DATA cadence remains 1 Hz ±2 % during power-save entry, steady idle, and exit.
+- [ ] Heat the enclosure or bench environment enough to cross 75 C internal chip temperature and verify `[THERMAL] chip_temp_c=<value>` warns no more than once per minute.
+- [ ] With `RV_LCD_LUX_BACKLIGHT 1`, sweep BH1750 input below 8 lux and above 15 lux and verify the LCD backlight changes only across those hysteresis thresholds.
+
 ---
 
 ## 3. Reference GATT UUID Profile Specifications

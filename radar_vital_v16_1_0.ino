@@ -200,6 +200,14 @@
 #define ENABLE_BLE false
 #endif
 
+#ifndef RV_POWER_SAVE
+#define RV_POWER_SAVE 0
+#endif
+
+#ifndef RV_LCD_LUX_BACKLIGHT
+#define RV_LCD_LUX_BACKLIGHT RV_POWER_SAVE
+#endif
+
 #if ENABLE_BLE
 #include <NimBLEDevice.h>
 #endif
@@ -315,6 +323,9 @@ bool scanForLCD(); static bool probeI2C(uint8_t addr);
 static bool tryInitBH1750();
 static bool i2cSafeReadLux(unsigned long now);
 static bool i2cSafeReadMLX(unsigned long now, float& amb, float& obj);
+static void updateChipThermal(unsigned long now);
+static void updatePowerSave(unsigned long now, bool presenceVote);
+static void updateLcdBacklightFromLux();
 extern unsigned long lastMlxRetry;
 void detectSpectral(float* buf, int n, float fs, float fmin, float fmax, float& outFreq, float& outMag);
 bool detectLowestSpectralFundamental(float* buf, int n, float fs, float fmin, float fmax, float& outBpm, float& outConf, float anchorBpm = 0.0f);
@@ -603,6 +614,20 @@ static bool lcdObjAllocated = false;
 static uint32_t lastLedColor = 0xFFFFFFFF;
 static uint8_t lcdRowCache[LCD_ROWS][LCD_COLS];
 static bool lcdRowCacheValid[LCD_ROWS] = {false, false, false, false};
+
+static const unsigned long POWER_SAVE_ABSENT_MS = 60000UL;
+static const unsigned long POWER_SAVE_MLX_INTERVAL_MS = 10000UL;
+static const unsigned long THERMAL_SAMPLE_INTERVAL_MS = 10000UL;
+static const unsigned long THERMAL_WARN_INTERVAL_MS = 60000UL;
+static const float THERMAL_WARN_C = 75.0f;
+static const float LCD_DIM_LUX_ON = 8.0f;
+static const float LCD_DIM_LUX_OFF = 15.0f;
+static bool powerSaveActive = false;
+static uint32_t powerSaveNormalCpuMhz = 0;
+static bool lcdBacklightDimmed = false;
+static float chipTempC = NAN;
+static unsigned long lastThermalSampleMs = 0;
+static unsigned long lastThermalWarnMs = 0;
 
 // =========================================================================
 // DISPLAY STATE & TIMING VARIABLES [v11.0.0]
@@ -3814,6 +3839,81 @@ static void applyEscalationRewarm(unsigned long now) {
 }
 
 // =========================================================================
+// POWER & THERMAL MANAGEMENT (PR59, default-off power save)
+// =========================================================================
+static void setLcdBacklightDimmed(bool dim) {
+  if (!lcdPtr || !lcdConnected || lcdBacklightDimmed == dim) return;
+  if (dim) lcdPtr->noBacklight();
+  else lcdPtr->backlight();
+  lcdBacklightDimmed = dim;
+}
+
+static void updateChipThermal(unsigned long now) {
+  if (lastThermalSampleMs != 0UL &&
+      safeElapsedMs(now, lastThermalSampleMs) < THERMAL_SAMPLE_INTERVAL_MS) {
+    return;
+  }
+  lastThermalSampleMs = now;
+#if defined(ESP32)
+  chipTempC = temperatureRead();
+  if (isfinite(chipTempC) && chipTempC >= THERMAL_WARN_C &&
+      (lastThermalWarnMs == 0UL ||
+       safeElapsedMs(now, lastThermalWarnMs) >= THERMAL_WARN_INTERVAL_MS)) {
+    lastThermalWarnMs = now;
+    Serial.printf("[THERMAL] chip_temp_c=%.1f threshold_c=%.1f\n",
+                  chipTempC, THERMAL_WARN_C);
+  }
+#else
+  chipTempC = NAN;
+#endif
+}
+
+static void updateLcdBacklightFromLux() {
+#if RV_LCD_LUX_BACKLIGHT
+  if (powerSaveActive || !bh1750Ready || !isfinite(luxLevel)) return;
+  if (!lcdBacklightDimmed && luxLevel <= LCD_DIM_LUX_ON) {
+    setLcdBacklightDimmed(true);
+  } else if (lcdBacklightDimmed && luxLevel >= LCD_DIM_LUX_OFF) {
+    setLcdBacklightDimmed(false);
+  }
+#endif
+}
+
+static void updatePowerSave(unsigned long now, bool presenceVote) {
+#if RV_POWER_SAVE
+  bool idleEligible = (presenceState == PRESENCE_ABSENT) &&
+                      (safeElapsedMs(now, presenceStateSinceMs) >= POWER_SAVE_ABSENT_MS);
+  if (powerSaveActive && (presenceVote || !idleEligible)) {
+    if (powerSaveNormalCpuMhz > 0 && getCpuFrequencyMhz() != powerSaveNormalCpuMhz) {
+      setCpuFrequencyMhz(powerSaveNormalCpuMhz);
+    }
+    setLcdBacklightDimmed(false);
+    powerSaveActive = false;
+    lastLedBrightness = 0xFF;
+    Serial.printf("[POWER] idle power save exited cpu_mhz=%lu\n",
+                  (unsigned long)getCpuFrequencyMhz());
+    updateLcdBacklightFromLux();
+    return;
+  }
+
+  if (!powerSaveActive && idleEligible) {
+    powerSaveNormalCpuMhz = getCpuFrequencyMhz();
+    setLcdBacklightDimmed(true);
+    if (powerSaveNormalCpuMhz != 80UL) setCpuFrequencyMhz(80);
+    powerSaveActive = true;
+    lastLedBrightness = 0xFF;
+    Serial.printf("[POWER] idle power save entered absent_ms=%lu cpu_mhz=%lu mlx_interval_ms=%lu\n",
+                  safeElapsedMs(now, presenceStateSinceMs),
+                  (unsigned long)getCpuFrequencyMhz(),
+                  (unsigned long)POWER_SAVE_MLX_INTERVAL_MS);
+  }
+#else
+  (void)now;
+  (void)presenceVote;
+#endif
+}
+
+// =========================================================================
 // LED CONTROL
 // =========================================================================
 static inline uint8_t ledBrightnessFromLux(float lux) {
@@ -3828,6 +3928,9 @@ static inline uint8_t ledBrightnessFromLux(float lux) {
 void updateLED(bool inMotion) {
   static unsigned long ledMillis=0; static bool flashState=false;
   uint8_t brite = ledBrightnessFromLux(luxLevel);
+#if RV_POWER_SAVE
+  if (powerSaveActive && brite > 4) brite = 4;
+#endif
   uint32_t colour; unsigned long now=millis();
 
   if (!humanDetected) {
@@ -4291,6 +4394,7 @@ void setup() {
 void loop() {
   wdtReset();
   unsigned long now=millis();
+  updateChipThermal(now);
   if (diagLoopLastMs == 0UL) {
     diagLoopLastMs = (uint32_t)now;
     diagLoopWindowStartMs = (uint32_t)now;
@@ -6205,12 +6309,17 @@ void loop() {
   if (presenceState == PRESENCE_PRESENT || presenceState == PRESENCE_SILENT_HOLD || presenceState == PRESENCE_LEAVING) {
     sessionUpdate(now, inMotion);
   }
+  updatePowerSave(now, strongPresenceEvidence || weakPresenceEvidence);
 
   static unsigned long lastTempRead=0;
   static unsigned long lastLuxRead=0;
   bool allowSlowI2C = !radarSerialBacklogged();
   if (allowSlowI2C) {
-    if (mlxReady && now-lastTempRead>=1000) {
+    unsigned long mlxReadInterval = 1000UL;
+#if RV_POWER_SAVE
+    if (powerSaveActive) mlxReadInterval = POWER_SAVE_MLX_INTERVAL_MS;
+#endif
+    if (mlxReady && now-lastTempRead>=mlxReadInterval) {
       lastTempRead=now;
       float amb=NAN, obj=NAN;
       if (i2cSafeReadMLX(now, amb, obj)) {
@@ -6246,7 +6355,7 @@ void loop() {
 
     if (bh1750Ready&&now-lastLuxRead>=500) {
       lastLuxRead=now;
-      i2cSafeReadLux(now);
+      if (i2cSafeReadLux(now)) updateLcdBacklightFromLux();
     }
   }
 

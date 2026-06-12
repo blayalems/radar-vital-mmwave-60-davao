@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR59: Default-Off Power Save and Chip Thermal Guardrails
+
+- **Power Save Gate**: Firmware now has default-off `RV_POWER_SAVE 0` plus `RV_LCD_LUX_BACKLIGHT` gates. When enabled and the presence FSM remains `ABSENT` for 60 s, ancillary peripherals enter idle mode: LCD backlight off, NeoPixel brightness capped, MLX90614 poll interval widened to 10 s, and CPU frequency lowered to 80 MHz. Radar UART/DSP cadence is unchanged.
+- **Instant Restore + Lux Hysteresis**: Any fresh strong/weak presence evidence or FSM exit from idle eligibility restores CPU frequency/backlight before the next loop pass; optional BH1750 LCD dimming uses 8 lux / 15 lux hysteresis to avoid flicker.
+- **Thermal Logs**: Firmware samples the ESP32 internal temperature every 10 s and emits `[THERMAL] chip_temp_c=...` warnings above 75 C, rate-limited to once per minute. CSV remains the PR57 219-column contract; chip temperature is log-only until the next schema bump.
+- **Bench Checklist**: `docs/physical-acceptance-checklist.md` now includes PR59 current-delta, 1 Hz cadence, reacquisition-latency, thermal-warning, and lux-hysteresis acceptance steps.
+- **Verification**: `python -m pytest -q tests/test_v12_static_contract.py` 18/18; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer` clean; `python -m rvt_trainer --help` clean; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6` clean with existing LiquidCrystal architecture warning; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6 --build-property 'compiler.cpp.extra_flags=-DRV_POWER_SAVE=1'` clean with the same warning. Physical current/thermal/soak tests not run locally.
+
 ### 2026-06-12 — PR62: Pip-Installable Trainer, Declared BLE Extra & Release Artifact Verification
 
 - **Packaging**: New root `pyproject.toml` (PEP 621/setuptools) makes the trainer installable as `rvt-trainer` with a `rvt-trainer` console script (`rvt_trainer.cli:main`), runtime deps mirroring `requirements-v12.txt` (pytest excluded), and an `[ble]` extra that finally declares `bleak` (used by `transport/ble.py` but previously undeclared). Package discovery is scoped to `rvt_trainer*` so loose root scripts are not packaged; `rvt_trainer/assets/*` ship as package data. PyInstaller sidecar build path unaffected (it installs requirements directly and targets `sidecar_entry.py` by path).

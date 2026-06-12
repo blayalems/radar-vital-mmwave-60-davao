@@ -14,6 +14,14 @@
           "args": true
         }
       ]
+    },
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        {
+          "url": "https://github.com/*"
+        }
+      ]
     }
   ]
 }

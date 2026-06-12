@@ -5,6 +5,15 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — WS1-C: GitHub Issue Reporting with Diagnostics Opt-out
+
+- **IssueReportService** (`web/src/app/services/issue-report.service.ts`): `buildReport()` collects product version, platform (Tauri/Android/PWA), connection mode, de-identified ctlStatus + alert summary (counts/types only — no operator names), EXE log tail last 20 lines via `serverLifecycle.logTail()` or `/api/trainer/log`. Diagnostics toggle defaults to ON (DIAGNOSTICS_OPTIN_KEY). When off: version + platform only. `buildIssueUrl()` prefills all bug-form field ids (`product_version`, `platform`, `connection_mode`, `diagnostics`, `description`) via URLSearchParams; URL hard-capped at 7 500 chars, truncation drops log tail then alerts, never version/platform. `openReport()` uses Tauri `plugin:shell|open` or `window.open(_blank, noopener)`.
+- **ReportIssueCardComponent** (`web/src/app/components/report-issue-card/`): standalone settings-style card (not yet mounted — Wave 2 mounts in settings.component). Includes description textarea, diagnostics slide-toggle (persisted), "Preview report" dialog (panelClass `m3-dialog-panel`), "Open GitHub issue" button.
+- **Tauri capability** (`src-tauri/capabilities/default.json`): added `shell:allow-open` scoped to `https://github.com/*`.
+- **Smoke spec** (`tests/smoke/report-issue.spec.ts`): full spec wrapped in `test.describe.skip` with Wave 2 TODO comment. Uses `seedFirstRunComplete`.
+- **Salvage assessment**: previous agent's logic grafted but wrong import path (`app-meta.ts` duplicated in `web/src/app/app-meta.ts` instead of `web/src/app/services/app-meta.ts`) corrected; renamed `buildDiagnostics`→`buildReport`, `openExternal`→`openReport`, split interface to `IssueReport`.
+- **Verification**: `ng test --watch=false` 70/70 (43 existing + 27 new issue-report spec tests).
+
 ### 2026-06-12 — v16.3 Wave 0: Legal Drafts, Repo Hygiene & Shared Feature Contracts
 
 - **Legal/Support Artifacts**: TERMS.md + PRIVACY.md (RA 10173-framed drafts with explicit University of Mindanao legal/REC review banners), LICENSE (academic evaluation, © Lemuel Blaya, Angelo Diaz, Blessie Mugat), CHANGELOG.md (Keep-a-Changelog with 16.0–16.2 backfill), CONTRIBUTING.md, `.github/ISSUE_TEMPLATE/` bug/feature forms + config (blank issues off). Bug-form field ids (`description`, `steps`, `product_version`, `platform`, `connection_mode`, `diagnostics`) are contractual — the upcoming in-app issue reporter prefills them.

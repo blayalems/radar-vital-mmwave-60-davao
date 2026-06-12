@@ -1,0 +1,61 @@
+/* ReportIssueCardComponent — matches the settings-card/premium-card idiom. */
+
+.report-issue-card {
+  /* Same sizing as other settings cards — relies on the shared .settings-grid layout. */
+}
+
+/* Full-width form field inside the card. */
+.form-field-full {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+/* Matches .settings-row idiom from settings.component.css */
+.settings-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
+}
+
+.settings-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.row-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--md-sys-color-on-surface, #1c1b1f);
+}
+
+.row-description {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--md-sys-color-on-surface-variant, #49454f);
+}
+
+/* Action row — matches other settings action rows. */
+.report-issue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  align-items: center;
+}
+
+.report-issue-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Inline spinner inside buttons */
+.report-issue-actions mat-spinner {
+  flex-shrink: 0;
+}

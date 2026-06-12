@@ -9,6 +9,13 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 ### Added
 - Terms & Conditions, Privacy Notice (RA 10173-framed drafts), LICENSE,
   CONTRIBUTING guide, issue templates, and wiki source pages.
+- Google Play closed-testing groundwork: `patch-android-shell.mjs` pins
+  `compileSdk`/`targetSdk` to 35 (fails loudly if gradle pattern is absent),
+  installs adaptive launcher icon (mipmap-anydpi-v26 XMLs with monochrome layer,
+  foreground vector drawable, `#0E5E63` background color resource);
+  `docs/play/store-listing.md` and `docs/play/data-safety.md` covering app
+  identity, descriptions, screenshot shot-list, content-rating answers, closed-
+  testing constraints, and Play Data Safety form answers mirroring PRIVACY.md.
 
 ## [16.2.0] — 2026-06-12
 

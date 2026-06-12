@@ -5,6 +5,16 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — v16.3 WS1-E: Google Play Closed-Testing Groundwork (WS1-E)
+
+- **SDK 35 pin**: `scripts/patch-android-shell.mjs` gains `pinSdkVersions()` — sets `compileSdk` and `targetSdk` to 35 in the generated `android/app/build.gradle`; loud `process.exit(1)` with a FATAL message if the expected gradle pattern is absent. Also patches `variables.gradle` if present (Capacitor template variant); silently skips if the file doesn't exist.
+- **Adaptive launcher icon**: patch script writes `res/mipmap-anydpi-v26/ic_launcher.xml` + `ic_launcher_round.xml` (foreground/background/monochrome layers for Android 13 themed icons), copies `assets/icons/android/ic_launcher_foreground.xml` into `res/drawable/`, and defines `@color/ic_launcher_background` (`#0E5E63` deep medical-teal) in `colors.xml`.
+- **Foreground vector drawable**: `assets/icons/android/ic_launcher_foreground.xml` — 108 dp viewport, content within 66 dp safe zone, concentric radar arcs + ECG-style heartbeat pulse line, white (#FFFFFF) on transparent.
+- **Store listing**: `docs/play/store-listing.md` — app name, short/full description drafts, category, contact, privacy URL, screenshot shot-list (8 phone + 2 tablet), feature-graphic spec, content-rating answers, closed-testing constraints (12 testers / 14 days / $25 fee note, AAB/signing follow-up TODOs).
+- **Data safety**: `docs/play/data-safety.md` — Play Data Safety form answers mirroring PRIVACY.md exactly; all data locally stored; no third-party sharing; deletion path; field-by-field Play Console mapping table.
+- **Contract test**: `tests/test_android_patch_contract.py` (14 tests) — asserts SDK 35 pin, monochrome, FATAL exit, foreground drawable presence/`<vector`/viewport 108, both Play docs exist, data-safety mentions "locally".
+- **Verification**: `python -m pytest -q tests/test_android_patch_contract.py` 14/14; `node --check scripts/patch-android-shell.mjs` clean.
+
 ### 2026-06-12 — v16.3 Wave 0: Legal Drafts, Repo Hygiene & Shared Feature Contracts
 
 - **Legal/Support Artifacts**: TERMS.md + PRIVACY.md (RA 10173-framed drafts with explicit University of Mindanao legal/REC review banners), LICENSE (academic evaluation, © Lemuel Blaya, Angelo Diaz, Blessie Mugat), CHANGELOG.md (Keep-a-Changelog with 16.0–16.2 backfill), CONTRIBUTING.md, `.github/ISSUE_TEMPLATE/` bug/feature forms + config (blank issues off). Bug-form field ids (`description`, `steps`, `product_version`, `platform`, `connection_mode`, `diagnostics`) are contractual — the upcoming in-app issue reporter prefills them.

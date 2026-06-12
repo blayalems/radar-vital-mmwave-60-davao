@@ -12,6 +12,9 @@ __pycache__/
 # Node / packaging artifacts (Phase 6)
 node_modules/
 android/
+# Re-include committed icon sources that live under assets/icons/android/
+!assets/icons/android/
+!assets/icons/android/**
 ios/
 src-tauri/target/
 src-tauri/Cargo.lock

@@ -24,6 +24,12 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
   platform-aware connect step (exe/native/pwa); arrow-key navigation;
   auto-triggered once after `rvt-operator-authenticated`; re-playable via
   `FirstRunService.replayTutorial()` (Wave 2 wires to command palette).
+- `AboutCardComponent` (standalone, settings-card idiom): product name, version
+  input, auto-year copyright, three authors, program/university, links to Terms,
+  Privacy, License, and GitHub repo, stack acknowledgements. Ready for Wave 2
+  insertion into settings.component after the "Update & Version Info" card.
+- Trainer `/about` page (`support_matrix_html`) now includes a copyright footer
+  with all three author names, program, university, and dynamically computed year.
 
 ## [16.2.0] — 2026-06-12
 

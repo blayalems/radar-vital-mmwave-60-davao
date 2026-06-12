@@ -25,6 +25,15 @@
 - **Salvage assessment**: previous agent's logic grafted but wrong import path (`app-meta.ts` duplicated in `web/src/app/app-meta.ts` instead of `web/src/app/services/app-meta.ts`) corrected; renamed `buildDiagnostics`→`buildReport`, `openExternal`→`openReport`, split interface to `IssueReport`.
 - **Verification**: `ng test --watch=false` 70/70 (43 existing + 27 new issue-report spec tests).
 
+### 2026-06-12 — WS1-D: About Card + Trainer /about Copyright Footer
+
+- **`web/src/app/components/about-card/`** (new, standalone): `AboutCardComponent` — settings-card visual idiom; shows product name, version input, `copyrightLine()` (auto-year), three authors, program/university, four external links (Terms, Privacy, License, GitHub repo — `target=_blank noopener`), and stack acknowledgements. Imports all metadata from `app-meta.ts`. NOT mounted anywhere — Wave 2 (settings.component) owns insertion.
+- **`web/src/app/components/about-card/about-card.component.spec.ts`** (new): 9 vitest assertions — authors, university, dynamic year, all four links with `target=_blank` and `rel=noopener`.
+- **`rvt_trainer/api/server_info.py`**: `_copyright_footer_html()` appends a `<footer>` with all three author names, program, university, and `datetime.now().year` to `support_matrix_html()`.
+- **`tests/test_trainer_server_info.py`**: two new tests — all author names present, current year present in `/about` response.
+- **Verification**: `python -m pytest -q tests/test_trainer_server_info.py` 10/10 green; `python -m compileall -q` clean; Angular vitest 52/52 (8 files) green.
+- **Salvage**: previous agent's 35-line `.component.ts` was structurally sound — grafted and extended with `MatIconModule`, CSS, HTML template, and spec.
+
 ### 2026-06-12 — v16.3 Wave 0: Legal Drafts, Repo Hygiene & Shared Feature Contracts
 
 - **Legal/Support Artifacts**: TERMS.md + PRIVACY.md (RA 10173-framed drafts with explicit University of Mindanao legal/REC review banners), LICENSE (academic evaluation, © Lemuel Blaya, Angelo Diaz, Blessie Mugat), CHANGELOG.md (Keep-a-Changelog with 16.0–16.2 backfill), CONTRIBUTING.md, `.github/ISSUE_TEMPLATE/` bug/feature forms + config (blank issues off). Bug-form field ids (`description`, `steps`, `product_version`, `platform`, `connection_mode`, `diagnostics`) are contractual — the upcoming in-app issue reporter prefills them.

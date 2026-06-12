@@ -5231,6 +5231,7 @@ def _compare_session_payload(root: str, session_id: str) -> Dict[str, object]:
 
 
 _ANALYSIS_JOBS: Dict[str, Dict[str, object]] = {}
+_ANALYSIS_JOBS_MAX = 32
 _TRAINER_LOG: Deque[str] = deque(maxlen=200)
 _RATE_LIMIT: Dict[str, Tuple[float, float]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
@@ -5292,6 +5293,21 @@ def _load_subject_profiles(sessions_root: str) -> Dict[str, object]:
 def _append_trainer_log(line: str):
     stamp = time.strftime("%Y-%m-%d %H:%M:%S")
     _TRAINER_LOG.append(f"{stamp} {line}")
+
+
+def _evict_completed_analysis_jobs() -> None:
+    """Evict completed (non-running) entries from _ANALYSIS_JOBS when the dict
+    exceeds _ANALYSIS_JOBS_MAX, keeping the most-recently-added jobs."""
+    if len(_ANALYSIS_JOBS) <= _ANALYSIS_JOBS_MAX:
+        return
+    completed_keys = [
+        k for k, v in _ANALYSIS_JOBS.items()
+        if (v.get("proc") is not None and v["proc"].poll() is not None)
+        or v.get("proc") is None
+    ]
+    evict_count = max(0, len(_ANALYSIS_JOBS) - _ANALYSIS_JOBS_MAX)
+    for key in completed_keys[:evict_count]:
+        _ANALYSIS_JOBS.pop(key, None)
 
 
 def _session_path(sessions_root: str, session_id: str) -> Path:
@@ -5843,6 +5859,7 @@ def _spawn_auto_analyse(session_dir: str, reason: str = "session_stop") -> Optio
         code = 1
         try:
             proc = subprocess.Popen(argv)
+            _evict_completed_analysis_jobs()
             _ANALYSIS_JOBS[root.name] = {
                 "job_id": root.name,
                 "session_id": root.name,
@@ -5873,6 +5890,7 @@ def _rerun_session_analysis(session_dir: str) -> Dict[str, object]:
     proc = subprocess.Popen(argv)
     job_id = root.name
     started_at = _iso_now()
+    _evict_completed_analysis_jobs()
     _ANALYSIS_JOBS[job_id] = {
         "job_id": job_id,
         "session_id": root.name,

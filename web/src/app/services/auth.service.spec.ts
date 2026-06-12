@@ -14,7 +14,9 @@ describe('AuthService', () => {
 
     mockApi = {
       request: vi.fn(),
-      detectControlMode: vi.fn().mockResolvedValue(true)
+      detectControlMode: vi.fn().mockResolvedValue(true),
+      connectionLoading: vi.fn(() => false),
+      whenInitialized: vi.fn().mockResolvedValue(undefined)
     };
 
     TestBed.configureTestingModule({

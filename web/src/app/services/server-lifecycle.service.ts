@@ -154,6 +154,9 @@ export class ServerLifecycleService {
     if (this.hasTauriDesktop()) {
       await this.stopServer();
       await this.startServer(bindMode);
+      if (this.status() !== 'running') {
+        throw new Error(this.lastError() || 'Bundled trainer did not restart.');
+      }
       // The sidecar restart wipes the trainer's in-memory operator sessions, so
       // the pre-restart token is dead. Lock the station immediately: the lock
       // overlay walks the operator through PIN re-login against the on-disk

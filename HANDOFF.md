@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR53: PWA/EXE Operator Sign-In Recovery
+
+- **Static PWA auth**: Demo-mode `/api/operator-profiles` and `/api/auth/*` now work without a trainer, using `demo:`-scoped operator/session storage so hosted `/live` can create, validate, reload, and unlock an operator profile instead of expiring immediately.
+- **Windows EXE auth/restart**: The Tauri interceptor refreshes the native trainer origin, drops stale loopback origins, forwards absolute `/api/*` calls through the native bridge with `X-RVT-Auth`, and re-pairs before native requests; sidecar shutdown clears pairing state and restart locks the UI only after the trainer is actually running.
+- **Route and header contracts**: The service worker now falls back for navigation requests, browser requests consistently attach `X-RVT-Auth`, auth waits for API bootstrap, and trainer CORS preflight explicitly allows the operator auth header.
+- **Verification**: `npm --prefix web run test:ci` 51/51; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer`; `python -m rvt_trainer --help`; `python -m pytest -q tests` 174 passed, 1 skipped (known Windows pytest temp symlink cleanup warning); `cargo test --manifest-path src-tauri/Cargo.toml --quiet` 11/11; `npm run build:check` clean with known bundle-budget warning; static PWA auth smoke 4/4; desktop API smoke 12/12; desktop operator smoke 1/1; desktop dashboard console guard 1/1. A full combined smoke invocation hit the local timeout before completion, so CI remains the full matrix authority.
+
 ### 2026-06-12 — Codex/Claude-Safe PR52 Review Follow-up
 
 - **Non-overlap after Claude sync**: Fast-forwarded to Claude's `3c9b4bc` review-fix commit before adding this follow-up, preserving its B1/B2/M1-M3/A1 fixes. Added a frontend stale-session guard so any live `ctlStatus.reason === "unauthenticated"` outside an active login flow locks the operator UI and clears the dead token instead of leaving controls unlocked.

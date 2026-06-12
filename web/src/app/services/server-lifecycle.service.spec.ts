@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 
 import { ApiService } from './api.service';
+import { AuthService } from './auth.service';
 import { ServerLifecycleService } from './server-lifecycle.service';
 import { StateService } from './state.service';
 
@@ -12,6 +13,7 @@ describe('ServerLifecycleService', () => {
     detectControlMode: ReturnType<typeof vi.fn>;
     request: ReturnType<typeof vi.fn>;
   };
+  let auth: { lock: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     localStorage.clear();
@@ -23,6 +25,7 @@ describe('ServerLifecycleService', () => {
       detectControlMode: vi.fn().mockResolvedValue(true),
       request: vi.fn().mockResolvedValue({})
     };
+    auth = { lock: vi.fn() };
   });
 
   afterEach(() => {
@@ -39,6 +42,7 @@ describe('ServerLifecycleService', () => {
       providers: [
         ServerLifecycleService,
         { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: auth },
         { provide: StateService, useValue: { demoMode: () => false } }
       ]
     });
@@ -157,6 +161,41 @@ describe('ServerLifecycleService', () => {
     expect(service.pairingInfo()?.active_pin).toBeUndefined();
     expect(service.pairingTtlSeconds()).toBeNull();
     expect(service.pairingUrl()).toBe('http://192.168.1.50:8765/pair');
+  });
+
+  it('does not lock the UI when a Tauri restart fails', async () => {
+    const invoke = vi.fn((command: string) => {
+      if (command === 'trainer_stop') return Promise.resolve({ state: 'stopped' });
+      if (command === 'trainer_start') return Promise.resolve({ state: 'error', message: 'Port 8765 is already in use' });
+      if (command === 'native_trainer_status') return Promise.resolve({ running: false, ready: false, error: 'Port 8765 is already in use' });
+      return Promise.resolve([]);
+    });
+    const service = configure(invoke);
+
+    await expect(service.restartServer('lan')).rejects.toThrow('Port 8765 is already in use');
+    expect(auth.lock).not.toHaveBeenCalled();
+    expect(service.status()).toBe('error');
+  });
+
+  it('locks the UI only after a successful Tauri restart reaches running', async () => {
+    const invoke = vi.fn((command: string) => {
+      if (command === 'trainer_stop') return Promise.resolve({ state: 'stopped' });
+      if (command === 'trainer_start') return Promise.resolve({ state: 'starting' });
+      if (command === 'native_trainer_status') return Promise.resolve({ running: true, ready: true, origin: 'http://127.0.0.1:49222' });
+      return Promise.resolve([]);
+    });
+    const service = configure(invoke);
+
+    await service.restartServer('local');
+
+    expect(service.status()).toBe('running');
+    expect(api.setApiBase).toHaveBeenCalledWith('http://127.0.0.1:49222');
+    expect(auth.lock).toHaveBeenCalledTimes(1);
+    const stopIndex = invoke.mock.calls.map(([command]) => command).lastIndexOf('trainer_stop');
+    const startIndex = invoke.mock.calls.map(([command]) => command).lastIndexOf('trainer_start');
+    const stopOrder = invoke.mock.invocationCallOrder[stopIndex];
+    const startOrder = invoke.mock.invocationCallOrder[startIndex];
+    expect(stopOrder).toBeLessThan(startOrder);
   });
 
   it('startServer retries the remote connection outside Tauri', async () => {

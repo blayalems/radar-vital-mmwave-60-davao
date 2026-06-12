@@ -20,8 +20,14 @@ HTTP response.
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from html import escape as html_escape
 from typing import Dict, List, Tuple
+
+# Authorship metadata — single source of truth for the /about footer.
+_AUTHORS = ("Lemuel Blaya", "Angelo Diaz", "Blessie Mugat")
+_PROGRAM = "BS Electronics Engineering"
+_UNIVERSITY = "University of Mindanao"
 
 
 def _server_scheme(server) -> str:
@@ -107,18 +113,39 @@ def _support_matrix_rows() -> List[Tuple[str, str, str, str, str]]:
     ]
 
 
+def _copyright_footer_html() -> str:
+    """Return an HTML footer with authorship, program, university, and year.
+
+    The year is computed at call time via ``datetime.now().year`` so the
+    copyright never goes stale without a code change.
+    """
+    year = datetime.now().year
+    authors_html = html_escape(", ".join(_AUTHORS))
+    program_html = html_escape(_PROGRAM)
+    university_html = html_escape(_UNIVERSITY)
+    return (
+        f'<footer style="margin-top:32px;padding-top:16px;border-top:1px solid #dde3ee;'
+        f'font-size:0.85rem;color:#5a6272;line-height:1.6">'
+        f'<p>© {year} {authors_html}</p>'
+        f'<p>{program_html} &mdash; {university_html}</p>'
+        f"</footer>"
+    )
+
+
 def support_matrix_html(server) -> str:
     """Operator-facing HTML page documenting the per-mode support matrix."""
     rows = "\n".join(
         "<tr>" + "".join(f"<td>{html_escape(cell)}</td>" for cell in row) + "</tr>"
         for row in _support_matrix_rows()
     )
+    footer = _copyright_footer_html()
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Radar Vital Support Matrix</title>
 <style>body{{font-family:system-ui,sans-serif;margin:32px;line-height:1.45;color:#0b1220;background:#f4f6fb}}table{{border-collapse:collapse;width:100%;background:#fff}}th,td{{border:1px solid #dde3ee;padding:10px;text-align:left}}th{{background:#eef2f8}}</style>
 </head><body><h1>Radar Vital v12 Support Matrix</h1><p>Origin: {html_escape(advertised_origin(server))}</p>
 <table><thead><tr><th>Mode</th><th>PWA install</th><th>Service Worker</th><th>Web Bluetooth</th><th>LAN HTTP API</th></tr></thead><tbody>{rows}</tbody></table>
+{footer}
 </body></html>"""
 
 

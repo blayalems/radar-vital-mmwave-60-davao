@@ -9,6 +9,12 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 ### Added
 - Terms & Conditions, Privacy Notice (RA 10173-framed drafts), LICENSE,
   CONTRIBUTING guide, issue templates, and wiki source pages.
+- `AboutCardComponent` (standalone, settings-card idiom): product name, version
+  input, auto-year copyright, three authors, program/university, links to Terms,
+  Privacy, License, and GitHub repo, stack acknowledgements. Ready for Wave 2
+  insertion into settings.component after the "Update & Version Info" card.
+- Trainer `/about` page (`support_matrix_html`) now includes a copyright footer
+  with all three author names, program, university, and dynamically computed year.
 
 ## [16.2.0] — 2026-06-12
 

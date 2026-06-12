@@ -175,7 +175,9 @@ jobs:
             requirements.txt
             requirements-v12.txt
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Keep release packaging aligned with build-exe.yml; Rust 1.95 currently
+      # rejects tauri-utils 2.9.2 with an upstream coherence conflict.
+      - uses: dtolnay/rust-toolchain@1.94.1
 
       - uses: swatinem/rust-cache@v2
         with:

@@ -46,7 +46,10 @@ jobs:
             requirements.txt
             requirements-v12.txt
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Rust 1.95 currently rejects tauri-utils 2.9.2 with an upstream
+      # coherence conflict, so keep the EXE gate on the latest verified
+      # toolchain until Tauri updates the dependency.
+      - uses: dtolnay/rust-toolchain@1.94.1
 
       - uses: swatinem/rust-cache@v2
         with:

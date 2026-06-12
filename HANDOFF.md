@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — v16.3 Wave 0: Legal Drafts, Repo Hygiene & Shared Feature Contracts
+
+- **Legal/Support Artifacts**: TERMS.md + PRIVACY.md (RA 10173-framed drafts with explicit University of Mindanao legal/REC review banners), LICENSE (academic evaluation, © Lemuel Blaya, Angelo Diaz, Blessie Mugat), CHANGELOG.md (Keep-a-Changelog with 16.0–16.2 backfill), CONTRIBUTING.md, `.github/ISSUE_TEMPLATE/` bug/feature forms + config (blank issues off). Bug-form field ids (`description`, `steps`, `product_version`, `platform`, `connection_mode`, `diagnostics`) are contractual — the upcoming in-app issue reporter prefills them.
+- **Shared Contracts Seeded**: `rvt-storage-keys.ts` gains CONSENT_KEY/TUTORIAL_DONE_KEY/DIAGNOSTICS_OPTIN_KEY; new `app-meta.ts` (authors, program, university, GITHUB_REPO_URL, TERMS_VERSION, auto-year `copyrightLine()`); Playwright helper `tests/smoke/helpers/first-run.ts` (`seedFirstRunComplete`) so existing specs survive the upcoming consent gate; `docs/wiki/` source stubs.
+- **Contract Test**: new `tests/test_repo_hygiene_contract.py` (6 tests) locks legal anchors, issue-form ids, storage keys, authorship metadata, and TERMS_VERSION sync between app-meta and the smoke helper.
+- **Verification**: `python -m pytest -q tests` 180/180; Angular build clean; monolith round-trip clean. No UI change — no baseline refresh needed.
+
 ### 2026-06-12 — Codex/Claude-Safe PR52 Review Follow-up
 
 - **Non-overlap after Claude sync**: Fast-forwarded to Claude's `3c9b4bc` review-fix commit before adding this follow-up, preserving its B1/B2/M1-M3/A1 fixes. Added a frontend stale-session guard so any live `ctlStatus.reason === "unauthenticated"` outside an active login flow locks the operator UI and clears the dead token instead of leaving controls unlocked.

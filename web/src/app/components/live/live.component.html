@@ -144,7 +144,7 @@
                   }
                 </div>
                 <div class="kpi-card-spark">
-                  <canvas #overviewHrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Heart rate recent trend', 'reported_hr', 'beats per minute')"></canvas>
+                  <overview-sparkline [data]="state.spark().hr" color="rgba(0, 164, 150, 0.8)" [ariaLabel]="chartLabel('Heart rate recent trend', 'reported_hr', 'beats per minute')"></overview-sparkline>
                 </div>
                 <div class="kpi-card-footer">
                   Ref: {{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : 'no reference' }}
@@ -177,7 +177,7 @@
                   }
                 </div>
                 <div class="kpi-card-spark">
-                  <canvas #overviewRrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Respiration recent trend', 'reported_rr', 'breaths per minute')"></canvas>
+                  <overview-sparkline [data]="state.spark().rr" color="rgba(97, 105, 198, 0.8)" [ariaLabel]="chartLabel('Respiration recent trend', 'reported_rr', 'breaths per minute')"></overview-sparkline>
                 </div>
                 <div class="kpi-card-footer">
                   Ref: {{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : 'no reference' }}
@@ -207,7 +207,7 @@
                   <small>Hz</small>
                 </div>
                 <div class="kpi-card-spark">
-                  <canvas #overviewFpsSpark class="sparkline-canvas" role="img" [attr.aria-label]="frameRateLabel() + ' Recent trend chart.'"></canvas>
+                  <overview-sparkline [data]="state.spark().fps" color="rgba(100, 116, 139, 0.8)" [ariaLabel]="frameRateLabel() + ' Recent trend chart.'"></overview-sparkline>
                 </div>
                 <div class="kpi-card-footer">DSP Loop Speed</div>
               </div>
@@ -235,7 +235,7 @@
                   <small>cm</small>
                 </div>
                 <div class="kpi-card-spark">
-                  <canvas #overviewDistSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Target range recent trend', 'distance_cm', 'centimetres')"></canvas>
+                  <overview-sparkline [data]="state.spark().dist" color="rgba(14, 165, 233, 0.8)" [ariaLabel]="chartLabel('Target range recent trend', 'distance_cm', 'centimetres')"></overview-sparkline>
                 </div>
                 <div class="kpi-card-footer">Placement distance</div>
               </div>
@@ -504,7 +504,7 @@
                 <button mat-icon-button type="button" [attr.aria-label]="showBreathTable() ? 'Hide data table' : 'Show data table'" (click)="showBreathTable.set(!showBreathTable()); state.triggerHaptic('tap')" [color]="showBreathTable() ? 'primary' : null">
                   <mat-icon>{{ showBreathTable() ? 'grid_on' : 'grid_off' }}</mat-icon>
                 </button>
-                <button mat-icon-button type="button" aria-label="Download breathing waveform image" (click)="downloadChart(breathCanvas, 'breathing_waveform')">
+                <button mat-icon-button type="button" aria-label="Download breathing waveform image" (click)="downloadChart(breathCanvas.nativeCanvas, 'breathing_waveform')">
                   <mat-icon>download</mat-icon>
                 </button>
               </div>
@@ -514,7 +514,14 @@
                 </div>
               } @else {
                 <div class="canvas-plot-container bg-pink-tint">
-                  <canvas #breathCanvas class="waveform-canvas" role="img" [attr.aria-label]="chartLabel('Breathing waveform', 'reported_rr', 'breaths per minute')" (click)="handleChartClick($event, 'breath')"></canvas>
+                  <wave-canvas #breathCanvas
+                               [data]="seriesNumbers('breath_phase', 'breath')"
+                               color="rgba(97, 105, 198, 0.95)"
+                               chartKey="breath"
+                               [ariaLabel]="chartLabel('Breathing waveform', 'reported_rr', 'breaths per minute')"
+                               [annotations]="getAnnotationsFor('breath')"
+                               (click)="handleChartClick($event, 'breath')">
+                  </wave-canvas>
                 </div>
                 @if (getAnnotationsFor('breath').length > 0) {
                   <div class="annotation-chips">
@@ -544,7 +551,7 @@
                 <button mat-icon-button type="button" [attr.aria-label]="showHeartTable() ? 'Hide data table' : 'Show data table'" (click)="showHeartTable.set(!showHeartTable()); state.triggerHaptic('tap')" [color]="showHeartTable() ? 'primary' : null">
                   <mat-icon>{{ showHeartTable() ? 'grid_on' : 'grid_off' }}</mat-icon>
                 </button>
-                <button mat-icon-button type="button" aria-label="Download heartbeat waveform image" (click)="downloadChart(heartCanvas, 'heartbeat_waveform')">
+                <button mat-icon-button type="button" aria-label="Download heartbeat waveform image" (click)="downloadChart(heartCanvas.nativeCanvas, 'heartbeat_waveform')">
                   <mat-icon>download</mat-icon>
                 </button>
               </div>
@@ -554,7 +561,14 @@
                 </div>
               } @else {
                 <div class="canvas-plot-container bg-teal-tint">
-                  <canvas #heartCanvas class="waveform-canvas" role="img" [attr.aria-label]="chartLabel('Heartbeat waveform', 'reported_hr', 'beats per minute')" (click)="handleChartClick($event, 'heart')"></canvas>
+                  <wave-canvas #heartCanvas
+                               [data]="seriesNumbers('heart_phase', 'heart')"
+                               color="rgba(0, 164, 150, 0.95)"
+                               chartKey="heart"
+                               [ariaLabel]="chartLabel('Heartbeat waveform', 'reported_hr', 'beats per minute')"
+                               [annotations]="getAnnotationsFor('heart')"
+                               (click)="handleChartClick($event, 'heart')">
+                  </wave-canvas>
                 </div>
                 @if (getAnnotationsFor('heart').length > 0) {
                   <div class="annotation-chips">
@@ -605,7 +619,7 @@
                 <mat-icon>{{ ghostSessionActive() ? 'layers_clear' : 'layers' }}</mat-icon>
               </button>
               <button mat-icon-button type="button" aria-label="Reset heart rate chart window" (click)="resetTrendRange()"><mat-icon>restart_alt</mat-icon></button>
-              <button mat-icon-button type="button" aria-label="Download heart rate trend image" (click)="downloadChart(hrTrendCanvas, 'heart_rate_trend')"><mat-icon>download</mat-icon></button>
+              <button mat-icon-button type="button" aria-label="Download heart rate trend image" (click)="downloadChart(hrTrendCanvas.nativeCanvas, 'heart_rate_trend')"><mat-icon>download</mat-icon></button>
             </div>
           </mat-card-header>
           <mat-card-content class="trend-large-content">
@@ -628,7 +642,19 @@
                 </div>
               }
               <div class="large-canvas-container">
-                <canvas #hrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="trendChartLabel('Heart rate trend', 'reported_hr', 'beats per minute', 'hr')" (click)="handleChartClick($event, 'hr')"></canvas>
+                <trend-canvas #hrTrendCanvas
+                              [data]="trimTrend(seriesNumbers('reported_hr', 'hr'))"
+                              color="rgba(0, 164, 150, 0.95)"
+                              [minV]="Math.max(0, state.kpiThresholds().hrLow - 20)"
+                              [maxV]="state.kpiThresholds().hrHigh + 20"
+                              type="hr"
+                              [ariaLabel]="trendChartLabel('Heart rate trend', 'reported_hr', 'beats per minute', 'hr')"
+                              [ghostData]="ghostHrData()"
+                              [ghostSessionLabel]="ghostSessionLabel()"
+                              [ghostSessionActive]="ghostSessionActive()"
+                              [annotations]="getAnnotationsFor('hr')"
+                              (click)="handleChartClick($event, 'hr')">
+                </trend-canvas>
               </div>
               @if (getAnnotationsFor('hr').length > 0) {
                 <div class="annotation-chips">
@@ -720,7 +746,7 @@
                 <mat-icon>{{ ghostSessionActive() ? 'layers_clear' : 'layers' }}</mat-icon>
               </button>
               <button mat-flat-button type="button" aria-label="Reset respiration chart window" (click)="resetTrendRange()" class="mat-tonal-button"><mat-icon>restart_alt</mat-icon></button>
-              <button mat-icon-button type="button" aria-label="Download respiration trend image" (click)="downloadChart(rrTrendCanvas, 'respiration_trend')"><mat-icon>download</mat-icon></button>
+              <button mat-icon-button type="button" aria-label="Download respiration trend image" (click)="downloadChart(rrTrendCanvas.nativeCanvas, 'respiration_trend')"><mat-icon>download</mat-icon></button>
             </div>
           </mat-card-header>
           <mat-card-content class="trend-large-content">
@@ -742,7 +768,19 @@
                 </div>
               }
               <div class="large-canvas-container">
-                <canvas #rrTrendCanvas class="large-trend-canvas" role="img" [attr.aria-label]="trendChartLabel('Respiration trend', 'reported_rr', 'breaths per minute', 'rr')" (click)="handleChartClick($event, 'rr')"></canvas>
+                <trend-canvas #rrTrendCanvas
+                              [data]="trimTrend(seriesNumbers('reported_rr', 'rr'))"
+                              color="rgba(97, 105, 198, 0.95)"
+                              [minV]="Math.max(0, state.kpiThresholds().rrLow - 5)"
+                              [maxV]="state.kpiThresholds().rrHigh + 5"
+                              type="rr"
+                              [ariaLabel]="trendChartLabel('Respiration trend', 'reported_rr', 'breaths per minute', 'rr')"
+                              [ghostData]="ghostRrData()"
+                              [ghostSessionLabel]="ghostSessionLabel()"
+                              [ghostSessionActive]="ghostSessionActive()"
+                              [annotations]="getAnnotationsFor('rr')"
+                              (click)="handleChartClick($event, 'rr')">
+                </trend-canvas>
               </div>
               @if (getAnnotationsFor('rr').length > 0) {
                 <div class="annotation-chips">
@@ -1056,10 +1094,22 @@
           <mat-card-content class="pane-b-content">
             @if (paneBTabIndex() === 1) {
               <div class="canvas-plot-container bg-pink-tint secondary-wave">
-                <canvas #breathCanvasClone class="waveform-canvas" role="img" aria-label="Secondary Breath waveform"></canvas>
+                <wave-canvas #breathCanvasClone
+                             [data]="seriesNumbers('breath_phase', 'breath')"
+                             color="rgba(97, 105, 198, 0.95)"
+                             chartKey="breath"
+                             ariaLabel="Secondary Breath waveform"
+                             [annotations]="getAnnotationsFor('breath')">
+                </wave-canvas>
               </div>
               <div class="canvas-plot-container bg-teal-tint secondary-wave">
-                <canvas #heartCanvasClone class="waveform-canvas" role="img" aria-label="Secondary Heart waveform"></canvas>
+                <wave-canvas #heartCanvasClone
+                             [data]="seriesNumbers('heart_phase', 'heart')"
+                             color="rgba(0, 164, 150, 0.95)"
+                             chartKey="heart"
+                             ariaLabel="Secondary Heart waveform"
+                             [annotations]="getAnnotationsFor('heart')">
+                </wave-canvas>
               </div>
             } @else if (paneBTabIndex() === 2) {
               @if (ghostPointCount('hr') > 1) {
@@ -1069,7 +1119,18 @@
                 </div>
               }
               <div class="large-canvas-container secondary-trend">
-                <canvas #hrTrendCanvasClone class="large-trend-canvas" role="img" [attr.aria-label]="trendChartLabel('Secondary heart rate trend', 'reported_hr', 'beats per minute', 'hr')"></canvas>
+                <trend-canvas #hrTrendCanvasClone
+                              [data]="trimTrend(seriesNumbers('reported_hr', 'hr'))"
+                              color="rgba(0, 164, 150, 0.95)"
+                              [minV]="Math.max(0, state.kpiThresholds().hrLow - 20)"
+                              [maxV]="state.kpiThresholds().hrHigh + 20"
+                              type="hr"
+                              [ariaLabel]="trendChartLabel('Secondary heart rate trend', 'reported_hr', 'beats per minute', 'hr')"
+                              [ghostData]="ghostHrData()"
+                              [ghostSessionLabel]="ghostSessionLabel()"
+                              [ghostSessionActive]="ghostSessionActive()"
+                              [annotations]="getAnnotationsFor('hr')">
+                </trend-canvas>
               </div>
             } @else if (paneBTabIndex() === 3) {
               @if (ghostPointCount('rr') > 1) {
@@ -1079,7 +1140,18 @@
                 </div>
               }
               <div class="large-canvas-container secondary-trend">
-                <canvas #rrTrendCanvasClone class="large-trend-canvas" role="img" [attr.aria-label]="trendChartLabel('Secondary respiration trend', 'reported_rr', 'breaths per minute', 'rr')"></canvas>
+                <trend-canvas #rrTrendCanvasClone
+                              [data]="trimTrend(seriesNumbers('reported_rr', 'rr'))"
+                              color="rgba(97, 105, 198, 0.95)"
+                              [minV]="Math.max(0, state.kpiThresholds().rrLow - 5)"
+                              [maxV]="state.kpiThresholds().rrHigh + 5"
+                              type="rr"
+                              [ariaLabel]="trendChartLabel('Secondary respiration trend', 'reported_rr', 'breaths per minute', 'rr')"
+                              [ghostData]="ghostRrData()"
+                              [ghostSessionLabel]="ghostSessionLabel()"
+                              [ghostSessionActive]="ghostSessionActive()"
+                              [annotations]="getAnnotationsFor('rr')">
+                </trend-canvas>
               </div>
             }
           </mat-card-content>

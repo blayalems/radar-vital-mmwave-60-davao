@@ -5,6 +5,23 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR-54 Closing-Gap Umbrella Implementation (PR-65 through PR-71)
+
+- **PR-66 (Version Single-Source)**: Implemented single-source versioning reading from `pyproject.toml` using `importlib.metadata` with a fallback, verified with `test_version_single_source.py`.
+- **PR-67 (Firmware Nits)**: Added comment remnants and CPU frequency guard at power-save entry in `radar_vital_v16_2_0.ino`.
+- **PR-68 (CSV Padding & Session Isolation)**: Verified 207-column legacy row parsing and session isolation via `test_session_isolation.py`.
+- **PR-69 (Connect Wizard)**: Added `ConnectWizardComponent` and guards to restrict view access unless a server URL is configured.
+- **PR-70 (Bench Acceptance)**: Added fault-injection procedures to `docs/physical-acceptance-checklist.md`.
+- **PR-71 (Child Extraction)**: Refactored `live.component.ts` by extracting `TrendCanvasComponent`, `WaveCanvasComponent`, and `OverviewSparklineComponent` into standalone subcomponents.
+- **PR-65 (Live Trend Zoom)**: Implemented zoom/pinch time-axis scaling on trend canvases with a 'z' key reset shortcut and overlay reset buttons.
+
+### 2026-06-12 — PR-67/PR-68/PR-70: Firmware Nits, CSV Padding & Session Isolation
+
+- **Firmware Nits**: Added comment for dead BH1750 retry remnants, added a warning and return guard when `powerSaveNormalCpuMhz == 0` at entry to `updatePowerSave()`, and initialized `powerSaveNormalCpuMhz` in `setup()`.
+- **CSV Parsing & Session Isolation**: Added `test_207_column_row_parses_without_warning()` to `tests/test_v12_static_contract.py` asserting correct padding of 207-column legacy rows to 219 columns. Created `tests/test_session_isolation.py` with integration tests validating session directory sequencing, active session locking, and notes file system isolation.
+- **Physical Acceptance**: Added `Phase F: Session Isolation Manual Verification` to `docs/physical-acceptance-checklist.md`.
+- **Verification**: `python -m pytest tests` passed 181/181 (1 skipped); firmware successfully compiled with `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6`.
+
 ### 2026-06-12 — Codex/Claude-Safe PR52 Review Follow-up
 
 - **Non-overlap after Claude sync**: Fast-forwarded to Claude's `3c9b4bc` review-fix commit before adding this follow-up, preserving its B1/B2/M1-M3/A1 fixes. Added a frontend stale-session guard so any live `ctlStatus.reason === "unauthenticated"` outside an active login flow locks the operator UI and clears the dead token instead of leaving controls unlocked.

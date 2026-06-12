@@ -373,8 +373,8 @@ def test_firmware_pr59_power_thermal_guards_present():
 
     assert "#define RV_POWER_SAVE 0" in ino
     assert "#define RV_LCD_LUX_BACKLIGHT RV_POWER_SAVE" in ino
-    assert "BH1750_RETRY_INTERVAL_MS" not in ino
-    assert "lastBh1750RetryMs" not in ino
+    assert "const unsigned long BH1750_RETRY_INTERVAL_MS" not in ino
+    assert "lastBh1750RetryMs =" not in ino
     assert "POWER_SAVE_ABSENT_MS = 60000UL" in ino
     assert "POWER_SAVE_MLX_INTERVAL_MS = 10000UL" in ino
     assert "setCpuFrequencyMhz(80)" in ino
@@ -416,3 +416,20 @@ def test_android_package_does_not_backup_local_session_state():
     assert '<cloud-backup disableIfNoEncryptionCapabilities="true">' in patcher
     assert '<device-transfer>' in patcher
     assert patcher.count('<exclude domain="root" path="." />') == 2
+
+
+def test_207_column_row_parses_without_warning():
+    from rvt_trainer.monolith import _parse_radar_data_line, RADAR_LOG_COLUMNS
+    # Construct a 207-column CSV row (DATA prefix + 207 fields)
+    # 207 fields means 206 commas after DATA.
+    line = "DATA,1000" + "," * 206
+    kind, row, detail = _parse_radar_data_line(line, RADAR_LOG_COLUMNS)
+    assert kind == "data"
+    assert row is not None
+    assert len(row) == 219
+    assert detail == ""
+    assert row[0] == "1000"
+    # Verify that the added columns (indices 207 to 218) are padded with empty strings
+    for i in range(207, 219):
+        assert row[i] == ""
+

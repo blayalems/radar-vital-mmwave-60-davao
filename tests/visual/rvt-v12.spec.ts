@@ -35,6 +35,7 @@ test.describe('v12 dashboard visual baseline', () => {
     });
     await page.addInitScript(() => {
       sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      localStorage.setItem('rvt.server.url', 'http://127.0.0.1:8989');
       const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
       setup.operator_label = 'Operator A';
       localStorage.setItem('rvt-setup', JSON.stringify(setup));

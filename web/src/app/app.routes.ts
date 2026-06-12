@@ -7,11 +7,20 @@ import { HelpComponent } from './components/help/help.component';
 import { SettingsComponent } from './components/settings/settings.component';
 import { activeSessionGuard } from './guards/active-session.guard';
 import { connectionGuard } from './guards/connection.guard';
+import { firstRunGuard } from './guards/first-run.guard';
+import { connectRouteGuard } from './guards/connect-route.guard';
+import { ConnectWizardComponent } from './components/connect-wizard/connect-wizard.component';
 
 export const routes: Routes = [
   {
+    path: 'connect',
+    component: ConnectWizardComponent,
+    canActivate: [connectRouteGuard]
+  },
+  {
     path: '',
     component: LayoutComponent,
+    canActivate: [firstRunGuard],
     children: [
       { path: '', redirectTo: 'live', pathMatch: 'full' },
       {
@@ -40,4 +49,5 @@ export const routes: Routes = [
   },
   { path: '**', redirectTo: 'live' }
 ];
+
 

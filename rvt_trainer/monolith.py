@@ -84,7 +84,11 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.2.0"
+try:
+    from importlib.metadata import version as _pkg_version
+    VERSION = _pkg_version("rvt-trainer")
+except Exception:
+    VERSION = "16.2.0"  # fallback for uninstalled/vendored runs
 DASHBOARD_VERSION = "16.2.0"
 FIRMWARE_VERSION_EXPECTED = "v16.2.0"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
@@ -6767,7 +6771,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self._send_json(404, {"ok": False, "error": "not_found"})
             return
         dashboard_routes = {f"/{str(name)}" for name in _DASHBOARD_HTML_FALLBACK_NAMES}
-        if path in ("/", "/index.html", "/dashboard", "/live", "/home", "/settings", "/report", "/help"):
+        if path in ("/", "/index.html", "/connect", "/dashboard", "/live", "/home", "/settings", "/report", "/help"):
             self.path = f"/{_DASHBOARD_HTML_NAME}"
             path = f"/{_DASHBOARD_HTML_NAME}"
         if path == "/live_dashboard.html":

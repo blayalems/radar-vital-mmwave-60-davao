@@ -26,7 +26,7 @@ import { UpdateService } from '../../services/update.service';
 import { BleScanDevice } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 
-const PRODUCT_VERSION = '16.1.0';
+const PRODUCT_VERSION = '16.2.0';
 
 @Component({
   selector: 'app-settings',

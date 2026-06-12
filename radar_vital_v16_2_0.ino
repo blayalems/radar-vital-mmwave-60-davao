@@ -1,15 +1,15 @@
-/* radar_vital_v16_1_0.ino
+/* radar_vital_v16_2_0.ino
  *
  * XIAO ESP32-C6 + MR60BHA2 60 GHz FMCW radar + MLX90614 + HD44780 20x4 LCD
  * + Active Buzzer for audio feedback
  *
- * Firmware release: v16.1.0
+ * Firmware release: v16.2.0
  * CSV schema release: v15.1.0 / trainer contract v12.0.0
  *
 * Manuscript-facing calibration / release notes
 * -------------------------------------------
-* + FW_VERSION is v16.1.0.
-* + v16.1.0 keeps the v15 serial DATA telemetry prefix and adds
+* + FW_VERSION is v16.2.0.
+* + v16.2.0 keeps the v15 serial DATA telemetry prefix and adds
 *   a gated BLE bridge path for the v12 dashboard / native app milestone.
 * + ENABLE_BLE defaults to false; with BLE off, the serial DSP path is
 *   behaviorally identical to v15.0.0.
@@ -213,7 +213,7 @@
 #endif
 
 #if !defined(ARDUINO_XIAO_ESP32C6)
-#error "radar_vital_v16_1_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
+#error "radar_vital_v16_2_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
 #endif
 
 #ifdef ESP32
@@ -275,9 +275,9 @@ static inline float applyRawHrCorrection(float rawHrValue) {
 // LOGGING & OBSERVABILITY
 // =========================================================================
 #define LOG_MODE 1       // 1 = Enable CSV "DATA,..." logging
-#define FW_VERSION "v16.1.0"
+#define FW_VERSION "v16.2.0"
 #define SKETCH_VERSION_MAJOR 16
-#define SKETCH_VERSION_SUB 1
+#define SKETCH_VERSION_SUB 2
 #define SKETCH_VERSION_MOD 0
 
 #define DIAG_PLOTTER 0   // 1 = Enable live Serial Plotter DSP diagnostics, 0 = Off

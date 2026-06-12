@@ -1,11 +1,11 @@
 # Multi-PR Improvement Plan — UI/UX, Features, and Firmware
 
 Date: 2026-06-11
-Baseline: `main` @ PR #47 merged (OTA install, v16.1.0)
+Baseline: `main` @ PR #47 merged (OTA install, v16.2.0)
 Scope: Two coordinated tracks of small, independently-mergeable PRs.
 
 - **Track A — Dashboard UI/UX & feature improvements** (Angular 21 + Material 3, `web/src/`)
-- **Track B — Firmware improvements** (`radar_vital_v16_1_0.ino`, XIAO ESP32-C6 + MR60BHA2)
+- **Track B — Firmware improvements** (`radar_vital_v16_2_0.ino`, XIAO ESP32-C6 + MR60BHA2)
 
 Every PR in this plan honors the invariants in [`AGENTS.md`](../AGENTS.md):
 the 207-column / 115 200-baud serial contract is **frozen** (additions only on the
@@ -308,7 +308,7 @@ is invisible until it happens, and BLE (future) has no status surface.
 
 ---
 
-# Track B — Firmware Improvement Plan (`radar_vital_v16_1_0.ino`)
+# Track B — Firmware Improvement Plan (`radar_vital_v16_2_0.ino`)
 
 The serial contract is frozen: **207 columns, 115 200 baud, additions only on
 the right.** Each firmware PR ships an Arduino CLI compile for
@@ -398,7 +398,7 @@ untouched, RX is new). **Depends on:** PR-55 (lands in `rv_cmd.h`).
 ### Acceptance criteria
 
 - A DATA stream captured during a 1 000-command soak shows zero malformed rows.
-- Firmware with no trainer attached behaves exactly as v16.1.0 (parser idles).
+- Firmware with no trainer attached behaves exactly as v16.2.0 (parser idles).
 - All commands idempotent and safe during active capture.
 
 ---
@@ -511,7 +511,7 @@ radar and MLX accuracy.
 ### Acceptance criteria
 
 - With `RV_POWER_SAVE 1`: measured idle current reduction documented;
-  presence reacquisition latency unchanged vs v16.1.0 (bench-timed).
+  presence reacquisition latency unchanged vs v16.2.0 (bench-timed).
 - With the default `RV_POWER_SAVE 0`: binary behavior identical (size/symbol
   diff as in PR-55).
 - No change in DATA cadence (1 Hz ±2 %) in either mode across a 2 h soak.

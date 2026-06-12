@@ -42,9 +42,9 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
     const card = page.locator('.update-info-card');
     await expect(card).toBeVisible();
 
-    // Verify product version is rendered dynamically (should be 16.1.0 in mock/production)
+    // Verify product version is rendered dynamically (should be 16.2.0 in mock/production)
     const productVersion = card.locator('.settings-copy', { hasText: 'Product Version' }).locator('.row-description');
-    await expect(productVersion).toContainText('16.1.0');
+    await expect(productVersion).toContainText('16.2.0');
 
     // Verify accessibility attributes on the button
     const checkBtn = card.getByRole('button', { name: 'Check for Updates' });
@@ -117,15 +117,15 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          product_version: '16.1.0',
-          release_tag: 'v16.1.0-build2',
-          release_version: '16.1.0',
+          product_version: '16.2.0',
+          release_tag: 'v16.2.0-build2',
+          release_version: '16.2.0',
           build_number: 15,
           minimum_supported: '16.0.0',
           released_at: '2026-06-06T13:00:00Z',
           artifacts: {
             apk: {
-              url: 'https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v16.1.0-build2/radar-vital-release.apk',
+              url: 'https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v16.2.0-build2/radar-vital-release.apk',
               size_bytes: 15728640,
               sha256: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
               compatibility: 'Android 8.0+'
@@ -146,10 +146,10 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
 
     // Title should show New Build Available
     const titleText = resultRegion.locator('.update-title-text');
-    await expect(titleText).toContainText('New Build Available: v16.1.0-build2');
+    await expect(titleText).toContainText('New Build Available: v16.2.0-build2');
 
     // Verify snackbar alert
-    await expect(page.locator('simple-snack-bar').last()).toContainText('New build of 16.1.0 is available.');
+    await expect(page.locator('simple-snack-bar').last()).toContainText('New build of 16.2.0 is available.');
   });
 
   test('checks for updates and shows up-to-date state when no updates are available', async ({ page }) => {
@@ -159,9 +159,9 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          product_version: '16.1.0',
-          release_tag: 'v16.1.0',
-          release_version: '16.1.0',
+          product_version: '16.2.0',
+          release_tag: 'v16.2.0',
+          release_version: '16.2.0',
           build_number: 10,
           minimum_supported: '16.0.0',
           released_at: '2026-06-06T10:00:00Z',

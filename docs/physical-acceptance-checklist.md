@@ -10,7 +10,7 @@ Ensure the following hardware components are available:
 1. **Target Mobile Device**: Android 10+ (tested against Pixel baseline).
 2. **Target Windows Machine**: Windows 10 or 11 with a working Bluetooth 4.2+ BLE USB adapter or integrated chip.
 3. **Reference BLE Device**: AiLink Pulse Oximeter or compatible GATT simulator.
-4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_1_0.ino`.
+4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_2_0.ino`.
 5. **LAN Test Environment**: Both the trainer server (PC) and the mobile device must be connected to the exact same subnet (e.g., local Wi-Fi router).
 
 ---
@@ -48,9 +48,9 @@ Ensure the following hardware components are available:
 - [ ] Force or simulate repeated NVS write failures and verify three consecutive failures trigger one namespace reopen attempt, then NVS writes are disabled for the rest of that boot with a loud log line.
 
 ### Phase E: PR59 Power and Thermal Management
-- [ ] Build and flash default firmware (`RV_POWER_SAVE 0`) and verify DATA cadence remains 1 Hz ±2 % for at least 30 min with no LCD/LED/MLX behavior change versus v16.1.0.
+- [ ] Build and flash default firmware (`RV_POWER_SAVE 0`) and verify DATA cadence remains 1 Hz ±2 % for at least 30 min with no LCD/LED/MLX behavior change versus v16.2.0.
 - [ ] Build with `RV_POWER_SAVE 1`, leave the radar scene empty for at least 60 s, and verify `[POWER] idle power save entered` logs with CPU frequency at 80 MHz and MLX poll interval at 10 s.
-- [ ] While power save is active, introduce a subject and verify `[POWER] idle power save exited` appears within one display frame and presence reacquisition latency matches v16.1.0 bench timing.
+- [ ] While power save is active, introduce a subject and verify `[POWER] idle power save exited` appears within one display frame and presence reacquisition latency matches v16.2.0 bench timing.
 - [ ] Record idle current before and after the `RV_POWER_SAVE 1` transition, including LCD backlight state and LED duty, and attach the measured mA delta to the release notes.
 - [ ] Verify the radar UART/DSP DATA cadence remains 1 Hz ±2 % during power-save entry, steady idle, and exit.
 - [ ] Heat the enclosure or bench environment enough to cross 75 C internal chip temperature and verify `[THERMAL] chip_temp_c=<value>` warns no more than once per minute.

@@ -411,7 +411,7 @@
             "id": "firmware_contract_mismatch",
             "title": "Firmware contract mismatch",
             "steps": [
-                "Use the v16.1.0 firmware source beside the trainer.",
+                "Use the v16.2.0 firmware source beside the trainer.",
                 "Reflash if the device emits a different header.",
                 "Do not train from mismatched sessions."
             ]

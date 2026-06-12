@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR64: Overall v16.2.0 Version Alignment
+
+- **Version Bump**: Promoted the overall product/package/trainer/dashboard/firmware identity from `16.1.0` to `16.2.0`, including the firmware filename `radar_vital_v16_2_0.ino`, `FW_VERSION`, sketch subversion, app package metadata, Tauri/Capacitor metadata, trainer expected firmware version, dashboard product constants, OTA tests, and release workflow examples.
+- **Contract Coverage**: Static contract tests now assert the v16.2.0 product identity across root/package locks, Tauri Cargo/config files, Capacitor metadata, trainer constants, Angular services/components, and firmware sketch version macros.
+- **Verification**: `python -m pytest -q tests/test_v12_static_contract.py` 18/18; `python -m pytest -q tests/test_packaging.py tests/test_ota_backend.py tests/test_trainer_security_api.py` 23 passed, 1 skipped; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer` clean; `python -m rvt_trainer --help` clean and reports Radar Vital Trainer v16.2.0; `npm --prefix web run test:ci` 42/42; `npm run build:web` regenerated the monolith; `npm run build:check` clean with the known initial-bundle budget warning; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6` clean with the existing LiquidCrystal architecture warning.
+
 ### 2026-06-12 — PR59: Default-Off Power Save and Chip Thermal Guardrails
 
 - **Power Save Gate**: Firmware now has default-off `RV_POWER_SAVE 0` plus `RV_LCD_LUX_BACKLIGHT` gates. When enabled and the presence FSM remains `ABSENT` for 60 s, ancillary peripherals enter idle mode: LCD backlight off, NeoPixel brightness capped, MLX90614 poll interval widened to 10 s, and CPU frequency lowered to 80 MHz. Radar UART/DSP cadence is unchanged.

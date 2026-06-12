@@ -7,6 +7,13 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 ## [Unreleased]
 
 ### Added
+- One-tap GitHub issue reporting (`IssueReportService`, `ReportIssueCardComponent`):
+  pre-fills all bug-form fields (version, platform, connection mode, de-identified
+  diagnostics, log tail); diagnostics toggle defaults on and persists under
+  `rvt-diagnostics-optin`; URL hard-capped at 7 500 chars with safe truncation order
+  (log tail → alerts → none); Tauri opens via `plugin:shell|open`, PWA/APK via
+  `window.open`. Card not yet mounted (Wave 2 task).
+- Tauri `shell:allow-open` capability scoped to `https://github.com/*`.
 - Terms & Conditions, Privacy Notice (RA 10173-framed drafts), LICENSE,
   CONTRIBUTING guide, issue templates, and wiki source pages.
 - First-run consent gate: `FirstRunService` reads/writes localStorage under

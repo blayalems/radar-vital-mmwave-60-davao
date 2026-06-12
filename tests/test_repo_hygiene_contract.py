@@ -8,8 +8,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import yaml
-
 ROOT = Path(__file__).resolve().parents[1]
 AUTHORS = ["Lemuel Blaya", "Angelo Diaz", "Blessie Mugat"]
 
@@ -44,15 +42,20 @@ def test_changelog_and_contributing_exist():
 
 def test_bug_report_form_field_ids_are_stable():
     """The in-app issue reporter prefills these ids via URL params — renaming
-    a field id silently breaks prefill, so the ids are contractual."""
-    form = yaml.safe_load(text(".github/ISSUE_TEMPLATE/bug_report.yml"))
-    ids = {entry.get("id") for entry in form["body"] if isinstance(entry, dict)}
+    a field id silently breaks prefill, so the ids are contractual.
+
+    Asserted textually (no PyYAML in requirements-v12.txt): GitHub form ids
+    appear as `id: <name>` lines, which is stable enough for the contract.
+    """
+    form = text(".github/ISSUE_TEMPLATE/bug_report.yml")
+    ids = set(re.findall(r"^\s*id:\s*(\S+)\s*$", form, flags=re.MULTILINE))
     for required in ("description", "steps", "product_version", "platform",
                      "connection_mode", "diagnostics"):
         assert required in ids, f"bug form lost contractual field id {required!r}"
-    yaml.safe_load(text(".github/ISSUE_TEMPLATE/feature_request.yml"))
-    config = yaml.safe_load(text(".github/ISSUE_TEMPLATE/config.yml"))
-    assert config["blank_issues_enabled"] is False
+    assert "name:" in text(".github/ISSUE_TEMPLATE/feature_request.yml")
+    assert re.search(r"^blank_issues_enabled:\s*false\s*$",
+                     text(".github/ISSUE_TEMPLATE/config.yml"),
+                     flags=re.MULTILINE), "blank issues must stay disabled"
 
 
 def test_storage_keys_and_app_meta_contract():

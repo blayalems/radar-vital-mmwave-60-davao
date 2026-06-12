@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { seedFirstRunComplete } from '../smoke/helpers/first-run';
+
 const views = ['home', 'live', 'report', 'help', 'settings'];
 const themes = ['light', 'dark', 'night', 'hc'];
 
@@ -9,6 +11,7 @@ test.describe('v12 dashboard visual baseline', () => {
   test.use({ serviceWorkers: 'block' });
 
   test.beforeEach(async ({ page }) => {
+    await seedFirstRunComplete(page);
     await page.route('**/api/auth/validate', async (route) => {
       await route.fulfill({
         status: 200,

@@ -39,6 +39,14 @@ Ensure the following hardware components are available:
 - [ ] Confirm that minimizing the application for 60 seconds does not cause the service worker EventSource to drop or fail reconnecting.
 - [ ] Verify the **DEMO** banner displays if sandbox fallback occurs, and that sandbox telemetry is isolated inside the IndexedDB store.
 
+### Phase D: Firmware Robustness Fault Injection
+- [ ] Disconnect LCD SDA mid-session and verify the serial DATA cadence remains at 1 Hz with loop timing still within the pre-fault budget ±5 ms.
+- [ ] Confirm serial logs show LCD/I2C retry backoff increasing from 3 s toward the 5 min cap, and that `i2c_recover_count` / `lcd_reinit_count` increase in Live Audit.
+- [ ] Reconnect LCD SDA and verify the display recovers within one active backoff interval without rebooting the controller.
+- [ ] Pull radar TX mid-session, then restore it; verify recovery logs are visible and lock is reacquired without a firmware reboot.
+- [ ] Power-cycle the controller eight times and verify `[BOOT] reset_reason=<n> (<name>)` logs appear and the NVS reset-reason ring advances across boots.
+- [ ] Force or simulate repeated NVS write failures and verify three consecutive failures trigger one namespace reopen attempt, then NVS writes are disabled for the rest of that boot with a loud log line.
+
 ---
 
 ## 3. Reference GATT UUID Profile Specifications

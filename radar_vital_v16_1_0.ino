@@ -193,6 +193,7 @@
 #include <BH1750.h>
 #include <Adafruit_NeoPixel.h>
 #include <esp_task_wdt.h>
+#include <esp_system.h>
 #include <Preferences.h>
 
 #ifndef ENABLE_BLE
@@ -506,13 +507,34 @@ const int NUM_HINTS = 5;
 // =========================================================================
 const float MLX_EMISSIVITY = 0.98f;
 static const unsigned long NVS_WRITE_MIN_INTERVAL_MS = 600000UL;
+static const unsigned long NVS_WRITE_COUNT_LOG_INTERVAL_MS = 86400000UL;
 static unsigned long lastNvsWriteMs = 0;
+static unsigned long lastNvsWriteCountLogMs = 0;
 static bool nvsEverWritten = false;
+static uint8_t nvsWriteFailureStreak = 0;
+static uint32_t nvsWriteCountThisBoot = 0;
+static bool nvsReopenAttempted = false;
+static bool nvsWriteDisabledForBoot = false;
 static bool wdtActive = false;
 static const unsigned long RADAR_RECOVERY_GRACE_MS = 3000UL;
 static const unsigned long BH1750_RETRY_INTERVAL_MS = 10000UL;
+static const unsigned long PERIPH_BACKOFF_MIN_MS = 3000UL;
+static const unsigned long PERIPH_BACKOFF_MAX_MS = 300000UL;
 static unsigned long lastBh1750RetryMs = 0UL;
 static unsigned long lastLcdRescanMs = 0UL;
+struct PeriphBackoff {
+  const char* label;
+  uint8_t failures;
+  unsigned long nextRetryMs;
+};
+static bool periphBackoffReady(const PeriphBackoff& state, unsigned long now);
+static void periphBackoffFailure(PeriphBackoff& state, unsigned long now);
+static void periphBackoffSuccess(PeriphBackoff& state, unsigned long now);
+static PeriphBackoff mlxBackoff = {"MLX", 0, 0UL};
+static PeriphBackoff bh1750Backoff = {"BH1750", 0, 0UL};
+static PeriphBackoff lcdBackoff = {"LCD", 0, 0UL};
+static int bootResetReason = ESP_RST_UNKNOWN;
+static char bootResetReasonText[24] = "unknown";
 static uint32_t diagLoopLastMs = 0UL;
 static uint32_t diagLoopWindowStartMs = 0UL;
 static uint32_t diagLoopSumMs = 0UL;
@@ -938,6 +960,102 @@ const char* getHRZone(float hr) {
   return HR_ZONE_HIGH;
 }
 
+extern Preferences prefs;
+
+static unsigned long periphBackoffInterval(uint8_t failures) {
+  uint8_t shift = (failures > 0) ? (failures - 1) : 0;
+  if (shift > 6) shift = 6;
+  unsigned long interval = PERIPH_BACKOFF_MIN_MS << shift;
+  return (interval > PERIPH_BACKOFF_MAX_MS) ? PERIPH_BACKOFF_MAX_MS : interval;
+}
+
+static bool periphBackoffReady(const PeriphBackoff& state, unsigned long now) {
+  return state.nextRetryMs == 0UL || (int32_t)(now - state.nextRetryMs) >= 0;
+}
+
+static void periphBackoffFailure(PeriphBackoff& state, unsigned long now) {
+  if (state.failures < 8) state.failures++;
+  unsigned long interval = periphBackoffInterval(state.failures);
+  state.nextRetryMs = now + interval;
+  Serial.printf("[I2C] %s retry backoff=%lus failures=%u\n",
+                state.label, interval / 1000UL, (unsigned)state.failures);
+}
+
+static void periphBackoffSuccess(PeriphBackoff& state, unsigned long now) {
+  if (state.failures > 0) {
+    Serial.printf("[I2C] %s recovered after %u failed attempts\n",
+                  state.label, (unsigned)state.failures);
+  }
+  state.failures = 0;
+  state.nextRetryMs = now;
+}
+
+static const char* resetReasonName(int reason) {
+  switch (reason) {
+    case ESP_RST_POWERON: return "poweron";
+    case ESP_RST_EXT: return "external";
+    case ESP_RST_SW: return "software";
+    case ESP_RST_PANIC: return "panic";
+    case ESP_RST_INT_WDT: return "int_wdt";
+    case ESP_RST_TASK_WDT: return "task_wdt";
+    case ESP_RST_WDT: return "wdt";
+    case ESP_RST_DEEPSLEEP: return "deepsleep";
+    case ESP_RST_BROWNOUT: return "brownout";
+    case ESP_RST_SDIO: return "sdio";
+    default: return "unknown";
+  }
+}
+
+static void persistBootResetReason() {
+  bootResetReason = (int)esp_reset_reason();
+  snprintf(bootResetReasonText, sizeof(bootResetReasonText), "%s", resetReasonName(bootResetReason));
+  Serial.printf("[BOOT] reset_reason=%d (%s)\n", bootResetReason, bootResetReasonText);
+  if (!prefs.begin("rvital", false)) {
+    Serial.println("[NVS] ERROR: Could not open namespace for reset-ring write");
+    return;
+  }
+  uint32_t slot = prefs.getUInt("rstSlot", 0) % 8U;
+  uint32_t boots = prefs.getUInt("rstBoots", 0) + 1U;
+  char key[12];
+  snprintf(key, sizeof(key), "rstR%u", (unsigned)slot);
+  prefs.putInt(key, bootResetReason);
+  snprintf(key, sizeof(key), "rstU%u", (unsigned)slot);
+  prefs.putUInt(key, (uint32_t)(millis() / 1000UL));
+  prefs.putUInt("rstSlot", (slot + 1U) % 8U);
+  prefs.putUInt("rstBoots", boots);
+  prefs.end();
+}
+
+static void noteNvsWriteFailure(unsigned long now, const char* detail) {
+  if (nvsWriteFailureStreak < 255) nvsWriteFailureStreak++;
+  Serial.printf("[NVS] ERROR: %s failure_streak=%u\n",
+                detail ? detail : "write", (unsigned)nvsWriteFailureStreak);
+  if (nvsWriteFailureStreak >= 3 && !nvsReopenAttempted) {
+    nvsReopenAttempted = true;
+    prefs.end();
+    delay(5);
+    bool reopened = prefs.begin("rvital", false);
+    prefs.end();
+    Serial.printf("[NVS] namespace reopen after failures: %s\n", reopened ? "OK" : "FAILED");
+    nvsWriteDisabledForBoot = true;
+    lastNvsWriteMs = now;
+    Serial.println("[NVS] Writes disabled for this boot after repeated failures");
+  }
+}
+
+static void noteNvsWriteSuccess(unsigned long now) {
+  nvsWriteFailureStreak = 0;
+  nvsWriteCountThisBoot++;
+  lastNvsWriteMs = now;
+  nvsEverWritten = true;
+  if (lastNvsWriteCountLogMs == 0UL ||
+      safeElapsedMs(now, lastNvsWriteCountLogMs) >= NVS_WRITE_COUNT_LOG_INTERVAL_MS) {
+    Serial.printf("[NVS] write_count_boot=%lu failure_streak=%u\n",
+                  (unsigned long)nvsWriteCountThisBoot, (unsigned)nvsWriteFailureStreak);
+    lastNvsWriteCountLogMs = now;
+  }
+}
+
 
 // =========================================================================
 // I2C / LCD INIT
@@ -973,6 +1091,7 @@ void lcdReInit() {
     if (!probeI2C(lcdAddr)) {
       lcdConnected = false;
       invalidateLcdRowCache();
+      periphBackoffFailure(lcdBackoff, millis());
       return;
     }
   }
@@ -980,6 +1099,7 @@ void lcdReInit() {
   invalidateLcdRowCache();
   customCharsValid = false; lcdCreateChars();
   prevDispState = DISP_NONE; lastLedColor = 0xFFFFFFFF;
+  periphBackoffSuccess(lcdBackoff, millis());
 }
 
 static bool probeI2C(uint8_t addr) {
@@ -988,16 +1108,19 @@ static bool probeI2C(uint8_t addr) {
 
 
 static bool tryInitBH1750() {
+  unsigned long now = millis();
   uint8_t candidates[] = {0x5C, 0x23};
   for (uint8_t i = 0; i < sizeof(candidates); ++i) {
     uint8_t addr = candidates[i];
     if (probeI2C(addr) && lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, addr, &Wire)) {
       bh1750Addr = addr;
       bh1750Ready = true;
+      periphBackoffSuccess(bh1750Backoff, now);
       return true;
     }
   }
   bh1750Ready = false;
+  periphBackoffFailure(bh1750Backoff, now);
   return false;
 }
 
@@ -1011,9 +1134,8 @@ static bool i2cSafeReadLux(unsigned long now) {
     return true;
   }
   bh1750Ready = false;
-  lastBh1750RetryMs = now;
   i2cRecover();
-  tryInitBH1750();
+  periphBackoffFailure(bh1750Backoff, now);
   return false;
 }
 
@@ -1026,11 +1148,8 @@ static bool i2cSafeReadMLX(unsigned long now, float& amb, float& obj) {
   Wire.setTimeOut(100);
   if (isfinite(amb) && isfinite(obj)) return true;
   mlxReady = false;
-  lastMlxRetry = now;
   i2cRecover();
-  mlxReady = mlx.begin();
-  if (bh1750Ready) tryInitBH1750();
-  if (lcdConnected) lcdReInit();
+  periphBackoffFailure(mlxBackoff, now);
   return false;
 }
 
@@ -1053,9 +1172,11 @@ bool scanForLCD() {
       customCharsValid = false; lcdCreateChars();
       lcdAddr = addr; prevDispState = DISP_NONE;
       Serial.printf("[LCD] Found 0x%02X\n", addr);
+      periphBackoffSuccess(lcdBackoff, millis());
       found = true; break;
     }
   }
+  if (!found) periphBackoffFailure(lcdBackoff, millis());
   Wire.setTimeOut(100); return found;
 }
 
@@ -3576,13 +3697,14 @@ static void handlePersonLeft(unsigned long now, const char* reason) {
   sessionPrintSummary(now);
   if (!buzzerIsBusy()) buzzerPlay(BUZZ_PERSON_LEFT);
 
-  if ((nvsEverWritten==false || (now-lastNvsWriteMs>=NVS_WRITE_MIN_INTERVAL_MS)) &&
+  if (!nvsWriteDisabledForBoot &&
+      (nvsEverWritten==false || (now-lastNvsWriteMs>=NVS_WRITE_MIN_INTERVAL_MS)) &&
       nvsNeedsWrite() && isfinite(radarGain) && isfinite(kfHR_x) && isfinite(kfRR_x)) {
     wdtReset(); buzzerUpdate();
     prefs.end();
     if (!prefs.begin("rvital",false)) {
-      Serial.println("[NVS] ERROR: Could not open namespace for write");
       prefs.end();
+      noteNvsWriteFailure(now, "open namespace for write");
       if (!buzzerIsBusy()) buzzerPlay(BUZZ_SENSOR_ERROR);
     } else {
       bool okGain = prefs.putFloat("gain",radarGain);
@@ -3594,14 +3716,13 @@ static void handlePersonLeft(unsigned long now, const char* reason) {
       prefs.end();
       wdtReset(); buzzerUpdate();
       if (okGain && okHR && okRR) {
-        lastNvsWriteMs=now;
-        nvsEverWritten=true;
+        noteNvsWriteSuccess(now);
         lastSavedGain=radarGain;
         lastSavedHR=kfHR_x;
         lastSavedRR=kfRR_x;
         Serial.printf("[NVS] Saved gain=%.3f HR=%.1f RR=%.1f\n", radarGain, kfHR_x, kfRR_x);
       } else {
-        Serial.println("[NVS] ERROR: putFloat failed");
+        noteNvsWriteFailure(now, "putFloat");
         if (!buzzerIsBusy()) buzzerPlay(BUZZ_SENSOR_ERROR);
       }
     }
@@ -4109,6 +4230,7 @@ void setup() {
       prefs.end();
     }
   }
+  persistBootResetReason();
 
   if (!prefs.begin("rvital",true)) {
     Serial.println("[NVS] ERROR: Could not open namespace for read; using defaults");
@@ -4198,7 +4320,12 @@ void loop() {
   if (persistedMotion&&(now-lastMotionDetectedMs>=MOTION_PERSIST_MS)) persistedMotion=false;
   bool inMotion=persistedMotion;
 
-  if (!mlxReady&&now-lastMlxRetry>MLX_RETRY_INTERVAL) { mlxReady=mlx.begin(); lastMlxRetry=now; }
+  if (!mlxReady && periphBackoffReady(mlxBackoff, now)) {
+    mlxReady = mlx.begin();
+    lastMlxRetry = now;
+    if (mlxReady) periphBackoffSuccess(mlxBackoff, now);
+    else periphBackoffFailure(mlxBackoff, now);
+  }
   rawHRValid = false;
   rawRRValid = false;
   hrUpdatedThisCycle = false;
@@ -6111,7 +6238,7 @@ void loop() {
       }
     }
 
-    if (!bh1750Ready && (lastBh1750RetryMs == 0 || safeElapsedMs(now, lastBh1750RetryMs) >= BH1750_RETRY_INTERVAL_MS)) {
+    if (!bh1750Ready && periphBackoffReady(bh1750Backoff, now)) {
       lastBh1750RetryMs = now;
       i2cRecover();
       tryInitBH1750();
@@ -6587,7 +6714,7 @@ void loop() {
 
   // =========================================================================
 
-  if (!lcdConnected && (lastLcdRescanMs == 0 || safeElapsedMs(now, lastLcdRescanMs) >= 10000UL)) {
+  if (!lcdConnected && periphBackoffReady(lcdBackoff, now)) {
     lastLcdRescanMs = now;
     if (scanForLCD()) { prevDispState = DISP_NONE; lastDisplay = 0; }
   }

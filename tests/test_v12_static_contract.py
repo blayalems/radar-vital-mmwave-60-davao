@@ -350,6 +350,24 @@ def test_trainer_pads_legacy_207_rows_to_v15_1_contract():
     )
 
 
+def test_firmware_pr58_robustness_guards_present():
+    ino = text(FW)
+
+    assert "PERIPH_BACKOFF_MIN_MS = 3000UL" in ino
+    assert "PERIPH_BACKOFF_MAX_MS = 300000UL" in ino
+    assert "periphBackoffFailure(lcdBackoff" in ino
+    assert "periphBackoffFailure(mlxBackoff" in ino
+    assert "periphBackoffFailure(bh1750Backoff" in ino
+    assert "periphBackoffReady(lcdBackoff" in ino
+    assert "periphBackoffReady(mlxBackoff" in ino
+    assert "periphBackoffReady(bh1750Backoff" in ino
+    assert '[BOOT] reset_reason=%d (%s)' in ino
+    assert 'prefs.putUInt("rstSlot"' in ino
+    assert "nvsWriteFailureStreak >= 3" in ino
+    assert "nvsWriteDisabledForBoot = true" in ino
+    assert "[NVS] write_count_boot=" in ino
+
+
 def test_packaging_scaffolds_exist():
     assert (ROOT / "packaging" / "capacitor" / "capacitor.config.ts").exists()
     assert (ROOT / "packaging" / "tauri" / "tauri.conf.json").exists()

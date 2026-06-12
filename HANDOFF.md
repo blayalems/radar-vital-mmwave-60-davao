@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR58: Firmware Robustness Backoff, Reset Forensics, and NVS Failure Escalation
+
+- **Peripheral Backoff**: Firmware now uses bounded exponential retry state for MLX90614, BH1750, and LCD recovery (3 s doubling to 5 min cap), resetting on successful recovery and continuing to increment the PR57 I2C/LCD diagnostic counters.
+- **Reset/NVS Forensics**: Boot now logs `esp_reset_reason()` with a readable label and persists an 8-entry reset-reason ring in NVS after namespace migration. NVS setting writes track success/failure counts, log write-count telemetry, attempt one namespace reopen after 3 consecutive failures, then disable further writes for the boot.
+- **Bench Checklist**: `docs/physical-acceptance-checklist.md` now includes PR58 fault-injection steps for LCD SDA disconnect/reconnect, radar TX pull/restore, reset-ring persistence, and repeated NVS write failure escalation.
+- **Verification**: `python -m pytest -q tests/test_v12_static_contract.py` 17/17; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer` clean; `python -m rvt_trainer --help` clean; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6` clean with existing LiquidCrystal architecture warning; `git diff --check` clean except CRLF warnings. Physical fault injection not run locally.
+
 ### 2026-06-12 — PR57: Additive Field-Diagnostics Telemetry Columns
 
 - **CSV v15.1 Contract**: Firmware and trainer schema now emit/expect 219 CSV columns, preserving the original 207-column v15 prefix exactly and appending loop timing, heap, radar/CRC, I2C/LCD, watchdog, command, and uptime diagnostics as columns 208-219.

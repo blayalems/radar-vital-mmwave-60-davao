@@ -189,27 +189,25 @@ function pinSdkVersions(gradleText, sdkVersion, filePath) {
   // Capacitor templates use either `compileSdk N` or `compileSdkVersion N`
   const compileSdkRe = /\bcompileSdk(?:Version)?\s+\d+/;
   const targetSdkRe = /\btargetSdk(?:Version)?\s+\d+/;
+  // Capacitor 7 templates instead reference rootProject.ext values that are
+  // assigned in variables.gradle — that file is then the authoritative pin.
+  const extRefRe = /rootProject\.ext\.(?:compileSdkVersion|targetSdkVersion)/;
 
-  if (!compileSdkRe.test(gradleText)) {
+  if (!compileSdkRe.test(gradleText) || !targetSdkRe.test(gradleText)) {
+    if (extRefRe.test(gradleText)) {
+      return null; // defer the pin to variables.gradle
+    }
     console.error(
-      `[patch-android-shell] FATAL: could not find compileSdk / compileSdkVersion in ${filePath}.\n` +
+      `[patch-android-shell] FATAL: ${filePath} has neither literal ` +
+      `compileSdk/targetSdk values nor rootProject.ext SDK references.\n` +
       `  The Capacitor template shape may have changed — update this patch script.`
     );
     process.exit(1);
   }
-  if (!targetSdkRe.test(gradleText)) {
-    console.error(
-      `[patch-android-shell] FATAL: could not find targetSdk / targetSdkVersion in ${filePath}.\n` +
-      `  The Capacitor template shape may have changed — update this patch script.`
-    );
-    process.exit(1);
-  }
 
-  let patched = gradleText
+  return gradleText
     .replace(compileSdkRe, `compileSdk ${sdkVersion}`)
     .replace(targetSdkRe, `targetSdk ${sdkVersion}`);
-
-  return patched;
 }
 
 /**
@@ -223,7 +221,7 @@ async function pinVariablesGradle(sdkVersion) {
   try {
     text = await fs.readFile(variablesGradlePath, 'utf8');
   } catch (e) {
-    if (e.code === 'ENOENT') return; // template doesn't use variables.gradle
+    if (e.code === 'ENOENT') return false; // template doesn't use variables.gradle
     throw e;
   }
 
@@ -246,6 +244,7 @@ async function pinVariablesGradle(sdkVersion) {
 
   await fs.writeFile(variablesGradlePath, text);
   console.log(`Pinned SDK ${sdkVersion} in: ${path.relative(ROOT, variablesGradlePath)}`);
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -320,13 +319,27 @@ async function main() {
 
   let appGradle = await fs.readFile(appGradlePath, 'utf8');
   appGradle = ensureKotlinAndroidPlugin(appGradle);
-  // Pin compileSdk and targetSdk to 35 — FAILS LOUDLY if patterns are absent
-  appGradle = pinSdkVersions(appGradle, 35, appGradlePath);
+  // Pin compileSdk and targetSdk to 35: literals in app/build.gradle when the
+  // template uses them, otherwise the variables.gradle ext block. FAILS LOUDLY
+  // if the pin lands in neither location.
+  const literalPin = pinSdkVersions(appGradle, 35, appGradlePath);
+  if (literalPin !== null) {
+    appGradle = literalPin;
+  }
   await fs.writeFile(appGradlePath, appGradle);
-  console.log(`Pinned compileSdk/targetSdk=35 in: ${path.relative(ROOT, appGradlePath)}`);
+  if (literalPin !== null) {
+    console.log(`Pinned compileSdk/targetSdk=35 in: ${path.relative(ROOT, appGradlePath)}`);
+  }
 
-  // Pin variables.gradle if the Capacitor template uses it (no-op if absent)
-  await pinVariablesGradle(35);
+  const variablesPinned = await pinVariablesGradle(35);
+  if (literalPin === null && !variablesPinned) {
+    console.error(
+      `[patch-android-shell] FATAL: app/build.gradle defers SDK versions to ` +
+      `rootProject.ext but variables.gradle is missing or unpatchable.\n` +
+      `  The Capacitor template shape may have changed — update this patch script.`
+    );
+    process.exit(1);
+  }
 
   let xml = await fs.readFile(stylesPath, 'utf8');
   xml = patchStyle(xml, 'AppTheme');

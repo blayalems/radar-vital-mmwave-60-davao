@@ -7,15 +7,22 @@ const SESSION_PARENT_PROFILES_PATH = path.resolve(process.cwd(), '..', 'operator
 const PLAYWRIGHT_PROFILES_PATH = path.resolve(process.cwd(), '.playwright-state', 'operator_profiles.json');
 const SESSIONS_PROFILES_PATH = path.resolve(process.cwd(), 'sessions', 'operator_profiles.json');
 const PLAYWRIGHT_SESSIONS_PROFILES_PATH = path.resolve(process.cwd(), '.playwright-state', 'sessions', 'operator_profiles.json');
+const CONFIGURED_SESSIONS_PROFILES_PATH = path.resolve(
+  process.cwd(),
+  process.env.RVT_TEST_SESSIONS_ROOT || '.playwright-state/sessions',
+  'operator_profiles.json'
+);
 
 function cleanProfiles() {
-  for (const profilePath of [
+  const profilePaths = new Set([
     PROFILES_PATH,
     SESSION_PARENT_PROFILES_PATH,
     PLAYWRIGHT_PROFILES_PATH,
     SESSIONS_PROFILES_PATH,
-    PLAYWRIGHT_SESSIONS_PROFILES_PATH
-  ]) {
+    PLAYWRIGHT_SESSIONS_PROFILES_PATH,
+    CONFIGURED_SESSIONS_PROFILES_PATH
+  ]);
+  for (const profilePath of profilePaths) {
     if (!fs.existsSync(profilePath)) {
       continue;
     }

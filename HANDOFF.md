@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR61: Playwright Operator Smoke Isolation
+
+- **Smoke Isolation**: `tests/smoke/operator.spec.ts` now removes the operator profile file under the active `RVT_TEST_SESSIONS_ROOT`, not only the default `.playwright-state/sessions` path. This keeps the four Playwright projects independent when CI or local runs use a custom sessions root.
+- **Verification**: Fresh-port operator smoke with `RVT_TEST_SESSIONS_ROOT=.playwright-state/sessions-operator` passed 4/4 across desktop, Pixel 7, iPhone 14, and iPad.
+
 ### 2026-06-12 — PR64: Overall v16.2.0 Version Alignment
 
 - **Version Bump**: Promoted the overall product/package/trainer/dashboard/firmware identity from `16.1.0` to `16.2.0`, including the firmware filename `radar_vital_v16_2_0.ino`, `FW_VERSION`, sketch subversion, app package metadata, Tauri/Capacitor metadata, trainer expected firmware version, dashboard product constants, OTA tests, and release workflow examples.

@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR62: Pip-Installable Trainer, Declared BLE Extra & Release Artifact Verification
+
+- **Packaging**: New root `pyproject.toml` (PEP 621/setuptools) makes the trainer installable as `rvt-trainer` with a `rvt-trainer` console script (`rvt_trainer.cli:main`), runtime deps mirroring `requirements-v12.txt` (pytest excluded), and an `[ble]` extra that finally declares `bleak` (used by `transport/ble.py` but previously undeclared). Package discovery is scoped to `rvt_trainer*` so loose root scripts are not packaged; `rvt_trainer/assets/*` ship as package data. PyInstaller sidecar build path unaffected (it installs requirements directly and targets `sidecar_entry.py` by path).
+- **Release Verification**: The previously-orphaned `scripts/verify-release-artifacts.ps1` is now wired into the release job (`release-artifacts.yml`) as a `pwsh` step that re-zips the downloaded APK/EXE assets and verifies contents, minimum sizes and SHA-256 before the manifest is generated.
+- **CI-Safe Tests**: `tests/test_packaging.py` parses `pyproject.toml` directly (console script, semantic version, bleak extra) so CI passes without `pip install`; the installed-metadata assertion skips when the package is not installed.
+- **Verification**: `pip install -e .` then `rvt-trainer --help` exit 0; `python -m pytest -q tests` 99/99 locally (98 + 1 skip expected in CI).
+
 ### 2026-06-12 — PR60: SQI Time-Ribbons (v11 Parity) + Windows Baseline-Refresh Workflow
 
 - **SQI Ribbons**: The Waves tab quality bars gain v11-style time-segmented ribbons — a rolling 60 s client-side PQI history per waveform, colored with the same thresholds as the Bland-Altman scatter (good >= 0.3, warn 0.15-0.3, bad < 0.15), with screen-reader summaries of the good-quality percentage.

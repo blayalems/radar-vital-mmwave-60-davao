@@ -32,6 +32,25 @@ python3 -m rvt_trainer serve --mock
 
 The first launch will register the service worker (`/sw.js`), wire up the manifest (`/manifest.webmanifest`), and prompt a PWA install on Chrome.
 
+### Install as a package
+
+The trainer is also pip-installable for environments where a development checkout is not convenient:
+
+```bash
+# From PyPI (once published) or directly from the repo:
+pip install rvt-trainer                   # runtime deps only
+pip install "rvt-trainer[ble]"            # include bleak for BLE transport
+
+# Editable install from a checkout:
+pip install -e .
+
+# The console script is then available:
+rvt-trainer serve --mock
+rvt-trainer --help
+```
+
+Requires Python 3.11+. The optional `ble` extra (`bleak>=0.21`) is only needed when using `--transport ble`.
+
 ---
 
 ## LAN access from phones — opt-in, PIN-paired

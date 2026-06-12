@@ -149,25 +149,90 @@ export class AuthService {
     }
   }
 
-  async createProfile(displayName: string, initials: string, pin: string): Promise<boolean> {
+  async createProfile(displayName: string, initials: string, pin: string): Promise<{ success: boolean; recoveryCode?: string }> {
     this.loading.set(true);
     this.loginError.set(null);
     try {
-      const res = await this.api.request<{ ok: boolean; operator?: OperatorProfile }>('/api/operator-profiles', {
+      const res = await this.api.request<{ ok: boolean; operator?: OperatorProfile; recovery_code?: string }>('/api/operator-profiles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_name: displayName, initials, pin })
       }, false, 30000);
 
       if (res?.ok && res.operator) {
+        const recoveryCode = res.recovery_code;
         await this.loadProfiles();
-        return await this.login(res.operator.operator_id, pin);
+        const loggedIn = await this.login(res.operator.operator_id, pin);
+        return { success: loggedIn, recoveryCode };
       }
-      return false;
+      return { success: false };
     } catch (err: any) {
       console.error('Failed to create profile', err);
       this.loginError.set(err.message || 'Failed to create profile.');
-      return false;
+      return { success: false };
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async resetPin(operatorId: string, recoveryCode: string, newPin: string): Promise<{ success: boolean; recoveryCode?: string; error?: string }> {
+    this.loading.set(true);
+    this.loginError.set(null);
+    try {
+      const res = await this.api.request<{ ok: boolean; recovery_code?: string }>(
+        '/api/auth/reset-pin',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operator_id: operatorId, recovery_code: recoveryCode, new_pin: newPin })
+        },
+        false,
+        30000
+      );
+      if (res?.ok) {
+        return { success: true, recoveryCode: res.recovery_code };
+      }
+      return { success: false };
+    } catch (err: any) {
+      console.error('Reset PIN failed', err);
+      const msg = err.message || 'Failed to reset PIN.';
+      if (msg.includes('LOCKOUT_ACTIVE') || msg.toLowerCase().includes('lockout')) {
+        let retryAfter = 30;
+        const match = msg.match(/(\d+)\s*second/i);
+        if (match) retryAfter = parseInt(match[1], 10);
+        this.loginError.set(`Too many failed attempts. Try again in ${retryAfter} seconds.`);
+      } else {
+        this.loginError.set(msg);
+      }
+      return { success: false, error: msg };
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async hostReset(operatorId: string, newPin: string): Promise<{ success: boolean; recoveryCode?: string; error?: string }> {
+    this.loading.set(true);
+    this.loginError.set(null);
+    try {
+      const res = await this.api.request<{ ok: boolean; recovery_code?: string }>(
+        '/api/auth/host-reset',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operator_id: operatorId, new_pin: newPin })
+        },
+        false,
+        30000
+      );
+      if (res?.ok) {
+        return { success: true, recoveryCode: res.recovery_code };
+      }
+      return { success: false };
+    } catch (err: any) {
+      console.error('Host reset failed', err);
+      const msg = err.message || 'Host reset failed.';
+      this.loginError.set(msg);
+      return { success: false, error: msg };
     } finally {
       this.loading.set(false);
     }

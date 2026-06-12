@@ -5,6 +5,17 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — WS1-B: PIN recovery codes + loopback host reset
+
+- **Backend** (`rvt_trainer/api/auth.py`): `create_operator_profile()` mints a XXXX-XXXX-XXXX Crockford-ish recovery code (secrets module, 30-char A-Z2-9 alphabet), stores only its PBKDF2-HMAC-SHA256/200k hash, returns plaintext exactly once. New `reset_pin_with_recovery()` verifies hash, resets PIN, single-use rotates code, separate 5/30 s lockout; legacy profiles (no hash) get guidance to host-reset. New `host_reset_pin()` resets from loopback; HTTP handler enforces 403 for non-loopback. Both invalidate active sessions and audit-log.
+- **Monolith** (`rvt_trainer/monolith.py`): imports new functions; adds `POST /api/auth/reset-pin` (recovery-code gated, public) and `POST /api/auth/host-reset` (loopback-only, 403 from non-loopback) before static fall-through; both added to `is_discovery` in `_require_control_auth`.
+- **Frontend** (`web/src/app/services/auth.service.ts`): `createProfile()` return type → `{ success, recoveryCode? }`; new `resetPin()` and `hostReset()` methods with lockout handling.
+- **RecoveryCodeDialog** (`web/src/app/components/recovery-code-dialog/`): new standalone Material dialog; monospace code block, Copy button (clipboard API + execCommand fallback), required "I saved my recovery code" dismiss; `disableClose: true, panelClass: 'm3-dialog-panel'`.
+- **IdleLockOverlay** (`web/src/app/components/idle-lock-overlay/`): "Forgot PIN?" link → inline recovery flow; "Reset from this computer" shown only on EXE host (`serverLifecycle.platform() === 'exe'`); both open RecoveryCodeDialog with rotated code on success.
+- **Tests**: `tests/test_recovery_codes.py` (22 pytest, incl. loopback integration); `tests/smoke/pin-reset.spec.ts` (Playwright smoke journey); auth.service spec extended (6 new tests, 49 total).
+- **README**: two new API table rows for `/api/auth/reset-pin` and `/api/auth/host-reset`.
+- **Verification**: pytest 40/40; compileall clean; vitest 49/49; Angular build clean (pre-existing bundle budget warning).
+
 ### 2026-06-12 — v16.3 Wave 0: Legal Drafts, Repo Hygiene & Shared Feature Contracts
 
 - **Legal/Support Artifacts**: TERMS.md + PRIVACY.md (RA 10173-framed drafts with explicit University of Mindanao legal/REC review banners), LICENSE (academic evaluation, © Lemuel Blaya, Angelo Diaz, Blessie Mugat), CHANGELOG.md (Keep-a-Changelog with 16.0–16.2 backfill), CONTRIBUTING.md, `.github/ISSUE_TEMPLATE/` bug/feature forms + config (blank issues off). Bug-form field ids (`description`, `steps`, `product_version`, `platform`, `connection_mode`, `diagnostics`) are contractual — the upcoming in-app issue reporter prefills them.

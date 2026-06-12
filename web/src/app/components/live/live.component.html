@@ -52,6 +52,25 @@
         </div>
       </div>
 
+      <!-- SIGNAL LOCK-STATE / MOTION / READINESS CHIPS -->
+      <div class="signal-status-chips" role="status" aria-live="polite" aria-atomic="false">
+        @if (sessionPhaseLabel(); as phaseLabel) {
+          <span class="status-chip phase-chip" [attr.data-phase]="sessionPhaseName()" [class.stale-dim]="state.telemetryStale()">
+            <mat-icon aria-hidden="true">{{ sessionPhaseIcon() }}</mat-icon>{{ phaseLabel }}
+          </span>
+        }
+        @if (motionActive()) {
+          <span class="status-chip motion-chip" [class.stale-dim]="state.telemetryStale()">
+            <mat-icon aria-hidden="true">directions_run</mat-icon>Motion — readings hold briefly
+          </span>
+        }
+        @if (liveVerdictLabel(); as verdictLabel) {
+          <span class="status-chip verdict-chip" [attr.data-verdict]="liveVerdict()" [class.stale-dim]="state.telemetryStale()">
+            <mat-icon aria-hidden="true">fact_check</mat-icon>{{ verdictLabel }}
+          </span>
+        }
+      </div>
+
       <div class="command-actions">
         <!-- PAUSE / RESUME BUTTON -->
         <button mat-flat-button (click)="togglePause()" class="mat-tonal-button cmd-btn">
@@ -106,13 +125,23 @@
                 <div class="kpi-card-header">
                   <span>Heart Rate</span>
                   <div class="kpi-header-icons">
+                    @if (hrConfidencePct() !== null) {
+                      <span class="kpi-conf-badge"
+                            [attr.title]="'Heart-rate confidence' + (hrConfidenceSource() ? ' — source: ' + hrConfidenceSource() : '')"
+                            [attr.aria-label]="'Heart-rate confidence ' + hrConfidencePct() + ' percent' + (hrConfidenceSource() ? ', source ' + hrConfidenceSource() : '')">
+                        {{ hrConfidencePct() }}%
+                      </span>
+                    }
                     <mat-icon class="drag-icon">drag_indicator</mat-icon>
                     <mat-icon>ecg_heart</mat-icon>
                   </div>
                 </div>
-                <div class="kpi-card-value">
-                  <strong>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) : '--' }}</strong>
+                <div class="kpi-card-value" [class.kpi-holding]="hrHolding()">
+                  <strong>{{ hrValueDisplay() }}</strong>
                   <small>bpm</small>
+                  @if (hrHolding()) {
+                    <span class="holding-tag" title="The firmware is not publishing a fresh heart-rate value this second; the display holds the last accepted reading.">holding</span>
+                  }
                 </div>
                 <div class="kpi-card-spark">
                   <canvas #overviewHrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Heart rate recent trend', 'reported_hr', 'beats per minute')"></canvas>
@@ -140,9 +169,12 @@
                     <mat-icon>air</mat-icon>
                   </div>
                 </div>
-                <div class="kpi-card-value">
-                  <strong>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) : '--' }}</strong>
+                <div class="kpi-card-value" [class.kpi-holding]="rrHolding()">
+                  <strong>{{ rrValueDisplay() }}</strong>
                   <small>br/min</small>
+                  @if (rrHolding()) {
+                    <span class="holding-tag" title="The firmware is not publishing a fresh respiration value this second; the display holds the last accepted reading.">holding</span>
+                  }
                 </div>
                 <div class="kpi-card-spark">
                   <canvas #overviewRrSpark class="sparkline-canvas" role="img" [attr.aria-label]="chartLabel('Respiration recent trend', 'reported_rr', 'breaths per minute')"></canvas>
@@ -378,6 +410,9 @@
                     <tr><td>Reported RR</td><td>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) + ' br/m' : '--' }}</td></tr>
                     <tr><td>Candidate HR</td><td>{{ state.lastPayload()?.radar?.candidate_hr ? Math.round(state.lastPayload()?.radar?.candidate_hr ?? 0) + ' bpm' : '--' }}</td></tr>
                     <tr><td>Candidate RR</td><td>{{ state.lastPayload()?.radar?.candidate_rr ? Math.round(state.lastPayload()?.radar?.candidate_rr ?? 0) + ' br/m' : '--' }}</td></tr>
+                    <tr><td>Loop mean / max</td><td>{{ metricText('loop_dt_mean_ms', 2, ' ms') }} / {{ metricText('loop_dt_max_ms', 0, ' ms') }}</td></tr>
+                    <tr><td>Heap free / min</td><td>{{ metricText('heap_free_kb', 1, ' KB') }} / {{ metricText('heap_min_free_kb', 1, ' KB') }}</td></tr>
+                    <tr><td>Firmware uptime</td><td>{{ metricText('fw_uptime_s', 0, ' s') }}</td></tr>
                   </tbody>
                 </table>
               </mat-card-content>
@@ -400,6 +435,17 @@
             <mat-card class="diagnostics-mini-card">
               <mat-card-header><mat-card-title>Mismatches / Faults</mat-card-title></mat-card-header>
               <mat-card-content class="diagnostics-table-wrap">
+                <table class="diagnostics-table">
+                  <tbody>
+                    <tr><td>Radar UART overflow</td><td>{{ metricText('radar_uart_overflow_count', 0) }}</td></tr>
+                    <tr><td>Radar CRC errors</td><td>{{ metricText('radar_crc_err_count', 0) }}</td></tr>
+                    <tr><td>I2C recoveries</td><td>{{ metricText('i2c_recover_count', 0) }}</td></tr>
+                    <tr><td>LCD re-inits</td><td>{{ metricText('lcd_reinit_count', 0) }}</td></tr>
+                    <tr><td>WDT near misses</td><td>{{ metricText('wdt_near_miss_count', 0) }}</td></tr>
+                    <tr><td>Command RX / errors</td><td>{{ metricText('cmd_rx_count', 0) }} / {{ metricText('cmd_err_count', 0) }}</td></tr>
+                    <tr><td>Active faults</td><td>{{ state.lastPayload()?.faults?.length || 0 }}</td></tr>
+                  </tbody>
+                </table>
                 @if ((state.lastPayload()?.faults?.length || 0) > 0) {
                   <div class="faults-list-container">
                     @for (fault of state.lastPayload()?.faults || []; track $index) {
@@ -485,6 +531,11 @@
               }
               <mat-progress-bar mode="determinate" [value]="qualityPercent('pqi_breath')" class="quality-bar rr-quality"></mat-progress-bar>
               <span class="quality-label">{{ qualityLabel('pqi_breath') }}</span>
+              <div class="sqi-ribbon" role="img" [attr.aria-label]="ribbonLabel('breath')">
+                @for (seg of ribbonSegments('breath'); track $index) {
+                  <span [class]="seg"></span>
+                }
+              </div>
             </div>
 
             <div class="waveform-chart-wrap">
@@ -520,6 +571,11 @@
               }
               <mat-progress-bar mode="determinate" [value]="qualityPercent('pqi_heart')" class="quality-bar hr-quality"></mat-progress-bar>
               <span class="quality-label">{{ qualityLabel('pqi_heart') }}</span>
+              <div class="sqi-ribbon" role="img" [attr.aria-label]="ribbonLabel('heart')">
+                @for (seg of ribbonSegments('heart'); track $index) {
+                  <span [class]="seg"></span>
+                }
+              </div>
             </div>
           </mat-card-content>
         </mat-card>
@@ -882,6 +938,24 @@
                 <tr><td>Module valid</td><td><strong>{{ analysisNested('fw_truthfulness', 'module_version_valid') }}</strong></td></tr>
                 <tr><td>HR eval bins</td><td><strong>{{ analysisNested('gate_audit', 'hr_eval_bins') }}</strong></td></tr>
                 <tr><td>RR eval bins</td><td><strong>{{ analysisNested('gate_audit', 'rr_eval_bins') }}</strong></td></tr>
+              </tbody></table>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="diagnostics-card">
+            <mat-card-header><mat-card-title>Firmware Field Diagnostics</mat-card-title></mat-card-header>
+            <mat-card-subtitle>Loop timing, memory headroom, and fault counters.</mat-card-subtitle>
+            <mat-card-content class="diagnostics-table-wrap">
+              <table class="diagnostics-table"><tbody>
+                <tr><td>Loop mean / max</td><td>{{ metricText('loop_dt_mean_ms', 2, ' ms') }} / {{ metricText('loop_dt_max_ms', 0, ' ms') }}</td></tr>
+                <tr><td>Heap free / min</td><td>{{ metricText('heap_free_kb', 1, ' KB') }} / {{ metricText('heap_min_free_kb', 1, ' KB') }}</td></tr>
+                <tr><td>Firmware uptime</td><td>{{ metricText('fw_uptime_s', 0, ' s') }}</td></tr>
+                <tr><td>Radar UART overflow</td><td>{{ metricText('radar_uart_overflow_count', 0) }}</td></tr>
+                <tr><td>Radar CRC errors</td><td>{{ metricText('radar_crc_err_count', 0) }}</td></tr>
+                <tr><td>I2C recoveries</td><td>{{ metricText('i2c_recover_count', 0) }}</td></tr>
+                <tr><td>LCD re-inits</td><td>{{ metricText('lcd_reinit_count', 0) }}</td></tr>
+                <tr><td>WDT near misses</td><td>{{ metricText('wdt_near_miss_count', 0) }}</td></tr>
+                <tr><td>Command RX / errors</td><td>{{ metricText('cmd_rx_count', 0) }} / {{ metricText('cmd_err_count', 0) }}</td></tr>
               </tbody></table>
             </mat-card-content>
           </mat-card>

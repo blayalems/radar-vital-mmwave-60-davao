@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -43,6 +43,26 @@ export class TopbarComponent {
   private readonly telemetry = inject(TelemetryService);
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
+
+  // 1 Hz tick driving the auto-retry countdown; runs only while disconnected.
+  private readonly nowMs = signal(Date.now());
+  private readonly countdownTimer = typeof window !== 'undefined'
+    ? window.setInterval(() => this.nowMs.set(Date.now()), 1000)
+    : null;
+  protected readonly retryCountdownS = computed<number | null>(() => {
+    if (this.state.ctlStatus()?.ok !== false) return null;
+    const at = this.telemetry.nextRetryAtMs();
+    if (!at) return null;
+    const seconds = Math.ceil((at - this.nowMs()) / 1000);
+    return seconds > 0 ? seconds : null;
+  });
+
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      if (this.countdownTimer !== null) window.clearInterval(this.countdownTimer);
+    });
+  }
 
   toggleMobileActions(): void {
     this.mobileActionsOpen.update(open => !open);

@@ -26,7 +26,7 @@ import { UpdateService } from '../../services/update.service';
 import { BleScanDevice } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 
-const PRODUCT_VERSION = '16.1.0';
+const PRODUCT_VERSION = '16.2.0';
 
 @Component({
   selector: 'app-settings',
@@ -154,8 +154,8 @@ export class SettingsComponent {
     const confirmed = await this.confirmServerRestart(
       checked ? 'Share trainer on the local network?' : 'Stop sharing on the local network?',
       checked
-        ? 'The bundled trainer must restart in LAN mode. This interrupts any live session, closes the SSE stream, stops serial capture, and invalidates existing phone pairings.'
-        : 'The bundled trainer must restart in local mode. This interrupts any live session, closes the SSE stream, stops serial capture, and invalidates existing phone pairings.',
+        ? 'The bundled trainer must restart in LAN mode. This interrupts any live session, closes the SSE stream, stops serial capture, and invalidates existing phone pairings. You will be asked to sign in again afterwards.'
+        : 'The bundled trainer must restart in local mode. This interrupts any live session, closes the SSE stream, stops serial capture, and invalidates existing phone pairings. You will be asked to sign in again afterwards.',
       checked ? 'Restart and share' : 'Restart local only'
     );
     if (!confirmed) return;
@@ -178,7 +178,7 @@ export class SettingsComponent {
   async restartInLanMode(): Promise<void> {
     const confirmed = await this.confirmServerRestart(
       'Generate a new pairing PIN?',
-      'The bundled trainer must restart to mint a new PIN. This interrupts any live session, closes the SSE stream, stops serial capture, and invalidates existing phone pairings.',
+      'The bundled trainer must restart to mint a new PIN. This interrupts any live session, closes the SSE stream, stops serial capture, and invalidates existing phone pairings. You will be asked to sign in again afterwards.',
       'Restart and mint PIN'
     );
     if (!confirmed) return;

@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 
 import { ApiService } from './api.service';
+import { AuthService } from './auth.service';
 import { SERVER_URL_KEY } from './rvt-storage-keys';
 import { StateService } from './state.service';
 
@@ -28,6 +29,7 @@ export interface PairingInfo {
   origin?: string;
   active_pin?: string;
   active_pin_expires_at?: number;
+  qr_png_base64?: string;
 }
 
 interface NativeTrainerStatus {
@@ -43,6 +45,7 @@ interface NativeTrainerStatus {
 })
 export class ServerLifecycleService {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
   private readonly state = inject(StateService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -67,6 +70,10 @@ export class ServerLifecycleService {
       return `${origin}/?pair=${info.active_pin}`;
     }
     return `${origin}/pair`;
+  });
+  readonly pairingQrDataUrl = computed<string>(() => {
+    const qr = this.pairingInfo()?.qr_png_base64;
+    return qr ? `data:image/png;base64,${qr}` : '';
   });
   readonly platform = computed<ServerLifecyclePlatform>(() => this.hasTauriDesktop() ? 'exe' : 'remote');
   readonly blocksLive = computed(() => !this.state.demoMode() && ['offline', 'error', 'stopped'].includes(this.status()));
@@ -147,6 +154,11 @@ export class ServerLifecycleService {
     if (this.hasTauriDesktop()) {
       await this.stopServer();
       await this.startServer(bindMode);
+      // The sidecar restart wipes the trainer's in-memory operator sessions, so
+      // the pre-restart token is dead. Lock the station immediately: the lock
+      // overlay walks the operator through PIN re-login against the on-disk
+      // profiles instead of leaving a half-broken authenticated UI.
+      this.auth.lock();
     } else {
       await this.retryConnection();
     }
@@ -202,7 +214,7 @@ export class ServerLifecycleService {
       }
       if (this.bindMode() === 'lan') {
         try {
-          const info = await this.api.request<Record<string, unknown>>('/api/native-pairing-info', undefined, true);
+          const info = await this.api.request<Record<string, unknown>>('/api/native-pairing-info?format=qr', undefined, true);
           this.setPairingInfo(this.parsePairingInfo(info));
         } catch (_) {
           try {
@@ -238,11 +250,14 @@ export class ServerLifecycleService {
     const pinRaw = payload['active_pin'];
     const pin = typeof pinRaw === 'string' || typeof pinRaw === 'number' ? String(pinRaw) : '';
     const expiresAt = Number(payload['active_pin_expires_at']);
+    const qrRaw = payload['qr_png_base64'];
+    const qr = typeof qrRaw === 'string' && /^[A-Za-z0-9+/=]+$/.test(qrRaw) ? qrRaw : '';
     return {
       pair_required: payload['pair_required'] === true,
       origin: origin || undefined,
       active_pin: /^\d{6}$/.test(pin) ? pin : undefined,
-      active_pin_expires_at: Number.isFinite(expiresAt) && expiresAt > 0 ? expiresAt : undefined
+      active_pin_expires_at: Number.isFinite(expiresAt) && expiresAt > 0 ? expiresAt : undefined,
+      qr_png_base64: qr || undefined
     };
   }
 

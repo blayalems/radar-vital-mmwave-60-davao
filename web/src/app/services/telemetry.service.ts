@@ -1,4 +1,4 @@
-import { Injectable, effect, inject, untracked } from '@angular/core';
+import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { LivePayload } from '../models/rvt.models';
 import { AudioService } from './audio.service';
 import { StateService } from './state.service';
@@ -25,6 +25,8 @@ export class TelemetryService {
   private sseErrors: number[] = [];
   private httpPollFailures = 0;
   private demoT = 0;
+  /** Epoch ms of the next scheduled SSE reconnect attempt (null when connected). */
+  readonly nextRetryAtMs = signal<number | null>(null);
 
   constructor() {
     this.start();
@@ -184,6 +186,7 @@ export class TelemetryService {
         this.sseMode = true;
         this.sseErrors = [];
         this.sseReconnectAttempts = 0;
+        this.nextRetryAtMs.set(null);
         this.clearPollTimer();
         this.clearReconnectTimer();
       };
@@ -199,7 +202,12 @@ export class TelemetryService {
 
       this.sse.addEventListener('session_warning', (ev: MessageEvent) => {
         const payload = this.parseSseJson(ev);
-        const message = this.eventMessage(payload, 'Session warning from telemetry stream.');
+        // The contractual 12 h stream deadline (AGENTS.md invariant 11) is routine:
+        // tell the operator it is automatic instead of raising a scary warning.
+        const isDeadline = !!payload && (payload as Record<string, unknown>)['reason'] === 'deadline_approaching';
+        const message = isDeadline
+          ? 'Live stream renews in 60 seconds — automatic, no action needed.'
+          : this.eventMessage(payload, 'Session warning from telemetry stream.');
         this.emitAlert(message, 'warn', 'sse-session-warning');
       });
 
@@ -276,8 +284,10 @@ export class TelemetryService {
     const backoffSeconds = this.sseReconnectAttempts === 0 ? 15 : this.sseReconnectAttempts === 1 ? 30 : 60;
     const jitterMs = Math.floor(Math.random() * 2000) - 1000;
     const delayMs = Math.max(1000, backoffSeconds * 1000 + jitterMs);
+    this.nextRetryAtMs.set(Date.now() + delayMs);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
+      this.nextRetryAtMs.set(null);
       if (!this.running) return;
       this.sseReconnectAttempts++;
       this.startSse();
@@ -300,6 +310,11 @@ export class TelemetryService {
     const N = 120;
     const hrBase = 72 + 4 * Math.sin(t / 12);
     const rrBase = 15 + 1.5 * Math.sin(t / 18 + 1);
+    // Simulated lock-state lifecycle: warmup -> settling -> locked, with a short
+    // motion burst every 45 s so the motion chip and "holding" states are demo-visible.
+    const inMotion = t % 45 >= 42 ? 1 : 0;
+    const phaseName = inMotion ? 'POST_MOTION' : t < 6 ? 'WARMUP' : t < 14 ? 'SETTLING' : 'LOCKED';
+    const phaseCode = ({ WARMUP: 1, SETTLING: 2, LOCKED: 3, POST_MOTION: 4 } as Record<string, number>)[phaseName];
     const ts: number[] = [];
     const rep_hr: number[] = [];
     const can_hr: number[] = [];
@@ -364,6 +379,26 @@ export class TelemetryService {
         pqi_breath: 0.88,
         trusted_hr_fresh: true,
         trusted_rr_fresh: true,
+        session_phase: phaseCode,
+        session_phase_name: phaseName,
+        hr_locked_live: phaseName === 'LOCKED' ? 1 : 0,
+        hr_confidence: Math.max(0.05, Math.min(0.95, 0.78 + 0.08 * Math.sin(t / 7) - (inMotion ? 0.35 : 0))),
+        hr_confidence_source_name: 'AUTO_PHASE',
+        logged_hr_valid: inMotion ? 0 : 1,
+        logged_rr_valid: 1,
+        doppler_motion: inMotion,
+        loop_dt_mean_ms: 3.8 + 0.4 * Math.sin(t / 12),
+        loop_dt_max_ms: 9 + Math.round(2 * Math.sin(t / 9)),
+        heap_free_kb: 182.5,
+        heap_min_free_kb: 164.2,
+        radar_uart_overflow_count: 0,
+        radar_crc_err_count: 0,
+        i2c_recover_count: Math.floor(t / 180),
+        lcd_reinit_count: 0,
+        wdt_near_miss_count: 0,
+        cmd_rx_count: 0,
+        cmd_err_count: 0,
+        fw_uptime_s: t,
       },
       ble: {
         address: this.state.setup().ble_address,
@@ -401,12 +436,13 @@ export class TelemetryService {
         schema_warning_count: 0,
         reconnect_attempts: 0,
         funnel_survival_pct: 100,
-        fw_truthfulness: { version: 'v16.1.0-demo', module_version_valid: true },
+        fw_truthfulness: { version: 'v16.2.0-demo', module_version_valid: true },
         gate_audit: { hr_eval_bins: 120, rr_eval_bins: 120 },
         hr_gate_reason_histogram: { OK: 120 },
         rr_gate_reason_histogram: { OK: 120 },
         agc_anomaly_flags: { gain_floor_pct: 0, near_field_pct: 0, skipdsp_pct: 0 },
         ble_ref_quality: { status: 'good', raw_packets: 120, parsed_rows: 120, packet_loss_pct: 0, decode_error_pct: 0 },
+        ml_readiness_verdict: { verdict: 'ready', headline: 'Demo telemetry — simulated data only' },
       },
     };
     this.applyLivePayload(payload);

@@ -85,7 +85,11 @@ export class KeyboardShortcutsDialogComponent {
   readonly shortcuts = [
     { keys: 'Ctrl+K or /', description: 'Open command palette' },
     { keys: '?', description: 'Show keyboard shortcuts' },
+    { keys: 'Ctrl+Z', description: 'Undo the last undoable action', context: 'Snapshot deletes, alert dismissals and similar list edits.' },
+    { keys: 'Ctrl+H', description: 'Open the operator handoff brief' },
+    { keys: 'Ctrl+L', description: 'Lock the station now' },
     { keys: 'Ctrl+Shift+C', description: 'Copy operator summary' },
+    { keys: 'D', description: 'Toggle demo mode (simulated vitals)' },
     { keys: '1 - 5', description: 'Go to Home, Live, Report, Help or Settings' },
     { keys: 'H / L / R / W / S', description: 'View aliases', context: 'S opens Settings outside Live.' },
     { keys: 'Alt+1 - Alt+6', description: 'Switch Live tabs' },

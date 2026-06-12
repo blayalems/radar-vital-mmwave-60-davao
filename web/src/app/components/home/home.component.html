@@ -233,6 +233,12 @@
       </mat-card-content>
 
       <mat-card-actions class="setup-card-actions">
+        @if (preflightChecks.length && getChecksPassedCount() < preflightChecks.length && !hasBlockingPreflightFailure()) {
+          <p class="start-gate-hint" role="status">
+            <mat-icon aria-hidden="true">info</mat-icon>
+            {{ preflightChecks.length - getChecksPassedCount() }} preflight check(s) need review — starting is still allowed.
+          </p>
+        }
         <button mat-flat-button color="primary" class="start-session-btn" (click)="startSession()" [disabled]="!canStartSession() || isStartingSession">
           @if (isStartingSession) {
             <mat-spinner diameter="20" style="margin-right: 8px;"></mat-spinner>
@@ -266,6 +272,10 @@
             <span>Range</span>
             <strong>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) + ' cm' : '--' }}</strong>
             <small>{{ state.lastPayload()?.radar?.human ? 'Subject detected' : 'Searching range' }}</small>
+            <span class="placement-zone-chip" [attr.data-zone]="placementZone().id" role="status">
+              {{ placementZone().label }}
+            </span>
+            <small class="placement-hint">{{ placementZone().hint }}</small>
           </div>
           <div class="scope-metric">
             <span>Live HR</span>

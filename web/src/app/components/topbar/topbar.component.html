@@ -31,6 +31,9 @@
         {{ state.ctlStatus()?.ok ? (state.paused() ? 'Paused' : 'Monitoring') : 'Disconnected' }}
       </span>
       @if (state.ctlStatus()?.ok === false) { <span class="conn-retry-info">
+        @if (retryCountdownS(); as seconds) {
+          <span class="conn-retry-countdown" aria-live="off">auto-retry in {{ seconds }}s</span>
+        }
         <button mat-button class="conn-retry-btn" (click)="manualReconnect()" type="button">Retry now</button>
       </span> }
       <span class="status-sub">{{ state.ctlStatus()?.latency ? state.ctlStatus()?.latency + 'ms' : '--' }}</span>

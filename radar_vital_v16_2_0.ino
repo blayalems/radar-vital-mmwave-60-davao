@@ -1,20 +1,20 @@
-/* radar_vital_v16_1_0.ino
+/* radar_vital_v16_2_0.ino
  *
  * XIAO ESP32-C6 + MR60BHA2 60 GHz FMCW radar + MLX90614 + HD44780 20x4 LCD
  * + Active Buzzer for audio feedback
  *
- * Firmware release: v16.1.0
- * CSV schema release: v15.0.0 / trainer contract v12.0.0
+ * Firmware release: v16.2.0
+ * CSV schema release: v15.1.0 / trainer contract v12.0.0
  *
 * Manuscript-facing calibration / release notes
 * -------------------------------------------
-* + FW_VERSION is v16.1.0.
-* + v16.1.0 keeps the v15 serial DATA telemetry contract by default and adds
+* + FW_VERSION is v16.2.0.
+* + v16.2.0 keeps the v15 serial DATA telemetry prefix and adds
 *   a gated BLE bridge path for the v12 dashboard / native app milestone.
 * + ENABLE_BLE defaults to false; with BLE off, the serial DSP path is
 *   behaviorally identical to v15.0.0.
-* + v15.0.0 expands DATA telemetry to 207 columns for the v11 trainer/dashboard
-*   audit contract while preserving the v14.1 DSP constants.
+* + v15.1.0 expands DATA telemetry to 219 columns by appending field diagnostics;
+*   the first 207 columns remain the frozen v15 trainer/dashboard audit contract.
 * + The raw CSV now exposes both sketch identity and radar-module identity:
 *   sketch_major/sketch_sub/sketch_mod and
 *   module_fw_major/module_fw_sub/module_fw_mod.
@@ -193,10 +193,19 @@
 #include <BH1750.h>
 #include <Adafruit_NeoPixel.h>
 #include <esp_task_wdt.h>
+#include <esp_system.h>
 #include <Preferences.h>
 
 #ifndef ENABLE_BLE
 #define ENABLE_BLE false
+#endif
+
+#ifndef RV_POWER_SAVE
+#define RV_POWER_SAVE 0
+#endif
+
+#ifndef RV_LCD_LUX_BACKLIGHT
+#define RV_LCD_LUX_BACKLIGHT RV_POWER_SAVE
 #endif
 
 #if ENABLE_BLE
@@ -204,7 +213,7 @@
 #endif
 
 #if !defined(ARDUINO_XIAO_ESP32C6)
-#error "radar_vital_v16_1_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
+#error "radar_vital_v16_2_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
 #endif
 
 #ifdef ESP32
@@ -266,9 +275,9 @@ static inline float applyRawHrCorrection(float rawHrValue) {
 // LOGGING & OBSERVABILITY
 // =========================================================================
 #define LOG_MODE 1       // 1 = Enable CSV "DATA,..." logging
-#define FW_VERSION "v16.1.0"
+#define FW_VERSION "v16.2.0"
 #define SKETCH_VERSION_MAJOR 16
-#define SKETCH_VERSION_SUB 1
+#define SKETCH_VERSION_SUB 2
 #define SKETCH_VERSION_MOD 0
 
 #define DIAG_PLOTTER 0   // 1 = Enable live Serial Plotter DSP diagnostics, 0 = Off
@@ -314,6 +323,9 @@ bool scanForLCD(); static bool probeI2C(uint8_t addr);
 static bool tryInitBH1750();
 static bool i2cSafeReadLux(unsigned long now);
 static bool i2cSafeReadMLX(unsigned long now, float& amb, float& obj);
+static void updateChipThermal(unsigned long now);
+static void updatePowerSave(unsigned long now, bool presenceVote);
+static void updateLcdBacklightFromLux();
 extern unsigned long lastMlxRetry;
 void detectSpectral(float* buf, int n, float fs, float fmin, float fmax, float& outFreq, float& outMag);
 bool detectLowestSpectralFundamental(float* buf, int n, float fs, float fmin, float fmax, float& outBpm, float& outConf, float anchorBpm = 0.0f);
@@ -506,13 +518,46 @@ const int NUM_HINTS = 5;
 // =========================================================================
 const float MLX_EMISSIVITY = 0.98f;
 static const unsigned long NVS_WRITE_MIN_INTERVAL_MS = 600000UL;
+static const unsigned long NVS_WRITE_COUNT_LOG_INTERVAL_MS = 86400000UL;
 static unsigned long lastNvsWriteMs = 0;
+static unsigned long lastNvsWriteCountLogMs = 0;
 static bool nvsEverWritten = false;
+static uint8_t nvsWriteFailureStreak = 0;
+static uint32_t nvsWriteCountThisBoot = 0;
+static bool nvsReopenAttempted = false;
+static bool nvsWriteDisabledForBoot = false;
 static bool wdtActive = false;
 static const unsigned long RADAR_RECOVERY_GRACE_MS = 3000UL;
-static const unsigned long BH1750_RETRY_INTERVAL_MS = 10000UL;
-static unsigned long lastBh1750RetryMs = 0UL;
+static const unsigned long PERIPH_BACKOFF_MIN_MS = 3000UL;
+static const unsigned long PERIPH_BACKOFF_MAX_MS = 300000UL;
 static unsigned long lastLcdRescanMs = 0UL;
+struct PeriphBackoff {
+  const char* label;
+  uint8_t failures;
+  unsigned long nextRetryMs;
+};
+static bool periphBackoffReady(const PeriphBackoff& state, unsigned long now);
+static void periphBackoffFailure(PeriphBackoff& state, unsigned long now);
+static void periphBackoffSuccess(PeriphBackoff& state, unsigned long now);
+static PeriphBackoff mlxBackoff = {"MLX", 0, 0UL};
+static PeriphBackoff bh1750Backoff = {"BH1750", 0, 0UL};
+static PeriphBackoff lcdBackoff = {"LCD", 0, 0UL};
+static int bootResetReason = ESP_RST_UNKNOWN;
+static char bootResetReasonText[24] = "unknown";
+static uint32_t diagLoopLastMs = 0UL;
+static uint32_t diagLoopWindowStartMs = 0UL;
+static uint32_t diagLoopSumMs = 0UL;
+static uint32_t diagLoopMaxMs = 0UL;
+static uint32_t diagLoopCount = 0UL;
+static float diagLoopMeanMsLogged = 0.0f;
+static uint32_t diagLoopMaxMsLogged = 0UL;
+static uint32_t diagRadarUartOverflowCount = 0UL;
+static uint32_t diagRadarCrcErrCount = 0UL;
+static uint32_t diagI2cRecoverCount = 0UL;
+static uint32_t diagLcdReinitCount = 0UL;
+static uint32_t diagWdtNearMissCount = 0UL;
+static uint32_t diagCmdRxCount = 0UL;
+static uint32_t diagCmdErrCount = 0UL;
 static inline void wdtReset() { if (wdtActive) esp_task_wdt_reset(); }
 static inline void wdtResetEvery(int i, int interval) { if (interval > 0 && (i % interval) == 0) wdtReset(); }
 static const size_t MMWAVE_RX_BUFFER_SIZE = 4096;
@@ -567,6 +612,20 @@ static bool lcdObjAllocated = false;
 static uint32_t lastLedColor = 0xFFFFFFFF;
 static uint8_t lcdRowCache[LCD_ROWS][LCD_COLS];
 static bool lcdRowCacheValid[LCD_ROWS] = {false, false, false, false};
+
+static const unsigned long POWER_SAVE_ABSENT_MS = 60000UL;
+static const unsigned long POWER_SAVE_MLX_INTERVAL_MS = 10000UL;
+static const unsigned long THERMAL_SAMPLE_INTERVAL_MS = 10000UL;
+static const unsigned long THERMAL_WARN_INTERVAL_MS = 60000UL;
+static const float THERMAL_WARN_C = 75.0f;
+static const float LCD_DIM_LUX_ON = 8.0f;
+static const float LCD_DIM_LUX_OFF = 15.0f;
+static bool powerSaveActive = false;
+static uint32_t powerSaveNormalCpuMhz = 0;
+static bool lcdBacklightDimmed = false;
+static float chipTempC = NAN;
+static unsigned long lastThermalSampleMs = 0;
+static unsigned long lastThermalWarnMs = 0;
 
 // =========================================================================
 // DISPLAY STATE & TIMING VARIABLES [v11.0.0]
@@ -924,11 +983,108 @@ const char* getHRZone(float hr) {
   return HR_ZONE_HIGH;
 }
 
+extern Preferences prefs;
+
+static unsigned long periphBackoffInterval(uint8_t failures) {
+  uint8_t shift = (failures > 0) ? (failures - 1) : 0;
+  if (shift > 6) shift = 6;
+  unsigned long interval = PERIPH_BACKOFF_MIN_MS << shift;
+  return (interval > PERIPH_BACKOFF_MAX_MS) ? PERIPH_BACKOFF_MAX_MS : interval;
+}
+
+static bool periphBackoffReady(const PeriphBackoff& state, unsigned long now) {
+  return state.nextRetryMs == 0UL || (int32_t)(now - state.nextRetryMs) >= 0;
+}
+
+static void periphBackoffFailure(PeriphBackoff& state, unsigned long now) {
+  if (state.failures < 8) state.failures++;
+  unsigned long interval = periphBackoffInterval(state.failures);
+  state.nextRetryMs = now + interval;
+  Serial.printf("[I2C] %s retry backoff=%lus failures=%u\n",
+                state.label, interval / 1000UL, (unsigned)state.failures);
+}
+
+static void periphBackoffSuccess(PeriphBackoff& state, unsigned long now) {
+  if (state.failures > 0) {
+    Serial.printf("[I2C] %s recovered after %u failed attempts\n",
+                  state.label, (unsigned)state.failures);
+  }
+  state.failures = 0;
+  state.nextRetryMs = now;
+}
+
+static const char* resetReasonName(int reason) {
+  switch (reason) {
+    case ESP_RST_POWERON: return "poweron";
+    case ESP_RST_EXT: return "external";
+    case ESP_RST_SW: return "software";
+    case ESP_RST_PANIC: return "panic";
+    case ESP_RST_INT_WDT: return "int_wdt";
+    case ESP_RST_TASK_WDT: return "task_wdt";
+    case ESP_RST_WDT: return "wdt";
+    case ESP_RST_DEEPSLEEP: return "deepsleep";
+    case ESP_RST_BROWNOUT: return "brownout";
+    case ESP_RST_SDIO: return "sdio";
+    default: return "unknown";
+  }
+}
+
+static void persistBootResetReason() {
+  bootResetReason = (int)esp_reset_reason();
+  snprintf(bootResetReasonText, sizeof(bootResetReasonText), "%s", resetReasonName(bootResetReason));
+  Serial.printf("[BOOT] reset_reason=%d (%s)\n", bootResetReason, bootResetReasonText);
+  if (!prefs.begin("rvital", false)) {
+    Serial.println("[NVS] ERROR: Could not open namespace for reset-ring write");
+    return;
+  }
+  uint32_t slot = prefs.getUInt("rstSlot", 0) % 8U;
+  uint32_t boots = prefs.getUInt("rstBoots", 0) + 1U;
+  char key[12];
+  snprintf(key, sizeof(key), "rstR%u", (unsigned)slot);
+  prefs.putInt(key, bootResetReason);
+  snprintf(key, sizeof(key), "rstU%u", (unsigned)slot);
+  prefs.putUInt(key, (uint32_t)(millis() / 1000UL));
+  prefs.putUInt("rstSlot", (slot + 1U) % 8U);
+  prefs.putUInt("rstBoots", boots);
+  prefs.end();
+}
+
+static void noteNvsWriteFailure(unsigned long now, const char* detail) {
+  if (nvsWriteFailureStreak < 255) nvsWriteFailureStreak++;
+  Serial.printf("[NVS] ERROR: %s failure_streak=%u\n",
+                detail ? detail : "write", (unsigned)nvsWriteFailureStreak);
+  if (nvsWriteFailureStreak >= 3 && !nvsReopenAttempted) {
+    nvsReopenAttempted = true;
+    prefs.end();
+    delay(5);
+    bool reopened = prefs.begin("rvital", false);
+    prefs.end();
+    Serial.printf("[NVS] namespace reopen after failures: %s\n", reopened ? "OK" : "FAILED");
+    nvsWriteDisabledForBoot = true;
+    lastNvsWriteMs = now;
+    Serial.println("[NVS] Writes disabled for this boot after repeated failures");
+  }
+}
+
+static void noteNvsWriteSuccess(unsigned long now) {
+  nvsWriteFailureStreak = 0;
+  nvsWriteCountThisBoot++;
+  lastNvsWriteMs = now;
+  nvsEverWritten = true;
+  if (lastNvsWriteCountLogMs == 0UL ||
+      safeElapsedMs(now, lastNvsWriteCountLogMs) >= NVS_WRITE_COUNT_LOG_INTERVAL_MS) {
+    Serial.printf("[NVS] write_count_boot=%lu failure_streak=%u\n",
+                  (unsigned long)nvsWriteCountThisBoot, (unsigned)nvsWriteFailureStreak);
+    lastNvsWriteCountLogMs = now;
+  }
+}
+
 
 // =========================================================================
 // I2C / LCD INIT
 // =========================================================================
 void i2cRecover() {
+  diagI2cRecoverCount++;
   wdtReset(); Wire.end();
   delay(10); wdtReset();
   gpio_reset_pin((gpio_num_t)SCL); gpio_reset_pin((gpio_num_t)SDA);
@@ -952,11 +1108,13 @@ void i2cRecover() {
 
 void lcdReInit() {
   if (!lcdPtr) return;
+  diagLcdReinitCount++;
   if (!probeI2C(lcdAddr)) {
     i2cRecover();
     if (!probeI2C(lcdAddr)) {
       lcdConnected = false;
       invalidateLcdRowCache();
+      periphBackoffFailure(lcdBackoff, millis());
       return;
     }
   }
@@ -964,6 +1122,7 @@ void lcdReInit() {
   invalidateLcdRowCache();
   customCharsValid = false; lcdCreateChars();
   prevDispState = DISP_NONE; lastLedColor = 0xFFFFFFFF;
+  periphBackoffSuccess(lcdBackoff, millis());
 }
 
 static bool probeI2C(uint8_t addr) {
@@ -972,16 +1131,19 @@ static bool probeI2C(uint8_t addr) {
 
 
 static bool tryInitBH1750() {
+  unsigned long now = millis();
   uint8_t candidates[] = {0x5C, 0x23};
   for (uint8_t i = 0; i < sizeof(candidates); ++i) {
     uint8_t addr = candidates[i];
     if (probeI2C(addr) && lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, addr, &Wire)) {
       bh1750Addr = addr;
       bh1750Ready = true;
+      periphBackoffSuccess(bh1750Backoff, now);
       return true;
     }
   }
   bh1750Ready = false;
+  periphBackoffFailure(bh1750Backoff, now);
   return false;
 }
 
@@ -995,9 +1157,8 @@ static bool i2cSafeReadLux(unsigned long now) {
     return true;
   }
   bh1750Ready = false;
-  lastBh1750RetryMs = now;
   i2cRecover();
-  tryInitBH1750();
+  periphBackoffFailure(bh1750Backoff, now);
   return false;
 }
 
@@ -1010,11 +1171,8 @@ static bool i2cSafeReadMLX(unsigned long now, float& amb, float& obj) {
   Wire.setTimeOut(100);
   if (isfinite(amb) && isfinite(obj)) return true;
   mlxReady = false;
-  lastMlxRetry = now;
   i2cRecover();
-  mlxReady = mlx.begin();
-  if (bh1750Ready) tryInitBH1750();
-  if (lcdConnected) lcdReInit();
+  periphBackoffFailure(mlxBackoff, now);
   return false;
 }
 
@@ -1037,9 +1195,11 @@ bool scanForLCD() {
       customCharsValid = false; lcdCreateChars();
       lcdAddr = addr; prevDispState = DISP_NONE;
       Serial.printf("[LCD] Found 0x%02X\n", addr);
+      periphBackoffSuccess(lcdBackoff, millis());
       found = true; break;
     }
   }
+  if (!found) periphBackoffFailure(lcdBackoff, millis());
   Wire.setTimeOut(100); return found;
 }
 
@@ -3560,13 +3720,14 @@ static void handlePersonLeft(unsigned long now, const char* reason) {
   sessionPrintSummary(now);
   if (!buzzerIsBusy()) buzzerPlay(BUZZ_PERSON_LEFT);
 
-  if ((nvsEverWritten==false || (now-lastNvsWriteMs>=NVS_WRITE_MIN_INTERVAL_MS)) &&
+  if (!nvsWriteDisabledForBoot &&
+      (nvsEverWritten==false || (now-lastNvsWriteMs>=NVS_WRITE_MIN_INTERVAL_MS)) &&
       nvsNeedsWrite() && isfinite(radarGain) && isfinite(kfHR_x) && isfinite(kfRR_x)) {
     wdtReset(); buzzerUpdate();
     prefs.end();
     if (!prefs.begin("rvital",false)) {
-      Serial.println("[NVS] ERROR: Could not open namespace for write");
       prefs.end();
+      noteNvsWriteFailure(now, "open namespace for write");
       if (!buzzerIsBusy()) buzzerPlay(BUZZ_SENSOR_ERROR);
     } else {
       bool okGain = prefs.putFloat("gain",radarGain);
@@ -3578,14 +3739,13 @@ static void handlePersonLeft(unsigned long now, const char* reason) {
       prefs.end();
       wdtReset(); buzzerUpdate();
       if (okGain && okHR && okRR) {
-        lastNvsWriteMs=now;
-        nvsEverWritten=true;
+        noteNvsWriteSuccess(now);
         lastSavedGain=radarGain;
         lastSavedHR=kfHR_x;
         lastSavedRR=kfRR_x;
         Serial.printf("[NVS] Saved gain=%.3f HR=%.1f RR=%.1f\n", radarGain, kfHR_x, kfRR_x);
       } else {
-        Serial.println("[NVS] ERROR: putFloat failed");
+        noteNvsWriteFailure(now, "putFloat");
         if (!buzzerIsBusy()) buzzerPlay(BUZZ_SENSOR_ERROR);
       }
     }
@@ -3677,6 +3837,85 @@ static void applyEscalationRewarm(unsigned long now) {
 }
 
 // =========================================================================
+// POWER & THERMAL MANAGEMENT (PR59, default-off power save)
+// =========================================================================
+static void setLcdBacklightDimmed(bool dim) {
+  if (!lcdPtr || !lcdConnected || lcdBacklightDimmed == dim) return;
+  if (dim) lcdPtr->noBacklight();
+  else lcdPtr->backlight();
+  lcdBacklightDimmed = dim;
+}
+
+static void updateChipThermal(unsigned long now) {
+  if (lastThermalSampleMs != 0UL &&
+      safeElapsedMs(now, lastThermalSampleMs) < THERMAL_SAMPLE_INTERVAL_MS) {
+    return;
+  }
+  lastThermalSampleMs = now;
+#if defined(ESP32)
+  chipTempC = temperatureRead();
+  if (isfinite(chipTempC) && chipTempC >= THERMAL_WARN_C &&
+      (lastThermalWarnMs == 0UL ||
+       safeElapsedMs(now, lastThermalWarnMs) >= THERMAL_WARN_INTERVAL_MS)) {
+    lastThermalWarnMs = now;
+    Serial.printf("[THERMAL] chip_temp_c=%.1f threshold_c=%.1f\n",
+                  chipTempC, THERMAL_WARN_C);
+  }
+#else
+  chipTempC = NAN;
+#endif
+}
+
+static void updateLcdBacklightFromLux() {
+#if RV_LCD_LUX_BACKLIGHT
+  if (powerSaveActive || !bh1750Ready || !isfinite(luxLevel)) return;
+  if (!lcdBacklightDimmed && luxLevel <= LCD_DIM_LUX_ON) {
+    setLcdBacklightDimmed(true);
+  } else if (lcdBacklightDimmed && luxLevel >= LCD_DIM_LUX_OFF) {
+    setLcdBacklightDimmed(false);
+  }
+#endif
+}
+
+static void updatePowerSave(unsigned long now, bool presenceVote) {
+#if RV_POWER_SAVE
+  bool idleEligible = (presenceState == PRESENCE_ABSENT) &&
+                      (safeElapsedMs(now, presenceStateSinceMs) >= POWER_SAVE_ABSENT_MS);
+  if (powerSaveActive && (presenceVote || !idleEligible)) {
+    if (powerSaveNormalCpuMhz > 0 && getCpuFrequencyMhz() != powerSaveNormalCpuMhz) {
+      setCpuFrequencyMhz(powerSaveNormalCpuMhz);
+    }
+    setLcdBacklightDimmed(false);
+    powerSaveActive = false;
+    lastLedBrightness = 0xFF;
+    Serial.printf("[POWER] idle power save exited cpu_mhz=%lu\n",
+                  (unsigned long)getCpuFrequencyMhz());
+    updateLcdBacklightFromLux();
+    return;
+  }
+
+  if (!powerSaveActive && idleEligible) {
+    uint32_t currentCpuMhz = getCpuFrequencyMhz();
+    powerSaveNormalCpuMhz = currentCpuMhz > 0 ? currentCpuMhz : 0;
+    if (powerSaveNormalCpuMhz == 0) {
+      Serial.println("[POWER] warning: cpu frequency read as 0 before idle power save");
+    }
+    setLcdBacklightDimmed(true);
+    if (powerSaveNormalCpuMhz > 0 && powerSaveNormalCpuMhz != 80UL) setCpuFrequencyMhz(80);
+    powerSaveActive = true;
+    lastLedBrightness = 0xFF;
+    Serial.printf("[POWER] idle power save entered absent_ms=%lu cpu_mhz=%lu mlx_interval_ms=%lu\n",
+                  safeElapsedMs(now, presenceStateSinceMs),
+                  (unsigned long)getCpuFrequencyMhz(),
+                  (unsigned long)POWER_SAVE_MLX_INTERVAL_MS);
+  }
+#else
+  (void)now;
+  (void)presenceVote;
+#endif
+}
+
+// =========================================================================
 // LED CONTROL
 // =========================================================================
 static inline uint8_t ledBrightnessFromLux(float lux) {
@@ -3691,6 +3930,9 @@ static inline uint8_t ledBrightnessFromLux(float lux) {
 void updateLED(bool inMotion) {
   static unsigned long ledMillis=0; static bool flashState=false;
   uint8_t brite = ledBrightnessFromLux(luxLevel);
+#if RV_POWER_SAVE
+  if (powerSaveActive && brite > 4) brite = 4;
+#endif
   uint32_t colour; unsigned long now=millis();
 
   if (!humanDetected) {
@@ -4093,6 +4335,7 @@ void setup() {
       prefs.end();
     }
   }
+  persistBootResetReason();
 
   if (!prefs.begin("rvital",true)) {
     Serial.println("[NVS] ERROR: Could not open namespace for read; using defaults");
@@ -4153,6 +4396,26 @@ void setup() {
 void loop() {
   wdtReset();
   unsigned long now=millis();
+  updateChipThermal(now);
+  if (diagLoopLastMs == 0UL) {
+    diagLoopLastMs = (uint32_t)now;
+    diagLoopWindowStartMs = (uint32_t)now;
+  } else {
+    uint32_t loopDt = (uint32_t)safeElapsedMs(now, diagLoopLastMs);
+    diagLoopLastMs = (uint32_t)now;
+    diagLoopSumMs += loopDt;
+    diagLoopCount++;
+    if (loopDt > diagLoopMaxMs) diagLoopMaxMs = loopDt;
+    if (loopDt > 4000UL) diagWdtNearMissCount++;
+    if (safeElapsedMs(now, diagLoopWindowStartMs) >= 1000UL) {
+      diagLoopMeanMsLogged = diagLoopCount ? ((float)diagLoopSumMs / (float)diagLoopCount) : 0.0f;
+      diagLoopMaxMsLogged = diagLoopMaxMs;
+      diagLoopWindowStartMs = (uint32_t)now;
+      diagLoopSumMs = 0UL;
+      diagLoopMaxMs = 0UL;
+      diagLoopCount = 0UL;
+    }
+  }
   buzzerUpdate();
 
   { static unsigned long lastDecayCheckMs=0;
@@ -4163,7 +4426,12 @@ void loop() {
   if (persistedMotion&&(now-lastMotionDetectedMs>=MOTION_PERSIST_MS)) persistedMotion=false;
   bool inMotion=persistedMotion;
 
-  if (!mlxReady&&now-lastMlxRetry>MLX_RETRY_INTERVAL) { mlxReady=mlx.begin(); lastMlxRetry=now; }
+  if (!mlxReady && periphBackoffReady(mlxBackoff, now)) {
+    mlxReady = mlx.begin();
+    lastMlxRetry = now;
+    if (mlxReady) periphBackoffSuccess(mlxBackoff, now);
+    else periphBackoffFailure(mlxBackoff, now);
+  }
   rawHRValid = false;
   rawRRValid = false;
   hrUpdatedThisCycle = false;
@@ -6043,12 +6311,17 @@ void loop() {
   if (presenceState == PRESENCE_PRESENT || presenceState == PRESENCE_SILENT_HOLD || presenceState == PRESENCE_LEAVING) {
     sessionUpdate(now, inMotion);
   }
+  updatePowerSave(now, strongPresenceEvidence || weakPresenceEvidence);
 
   static unsigned long lastTempRead=0;
   static unsigned long lastLuxRead=0;
   bool allowSlowI2C = !radarSerialBacklogged();
   if (allowSlowI2C) {
-    if (mlxReady && now-lastTempRead>=1000) {
+    unsigned long mlxReadInterval = 1000UL;
+#if RV_POWER_SAVE
+    if (powerSaveActive) mlxReadInterval = POWER_SAVE_MLX_INTERVAL_MS;
+#endif
+    if (mlxReady && now-lastTempRead>=mlxReadInterval) {
       lastTempRead=now;
       float amb=NAN, obj=NAN;
       if (i2cSafeReadMLX(now, amb, obj)) {
@@ -6076,15 +6349,14 @@ void loop() {
       }
     }
 
-    if (!bh1750Ready && (lastBh1750RetryMs == 0 || safeElapsedMs(now, lastBh1750RetryMs) >= BH1750_RETRY_INTERVAL_MS)) {
-      lastBh1750RetryMs = now;
+    if (!bh1750Ready && periphBackoffReady(bh1750Backoff, now)) {
       i2cRecover();
       tryInitBH1750();
     }
 
     if (bh1750Ready&&now-lastLuxRead>=500) {
       lastLuxRead=now;
-      i2cSafeReadLux(now);
+      if (i2cSafeReadLux(now)) updateLcdBacklightFromLux();
     }
   }
 
@@ -6552,7 +6824,7 @@ void loop() {
 
   // =========================================================================
 
-  if (!lcdConnected && (lastLcdRescanMs == 0 || safeElapsedMs(now, lastLcdRescanMs) >= 10000UL)) {
+  if (!lcdConnected && periphBackoffReady(lcdBackoff, now)) {
     lastLcdRescanMs = now;
     if (scanForLCD()) { prevDispState = DISP_NONE; lastDisplay = 0; }
   }
@@ -6722,8 +6994,10 @@ void loop() {
                      "near_field_reflector_suspect,agc_floor_suspect,phase_backed_publish_ready,hr_anchor_drift_suspect,phase_gap_fill_count,clutter_rewarm_count,rewarm_triggered,rewarm_reason,experimental_profile_enabled,fs_effective,fs_snap_used,hr_fs_guard_min,hr_autocorr_best_conf,phase_zero_fill_pct,fs_fallback_used,module_fw_valid,hr_trust_age_ms,rr_trust_age_ms,skipdsp_run_len,agc_floor_run_len,buffer_zero_injected,hr_raw_minus_anchor_bpm,hr_phase_minus_anchor_bpm,hr_raw_minus_phase_bpm,rr_candidate_present,rr_candidate_source,rr_source_reject_reason,rr_source_latched_ok,hr_publish_block_stage,rr_publish_block_stage,hr_raw_age_ms,hr_raw_disagree_subreason,rr_phase_backed_publish_ready,"
                      "rr_source_current_ok,logged_rr_valid_current,logged_rr_valid_latched,hr_publish_source_class,rr_publish_source_class,hr_freeze_suspect,hr_value_frozen_confirmed,hr_freeze_duration_ms,hr_no_fresh_update_duration_ms,hr_raw_disagree_anchor_drift_suspect,hr_raw_disagree_phase_stale_suspect,hr_raw_disagree_high_bias_suspect,hr_raw_disagree_low_dynamic_range_suspect,hr_raw_disagree_sumfreq_suspect,hr_raw_disagree_rr_harmonic_k,"
                      // v15.0 Stage A: 8 columns reserved (final-schema-first).
-                     // Stage B activates 200, Stage C activates 201-204, Stage E/v12 activates 205-207.
-                     "presence_fsm_debug,pqi_heart_v15,pqi_breath_v15,phase_buffer_valid_pct,pqi_v15_pair_coverage_min,correction_shadow_delta_bpm,correction_source,correction_params_hash");
+                    // Stage B activates 200, Stage C activates 201-204, Stage E/v12 activates 205-207.
+                    // v15.1 activates 208-219 field diagnostics.
+                    "presence_fsm_debug,pqi_heart_v15,pqi_breath_v15,phase_buffer_valid_pct,pqi_v15_pair_coverage_min,correction_shadow_delta_bpm,correction_source,correction_params_hash,"
+                    "loop_dt_mean_ms,loop_dt_max_ms,heap_free_kb,heap_min_free_kb,radar_uart_overflow_count,radar_crc_err_count,i2c_recover_count,lcd_reinit_count,wdt_near_miss_count,cmd_rx_count,cmd_err_count,fw_uptime_s");
       logHeaderPrinted=true;
     }
 
@@ -6822,11 +7096,10 @@ void loop() {
         presenceFsmDebugLogged = (uint8_t)(state3 | (drop3 << 3) | sawBit);
       }
 
-      // CSV column count widened for v15.0 Stage A (final-schema-first).
-      // 199 v14.1 columns + 8 v15 reserved columns = 207. Stage B activates col 200,
-      // Stage C activates cols 201-204, Stage E/v12 activates cols 205-207.
+      // CSV column count widened for v15.1 diagnostics (final-schema-first).
+      // 199 v14.1 columns + 8 v15 columns + 12 v15.1 diagnostics = 219.
       // Update this comment whenever columns are added or removed.
-      #define CSV_COLUMN_COUNT 207
+      #define CSV_COLUMN_COUNT 219
 #define CSVU(v) do { Serial.print((unsigned long)(v)); Serial.print(','); _csvColCount++; } while (0)
 #define CSVI(v) do { Serial.print((int)(v)); Serial.print(','); _csvColCount++; } while (0)
 #define CSVF(v,p) do { float __csv_v = (float)(v); Serial.print(isfinite(__csv_v) ? __csv_v : -1.0f, (p)); Serial.print(','); _csvColCount++; } while (0)
@@ -7049,6 +7322,7 @@ CSVI((int)hrRawDisagreeSumfreqSuspectLogged);
 CSVI((int)hrRawDisagreeRrHarmonicKLogged);
 // v15.0 Stage A: 8 columns reserved (final-schema-first).
 // Stage B activates 200, Stage C activates 201-204, Stage E/v12 activates 205-207.
+// v15.1 appends field diagnostics in cols 208-219.
 CSVI(presenceFsmDebugLogged);          // col 200: presence_fsm_debug (Stage B activates)
 CSVF(pqiHeartV15Logged, 4);            // col 201: pqi_heart_v15 (Stage C activates, default -1)
 CSVF(pqiBreathV15Logged, 4);           // col 202: pqi_breath_v15 (Stage C activates, default -1)
@@ -7056,7 +7330,19 @@ CSVF(phaseBufferValidPctLogged, 2);    // col 203: phase_buffer_valid_pct (Stage
 CSVF(pqiV15PairCoverageMinLogged, 4);  // col 204: pqi_v15_pair_coverage_min (Stage C activates, default -1)
 CSVF(correctionShadowDeltaBpmLogged, 3); // col 205: correction_shadow_delta_bpm (Stage E activates, default -1)
 CSVI((int)correctionSourceLogged);     // col 206: correction_source (Stage E/v12 activates, default 0)
-Serial.println((unsigned int)correctionParamsHashLogged); _csvColCount++;  // col 207: correction_params_hash (Stage E/v12, default 0)
+CSVU(correctionParamsHashLogged);       // col 207: correction_params_hash (Stage E/v12, default 0)
+CSVF(diagLoopMeanMsLogged, 2);          // col 208: loop_dt_mean_ms
+CSVU(diagLoopMaxMsLogged);              // col 209: loop_dt_max_ms
+CSVF(((float)ESP.getFreeHeap()) / 1024.0f, 2);     // col 210: heap_free_kb
+CSVF(((float)ESP.getMinFreeHeap()) / 1024.0f, 2);  // col 211: heap_min_free_kb
+CSVU(diagRadarUartOverflowCount);       // col 212: radar_uart_overflow_count
+CSVU(diagRadarCrcErrCount);             // col 213: radar_crc_err_count
+CSVU(diagI2cRecoverCount);              // col 214: i2c_recover_count
+CSVU(diagLcdReinitCount);               // col 215: lcd_reinit_count
+CSVU(diagWdtNearMissCount);             // col 216: wdt_near_miss_count
+CSVU(diagCmdRxCount);                   // col 217: cmd_rx_count (reserved until command channel lands)
+CSVU(diagCmdErrCount);                  // col 218: cmd_err_count (reserved until command channel lands)
+Serial.println((unsigned long)(now / 1000UL)); _csvColCount++;  // col 219: fw_uptime_s
       if (sessionStats.active && !_csvFirstEmitDone) {
         _csvFirstEmitDone = true;
         if (_csvColCount != CSV_COLUMN_COUNT) {

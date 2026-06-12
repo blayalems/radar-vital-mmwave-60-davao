@@ -394,7 +394,7 @@ export class ApiService {
     const method = String(init?.method || 'GET').toUpperCase();
     if (url.pathname === '/api/status') return { ok: true, mode: 'sandbox', active_session: this.state.sessionActive() ? { session_id: this.state.currentSessionId() || 'sandbox_active', sandbox: true } : null };
     if (url.pathname === '/api/health') return { ok: true, version: 'sandbox' };
-    if (url.pathname === '/api/version') return { product_version: '16.1.0', trainer: 'sandbox', dashboard: 'sandbox', firmware_expected: 'sandbox' };
+    if (url.pathname === '/api/version') return { product_version: '16.2.0', trainer: 'sandbox', dashboard: 'sandbox', firmware_expected: 'sandbox' };
     if (url.pathname === '/api/sessions') {
       const sessions = this.sandboxLoadSessions();
       return { ok: true, sessions, items: sessions };
@@ -421,7 +421,25 @@ export class ApiService {
       const sessionId = decodeURIComponent(parts[3] || '');
       const session = this.sandboxLoadSessions().find(item => item.session_id === sessionId)
         || { session_id: sessionId, sandbox: true, verdict: 'demo', summary: 'Sandbox session summary.' };
-      if (url.pathname.endsWith('/summary')) return { ...session, sandbox: true };
+      if (url.pathname.endsWith('/summary')) {
+        // Simulated quality scorecard so the Report quality card is demo-visible.
+        return {
+          ...session,
+          sandbox: true,
+          signal_quality: { pqi_lock_pct: 84.2, session_quality_score: 8.7, internal_consistency_score: 9.1, coverage_locked: 81.5, coverage_settling: 11.2 },
+          hr_metrics: { rmse: 2.41, mae: 1.92, bias: -0.4, coverage_pct: 88.1 },
+          rr_metrics: { rmse: 0.82, mae: 0.61, bias: 0.1, coverage_pct: 90.4 },
+          gates: { primary: { passed: true, status: 'pass' }, secondary: { passed: false, status: 'deferred' } },
+          verdict: {
+            verdict: 'ready',
+            readiness_kind: 'ready',
+            categories: [
+              { id: 'firmware', label: 'Firmware contract', status: 'pass', detail: 'Simulated 219-column contract intact; 207-column prefix preserved.', remediation: '' },
+              { id: 'reference', label: 'Reference coverage', status: 'warn', detail: 'Simulated BLE coverage 72%.', remediation: 'Keep the oximeter within range for the full session.' }
+            ]
+          }
+        };
+      }
       if (url.pathname.endsWith('/data')) {
         return {
           rows: [

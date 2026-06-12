@@ -94,6 +94,24 @@ test.describe('Trainer API smoke', () => {
     }
   });
 
+  test('/api/native-pairing-info?format=qr only mints a QR in LAN bind mode', async ({ request }) => {
+    const resp = await request.get('/api/native-pairing-info?format=qr');
+    expect([200, 403]).toContain(resp.status());
+    if (resp.status() === 200) {
+      const json = await resp.json();
+      const payload = json.data ?? json;
+      if (payload.bind_mode === 'lan') {
+        if (payload.qr_png_base64) {
+          expect(String(payload.qr_png_base64)).toMatch(/^[A-Za-z0-9+/=]+$/);
+          expect(String(payload.qr_target_url)).toMatch(/^https?:\/\//);
+        }
+      } else {
+        // Local bind: never mint pairing QR material.
+        expect(payload.qr_png_base64).toBeUndefined();
+      }
+    }
+  });
+
   test('/api/auth/exchange rejects an unknown PIN with 4xx', async ({ request }) => {
     const resp = await request.post('/api/auth/exchange', { data: { pin: '000000' } });
     // 400/401 (PIN unknown), 403 (pairing disabled), or 410 (PIN expired). A 200 with a

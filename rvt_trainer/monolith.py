@@ -40,6 +40,7 @@ Primary workflow
 
 import argparse
 import asyncio
+import base64
 import hashlib
 import inspect
 import importlib.util
@@ -83,9 +84,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.1.0"
-DASHBOARD_VERSION = "16.1.0"
-FIRMWARE_VERSION_EXPECTED = "v16.1.0"
+VERSION = "16.2.0"
+DASHBOARD_VERSION = "16.2.0"
+FIRMWARE_VERSION_EXPECTED = "v16.2.0"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 _manifest_cache = {"data": None, "ts": 0}
 _manifest_cache_lock = threading.Lock()
@@ -436,6 +437,7 @@ RADAR_LOG_COLUMNS = [
     "hr_raw_disagree_rr_harmonic_k",
     # v15.0 Stage A: 8 reserved columns (final-schema-first).
     # Stage B activates col 200; Stage C activates 201-204; Stage E/v12 activates 205-207.
+    # v15.1 appends field diagnostics in cols 208-219.
     # Until activated, columns emit safe defaults that the trainer parser excludes
     # from the relevant analysis sub-sections (NaN for floats, 0 for ints).
     "presence_fsm_debug",            # col 200, Stage B
@@ -446,6 +448,18 @@ RADAR_LOG_COLUMNS = [
     "correction_shadow_delta_bpm",   # col 205, Stage E
     "correction_source",             # col 206, Stage E/v12
     "correction_params_hash",        # col 207, Stage E/v12
+    "loop_dt_mean_ms",               # col 208, v15.1
+    "loop_dt_max_ms",                # col 209, v15.1
+    "heap_free_kb",                  # col 210, v15.1
+    "heap_min_free_kb",              # col 211, v15.1
+    "radar_uart_overflow_count",     # col 212, v15.1
+    "radar_crc_err_count",           # col 213, v15.1
+    "i2c_recover_count",             # col 214, v15.1
+    "lcd_reinit_count",              # col 215, v15.1
+    "wdt_near_miss_count",           # col 216, v15.1
+    "cmd_rx_count",                  # col 217, v15.1
+    "cmd_err_count",                 # col 218, v15.1
+    "fw_uptime_s",                   # col 219, v15.1
 ]
 
 HR_PATH_SOURCE_NAMES = {
@@ -470,15 +484,17 @@ HARMONIC_MODE_BIT_LABELS = {
 HEART_PQI_GATE_NEAR = 0.15
 HEART_PQI_GATE_MID = 0.20
 HEART_PQI_GATE_FAR = 0.35
-# v11/v15: final-schema-first. v15 firmware emits 207 columns; v14.1 emits 199.
-# The trainer accepts both; v14.1 rows have the 8 new columns padded to safe defaults.
-EXPECTED_RADAR_LOG_COLUMN_COUNT = 207
+# v11/v15: final-schema-first. v15.1 firmware emits 219 columns.
+# The trainer accepts 207 and v14.1 rows; missing right-edge columns are padded.
+EXPECTED_RADAR_LOG_COLUMN_COUNT = 219
+LEGACY_V15_COLUMN_COUNT = 207
 LEGACY_V14_COLUMN_COUNT = 199
 SCHEMA_VERSION_MAP = {
     LEGACY_V14_COLUMN_COUNT: "v14.1",
-    EXPECTED_RADAR_LOG_COLUMN_COUNT: "v15.0",
+    LEGACY_V15_COLUMN_COUNT: "v15.0",
+    EXPECTED_RADAR_LOG_COLUMN_COUNT: "v15.1",
 }
-# v15 columns 200-207 default values for v14.1 row padding.
+# v15/v15.1 right-edge default values for legacy row padding.
 # Float columns use NaN (parser converts to NaN downstream); int columns use 0.
 V15_NEW_COLUMN_DEFAULTS = {
     "presence_fsm_debug": 0,
@@ -489,6 +505,18 @@ V15_NEW_COLUMN_DEFAULTS = {
     "correction_shadow_delta_bpm": float("nan"),
     "correction_source": 0,
     "correction_params_hash": 0,
+    "loop_dt_mean_ms": float("nan"),
+    "loop_dt_max_ms": float("nan"),
+    "heap_free_kb": float("nan"),
+    "heap_min_free_kb": float("nan"),
+    "radar_uart_overflow_count": 0,
+    "radar_crc_err_count": 0,
+    "i2c_recover_count": 0,
+    "lcd_reinit_count": 0,
+    "wdt_near_miss_count": 0,
+    "cmd_rx_count": 0,
+    "cmd_err_count": 0,
+    "fw_uptime_s": 0,
 }
 EXPECTED_RADAR_LOG_TAIL = (
     "rr_phase_backed_publish_ready",
@@ -516,6 +544,18 @@ EXPECTED_RADAR_LOG_TAIL = (
     "correction_shadow_delta_bpm",
     "correction_source",
     "correction_params_hash",
+    "loop_dt_mean_ms",
+    "loop_dt_max_ms",
+    "heap_free_kb",
+    "heap_min_free_kb",
+    "radar_uart_overflow_count",
+    "radar_crc_err_count",
+    "i2c_recover_count",
+    "lcd_reinit_count",
+    "wdt_near_miss_count",
+    "cmd_rx_count",
+    "cmd_err_count",
+    "fw_uptime_s",
 )
 LEGACY_V14_RADAR_LOG_TAIL = (
     "rr_phase_backed_publish_ready",
@@ -539,14 +579,25 @@ LEGACY_V14_RADAR_LOG_TAIL = (
 
 def _detect_csv_schema_version(columns) -> str:
     """Detect firmware schema version from column count.
-    Returns 'v15.0' for 207, 'v14.1' for 199, 'unknown-N' otherwise.
-    Used by row padding logic to decide how to fill missing v15 columns.
+    Returns 'v15.1' for 219, 'v15.0' for 207, 'v14.1' for 199,
+    'unknown-N' otherwise. Used by row padding logic to decide how to fill
+    missing right-edge columns.
     """
     try:
         n = len(columns)
     except TypeError:
         return "unknown-?"
     return SCHEMA_VERSION_MAP.get(n, f"unknown-{n}")
+
+
+def _is_supported_radar_contract_length(length: object) -> bool:
+    try:
+        n = int(length)
+    except Exception:
+        return False
+    return n in {EXPECTED_RADAR_LOG_COLUMN_COUNT, LEGACY_V15_COLUMN_COUNT, LEGACY_V14_COLUMN_COUNT}
+
+
 LEGACY_RADAR_LOG_COLUMN_COUNT = 131
 LEGACY_RADAR_LOG_TAIL = ("hr_path_source", "fw_major", "fw_sub", "fw_mod")
 _FIRMWARE_CONTRACT_CACHE: Optional[Tuple[str, Tuple[str, ...]]] = None
@@ -2310,7 +2361,7 @@ body[data-ctl="on"]:not([data-view="live"]) .r-item:not(.nav-ctl):not(.rail-acti
 <aside class="rail" aria-label="Primary">
   <div class="brand" title="Radar Vital Trainer">
     <div class="brand-mark"><span class="brand-ring"></span><span class="brand-ring r2"></span><span class="brand-dot"></span></div>
-    <div class="brand-label"><span class="bl-top">RADAR</span><span class="bl-bot">VITAL · v15.0</span></div>
+    <div class="brand-label"><span class="bl-top">RADAR</span><span class="bl-bot">VITAL · v15.1</span></div>
   </div>
   <nav class="nav-groups" aria-label="Views">
     <div class="nav-group" id="workflowGroup">
@@ -2768,7 +2819,7 @@ function sandboxSummary(item){
     reference_quality:{status:'good',raw_packets:340,parsed_rows:320,distilled_rows_pct_of_raw:94.1,packet_loss_pct:2.3,decode_error_pct:0.2,pi_median:3.1,pi_below_threshold_pct:1.8,pi_threshold:0.5,coverage_pct:94.1},
     gates:{primary:{status:'PASS',passed:true,r:0.962,rmse:2.14,n:310},secondary:{status:'PASS',passed:true,r:0.95,rmse:2.4,n:295},combined:{status:'PASS',passed:true,r:0.958,rmse:2.22,n:308},locked:{status:'PASS',passed:true,r:0.973,rmse:1.86,n:240},settling:{status:'PASS',passed:true,r:0.91,rmse:2.82,n:68},golden_check:{status:'PASS',passed:true,r:0.97,rmse:1.9,n:180}},
     histograms:{top_hr_gate:{pass:310,low_pqi:8},top_rr_gate:{pass:305,outlier:12},top_hr_publish:{published:320,STALE_FROZEN:4},top_rr_publish:{published:318,LATCH_STALE:3}},
-    truthfulness:{sketch_fw:'v15.0.0',module_fw:'2.1.0',module_version_valid:true,contract_length:207,schema_hash:'sandbox-v15.0',scoring_weights_hash:'sandbox-weights'},
+    truthfulness:{sketch_fw:'v15.1.0',module_fw:'2.1.0',module_version_valid:true,contract_length:219,schema_hash:'sandbox-v15.1',scoring_weights_hash:'sandbox-weights'},
     downloads:[{label:'analyse_summary.json',href:'#sandbox-summary'},{label:'live_dashboard.json',href:'#sandbox-live'}],
     analysis:{
       raw_hr_correction_coverage_pct:95.1,raw_hr_corrected_bias_bpm:.6,raw_hr_uncorrected_bias_bpm:2.4,hr_rescue_publish_count:22,hr_rescue_publish_coverage_pct:8.1,
@@ -2852,7 +2903,7 @@ function sandboxPreflight(url){
     serial_port_list:"ports=['COM10','COM11','COM12']",
     session_folder_writable:'Session history writes to localStorage in sandbox mode.',
     disk_space:'Browser storage is available for sample sessions.',
-    schema_hash_consistency:'Expected v11.0/v15.0 schema hash present.',
+    schema_hash_consistency:'Expected v11.0/v15.1 schema hash present.',
     clock_monotonic_sanity:'Local clock appears monotonic for this preview.',
     ble_adapter:'Sandbox adapter active; real BLE is not touched.',
     serial_port_probe:`Simulated radar probe succeeded for ${S.setup.radar_port||'COM10'}.`,
@@ -3950,7 +4001,7 @@ function demoPayload(){
       logged_hr_valid:true, logged_rr_valid:true, num_targets:1,
       primary_x:x, primary_y:y, distance_cm:distCm, primary_dop:3, primary_dop_speed_cms:1.47,
       fps_hz:20, fs_effective:19.8,
-      sketch_firmware_version:'v15.0.0', module_firmware_version:'2.1.0', module_fw_valid:true,
+      sketch_firmware_version:'v15.1.0', module_firmware_version:'2.1.0', module_fw_valid:true,
       spatial_source:1, spatial_age_ms:40, target_info_ok:true, point_cloud_ok:true, multi_target:false,
       session_phase:3, phase_valid_this_frame:true, phase_backed_publish_ready:true, rr_phase_backed_publish_ready:true,
       human:true, motion:'still', max_dop_abs:3, max_dop_speed_cms:1.5,
@@ -3990,7 +4041,7 @@ function demoPayload(){
       ml_gate_locked:{passed:true,r:0.973,rmse:1.86,n:240},
       ml_gate_settling:{passed:true,r:0.91,rmse:2.82,n:68},
       coverage_locked:78, coverage_settling:22,
-      fw_truthfulness:{version:'v15.0.0',module_version:'2.1.0',module_version_valid:true},
+      fw_truthfulness:{version:'v15.1.0',module_version:'2.1.0',module_version_valid:true},
       raw_hr_correction_coverage_pct:95.1,
       raw_hr_corrected_bias_bpm:0.6,
       raw_hr_uncorrected_bias_bpm:2.4,
@@ -4304,7 +4355,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_1_0.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_2_0.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -4748,12 +4799,12 @@ def _build_ml_readiness_verdict(analyse_summary, **kwargs) -> Dict[str, object]:
         limitation_kind = "unknown"
         next_action = "rerun analysis with firmware truthfulness enabled"
         add_cat("unknown", "Firmware truthfulness", "fail", "Firmware truthfulness metadata is missing", "Rerun analysis with the current trainer.")
-    elif contract_len != EXPECTED_RADAR_LOG_COLUMN_COUNT:
+    elif not _is_supported_radar_contract_length(contract_len):
         schema_verdict = "firmware_rejected"
         readiness_kind = "firmware_rejected"
         limitation_kind = "unknown"
         next_action = "repair firmware schema or session export"
-        add_cat("firmware", "Firmware schema", "fail", f"Observed contract length {contract_len}; expected {EXPECTED_RADAR_LOG_COLUMN_COUNT}", "Use a session collected with the expected radar schema.")
+        add_cat("firmware", "Firmware schema", "fail", f"Observed contract length {contract_len}; expected {EXPECTED_RADAR_LOG_COLUMN_COUNT} or supported legacy width", "Use a session collected with the expected radar schema.")
     elif not critical_cols_ok or contract_len <= 0:
         schema_verdict = "firmware_rejected"
         readiness_kind = "firmware_rejected"
@@ -4960,12 +5011,12 @@ def _contract_diagnosis(analysis: Optional[Dict[str, object]], manifest: Optiona
     schema_hash = _summary_value(analysis.get("feature_schema_hash"), manifest.get("feature_schema_hash"))
     expected_schema_hash = feature_schema_hash()
     mismatches = []
-    if observed_len != EXPECTED_RADAR_LOG_COLUMN_COUNT:
+    if not _is_supported_radar_contract_length(observed_len):
         mismatches.append({
             "field": "contract_length",
             "expected": EXPECTED_RADAR_LOG_COLUMN_COUNT,
             "actual": observed_len,
-            "remediation": "Use the v15 firmware/trainer CSV contract before training from this session.",
+            "remediation": "Use the v15.1 firmware/trainer CSV contract before training from this session.",
         })
     if schema_hash and schema_hash != expected_schema_hash:
         mismatches.append({
@@ -4974,12 +5025,12 @@ def _contract_diagnosis(analysis: Optional[Dict[str, object]], manifest: Optiona
             "actual": schema_hash,
             "remediation": "Rerun analysis with the current trainer or keep this session with its original model lineage.",
         })
-    if sketch and str(sketch) not in {"v15.0.0", "15.0.0"}:
+    if sketch and str(sketch) not in {FIRMWARE_VERSION_EXPECTED, FIRMWARE_VERSION_EXPECTED.lstrip("v")}:
         mismatches.append({
             "field": "sketch_version",
             "expected": FIRMWARE_VERSION_EXPECTED,
             "actual": sketch,
-            "remediation": "Reflash or select sessions collected with the expected v15 firmware.",
+            "remediation": "Reflash or select sessions collected with the expected v15.1 firmware.",
         })
     status = "mismatch" if mismatches else ("unknown" if not analysis else "ok")
     return {
@@ -5180,6 +5231,7 @@ def _compare_session_payload(root: str, session_id: str) -> Dict[str, object]:
 
 
 _ANALYSIS_JOBS: Dict[str, Dict[str, object]] = {}
+_ANALYSIS_JOBS_MAX = 32
 _TRAINER_LOG: Deque[str] = deque(maxlen=200)
 _RATE_LIMIT: Dict[str, Tuple[float, float]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
@@ -5241,6 +5293,21 @@ def _load_subject_profiles(sessions_root: str) -> Dict[str, object]:
 def _append_trainer_log(line: str):
     stamp = time.strftime("%Y-%m-%d %H:%M:%S")
     _TRAINER_LOG.append(f"{stamp} {line}")
+
+
+def _evict_completed_analysis_jobs() -> None:
+    """Evict completed (non-running) entries from _ANALYSIS_JOBS when the dict
+    exceeds _ANALYSIS_JOBS_MAX, keeping the most-recently-added jobs."""
+    if len(_ANALYSIS_JOBS) <= _ANALYSIS_JOBS_MAX:
+        return
+    completed_keys = [
+        k for k, v in _ANALYSIS_JOBS.items()
+        if (v.get("proc") is not None and v["proc"].poll() is not None)
+        or v.get("proc") is None
+    ]
+    evict_count = max(0, len(_ANALYSIS_JOBS) - _ANALYSIS_JOBS_MAX)
+    for key in completed_keys[:evict_count]:
+        _ANALYSIS_JOBS.pop(key, None)
 
 
 def _session_path(sessions_root: str, session_id: str) -> Path:
@@ -5792,6 +5859,7 @@ def _spawn_auto_analyse(session_dir: str, reason: str = "session_stop") -> Optio
         code = 1
         try:
             proc = subprocess.Popen(argv)
+            _evict_completed_analysis_jobs()
             _ANALYSIS_JOBS[root.name] = {
                 "job_id": root.name,
                 "session_id": root.name,
@@ -5822,6 +5890,7 @@ def _rerun_session_analysis(session_dir: str) -> Dict[str, object]:
     proc = subprocess.Popen(argv)
     job_id = root.name
     started_at = _iso_now()
+    _evict_completed_analysis_jobs()
     _ANALYSIS_JOBS[job_id] = {
         "job_id": job_id,
         "session_id": root.name,
@@ -6220,6 +6289,15 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         elif path == "/api/operator-profiles" and self.command == "POST" and is_bootstrap:
             is_discovery = True
 
+        # 4b. Loopback-only native bootstrap: the EXE shell reads pairing details
+        # over 127.0.0.1 with no pairing token (tokens belong to phones). The route
+        # handler independently rejects non-loopback clients with 403, so this
+        # never opens an unauthenticated LAN path.
+        client_address = getattr(self, "client_address", None)
+        client_host = str(client_address[0]) if client_address else ""
+        if path == "/api/native-pairing-info" and self.command == "GET" and client_host in {"127.0.0.1", "::1", "localhost"}:
+            return True
+
         # 5. Check operator session token validity
         is_real_valid_operator = False
         if token and hasattr(self.server, "operator_sessions") and token in self.server.operator_sessions:
@@ -6246,7 +6324,12 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             is_valid_pairing = True
 
         # 8. Apply routing gating rules
-        if getattr(self.server, "bind_mode", "local") == "lan":
+        # Loopback clients (the EXE shell / same-machine processes) bypass the LAN
+        # *pairing* gate: pairing tokens exist to gate network peers, and the EXE's
+        # own WebView holds none after a share-mode sidecar restart. Sensitive
+        # endpoints below still require a valid operator session, and same-machine
+        # callers already have filesystem access to everything the API serves.
+        if getattr(self.server, "bind_mode", "local") == "lan" and client_host not in {"127.0.0.1", "::1", "localhost"}:
             if not is_valid_pairing and not is_real_valid_operator and not is_valid_sse:
                 self._send_json(401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "LAN pair token required"}})
                 return False
@@ -6438,7 +6521,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             if client_host not in {"127.0.0.1", "::1", "localhost"}:
                 self._send_json(403, {"ok": False, "error": {"code": "LOOPBACK_ONLY", "message": "native pairing info is loopback-only"}}, cache_control="no-store")
                 return
-            self._send_json(200, {
+            pairing_payload = {
                 "ok": True,
                 "origin": _advertised_origin(self.server),
                 "scheme": _server_scheme(self.server),
@@ -6446,7 +6529,16 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "pair_required": getattr(self.server, "bind_mode", "local") == "lan",
                 "active_pin": getattr(self.server, "active_pin", "") or "",
                 "active_pin_expires_at": getattr(self.server, "active_pin_expires_at", 0.0),
-            }, cache_control="no-store")
+            }
+            if pairing_payload["bind_mode"] == "lan" and parse_qs(parsed.query).get("format", [""])[-1] == "qr":
+                pin = pairing_payload["active_pin"]
+                pair_url = _advertised_origin(self.server) + (f"/?pair={pin}" if pin else "/pair")
+                try:
+                    pairing_payload["qr_png_base64"] = base64.b64encode(_qr_png_bytes(pair_url)).decode("ascii")
+                    pairing_payload["qr_target_url"] = pair_url
+                except Exception:
+                    pass  # QR stays optional; the textual pairing link is always present
+            self._send_json(200, pairing_payload, cache_control="no-store")
             return
         if path == "/api/session/events" or path == "/api/events/subscribe":
             self._send_sse()
@@ -7136,7 +7228,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_1_0.ino"),
+        Path("radar_vital_v16_2_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
         Path("radar_vital_v14.ino"),
@@ -7271,9 +7363,9 @@ def _parse_radar_data_line(line: str, cols: Sequence[str]) -> Tuple[str, Optiona
     payload = line.split(",")[1:]
     if payload == list(cols) or (payload and payload[0] == "timestamp_ms"):
         return "header", None, ""
-    # v11 trainer accepts both v15.0 (207) and v14.1 (199) firmware schemas.
+    # v12 trainer accepts v15.1 (219), v15.0 (207), and v14.1 (199) schemas.
     # Older legacy counts retained for back-compat with archived sessions.
-    accepted_legacy_counts = (LEGACY_RADAR_LOG_COLUMN_COUNT, 136, 180, 195, LEGACY_V14_COLUMN_COUNT)
+    accepted_legacy_counts = (LEGACY_RADAR_LOG_COLUMN_COUNT, 136, 180, 195, LEGACY_V14_COLUMN_COUNT, LEGACY_V15_COLUMN_COUNT)
     if len(payload) not in ((len(cols),) + accepted_legacy_counts):
         return "reject", None, f"{len(payload)} fields, expected {accepted_legacy_counts} or {len(cols)}"
     if len(payload) in accepted_legacy_counts:

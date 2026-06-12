@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rvt-trainer"
+version = "16.2.0"
+description = "Radar Vital mmWave 60 GHz trainer — ThreadingHTTPServer, session management, ML-readiness audit, and REST/SSE API"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0.0,<3.0.0",
+    "pandas>=2.0.0,<3.0.0",
+    "matplotlib>=3.5.0,<4.0.0",
+    "scikit-learn>=1.2.0,<2.0.0",
+    "pyserial>=3.5,<4.0",
+    "cryptography>=41.0.0,<49.0.0",
+]
+
+[project.optional-dependencies]
+# bleak is used by rvt_trainer/transport/ble.py but is not a hard runtime dep
+# (the BLE transport is only activated when --transport ble is passed).
+ble = ["bleak>=0.21,<2.0"]
+
+[project.scripts]
+rvt-trainer = "rvt_trainer.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["rvt_trainer*"]
+
+[tool.setuptools.package-data]
+"rvt_trainer.assets" = ["*"]

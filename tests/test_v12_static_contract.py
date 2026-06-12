@@ -16,7 +16,7 @@ SW_UPDATE = ROOT / "web" / "src" / "app" / "services" / "sw-update.service.ts"
 STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
-FW = ROOT / "radar_vital_v16_1_0.ino"
+FW = ROOT / "radar_vital_v16_2_0.ino"
 SW = ROOT / "assets" / "sw.js"
 STYLES = ROOT / "web" / "src" / "styles.scss"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
@@ -93,22 +93,22 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
     api = text(API)
     sw = text(SW)
 
-    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.1.0"
-    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.1.0"
-    assert json.loads(text(TAURI_CONF))["version"] == "16.1.0"
-    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.1.0"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.1.0"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.1.0"
-    assert re.search(r'^version = "16\.1\.0"$', text(TAURI_CARGO), re.MULTILINE)
+    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.2.0"
+    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.2.0"
+    assert json.loads(text(TAURI_CONF))["version"] == "16.2.0"
+    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.2.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.2.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.2.0"
+    assert re.search(r'^version = "16\.2\.0"$', text(TAURI_CARGO), re.MULTILINE)
 
-    assert 'VERSION = "16.1.0"' in trainer
-    assert 'DASHBOARD_VERSION = "16.1.0"' in trainer
-    assert 'FIRMWARE_VERSION_EXPECTED = "v16.1.0"' in trainer
-    assert "const PRODUCT_VERSION = '16.1.0';" in settings
-    assert "product_version: '16.1.0'" in api
-    assert '#define FW_VERSION "v16.1.0"' in firmware
+    assert 'VERSION = "16.2.0"' in trainer
+    assert 'DASHBOARD_VERSION = "16.2.0"' in trainer
+    assert 'FIRMWARE_VERSION_EXPECTED = "v16.2.0"' in trainer
+    assert "const PRODUCT_VERSION = '16.2.0';" in settings
+    assert "product_version: '16.2.0'" in api
+    assert '#define FW_VERSION "v16.2.0"' in firmware
     assert "#define SKETCH_VERSION_MAJOR 16" in firmware
-    assert "#define SKETCH_VERSION_SUB 1" in firmware
+    assert "#define SKETCH_VERSION_SUB 2" in firmware
     assert "#define SKETCH_VERSION_MOD 0" in firmware
 
     for schema_id in [
@@ -148,7 +148,7 @@ def test_release_manifest_contract_and_ci_validation():
     assert "ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}" in release_workflow
     assert "node scripts/generate-rvt-latest.mjs" in release_workflow
     assert "dist/rvt-latest.json" in release_workflow
-    assert "startsWith(github.ref_name, 'v16.1.0-alpha')" not in release_workflow
+    assert "startsWith(github.ref_name, 'v16.2.0-alpha')" not in release_workflow
     assert "contains(github.ref_name, '-alpha')" in release_workflow
     assert "contains(github.ref_name, '-rc')" in release_workflow
     assert "actions/deploy-pages@v4" in release_workflow
@@ -250,7 +250,7 @@ def test_manifest_payload_is_plain_manifest():
 
 def test_firmware_ble_contract():
     ino = text(FW)
-    assert '#define FW_VERSION "v16.1.0"' in ino
+    assert '#define FW_VERSION "v16.2.0"' in ino
     assert "#define ENABLE_BLE false" in ino
     assert "NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN" in ino
     assert "bleSuppressUntilMs = millis() + 500UL" in ino
@@ -311,11 +311,86 @@ def test_frozen_serial_protocol_contract():
     )
     columns = ast.literal_eval(columns_assignment.value)
 
-    assert len(columns) == 207
-    assert columns[-1] == "correction_params_hash"
-    assert "EXPECTED_RADAR_LOG_COLUMN_COUNT = 207" in trainer
-    assert "#define CSV_COLUMN_COUNT 207" in ino
+    assert len(columns) == 219
+    assert columns[206] == "correction_params_hash"
+    assert columns[-12:] == [
+        "loop_dt_mean_ms",
+        "loop_dt_max_ms",
+        "heap_free_kb",
+        "heap_min_free_kb",
+        "radar_uart_overflow_count",
+        "radar_crc_err_count",
+        "i2c_recover_count",
+        "lcd_reinit_count",
+        "wdt_near_miss_count",
+        "cmd_rx_count",
+        "cmd_err_count",
+        "fw_uptime_s",
+    ]
+    assert "EXPECTED_RADAR_LOG_COLUMN_COUNT = 219" in trainer
+    assert "LEGACY_V15_COLUMN_COUNT = 207" in trainer
+    assert "#define CSV_COLUMN_COUNT 219" in ino
     assert re.search(r"\bSerial\.begin\(115200\)", ino)
+
+
+def test_trainer_pads_legacy_207_rows_to_v15_1_contract():
+    from rvt_trainer import monolith as m
+
+    kind, row, detail = m._parse_radar_data_line(
+        "DATA," + ",".join(["1"] * m.LEGACY_V15_COLUMN_COUNT),
+        m.RADAR_LOG_COLUMNS,
+    )
+
+    assert kind == "data", detail
+    assert row is not None
+    assert len(row) == m.EXPECTED_RADAR_LOG_COLUMN_COUNT
+    assert row[: m.LEGACY_V15_COLUMN_COUNT] == ["1"] * m.LEGACY_V15_COLUMN_COUNT
+    assert row[m.LEGACY_V15_COLUMN_COUNT :] == [""] * (
+        m.EXPECTED_RADAR_LOG_COLUMN_COUNT - m.LEGACY_V15_COLUMN_COUNT
+    )
+
+
+def test_firmware_pr58_robustness_guards_present():
+    ino = text(FW)
+
+    assert "PERIPH_BACKOFF_MIN_MS = 3000UL" in ino
+    assert "PERIPH_BACKOFF_MAX_MS = 300000UL" in ino
+    assert "periphBackoffFailure(lcdBackoff" in ino
+    assert "periphBackoffFailure(mlxBackoff" in ino
+    assert "periphBackoffFailure(bh1750Backoff" in ino
+    assert "periphBackoffReady(lcdBackoff" in ino
+    assert "periphBackoffReady(mlxBackoff" in ino
+    assert "periphBackoffReady(bh1750Backoff" in ino
+    assert '[BOOT] reset_reason=%d (%s)' in ino
+    assert 'prefs.putUInt("rstSlot"' in ino
+    assert "nvsWriteFailureStreak >= 3" in ino
+    assert "nvsWriteDisabledForBoot = true" in ino
+    assert "[NVS] write_count_boot=" in ino
+
+
+def test_firmware_pr59_power_thermal_guards_present():
+    ino = text(FW)
+
+    assert "#define RV_POWER_SAVE 0" in ino
+    assert "#define RV_LCD_LUX_BACKLIGHT RV_POWER_SAVE" in ino
+    assert "BH1750_RETRY_INTERVAL_MS" not in ino
+    assert "lastBh1750RetryMs" not in ino
+    assert "POWER_SAVE_ABSENT_MS = 60000UL" in ino
+    assert "POWER_SAVE_MLX_INTERVAL_MS = 10000UL" in ino
+    assert "setCpuFrequencyMhz(80)" in ino
+    assert "getCpuFrequencyMhz()" in ino
+    assert "cpu frequency read as 0 before idle power save" in ino
+    assert "setLcdBacklightDimmed(true)" in ino
+    assert "setLcdBacklightDimmed(false)" in ino
+    assert "if (powerSaveActive && brite > 4) brite = 4;" in ino
+    assert "if (powerSaveActive) mlxReadInterval = POWER_SAVE_MLX_INTERVAL_MS;" in ino
+    assert "THERMAL_SAMPLE_INTERVAL_MS = 10000UL" in ino
+    assert "THERMAL_WARN_C = 75.0f" in ino
+    assert "temperatureRead()" in ino
+    assert "[THERMAL] chip_temp_c=" in ino
+    assert "LCD_DIM_LUX_ON = 8.0f" in ino
+    assert "LCD_DIM_LUX_OFF = 15.0f" in ino
+    assert "#define CSV_COLUMN_COUNT 219" in ino
 
 
 def test_packaging_scaffolds_exist():

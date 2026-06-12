@@ -10,7 +10,7 @@ Ensure the following hardware components are available:
 1. **Target Mobile Device**: Android 10+ (tested against Pixel baseline).
 2. **Target Windows Machine**: Windows 10 or 11 with a working Bluetooth 4.2+ BLE USB adapter or integrated chip.
 3. **Reference BLE Device**: AiLink Pulse Oximeter or compatible GATT simulator.
-4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_1_0.ino`.
+4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_2_0.ino`.
 5. **LAN Test Environment**: Both the trainer server (PC) and the mobile device must be connected to the exact same subnet (e.g., local Wi-Fi router).
 
 ---
@@ -38,6 +38,23 @@ Ensure the following hardware components are available:
 - [ ] Verify the Overview graphs draw vital parameters (Heart Rate and Respiration) at exactly 1 Hz.
 - [ ] Confirm that minimizing the application for 60 seconds does not cause the service worker EventSource to drop or fail reconnecting.
 - [ ] Verify the **DEMO** banner displays if sandbox fallback occurs, and that sandbox telemetry is isolated inside the IndexedDB store.
+
+### Phase D: Firmware Robustness Fault Injection
+- [ ] Disconnect LCD SDA mid-session and verify the serial DATA cadence remains at 1 Hz with loop timing still within the pre-fault budget ±5 ms.
+- [ ] Confirm serial logs show LCD/I2C retry backoff increasing from 3 s toward the 5 min cap, and that `i2c_recover_count` / `lcd_reinit_count` increase in Live Audit.
+- [ ] Reconnect LCD SDA and verify the display recovers within one active backoff interval without rebooting the controller.
+- [ ] Pull radar TX mid-session, then restore it; verify recovery logs are visible and lock is reacquired without a firmware reboot.
+- [ ] Power-cycle the controller eight times and verify `[BOOT] reset_reason=<n> (<name>)` logs appear and the NVS reset-reason ring advances across boots.
+- [ ] Force or simulate repeated NVS write failures and verify three consecutive failures trigger one namespace reopen attempt, then NVS writes are disabled for the rest of that boot with a loud log line.
+
+### Phase E: PR59 Power and Thermal Management
+- [ ] Build and flash default firmware (`RV_POWER_SAVE 0`) and verify DATA cadence remains 1 Hz ±2 % for at least 30 min with no LCD/LED/MLX behavior change versus v16.2.0.
+- [ ] Build with `RV_POWER_SAVE 1`, leave the radar scene empty for at least 60 s, and verify `[POWER] idle power save entered` logs with CPU frequency at 80 MHz and MLX poll interval at 10 s.
+- [ ] While power save is active, introduce a subject and verify `[POWER] idle power save exited` appears within one display frame and presence reacquisition latency matches v16.2.0 bench timing.
+- [ ] Record idle current before and after the `RV_POWER_SAVE 1` transition, including LCD backlight state and LED duty, and attach the measured mA delta to the release notes.
+- [ ] Verify the radar UART/DSP DATA cadence remains 1 Hz ±2 % during power-save entry, steady idle, and exit.
+- [ ] Heat the enclosure or bench environment enough to cross 75 C internal chip temperature and verify `[THERMAL] chip_temp_c=<value>` warns no more than once per minute.
+- [ ] With `RV_LCD_LUX_BACKLIGHT 1`, sweep BH1750 input below 8 lux and above 15 lux and verify the LCD backlight changes only across those hysteresis thresholds.
 
 ---
 

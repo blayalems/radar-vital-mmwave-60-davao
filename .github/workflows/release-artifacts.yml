@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag to publish, for example v16.1.0-alpha.1'
+        description: 'Release tag to publish, for example v16.2.0-alpha.1'
         required: true
         type: string
       prerelease:
@@ -329,6 +329,29 @@ jobs:
           cp release-assets/radar-vital-apk-release-asset/*.apk dist/
           cp release-assets/radar-vital-exe-release-asset/*.exe dist/
           cp release-assets/radar-vital-exe-release-asset/*.sig dist/ || true
+
+      - name: Verify release artifact integrity
+        shell: pwsh
+        run: |
+          # The download-artifact action extracts files; re-zip each artifact so
+          # verify-release-artifacts.ps1 can inspect zip contents and SHA-256.
+          $apkSrc = (Get-ChildItem release-assets/radar-vital-apk-release-asset -Filter *.apk | Select-Object -First 1).FullName
+          $exeSrc = (Get-ChildItem release-assets/radar-vital-exe-release-asset -Filter *.exe | Select-Object -First 1).FullName
+          if (-not $apkSrc) { throw "APK artifact not found under release-assets/" }
+          if (-not $exeSrc) { throw "EXE artifact not found under release-assets/" }
+          $tmpDir = Join-Path ([IO.Path]::GetTempPath()) ("rvt-verify-" + [Guid]::NewGuid().ToString("N"))
+          New-Item -ItemType Directory -Path $tmpDir | Out-Null
+          $apkZip = Join-Path $tmpDir "radar-vital-apk.zip"
+          $exeZip = Join-Path $tmpDir "radar-vital-exe.zip"
+          Compress-Archive -LiteralPath $apkSrc -DestinationPath $apkZip
+          Compress-Archive -LiteralPath $exeSrc -DestinationPath $exeZip
+          $ErrorActionPreference = 'Stop'
+          $results = & scripts/verify-release-artifacts.ps1 -ApkZip $apkZip -ExeZip $exeZip
+          if ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) {
+            throw "Release artifact integrity verification failed with exit code $LASTEXITCODE"
+          }
+          $results | Format-Table -AutoSize
+          Remove-Item $tmpDir -Recurse -Force
 
       - name: Generate latest release manifest JSON
         env:

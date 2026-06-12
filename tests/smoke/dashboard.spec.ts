@@ -65,7 +65,18 @@ async function mockDemoReportSession(page: Page): Promise<void> {
     subject_label: 'Sandbox',
     operator_label: 'Operator A',
     summary: 'Simulated trace for report review.',
-    verdict: 'ready',
+    verdict: {
+      verdict: 'ready',
+      readiness_kind: 'ready',
+      categories: [
+        { id: 'firmware', label: 'Firmware contract', status: 'pass', detail: '219-column contract intact; 207-column prefix preserved.', remediation: '' },
+        { id: 'reference', label: 'Reference coverage', status: 'warn', detail: 'BLE coverage 72%.', remediation: 'Keep the oximeter within range for the full session.' }
+      ]
+    },
+    signal_quality: { pqi_lock_pct: 84.2, session_quality_score: 8.7, internal_consistency_score: 9.1, coverage_locked: 81.5, coverage_settling: 11.2 },
+    hr_metrics: { rmse: 2.41, mae: 1.92, bias: -0.4, coverage_pct: 88.1 },
+    rr_metrics: { rmse: 0.82, mae: 0.61, bias: 0.1, coverage_pct: 90.4 },
+    gates: { primary: { passed: true, status: 'pass' }, secondary: { passed: false, status: 'deferred' } },
     sandbox: true,
     message: 'Demo report data for operator review.',
     downloads: []
@@ -855,8 +866,9 @@ test.describe('Dashboard smoke', () => {
     });
     await gotoDashboardRoute(page, '/home');
     await page.getByRole('button', { name: /Validate native GATT/ }).click();
-    await expect(page.getByRole('status')).toContainText(/Native GATT verified: received 2 bytes from AiLink QA/);
-    await expect(page.getByRole('status')).toContainText(/trainer telemetry remains the session source/i);
+    // Scope to the probe's own status element — Home now has multiple role="status" regions.
+    await expect(page.locator('.native-ble-result')).toContainText(/Native GATT verified: received 2 bytes from AiLink QA/);
+    await expect(page.locator('.native-ble-result')).toContainText(/trainer telemetry remains the session source/i);
   });
 
   test('exchanges a one-time pairing PIN without exposing a raw token input', async ({ page }) => {
@@ -898,6 +910,82 @@ test.describe('Dashboard smoke', () => {
     await page.getByLabel('Validation comments').fill('Simulation marked non-clinical.');
     await page.getByRole('button', { name: /Record sign-off/ }).click();
     await expect(page.getByText(/Signed/).first()).toBeVisible();
+  });
+
+  test('shows subject placement zone guidance on the Home radar scope', async ({ page }) => {
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/home');
+
+    const chip = page.locator('.placement-zone-chip');
+    await expect(chip).toBeVisible();
+    // Demo telemetry oscillates around 50 cm — inside the optimal band.
+    await expect(chip).toHaveText(/Optimal|Good|Too close|Acceptable|Out of range|No target/);
+    await expect(page.locator('.placement-hint')).not.toBeEmpty();
+  });
+
+  test('wires Ctrl+H handoff, Ctrl+Z undo feedback and D demo-toggle shortcuts', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      localStorage.setItem('rvt-demo-mode', '1');
+    });
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await waitForUnlockedShell(page);
+    await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+
+    // Ctrl+H opens the operator handoff brief instead of a placeholder snackbar.
+    await page.keyboard.press('Control+h');
+    await expect(page.getByRole('heading', { name: 'Operator handoff' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('heading', { name: 'Operator handoff' })).toHaveCount(0);
+
+    // Ctrl+Z reports the undo state truthfully (empty stack here).
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('simple-snack-bar').last()).toContainText(/Nothing to undo|Undid/);
+
+    // D toggles demo mode off and back on with an explanatory snackbar.
+    await page.keyboard.press('d');
+    await expect(page.locator('simple-snack-bar').last()).toContainText('Demo mode off');
+    await page.keyboard.press('d');
+    await expect(page.locator('simple-snack-bar').last()).toContainText('Demo mode on');
+    await expect(page.locator('#demoBanner')).toBeVisible();
+  });
+
+  test('renders the session quality scorecard from the summary payload', async ({ page }) => {
+    await mockDemoReportSession(page);
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/report');
+
+    const card = page.locator('.quality-card');
+    await expect(card).toBeVisible();
+    await expect(card.getByText('PQI lock')).toBeVisible();
+    await expect(card.getByText('84.2%')).toBeVisible();
+    await expect(card.locator('.quality-metrics-table tbody tr')).toHaveCount(2);
+    await expect(card.locator('.quality-gate-chip[data-passed="true"]')).toContainText('primary');
+    await expect(card.locator('.quality-gate-chip[data-passed="false"]')).toContainText('secondary');
+    // Non-pass categories show their remediation text.
+    await expect(card.locator('.quality-remediation')).toContainText('oximeter');
+  });
+
+  test('overlays an operator-selected comparison session with a delta table', async ({ page }) => {
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/report');
+
+    const picker = page.getByLabel('Compare against another session');
+    await picker.click();
+    // Demo mode seeds two sandbox sessions; pick the one that is not selected.
+    await page.getByRole('option').nth(1).click();
+
+    await expect(page.locator('.compare-overlay-note')).toContainText('dashed line');
+    const table = page.locator('.compare-delta-table');
+    await expect(table).toBeVisible();
+    await expect(table).toContainText('Mean HR (bpm)');
+    await expect(table).toContainText('Verdict');
+
+    // Switching the selected session clears the stale overlay.
+    await page.locator('.selector-card mat-select').first().click();
+    await page.getByRole('option').nth(1).click();
+    await expect(table).toHaveCount(0);
   });
 
   test('keeps simulated provenance visible when printing a demo report', async ({ page }) => {
@@ -1089,6 +1177,35 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('.snap-card')).toHaveCount(1);
   });
 
+  test('surfaces signal lock-state, confidence and readiness chips in demo mode', async ({ page }) => {
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
+      localStorage.setItem('rvt-demo-mode', '1');
+    });
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await waitForUnlockedShell(page);
+    await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+
+    // Phase chip renders one of the firmware lock-state labels.
+    const phaseChip = page.locator('.signal-status-chips .phase-chip');
+    await expect(phaseChip).toBeVisible();
+    await expect(phaseChip).toHaveText(
+      /No subject detected|Warming up|Settling|Signal locked|Recovering after motion|Subject leaving/
+    );
+
+    // HR confidence badge renders a percentage from the demo payload.
+    await expect(page.locator('.kpi-hr .kpi-conf-badge')).toContainText(/\d+%/);
+
+    // Demo analysis advertises a readiness verdict chip.
+    await expect(page.locator('.signal-status-chips .verdict-chip')).toContainText('Readiness:');
+
+    // Waves tab renders the time-segmented SQI ribbons from PQI history.
+    await page.getByRole('tab', { name: 'Waves' }).click();
+    await expect(page.locator('.sqi-ribbon').first()).toBeVisible();
+    expect(await page.locator('.sqi-ribbon .sqi-seg').count()).toBeGreaterThan(0);
+  });
+
   test('restores live diagnostics and functional Material actions in demo mode', async ({ page }) => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => {
@@ -1177,6 +1294,11 @@ test.describe('Dashboard smoke', () => {
     await expect(page.getByText('Live Validation')).toBeVisible();
     await expect(page.getByText('Reason Histograms')).toBeVisible();
     await expect(page.getByText('BLE Reference Quality')).toBeVisible();
+    await expect(page.getByText('Loop mean / max')).toBeVisible();
+    await expect(page.getByText('Heap free / min')).toBeVisible();
+    await expect(page.getByText('Firmware uptime')).toBeVisible();
+    await expect(page.getByText('Radar UART overflow')).toBeVisible();
+    await expect(page.getByText('Command RX / errors')).toBeVisible();
     await expectVisibleCardsContained();
     await page.getByRole('tab', { name: 'Snaps' }).click();
     await expect(page.locator('.snap-card')).toHaveCount(1);

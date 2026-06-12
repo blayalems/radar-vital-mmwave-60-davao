@@ -5,6 +5,123 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — Codex/Claude-Safe PR52 Review Follow-up
+
+- **Non-overlap after Claude sync**: Fast-forwarded to Claude's `3c9b4bc` review-fix commit before adding this follow-up, preserving its B1/B2/M1-M3/A1 fixes. Added a frontend stale-session guard so any live `ctlStatus.reason === "unauthenticated"` outside an active login flow locks the operator UI and clears the dead token instead of leaving controls unlocked.
+- **Firmware advisories**: Removed the dead `BH1750_RETRY_INTERVAL_MS` / `lastBh1750RetryMs` retry remnants now superseded by `PeriphBackoff`, and added a logged guard when `getCpuFrequencyMhz()` returns `0` before entering default-off idle power save.
+- **Verification**: `npm --prefix web run test:ci` 43/43; `python -m pytest -q tests` 173 passed, 1 skipped (known Windows pytest temp symlink cleanup warning after exit); `npm run build:web` regenerated the monolith; `npm run build:check` clean with the known initial-bundle budget warning; API/operator smoke 52/52 across desktop, Pixel 7, iPhone 14, and iPad; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6` clean with existing LiquidCrystal architecture warning.
+
+### 2026-06-12 — Review Closure: B1/B2 Blockers, M1–M3 Must-Fixes, A1 Advisory
+
+- **B2 (EXE re-auth after LAN restart)**: `ServerLifecycleService.restartServer()` now calls `auth.lock()` after the sidecar restart — the sidecar wipes in-memory operator sessions, so the station locks immediately and the existing lock overlay walks the operator through PIN re-login against the on-disk profiles instead of leaving a half-broken authenticated UI.
+- **B1 (release verification exit code)**: the artifact-verification step sets `$ErrorActionPreference = 'Stop'` and throws on non-zero `$LASTEXITCODE`, so a corrupted APK/EXE can no longer pass green.
+- **M1**: comparison means now also exclude frames flagged invalid by `logged_hr_valid`/`logged_rr_valid` (stale-held non-zero values), falling back to zero-exclusion for legacy rows. **M2**: malformed `ml_readiness_verdict` shapes log a console contract warning instead of failing silently. **M3/A6**: baseline-refresh workflow permissions scoped to the job with a header note on intentional check re-triggering and branch-protection behavior.
+- **A1**: Live holding caches (`lastGoodHr/Rr`) and SQI ribbon histories reset when the active session id changes — back-to-back sessions never flash the previous session's values. A2 confirmed already capped (`slice(-59)`); A4 `.gitignore` duplicate did not reproduce; `_is_supported_radar_contract_length` confirmed wired at two call sites.
+- **PR61 Salvage + PR63 Docs**: recovered the reliability test agent's uncommitted work (parser/lifecycle/verdict pytest modules + bounded `_ANALYSIS_JOBS` eviction; schema assertions updated to the 219-column v15.1 contract) and integrated the operator quickstart/API-table docs with corrections (placement-zone chip and Session Quality card claims fixed to match the implemented UI).
+- **Verification**: `python -m pytest -q tests` 174/174; `npm --prefix web run test:ci` 42/42; build + monolith round-trip clean; comparison/scorecard/signal-chip smoke specs 3/3 on desktop Chromium.
+
+### 2026-06-12 — PR63: Refresh Windows Visual Baselines
+
+- **Baseline Refresh + OTA Fixture**: Regenerated the committed Windows Playwright baselines for the intentional Help, Live, Settings, SQI ribbon, and v16.2 UI changes across desktop, Pixel 7, iPhone 14, and iPad projects. OTA smoke's newer-product fixture now advertises `16.2.1` so it remains newer than the PR64 `16.2.0` product baseline.
+- **Verification**: `npx playwright test tests/visual --update-snapshots` passed 96/96 and refreshed 21 PNGs; `npx playwright test tests/visual` passed 96/96 against the regenerated baselines.
+
+### 2026-06-12 — PR61: Playwright Operator Smoke Isolation
+
+- **Smoke Isolation**: `tests/smoke/operator.spec.ts` now removes the operator profile file under the active `RVT_TEST_SESSIONS_ROOT`, not only the default `.playwright-state/sessions` path. This keeps the four Playwright projects independent when CI or local runs use a custom sessions root.
+- **Verification**: Fresh-port operator smoke with `RVT_TEST_SESSIONS_ROOT=.playwright-state/sessions-operator` passed 4/4 across desktop, Pixel 7, iPhone 14, and iPad.
+
+### 2026-06-12 — PR64: Overall v16.2.0 Version Alignment
+
+- **Version Bump**: Promoted the overall product/package/trainer/dashboard/firmware identity from `16.1.0` to `16.2.0`, including the firmware filename `radar_vital_v16_2_0.ino`, `FW_VERSION`, sketch subversion, app package metadata, Tauri/Capacitor metadata, trainer expected firmware version, dashboard product constants, OTA tests, and release workflow examples.
+- **Contract Coverage**: Static contract tests now assert the v16.2.0 product identity across root/package locks, Tauri Cargo/config files, Capacitor metadata, trainer constants, Angular services/components, and firmware sketch version macros.
+- **Verification**: `python -m pytest -q tests/test_v12_static_contract.py` 18/18; `python -m pytest -q tests/test_packaging.py tests/test_ota_backend.py tests/test_trainer_security_api.py` 23 passed, 1 skipped; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer` clean; `python -m rvt_trainer --help` clean and reports Radar Vital Trainer v16.2.0; `npm --prefix web run test:ci` 42/42; `npm run build:web` regenerated the monolith; `npm run build:check` clean with the known initial-bundle budget warning; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6` clean with the existing LiquidCrystal architecture warning.
+
+### 2026-06-12 — PR59: Default-Off Power Save and Chip Thermal Guardrails
+
+- **Power Save Gate**: Firmware now has default-off `RV_POWER_SAVE 0` plus `RV_LCD_LUX_BACKLIGHT` gates. When enabled and the presence FSM remains `ABSENT` for 60 s, ancillary peripherals enter idle mode: LCD backlight off, NeoPixel brightness capped, MLX90614 poll interval widened to 10 s, and CPU frequency lowered to 80 MHz. Radar UART/DSP cadence is unchanged.
+- **Instant Restore + Lux Hysteresis**: Any fresh strong/weak presence evidence or FSM exit from idle eligibility restores CPU frequency/backlight before the next loop pass; optional BH1750 LCD dimming uses 8 lux / 15 lux hysteresis to avoid flicker.
+- **Thermal Logs**: Firmware samples the ESP32 internal temperature every 10 s and emits `[THERMAL] chip_temp_c=...` warnings above 75 C, rate-limited to once per minute. CSV remains the PR57 219-column contract; chip temperature is log-only until the next schema bump.
+- **Bench Checklist**: `docs/physical-acceptance-checklist.md` now includes PR59 current-delta, 1 Hz cadence, reacquisition-latency, thermal-warning, and lux-hysteresis acceptance steps.
+- **Verification**: `python -m pytest -q tests/test_v12_static_contract.py` 18/18; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer` clean; `python -m rvt_trainer --help` clean; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6` clean with existing LiquidCrystal architecture warning; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6 --build-property 'compiler.cpp.extra_flags=-DRV_POWER_SAVE=1'` clean with the same warning. Physical current/thermal/soak tests not run locally.
+
+### 2026-06-12 — PR62: Pip-Installable Trainer, Declared BLE Extra & Release Artifact Verification
+
+- **Packaging**: New root `pyproject.toml` (PEP 621/setuptools) makes the trainer installable as `rvt-trainer` with a `rvt-trainer` console script (`rvt_trainer.cli:main`), runtime deps mirroring `requirements-v12.txt` (pytest excluded), and an `[ble]` extra that finally declares `bleak` (used by `transport/ble.py` but previously undeclared). Package discovery is scoped to `rvt_trainer*` so loose root scripts are not packaged; `rvt_trainer/assets/*` ship as package data. PyInstaller sidecar build path unaffected (it installs requirements directly and targets `sidecar_entry.py` by path).
+- **Release Verification**: The previously-orphaned `scripts/verify-release-artifacts.ps1` is now wired into the release job (`release-artifacts.yml`) as a `pwsh` step that re-zips the downloaded APK/EXE assets and verifies contents, minimum sizes and SHA-256 before the manifest is generated.
+- **CI-Safe Tests**: `tests/test_packaging.py` parses `pyproject.toml` directly (console script, semantic version, bleak extra) so CI passes without `pip install`; the installed-metadata assertion skips when the package is not installed.
+- **Verification**: `pip install -e .` then `rvt-trainer --help` exit 0; `python -m pytest -q tests` 99/99 locally (98 + 1 skip expected in CI).
+
+### 2026-06-12 — PR60: SQI Time-Ribbons (v11 Parity) + Windows Baseline-Refresh Workflow
+
+- **SQI Ribbons**: The Waves tab quality bars gain v11-style time-segmented ribbons — a rolling 60 s client-side PQI history per waveform, colored with the same thresholds as the Bland-Altman scatter (good >= 0.3, warn 0.15-0.3, bad < 0.15), with screen-reader summaries of the good-quality percentage.
+- **Baseline Refresh Workflow**: New `workflow_dispatch` job `.github/workflows/visual-baseline-refresh.yml` regenerates the committed Windows visual baselines on `windows-latest`, verifies they pass, and pushes the refreshed PNGs to the dispatching branch with the operator-supplied reason. This unblocks intentional-UI PRs authored off-Windows; dispatch it once after the final UI commit of this series.
+- **Verification**: Build clean; vitest 42/42; extended signal-chips smoke spec (now covering ribbons) 1/1 on desktop Chromium; monolith round-trip clean.
+
+### 2026-06-12 — Connection Clarity, LAN Loopback Gate & PR52 Review Fixes
+
+- **Connection Clarity**: Topbar disconnected state shows a live "auto-retry in Ns" countdown driven by the telemetry service's SSE reconnect schedule (`nextRetryAtMs` signal, cleared on connect); the contractual 12 h SSE `session_warning` (`deadline_approaching`) renders as "Live stream renews in 60 seconds — automatic, no action needed" instead of a generic warning.
+- **Review P1 (LAN sharing locked the EXE out)**: Loopback clients now bypass the LAN *pairing*-token gate in `_require_control_auth` — after a share-mode sidecar restart the EXE's WebView holds no pairing token and previously got 401 for everything including `/api/auth/login`. Operator-session rules for sensitive endpoints are unchanged; network peers keep the 401 pairing requirement. PR48's LAN contract test updated accordingly (loopback `/api/server-info` 200 and metadata-only; sensitive routes still 401 without an operator session); the share/New-PIN confirm dialogs warn "You will be asked to sign in again afterwards."
+- **Review P2 Fixes**: comparison means exclude the firmware's 0-value invalid-publish placeholders; Report verdict categories read the trainer's real `ml_readiness_verdict` block (sandbox shape still supported); the Live "holding" state shows the last accepted HR/RR value instead of `--`.
+- **CI Test Job Fix**: the placement chip's `role="status"` made the BLE-probe spec's strict `getByRole('status')` ambiguous — that spec now targets `.native-ble-result` precisely.
+- **Verification**: `python -m pytest -q tests` 93/93; `npm --prefix web run test:ci` 42/42; 5 affected smoke specs green on desktop Chromium; monolith round-trip clean. Visual job stays expected-red until the Windows baseline refresh pass.
+
+### 2026-06-12 — PR58: Firmware Robustness Backoff, Reset Forensics, and NVS Failure Escalation
+
+- **Peripheral Backoff**: Firmware now uses bounded exponential retry state for MLX90614, BH1750, and LCD recovery (3 s doubling to 5 min cap), resetting on successful recovery and continuing to increment the PR57 I2C/LCD diagnostic counters.
+- **Reset/NVS Forensics**: Boot now logs `esp_reset_reason()` with a readable label and persists an 8-entry reset-reason ring in NVS after namespace migration. NVS setting writes track success/failure counts, log write-count telemetry, attempt one namespace reopen after 3 consecutive failures, then disable further writes for the boot.
+- **Bench Checklist**: `docs/physical-acceptance-checklist.md` now includes PR58 fault-injection steps for LCD SDA disconnect/reconnect, radar TX pull/restore, reset-ring persistence, and repeated NVS write failure escalation.
+- **Verification**: `python -m pytest -q tests/test_v12_static_contract.py` 17/17; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer` clean; `python -m rvt_trainer --help` clean; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6` clean with existing LiquidCrystal architecture warning; `git diff --check` clean except CRLF warnings. Physical fault injection not run locally.
+
+### 2026-06-12 — PR57: Additive Field-Diagnostics Telemetry Columns
+
+- **CSV v15.1 Contract**: Firmware and trainer schema now emit/expect 219 CSV columns, preserving the original 207-column v15 prefix exactly and appending loop timing, heap, radar/CRC, I2C/LCD, watchdog, command, and uptime diagnostics as columns 208-219.
+- **Legacy Tolerance**: Trainer parsing pads 207-column v15 rows and older supported legacy rows to the current right edge without failing ML readiness or contract diagnosis solely because field diagnostics are absent.
+- **Live Audit Surfacing**: Angular Live Audit surfaces loop mean/max, heap free/min, firmware uptime, and fault counters with demo-mode values; docs/help/static contract tests updated to describe the 219-column current contract.
+- **Verification**: `python -m pytest -q tests/test_v12_static_contract.py` 16/16; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer` clean; `python -m rvt_trainer --help` clean; `npm --prefix web run build` clean with known bundle warning; `npm run build:web` and `npm run build:check` clean; `npm --prefix web run test:ci` 42/42; focused Playwright Live diagnostics/lock-state smoke 8/8 across desktop, Pixel 7, iPhone 14, and iPad; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6` clean with existing LiquidCrystal architecture warning. Full `dashboard.spec.ts` timed out locally before completion.
+
+### 2026-06-12 — PR56: Subject Placement Guidance & Advisory Start Gate on Home
+
+- **Placement Zone Chip**: The Home radar-scope Range metric now classifies live `distance_cm` into the firmware's distance-confidence bands (Too close <40 cm / Optimal 40–100 / Good ≤140 / Acceptable ≤180 / Out of range) with per-zone color tokens and an actionable hint line (mirrors Seeed's ≤1.5 m chest-height guidance for the MR60BHA2).
+- **Advisory Start Gate**: When preflight has non-blocking unpassed checks, a hint above Start states how many need review while making explicit that starting is still allowed — blocking semantics unchanged (`canStartSession()` untouched).
+- **Verification**: Build clean; monolith round-trip clean; new placement smoke spec 1/1 on desktop Chromium.
+
+### 2026-06-12 — PR55: Operator-Selectable Session Comparison Overlay & Delta Table
+
+- **Comparison Picker**: The Report "Session Comparison" card (previously fixed Selected/Previous/Best stats from `/api/sessions/<id>/compare`) gains a mat-select to compare against any other recorded session, fetching only the existing `/summary` + `/data?points=1000` routes (read-only; no new API surface).
+- **Trend Overlay**: The HR/RR report trend canvases overlay the comparison series as a dashed, 65 %-alpha line on a shared vertical axis with the selected session; an explanatory note names the overlaid session.
+- **Delta Table**: Mean HR Δ, mean RR Δ (neutral tone), HR coverage Δ (better/worse colored), and both verdicts. Switching the selected session clears the overlay to avoid stale cross-session reads.
+- **Verification**: Build clean; vitest 42/42; new comparison smoke spec 1/1 on desktop Chromium (covers picker, overlay note, delta rows, and stale-overlay clearing); monolith round-trip clean.
+
+### 2026-06-12 — PR54: Keyboard Parity — Wire Ctrl+Z/H/L Stubs and D Demo Toggle
+
+- **Stubs Replaced With Real Features**: The layout shell's Ctrl+Z / Ctrl+H / Ctrl+L handlers still showed "not yet available" snackbars even though `UndoService`, the operator-handoff dialog, and `IdleLockService` shipped in PR43/44. Ctrl+Z now performs the undo (with "Undid: <label>" / "Nothing to undo." feedback), Ctrl+H opens the handoff brief (same dialog options as the palette path), Ctrl+L locks the station immediately.
+- **`D` Demo Toggle (v11 parity)**: Plain `d` toggles demo mode with explanatory snackbars; turning demo off does not force a reconnect (Settings remains the explicit reconnect path).
+- **Cheat-Sheet Sync**: The keyboard-shortcuts dialog documents the four newly-live bindings. Audit note: the remaining v11 single-key map (1-5/h/l/r/w/s, t, space, a, e/x, b/v, [, Shift+F, ?, Alt+1-0) was verified already implemented — the legacy-parity gap list overstated this; chart zoom remains out (v12 draws raw canvas; Chart.js+zoom plugin are vendored for the legacy contract only, so zoom needs a custom-canvas design, deferred deliberately).
+- **Verification**: Build clean; `npm --prefix web run test:ci` 42/42; new shortcut smoke spec 1/1 on desktop Chromium; monolith round-trip clean.
+
+### 2026-06-12 — PR53: Session Quality Scorecard in Report
+
+- **Quality Card**: Report renders a "Session Quality" card sourced entirely from the existing `/api/sessions/<id>/summary` payload (no new API surface): `signal_quality` stat tiles (PQI lock %, session quality score, internal consistency, locked/settling coverage), an HR/RR accuracy table (RMSE/MAE/bias/coverage vs the reference), readiness gate chips (pass/fail/deferred), and the ML-readiness verdict `categories[]` with remediation text for non-pass items. Card hides entirely when a summary carries none of these blocks (older sessions degrade gracefully).
+- **Demo Parity**: The sandbox `/summary` response now includes a simulated quality block + structured verdict with categories so the card is demo-visible; the hero banner still shows "DEMO — Simulated Data Only" via the `sandbox` flag.
+- **Verification**: `npm --prefix web run build` clean (known budget warning); `npm run build:web` round-trip clean; `npm --prefix web run test:ci` 42/42; new scorecard smoke + adjacent report review/print specs 3/3 on desktop Chromium. Visual baselines pending the Windows refresh pass noted in PR52.
+
+### 2026-06-12 — PR52: Live Signal Lock-State, Confidence, Motion & Readiness Surfacing
+
+- **Lock-State Chip**: The Live command strip now shows the firmware presence/DSP phase (`radar.session_phase_name`: No subject / Warming up / Settling / Signal locked / Recovering after motion / Subject leaving) with per-phase Material color tokens and icons; values were already published per second by the trainer and previously unconsumed (grep-verified zero UI usage).
+- **Motion + Readiness Chips**: A motion chip ("Motion — readings hold briefly") renders while `doppler_motion`/`motion` is active; a readiness chip surfaces `analysis.ml_readiness_verdict.verdict` when present. All chips de-emphasize under stale telemetry and announce politely via `role="status"`.
+- **KPI Confidence/Validity**: HR card gains an `hr_confidence` percent badge with `hr_confidence_source_name` in the native tooltip/aria-label; HR/RR values dim with an explicit "holding" tag when `logged_hr_valid`/`logged_rr_valid` is 0 — values are never hidden, only de-emphasized.
+- **Demo Parity**: Demo telemetry simulates the phase lifecycle (warmup→settling→locked), a 3 s motion burst every 45 s with confidence dip + HR holding, `AUTO_PHASE` confidence source, and a demo readiness verdict, so all new UI is visible without hardware.
+- **Typed Model**: `LivePayload.radar` gains optional typed quality fields (additive; index signature preserved).
+- **Verification**: `npm --prefix web run build` clean (known budget warning); `npm --prefix web run test:ci` 42/42; `npm run build:web` round-trip clean; new + adjacent demo smoke specs 3/3 on desktop Chromium (local build 1194 stand-in; CI uses pinned 1193). Visual baselines NOT refreshed here (Windows-only contract) — the Live command strip change requires a Windows `npm run test:visual:update` pass before merge.
+
+### 2026-06-12 — PR51 Follow-up: Scannable Pairing QR over the Loopback Channel
+
+- **QR Restored Without the LAN Leak**: `/api/native-pairing-info?format=qr` (loopback-only, LAN-bind-only) now returns `qr_png_base64` + `qr_target_url` generated by the existing `_qr_png_bytes` helper; `/api/server-info` stays metadata-only. The EXE Settings sharing card renders the QR as a data-URL `<img>` so phones pair by camera scan with zero typing; the copyable link and PIN/TTL remain as fallbacks.
+- **LAN Auth Gate Fix**: `_require_control_auth` now allows GET `/api/native-pairing-info` from loopback clients before the LAN pairing-token gate — previously the EXE native bridge received 401 in exactly the LAN-share mode the card exists for; the route handler still 403s non-loopback clients by IP.
+- **LAN Port Probe Fix**: `ensure_lan_port_available` probes `0.0.0.0:8765` instead of loopback so conflicts bound only to a LAN interface are caught before spawning the sidecar.
+- **Docs/Test Sync**: De-duplicated the contradictory sharing bullets in `docs/standalone-exe-and-apk-scope.md`; added pytest coverage (server-info never exposes PIN/QR material incl. under LAN token, QR is LAN-bind-gated, PNG magic + target URL asserted) and a Playwright API spec for local-bind QR refusal; lifecycle vitest specs updated for the `?format=qr` fetch, QR data-URL signal, and made order-independent against the constructor bootstrap race.
+- **Verification**: `python -m pytest -q tests` 92/92; `npm --prefix web run test:ci` 42/42; `python -m compileall` clean. Not run here (Linux container): `cargo test`, Windows EXE manual pair, visual baselines.
+
 ### 2026-06-12 — PR51 Blocking Review Fixes
 
 - **Pairing PIN Leak Closed**: Removed the public `/api/server-info?format=qr` image behavior and kept `/api/server-info` metadata-only; added loopback-only `/api/native-pairing-info` for the Windows EXE native bridge to read the active PIN/TTL without exposing it to LAN clients.

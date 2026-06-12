@@ -92,6 +92,13 @@
               </div>
 
               @if (serverLifecycle.pairingInfo(); as info) {
+                @if (serverLifecycle.pairingQrDataUrl(); as qr) {
+                  <div class="pairing-qr-block">
+                    <img class="pairing-qr-img" [src]="qr" width="196" height="196"
+                         alt="QR code for phone pairing. Scanning opens the trainer pairing link on the phone." />
+                    <span class="pairing-expiry">Scan with the phone camera — no typing needed.</span>
+                  </div>
+                }
                 <div class="pairing-address-block">
                   <span class="pairing-label">Open on the phone</span>
                   @if (serverLifecycle.pairingUrl(); as link) {

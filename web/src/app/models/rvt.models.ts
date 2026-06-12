@@ -164,6 +164,28 @@ export interface LivePayload {
     motion?: number;
     human?: boolean;
     rows?: number;
+    session_phase?: number;
+    session_phase_name?: string;
+    hr_locked_live?: number;
+    hr_confidence?: number | null;
+    hr_confidence_source_name?: string;
+    logged_hr_valid?: number;
+    logged_rr_valid?: number;
+    doppler_motion?: number;
+    pqi_heart?: number;
+    pqi_breath?: number;
+    loop_dt_mean_ms?: number;
+    loop_dt_max_ms?: number;
+    heap_free_kb?: number;
+    heap_min_free_kb?: number;
+    radar_uart_overflow_count?: number;
+    radar_crc_err_count?: number;
+    i2c_recover_count?: number;
+    lcd_reinit_count?: number;
+    wdt_near_miss_count?: number;
+    cmd_rx_count?: number;
+    cmd_err_count?: number;
+    fw_uptime_s?: number;
   };
   ble: Record<string, unknown> & {
     address?: string;

@@ -242,3 +242,11 @@
 :host-context(html[data-theme='hc']) .crumb-eyebrow {
   color: #fff !important;
 }
+
+.conn-retry-countdown {
+  margin-right: 0.4rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}

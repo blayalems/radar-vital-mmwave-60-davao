@@ -193,6 +193,18 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         const ble = payload.ble || {};
         const radarHr = Number(radar.reported_hr);
         const radarRr = Number(radar.reported_rr);
+        // Cache the last accepted publish so the "holding" state can keep
+        // showing it (the firmware emits 0 while a publish is held).
+        if (radarHr > 0) this.lastGoodHr.set(Math.round(radarHr));
+        if (radarRr > 0) this.lastGoodRr.set(Math.round(radarRr));
+        const pqiHeartNow = Number(radar.pqi_heart);
+        const pqiBreathNow = Number(radar.pqi_breath);
+        if (Number.isFinite(pqiHeartNow)) {
+          this.pqiHeartHist.update(history => [...history.slice(-59), pqiHeartNow]);
+        }
+        if (Number.isFinite(pqiBreathNow)) {
+          this.pqiBreathHist.update(history => [...history.slice(-59), pqiBreathNow]);
+        }
         const bleHr = Number(ble.hr);
         const bleRr = Number(ble.rr);
         const pqiHr = Number((radar['candidate_conf'] !== undefined && radar['candidate_conf'] !== null && radar['candidate_conf'] !== '') ? radar['candidate_conf'] : (this.telemetryValue('candidate_hr_conf') ?? 0.5));
@@ -913,6 +925,116 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     const median = deltas[Math.floor(deltas.length / 2)];
     return median > 0 ? (1 / median).toFixed(1) : '--';
   });
+
+  // ---- Signal lock-state / confidence / motion surfacing (fields already
+  // published per second by the trainer inside the radar block) ----
+  private static readonly PHASE_LABELS: Record<string, string> = {
+    ABSENT: 'No subject detected',
+    WARMUP: 'Warming up',
+    SETTLING: 'Settling',
+    LOCKED: 'Signal locked',
+    POST_MOTION: 'Recovering after motion',
+    LEAVING: 'Subject leaving'
+  };
+  private static readonly PHASE_ICONS: Record<string, string> = {
+    ABSENT: 'person_off',
+    WARMUP: 'hourglass_top',
+    SETTLING: 'av_timer',
+    LOCKED: 'gpp_good',
+    POST_MOTION: 'directions_run',
+    LEAVING: 'logout'
+  };
+  private static readonly VERDICT_LABELS: Record<string, string> = {
+    ready: 'Readiness: READY',
+    conditional: 'Readiness: CONDITIONAL',
+    deferred: 'Readiness: DEFERRED',
+    degraded_signal: 'Readiness: DEGRADED SIGNAL',
+    not_ready: 'Readiness: NOT READY',
+    firmware_rejected: 'Readiness: FIRMWARE REJECTED',
+    schema_warning: 'Readiness: SCHEMA WARNING',
+    provenance_warning: 'Readiness: PROVENANCE WARNING'
+  };
+
+  // Reset per-session caches when the active session changes so back-to-back
+  // sessions never flash the previous session's held values or SQI history.
+  private lastSeenSessionId: string | null | undefined = undefined;
+  private readonly sessionCacheReset = effect(() => {
+    const sessionId = this.state.currentSessionId();
+    if (this.lastSeenSessionId !== undefined && sessionId !== this.lastSeenSessionId) {
+      this.lastGoodHr.set(null);
+      this.lastGoodRr.set(null);
+      this.pqiHeartHist.set([]);
+      this.pqiBreathHist.set([]);
+    }
+    this.lastSeenSessionId = sessionId;
+  });
+
+  protected readonly lastGoodHr = signal<number | null>(null);
+  protected readonly lastGoodRr = signal<number | null>(null);
+
+  // Rolling 60 s SQI history feeding the time-segmented ribbons under the
+  // waveforms (v11 parity). Thresholds match the Bland-Altman PQI coloring.
+  protected readonly pqiHeartHist = signal<number[]>([]);
+  protected readonly pqiBreathHist = signal<number[]>([]);
+
+  protected ribbonSegments(kind: 'heart' | 'breath'): string[] {
+    const history = kind === 'heart' ? this.pqiHeartHist() : this.pqiBreathHist();
+    return history.map(value => (value >= 0.3 ? 'sqi-seg good' : value >= 0.15 ? 'sqi-seg warn' : 'sqi-seg bad'));
+  }
+
+  protected ribbonLabel(kind: 'heart' | 'breath'): string {
+    const history = kind === 'heart' ? this.pqiHeartHist() : this.pqiBreathHist();
+    if (!history.length) return `${kind === 'heart' ? 'Heart' : 'Breath'} signal quality ribbon — waiting for data.`;
+    const good = history.filter(value => value >= 0.3).length;
+    return `${kind === 'heart' ? 'Heart' : 'Breath'} signal quality ribbon — ${Math.round((good / history.length) * 100)}% of the last ${history.length} seconds at good quality.`;
+  }
+
+  protected hrValueDisplay(): string {
+    const value = Number(this.state.lastPayload()?.radar?.reported_hr);
+    if (value > 0) return String(Math.round(value));
+    const held = this.lastGoodHr();
+    return this.hrHolding() && held !== null ? String(held) : '--';
+  }
+
+  protected rrValueDisplay(): string {
+    const value = Number(this.state.lastPayload()?.radar?.reported_rr);
+    if (value > 0) return String(Math.round(value));
+    const held = this.lastGoodRr();
+    return this.rrHolding() && held !== null ? String(held) : '--';
+  }
+
+  protected readonly sessionPhaseName = computed(() =>
+    String(this.state.lastPayload()?.radar?.session_phase_name ?? '').toUpperCase());
+  protected readonly sessionPhaseLabel = computed(() =>
+    LiveComponent.PHASE_LABELS[this.sessionPhaseName()] ?? '');
+  protected readonly sessionPhaseIcon = computed(() =>
+    LiveComponent.PHASE_ICONS[this.sessionPhaseName()] ?? 'sensors');
+  protected readonly motionActive = computed(() => {
+    const radar = this.state.lastPayload()?.radar;
+    return Number(radar?.doppler_motion ?? 0) >= 1 || Number(radar?.motion ?? 0) >= 1;
+  });
+  protected readonly hrConfidencePct = computed<number | null>(() => {
+    const value = Number(this.state.lastPayload()?.radar?.hr_confidence);
+    return Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value * 100))) : null;
+  });
+  protected readonly hrConfidenceSource = computed(() =>
+    String(this.state.lastPayload()?.radar?.hr_confidence_source_name ?? ''));
+  protected readonly hrHolding = computed(() => {
+    const value = this.state.lastPayload()?.radar?.logged_hr_valid;
+    return value !== undefined && value !== null && Number(value) === 0;
+  });
+  protected readonly rrHolding = computed(() => {
+    const value = this.state.lastPayload()?.radar?.logged_rr_valid;
+    return value !== undefined && value !== null && Number(value) === 0;
+  });
+  protected readonly liveVerdict = computed(() => {
+    const analysis = this.state.lastPayload()?.analysis as Record<string, unknown> | null;
+    const verdictObj = analysis?.['ml_readiness_verdict'] as Record<string, unknown> | undefined;
+    const verdict = typeof verdictObj?.['verdict'] === 'string' ? String(verdictObj['verdict']) : '';
+    return verdict in LiveComponent.VERDICT_LABELS ? verdict : '';
+  });
+  protected readonly liveVerdictLabel = computed(() =>
+    this.liveVerdict() ? LiveComponent.VERDICT_LABELS[this.liveVerdict()] : '');
 
   protected readonly hrBiasBuckets = computed(() => {
     const raw = this.seriesNumbers('raw_hr_uncorrected', 'raw_hr');

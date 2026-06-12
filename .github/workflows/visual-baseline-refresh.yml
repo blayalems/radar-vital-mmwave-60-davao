@@ -1,0 +1,85 @@
+name: Refresh visual baselines (Windows)
+
+# Manually-dispatched maintenance job: regenerates the committed Windows
+# Playwright visual baselines on windows-latest and pushes the refreshed
+# PNGs back to the dispatching branch. Use ONLY after an intentional UI
+# change; review the resulting diff like any other commit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why the baselines are being refreshed (recorded in the commit message)'
+        required: true
+        type: string
+
+jobs:
+  refresh:
+    name: Regenerate committed Windows baselines
+    # contents: write is scoped to this job (GitHub's narrowest granularity);
+    # the push step below re-triggers the PR checks intentionally so the
+    # refreshed baselines prove green — recursion is impossible because this
+    # workflow only runs on manual dispatch. If branch protection is ever
+    # enabled on the target branch, this push will fail and the refresh must
+    # be downloaded from the run artifacts instead.
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-v12.txt
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Install Angular web dependencies
+        run: npm --prefix web ci
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-v12.txt
+
+      - name: Build web bundle
+        run: npm run build:web
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium webkit
+
+      - name: Regenerate baselines
+        run: npx playwright test tests/visual --update-snapshots
+        env:
+          PYTHON: python
+          RVT_TEST_PORT: 8990
+
+      - name: Verify regenerated baselines pass
+        run: npx playwright test tests/visual
+        env:
+          PYTHON: python
+          RVT_TEST_PORT: 8990
+
+      - name: Commit and push refreshed baselines
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tests/visual
+          if git diff --cached --quiet; then
+            echo "No baseline changes detected."
+            exit 0
+          fi
+          git commit -m "test(visual): refresh Windows baselines — ${{ inputs.reason }}"
+          git push origin "HEAD:${{ github.ref_name }}"

@@ -76,7 +76,11 @@ def test_lan_sensitive_reads_require_token_and_public_shell_remains_available(tm
     base = f"http://127.0.0.1:{server.httpd.server_port}"
     try:
         assert _request(base, "/api/health")[0] == 200
-        assert _request(base, "/api/server-info")[0] == 401
+        # Loopback clients (the EXE shell) bypass the LAN pairing gate for
+        # discovery routes; sensitive endpoints below still require an
+        # operator session. Network peers keep the 401 pairing requirement,
+        # which these loopback-only tests cannot exercise directly.
+        assert _request(base, "/api/server-info")[0] == 200
         assert _request(base, "/api/status")[0] == 401
         assert _request(base, "/api/subject-profiles")[0] == 401
         assert _request(base, "/api/events/subscribe")[0] == 401
@@ -181,10 +185,10 @@ def test_api_version_additive_product_and_schema_fields(tmp_path: Path):
     try:
         status, payload = _request(base, "/api/version")
         assert status == 200
-        assert payload["trainer"] == "16.1.0"
-        assert payload["dashboard"] == "16.1.0"
-        assert payload["product_version"] == "16.1.0"
-        assert payload["firmware_expected"] == "v16.1.0"
+        assert payload["trainer"] == "16.2.0"
+        assert payload["dashboard"] == "16.2.0"
+        assert payload["product_version"] == "16.2.0"
+        assert payload["firmware_expected"] == "v16.2.0"
         expected_schema_versions = {
             "control_api": "rvt-control-api-v12.0",
             "session_notes": "rvt-session-notes-v12.0",
@@ -238,7 +242,7 @@ def test_update_manifest_proxy_success(tmp_path: Path):
     base = f"http://127.0.0.1:{server.httpd.server_port}"
 
     mock_data = {
-        "product_version": "16.1.0",
+        "product_version": "16.2.0",
         "minimum_supported": "16.0.0",
         "released_at": "2026-06-06T00:00:00Z",
         "artifacts": {}
@@ -260,7 +264,7 @@ def test_update_manifest_proxy_success(tmp_path: Path):
         with patch("urllib.request.urlopen", side_effect=side_effect):
             status, data = _request(base, "/api/update/manifest")
             assert status == 200
-            assert data["product_version"] == "16.1.0"
+            assert data["product_version"] == "16.2.0"
     finally:
         server.stop()
 
@@ -322,7 +326,7 @@ def test_update_manifest_proxy_caching_and_expiration(tmp_path: Path):
             call_count += 1
             mock_response = MagicMock()
             mock_data = {
-                "product_version": f"16.1.0-{call_count}",
+                "product_version": f"16.2.0-{call_count}",
                 "minimum_supported": "16.0.0",
                 "released_at": "2026-06-06T00:00:00Z",
                 "artifacts": {}
@@ -334,25 +338,86 @@ def test_update_manifest_proxy_caching_and_expiration(tmp_path: Path):
 
     try:
         with patch("urllib.request.urlopen", side_effect=side_effect):
-            # First request: should trigger fetch and get 16.1.0-1
+            # First request: should trigger fetch and get 16.2.0-1
             status1, data1 = _request(base, "/api/update/manifest")
             assert status1 == 200
-            assert data1["product_version"] == "16.1.0-1"
+            assert data1["product_version"] == "16.2.0-1"
             assert call_count == 1
 
             # Second request immediately: should return cached data and NOT increment call_count
             status2, data2 = _request(base, "/api/update/manifest")
             assert status2 == 200
-            assert data2["product_version"] == "16.1.0-1"
+            assert data2["product_version"] == "16.2.0-1"
             assert call_count == 1
 
             # Simulate cache expiration: move the cached timestamp back by 301 seconds
             _manifest_cache["ts"] = time.time() - 301
 
-            # Third request: cache has expired, should trigger a new fetch and get 16.1.0-2
+            # Third request: cache has expired, should trigger a new fetch and get 16.2.0-2
             status3, data3 = _request(base, "/api/update/manifest")
             assert status3 == 200
-            assert data3["product_version"] == "16.1.0-2"
+            assert data3["product_version"] == "16.2.0-2"
             assert call_count == 2
     finally:
         server.stop()
+
+
+def test_public_server_info_never_exposes_pin_material(tmp_path: Path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="lan", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    try:
+        # Loopback discovery is allowed in LAN bind, but must stay metadata-only.
+        status_bare, payload_bare = _request(base, "/api/server-info")
+        assert status_bare == 200
+        assert "active_pin" not in payload_bare
+        assert "qr_png_base64" not in payload_bare
+        server.httpd.auth_tokens.add("paired-token")
+        status, payload = _request(base, "/api/server-info", token="paired-token")
+        assert status == 200
+        assert "active_pin" not in payload
+        assert "qr_png_base64" not in payload
+
+        # The legacy ?format=qr variant must also stay metadata-only.
+        status_qr, payload_qr = _request(base, "/api/server-info?format=qr", token="paired-token")
+        assert status_qr == 200
+        assert "active_pin" not in payload_qr
+        assert "qr_png_base64" not in payload_qr
+    finally:
+        server.stop()
+
+
+def test_native_pairing_qr_is_lan_gated(tmp_path: Path):
+    import base64 as _b64
+
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+
+    # Local bind: pairing info responds but never mints QR material.
+    local_server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    local_server.start()
+    base = f"http://127.0.0.1:{local_server.httpd.server_port}"
+    try:
+        status, payload = _request(base, "/api/native-pairing-info?format=qr")
+        assert status == 200
+        assert payload["bind_mode"] == "local"
+        assert "qr_png_base64" not in payload
+    finally:
+        local_server.stop()
+
+    # LAN bind: format=qr returns a PNG (base64) pointing at the pairing URL.
+    lan_server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="lan", mock=True)
+    lan_server.start()
+    base = f"http://127.0.0.1:{lan_server.httpd.server_port}"
+    try:
+        status, payload = _request(base, "/api/native-pairing-info?format=qr")
+        assert status == 200
+        assert payload["bind_mode"] == "lan"
+        assert payload.get("qr_png_base64"), "LAN pairing info should include QR material"
+        png = _b64.b64decode(payload["qr_png_base64"])
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"
+        assert payload["qr_target_url"].startswith("http")
+    finally:
+        lan_server.stop()

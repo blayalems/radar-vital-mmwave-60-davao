@@ -239,7 +239,7 @@
         "kpi.fps": "Effective radar/DSP frame cadence. Very low FPS can make trend and freshness decisions less reliable.",
         "kpi.distance": "Current target range from radar spatial telemetry.",
         "preflight.python_env": "Checks required Python packages before hardware collection starts.",
-        "preflight.firmware_file_present": "Parses the firmware DATA header and verifies the expected v15 207-column contract.",
+        "preflight.firmware_file_present": "Parses the firmware DATA header and verifies the expected v15.1 219-column contract while preserving the 207-column legacy prefix.",
         "preflight.serial_port_list": "Lists serial ports and checks whether the selected radar port is present.",
         "preflight.serial_port_probe": "Opens the selected radar port briefly and listens passively for boot/header evidence.",
         "preflight.ble_adapter": "Exercises the Bluetooth adapter through Bleak discovery.",
@@ -411,7 +411,7 @@
             "id": "firmware_contract_mismatch",
             "title": "Firmware contract mismatch",
             "steps": [
-                "Use the v15.0.0 firmware source beside the trainer.",
+                "Use the v16.2.0 firmware source beside the trainer.",
                 "Reflash if the device emits a different header.",
                 "Do not train from mismatched sessions."
             ]

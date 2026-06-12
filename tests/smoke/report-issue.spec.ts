@@ -1,10 +1,12 @@
 // TODO(Wave 2): unskip when <app-report-issue-card> is mounted in Settings
 import { test, expect } from '@playwright/test';
 import { seedFirstRunComplete } from './helpers/first-run';
-import { GITHUB_REPO_URL } from '../../web/src/app/services/app-meta';
 
 const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
 const DIAGNOSTICS_KEY = 'rvt-diagnostics-optin';
+// Mirrors GITHUB_REPO_URL in web/src/app/services/app-meta.ts — Playwright's
+// loader cannot named-import from the Angular sources (CommonJS interop).
+const GITHUB_REPO_URL = 'https://github.com/blayalems/radar-vital-mmwave-60-davao';
 const ISSUES_NEW_URL = `${GITHUB_REPO_URL}/issues/new`;
 
 test.describe.skip('Report-issue card (Wave 2: mount in Settings first)', () => {

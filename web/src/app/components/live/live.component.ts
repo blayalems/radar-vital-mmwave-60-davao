@@ -197,6 +197,14 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         // showing it (the firmware emits 0 while a publish is held).
         if (radarHr > 0) this.lastGoodHr.set(Math.round(radarHr));
         if (radarRr > 0) this.lastGoodRr.set(Math.round(radarRr));
+        const pqiHeartNow = Number(radar.pqi_heart);
+        const pqiBreathNow = Number(radar.pqi_breath);
+        if (Number.isFinite(pqiHeartNow)) {
+          this.pqiHeartHist.update(history => [...history.slice(-59), pqiHeartNow]);
+        }
+        if (Number.isFinite(pqiBreathNow)) {
+          this.pqiBreathHist.update(history => [...history.slice(-59), pqiBreathNow]);
+        }
         const bleHr = Number(ble.hr);
         const bleRr = Number(ble.rr);
         const pqiHr = Number((radar['candidate_conf'] !== undefined && radar['candidate_conf'] !== null && radar['candidate_conf'] !== '') ? radar['candidate_conf'] : (this.telemetryValue('candidate_hr_conf') ?? 0.5));
@@ -949,6 +957,23 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   protected readonly lastGoodHr = signal<number | null>(null);
   protected readonly lastGoodRr = signal<number | null>(null);
+
+  // Rolling 60 s SQI history feeding the time-segmented ribbons under the
+  // waveforms (v11 parity). Thresholds match the Bland-Altman PQI coloring.
+  protected readonly pqiHeartHist = signal<number[]>([]);
+  protected readonly pqiBreathHist = signal<number[]>([]);
+
+  protected ribbonSegments(kind: 'heart' | 'breath'): string[] {
+    const history = kind === 'heart' ? this.pqiHeartHist() : this.pqiBreathHist();
+    return history.map(value => (value >= 0.3 ? 'sqi-seg good' : value >= 0.15 ? 'sqi-seg warn' : 'sqi-seg bad'));
+  }
+
+  protected ribbonLabel(kind: 'heart' | 'breath'): string {
+    const history = kind === 'heart' ? this.pqiHeartHist() : this.pqiBreathHist();
+    if (!history.length) return `${kind === 'heart' ? 'Heart' : 'Breath'} signal quality ribbon — waiting for data.`;
+    const good = history.filter(value => value >= 0.3).length;
+    return `${kind === 'heart' ? 'Heart' : 'Breath'} signal quality ribbon — ${Math.round((good / history.length) * 100)}% of the last ${history.length} seconds at good quality.`;
+  }
 
   protected hrValueDisplay(): string {
     const value = Number(this.state.lastPayload()?.radar?.reported_hr);

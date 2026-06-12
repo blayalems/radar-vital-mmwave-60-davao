@@ -531,6 +531,11 @@
               }
               <mat-progress-bar mode="determinate" [value]="qualityPercent('pqi_breath')" class="quality-bar rr-quality"></mat-progress-bar>
               <span class="quality-label">{{ qualityLabel('pqi_breath') }}</span>
+              <div class="sqi-ribbon" role="img" [attr.aria-label]="ribbonLabel('breath')">
+                @for (seg of ribbonSegments('breath'); track $index) {
+                  <span [class]="seg"></span>
+                }
+              </div>
             </div>
 
             <div class="waveform-chart-wrap">
@@ -566,6 +571,11 @@
               }
               <mat-progress-bar mode="determinate" [value]="qualityPercent('pqi_heart')" class="quality-bar hr-quality"></mat-progress-bar>
               <span class="quality-label">{{ qualityLabel('pqi_heart') }}</span>
+              <div class="sqi-ribbon" role="img" [attr.aria-label]="ribbonLabel('heart')">
+                @for (seg of ribbonSegments('heart'); track $index) {
+                  <span [class]="seg"></span>
+                }
+              </div>
             </div>
           </mat-card-content>
         </mat-card>

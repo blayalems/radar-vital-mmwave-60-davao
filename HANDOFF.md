@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — PR60: SQI Time-Ribbons (v11 Parity) + Windows Baseline-Refresh Workflow
+
+- **SQI Ribbons**: The Waves tab quality bars gain v11-style time-segmented ribbons — a rolling 60 s client-side PQI history per waveform, colored with the same thresholds as the Bland-Altman scatter (good >= 0.3, warn 0.15-0.3, bad < 0.15), with screen-reader summaries of the good-quality percentage.
+- **Baseline Refresh Workflow**: New `workflow_dispatch` job `.github/workflows/visual-baseline-refresh.yml` regenerates the committed Windows visual baselines on `windows-latest`, verifies they pass, and pushes the refreshed PNGs to the dispatching branch with the operator-supplied reason. This unblocks intentional-UI PRs authored off-Windows; dispatch it once after the final UI commit of this series.
+- **Verification**: Build clean; vitest 42/42; extended signal-chips smoke spec (now covering ribbons) 1/1 on desktop Chromium; monolith round-trip clean.
+
 ### 2026-06-12 — Connection Clarity, LAN Loopback Gate & PR52 Review Fixes
 
 - **Connection Clarity**: Topbar disconnected state shows a live "auto-retry in Ns" countdown driven by the telemetry service's SSE reconnect schedule (`nextRetryAtMs` signal, cleared on connect); the contractual 12 h SSE `session_warning` (`deadline_approaching`) renders as "Live stream renews in 60 seconds — automatic, no action needed" instead of a generic warning.

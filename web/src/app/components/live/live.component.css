@@ -1398,3 +1398,23 @@
     order: 3;
   }
 }
+
+/* ---- Time-segmented SQI ribbons (v11 parity) ---- */
+.sqi-ribbon {
+  display: flex;
+  gap: 1px;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sqi-seg {
+  flex: 1 1 0;
+  min-width: 2px;
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.sqi-seg.good { background: var(--md-sys-color-primary); }
+.sqi-seg.warn { background: var(--md-sys-color-tertiary); }
+.sqi-seg.bad { background: var(--md-sys-color-error); }

@@ -1199,6 +1199,11 @@ test.describe('Dashboard smoke', () => {
 
     // Demo analysis advertises a readiness verdict chip.
     await expect(page.locator('.signal-status-chips .verdict-chip')).toContainText('Readiness:');
+
+    // Waves tab renders the time-segmented SQI ribbons from PQI history.
+    await page.getByRole('tab', { name: 'Waves' }).click();
+    await expect(page.locator('.sqi-ribbon').first()).toBeVisible();
+    expect(await page.locator('.sqi-ribbon .sqi-seg').count()).toBeGreaterThan(0);
   });
 
   test('restores live diagnostics and functional Material actions in demo mode', async ({ page }) => {

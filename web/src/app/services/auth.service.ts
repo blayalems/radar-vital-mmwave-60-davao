@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, effect, inject, signal } from '@angular/core';
 import { ApiService } from './api.service';
 import { StateService } from './state.service';
 import { OperatorProfile, OperatorProfilesResponse, LoginResponse } from '../models/rvt.models';
@@ -23,6 +23,13 @@ export class AuthService {
   private lockoutTimers = new Map<string, any>();
 
   constructor() {
+    effect(() => {
+      const status = this.state.ctlStatus();
+      if (!this.loading() && !this.isLocked() && status?.reason === 'unauthenticated') {
+        this.loginError.set('Operator session expired. Sign in again to continue.');
+        this.lock();
+      }
+    });
     void this.checkAuthInit();
   }
 

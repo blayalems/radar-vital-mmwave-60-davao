@@ -528,10 +528,8 @@ static bool nvsReopenAttempted = false;
 static bool nvsWriteDisabledForBoot = false;
 static bool wdtActive = false;
 static const unsigned long RADAR_RECOVERY_GRACE_MS = 3000UL;
-static const unsigned long BH1750_RETRY_INTERVAL_MS = 10000UL;
 static const unsigned long PERIPH_BACKOFF_MIN_MS = 3000UL;
 static const unsigned long PERIPH_BACKOFF_MAX_MS = 300000UL;
-static unsigned long lastBh1750RetryMs = 0UL;
 static unsigned long lastLcdRescanMs = 0UL;
 struct PeriphBackoff {
   const char* label;
@@ -3897,9 +3895,13 @@ static void updatePowerSave(unsigned long now, bool presenceVote) {
   }
 
   if (!powerSaveActive && idleEligible) {
-    powerSaveNormalCpuMhz = getCpuFrequencyMhz();
+    uint32_t currentCpuMhz = getCpuFrequencyMhz();
+    powerSaveNormalCpuMhz = currentCpuMhz > 0 ? currentCpuMhz : 0;
+    if (powerSaveNormalCpuMhz == 0) {
+      Serial.println("[POWER] warning: cpu frequency read as 0 before idle power save");
+    }
     setLcdBacklightDimmed(true);
-    if (powerSaveNormalCpuMhz != 80UL) setCpuFrequencyMhz(80);
+    if (powerSaveNormalCpuMhz > 0 && powerSaveNormalCpuMhz != 80UL) setCpuFrequencyMhz(80);
     powerSaveActive = true;
     lastLedBrightness = 0xFF;
     Serial.printf("[POWER] idle power save entered absent_ms=%lu cpu_mhz=%lu mlx_interval_ms=%lu\n",
@@ -6348,7 +6350,6 @@ void loop() {
     }
 
     if (!bh1750Ready && periphBackoffReady(bh1750Backoff, now)) {
-      lastBh1750RetryMs = now;
       i2cRecover();
       tryInitBH1750();
     }

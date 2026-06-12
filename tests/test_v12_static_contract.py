@@ -373,10 +373,13 @@ def test_firmware_pr59_power_thermal_guards_present():
 
     assert "#define RV_POWER_SAVE 0" in ino
     assert "#define RV_LCD_LUX_BACKLIGHT RV_POWER_SAVE" in ino
+    assert "BH1750_RETRY_INTERVAL_MS" not in ino
+    assert "lastBh1750RetryMs" not in ino
     assert "POWER_SAVE_ABSENT_MS = 60000UL" in ino
     assert "POWER_SAVE_MLX_INTERVAL_MS = 10000UL" in ino
     assert "setCpuFrequencyMhz(80)" in ino
     assert "getCpuFrequencyMhz()" in ino
+    assert "cpu frequency read as 0 before idle power save" in ino
     assert "setLcdBacklightDimmed(true)" in ino
     assert "setLcdBacklightDimmed(false)" in ino
     assert "if (powerSaveActive && brite > 4) brite = 4;" in ino

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-12 — Codex/Claude-Safe PR52 Review Follow-up
+
+- **Non-overlap after Claude sync**: Fast-forwarded to Claude's `3c9b4bc` review-fix commit before adding this follow-up, preserving its B1/B2/M1-M3/A1 fixes. Added a frontend stale-session guard so any live `ctlStatus.reason === "unauthenticated"` outside an active login flow locks the operator UI and clears the dead token instead of leaving controls unlocked.
+- **Firmware advisories**: Removed the dead `BH1750_RETRY_INTERVAL_MS` / `lastBh1750RetryMs` retry remnants now superseded by `PeriphBackoff`, and added a logged guard when `getCpuFrequencyMhz()` returns `0` before entering default-off idle power save.
+- **Verification**: `npm --prefix web run test:ci` 43/43; `python -m pytest -q tests` 173 passed, 1 skipped (known Windows pytest temp symlink cleanup warning after exit); `npm run build:web` regenerated the monolith; `npm run build:check` clean with the known initial-bundle budget warning; API/operator smoke 52/52 across desktop, Pixel 7, iPhone 14, and iPad; temp-sketch `arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6` clean with existing LiquidCrystal architecture warning.
+
 ### 2026-06-12 — Review Closure: B1/B2 Blockers, M1–M3 Must-Fixes, A1 Advisory
 
 - **B2 (EXE re-auth after LAN restart)**: `ServerLifecycleService.restartServer()` now calls `auth.lock()` after the sidecar restart — the sidecar wipes in-memory operator sessions, so the station locks immediately and the existing lock overlay walks the operator through PIN re-login against the on-disk profiles instead of leaving a half-broken authenticated UI.

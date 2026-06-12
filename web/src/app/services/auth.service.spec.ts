@@ -125,4 +125,23 @@ describe('AuthService', () => {
       headers: { 'X-RVT-Auth': 'some-token' }
     });
   });
+
+  it('locks the UI when control status reports an invalid operator session', async () => {
+    sessionStorage.setItem(OPERATOR_TOKEN_KEY, 'stale-token');
+    service.isLocked.set(false);
+    service.currentOperator.set({ operator_id: 'op_1', display_name: 'Operator One', initials: 'O1' });
+    mockApi.request.mockResolvedValueOnce({ ok: true });
+
+    state.ctlStatus.set({ ok: true, mode: 'live', reason: 'unauthenticated' });
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(service.isLocked()).toBe(true);
+    expect(service.currentOperator()).toBeNull();
+    expect(sessionStorage.getItem(OPERATOR_TOKEN_KEY)).toBeNull();
+    expect(service.loginError()).toContain('Operator session expired');
+    expect(mockApi.request).toHaveBeenCalledWith('/api/auth/logout', {
+      method: 'POST',
+      headers: { 'X-RVT-Auth': 'stale-token' }
+    });
+  });
 });

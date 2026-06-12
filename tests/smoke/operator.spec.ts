@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
+import { seedFirstRunComplete } from './helpers/first-run';
 
 const PROFILES_PATH = path.resolve(process.cwd(), 'operator_profiles.json');
 const SESSION_PARENT_PROFILES_PATH = path.resolve(process.cwd(), '..', 'operator_profiles.json');
@@ -67,8 +68,9 @@ async function clickConsoleAction(page: import('@playwright/test').Page, name: s
 test.describe('Operator profile and lock system', () => {
   test.use({ serviceWorkers: 'block' });
 
-  test.beforeEach(() => {
+  test.beforeEach(async ({ page }) => {
     cleanProfiles();
+    await seedFirstRunComplete(page);
   });
 
   test.afterAll(() => {

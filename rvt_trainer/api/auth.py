@@ -36,6 +36,11 @@ _PAIR_FAILURE_WINDOW_S = 60.0
 _PAIR_LOCKOUT_S = 60.0
 _PIN_LOCK = threading.Lock()
 
+# Recovery code alphabet (no O/I/0/1 to avoid ambiguity) — Crockford-ish
+_RECOVERY_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789"
+_RECOVERY_FAILURE_LIMIT = 5
+_RECOVERY_LOCKOUT_S = 30.0
+
 
 def make_pair_pin(server) -> str:
     """Mint, store, and return a fresh 6-digit pairing PIN.
@@ -217,6 +222,13 @@ def verify_pin(pin: str, salt: str, pin_hash: str, iterations: int = 200000) -> 
     return hmac.compare_digest(candidate_hash.encode("utf-8"), pin_hash.encode("utf-8"))
 
 
+def _mint_recovery_code() -> str:
+    """Mint a fresh XXXX-XXXX-XXXX recovery code from the unambiguous alphabet."""
+    def group() -> str:
+        return "".join(secrets.choice(_RECOVERY_ALPHABET) for _ in range(4))
+    return f"{group()}-{group()}-{group()}"
+
+
 def login_operator(server, operator_id: str, pin: str) -> Tuple[int, dict]:
     """Authenticate an operator and return token or lockout info."""
     with _OPERATOR_LOCK:
@@ -354,6 +366,12 @@ def create_operator_profile(server, body: dict) -> Tuple[int, dict]:
         pin_hash_val = hash_pin(pin, salt, iterations)
         now_str = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
+        # Mint recovery code — store hash only, never persist plaintext
+        recovery_code = _mint_recovery_code()
+        recovery_salt = secrets.token_hex(16)
+        recovery_iterations = 200000
+        recovery_hash_val = hash_pin(recovery_code, recovery_salt, recovery_iterations)
+
         profile = {
             "operator_id": operator_id,
             "display_name": display_name,
@@ -364,7 +382,12 @@ def create_operator_profile(server, body: dict) -> Tuple[int, dict]:
             "pin_salt": salt,
             "pin_iterations": iterations,
             "failed_attempts": 0,
-            "locked_until": 0.0
+            "locked_until": 0.0,
+            "recovery_hash": recovery_hash_val,
+            "recovery_salt": recovery_salt,
+            "recovery_iterations": recovery_iterations,
+            "recovery_failed_attempts": 0,
+            "recovery_locked_until": 0.0,
         }
 
         profiles[operator_id] = profile
@@ -382,7 +405,187 @@ def create_operator_profile(server, body: dict) -> Tuple[int, dict]:
                 "operator_id": operator_id,
                 "display_name": display_name,
                 "initials": initials
+            },
+            "recovery_code": recovery_code,
+        }
+
+
+def _invalidate_operator_sessions(server, operator_id: str) -> None:
+    """Remove all active sessions for *operator_id* from server.operator_sessions."""
+    if not hasattr(server, "operator_sessions"):
+        return
+    to_drop = [t for t, s in server.operator_sessions.items() if s.get("operator_id") == operator_id]
+    for t in to_drop:
+        server.operator_sessions.pop(t, None)
+
+
+def reset_pin_with_recovery(server, operator_id: str, recovery_code: str, new_pin: str) -> Tuple[int, dict]:
+    """Reset a PIN using the operator's recovery code.
+
+    On success: sets a new PIN, consumes the old recovery code and mints a
+    fresh one, invalidates all existing operator sessions, and appends an
+    audit log line.
+
+    Returns ``(status, body)``.
+    """
+    with _OPERATOR_LOCK:
+        now = time.time()
+
+        if not re.fullmatch(r"\d{4}", str(new_pin or "")):
+            return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "new_pin must be exactly 4 digits"}}
+
+        db = load_operator_profiles(server.sessions_root)
+        profiles = db.get("profiles", {})
+        if operator_id not in profiles:
+            return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid operator ID"}}
+
+        profile = profiles[operator_id]
+
+        # Check recovery lockout (separate from PIN lockout)
+        recovery_locked_until = float(profile.get("recovery_locked_until", 0.0))
+        if recovery_locked_until > now:
+            retry_after = max(1, int(recovery_locked_until - now))
+            return 429, {
+                "ok": False,
+                "error": {
+                    "code": "LOCKOUT_ACTIVE",
+                    "message": f"Too many failed recovery attempts. Try again in {retry_after} seconds.",
+                    "retry_after_s": retry_after,
+                },
             }
+
+        # Legacy profile: no recovery hash present — direct to host-reset
+        r_salt = profile.get("recovery_salt", "")
+        r_hash = profile.get("recovery_hash", "")
+        r_iters = int(profile.get("recovery_iterations", 200000))
+
+        if not r_hash or not r_salt:
+            import sys
+            print(f"[AUTH] reset-pin attempted for legacy profile {operator_id} (no recovery code)", file=sys.stderr)
+            return 400, {
+                "ok": False,
+                "error": {
+                    "code": "NO_RECOVERY_CODE",
+                    "message": (
+                        "This operator profile was created before recovery codes were supported. "
+                        "Use host-reset (POST /api/auth/host-reset) from the local machine to set a new PIN."
+                    ),
+                },
+            }
+
+        code_str = str(recovery_code or "").strip().upper()
+
+        if not verify_pin(code_str, r_salt, r_hash, r_iters):
+            attempts = int(profile.get("recovery_failed_attempts", 0)) + 1
+            profile["recovery_failed_attempts"] = attempts
+            profile["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            if attempts >= _RECOVERY_FAILURE_LIMIT:
+                profile["recovery_locked_until"] = now + _RECOVERY_LOCKOUT_S
+            try:
+                save_operator_profiles(server.sessions_root, db)
+            except Exception:
+                pass
+            import sys
+            print(f"[AUTH] reset-pin failed recovery attempt {attempts}/{_RECOVERY_FAILURE_LIMIT} for operator {operator_id}", file=sys.stderr)
+            if attempts >= _RECOVERY_FAILURE_LIMIT:
+                return 429, {
+                    "ok": False,
+                    "error": {
+                        "code": "LOCKOUT_ACTIVE",
+                        "message": "Too many failed recovery attempts. Try again in 30 seconds.",
+                        "retry_after_s": 30,
+                    },
+                }
+            return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid recovery code"}}
+
+        # Success — update PIN, reset PIN lockout, rotate recovery code (single-use)
+        new_salt = secrets.token_hex(16)
+        new_iterations = 200000
+        profile["pin_hash"] = hash_pin(str(new_pin), new_salt, new_iterations)
+        profile["pin_salt"] = new_salt
+        profile["pin_iterations"] = new_iterations
+        profile["failed_attempts"] = 0
+        profile["locked_until"] = 0.0
+
+        new_recovery_code = _mint_recovery_code()
+        new_r_salt = secrets.token_hex(16)
+        new_r_iterations = 200000
+        profile["recovery_hash"] = hash_pin(new_recovery_code, new_r_salt, new_r_iterations)
+        profile["recovery_salt"] = new_r_salt
+        profile["recovery_iterations"] = new_r_iterations
+        profile["recovery_failed_attempts"] = 0
+        profile["recovery_locked_until"] = 0.0
+        profile["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+        try:
+            save_operator_profiles(server.sessions_root, db)
+        except Exception as e:
+            import sys
+            print(f"[ERROR] Failed to save profiles after PIN reset: {e}", file=sys.stderr)
+            return 500, {"ok": False, "error": {"code": "INTERNAL_SERVER_ERROR", "message": "Failed to persist PIN reset."}}
+
+        _invalidate_operator_sessions(server, operator_id)
+
+        import sys
+        print(f"[AUTH] PIN reset via recovery code for operator {operator_id}", file=sys.stderr)
+
+        return 200, {
+            "ok": True,
+            "recovery_code": new_recovery_code,
+        }
+
+
+def host_reset_pin(server, operator_id: str, new_pin: str) -> Tuple[int, dict]:
+    """Reset a PIN from loopback (no recovery code required).
+
+    Caller is responsible for ensuring the request arrived on loopback.
+    On success: sets new PIN, clears PIN lockout, rotates recovery code,
+    invalidates existing sessions, appends audit log.
+    """
+    with _OPERATOR_LOCK:
+        if not re.fullmatch(r"\d{4}", str(new_pin or "")):
+            return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "new_pin must be exactly 4 digits"}}
+
+        db = load_operator_profiles(server.sessions_root)
+        profiles = db.get("profiles", {})
+        if operator_id not in profiles:
+            return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid operator ID"}}
+
+        profile = profiles[operator_id]
+
+        new_salt = secrets.token_hex(16)
+        new_iterations = 200000
+        profile["pin_hash"] = hash_pin(str(new_pin), new_salt, new_iterations)
+        profile["pin_salt"] = new_salt
+        profile["pin_iterations"] = new_iterations
+        profile["failed_attempts"] = 0
+        profile["locked_until"] = 0.0
+
+        new_recovery_code = _mint_recovery_code()
+        new_r_salt = secrets.token_hex(16)
+        new_r_iterations = 200000
+        profile["recovery_hash"] = hash_pin(new_recovery_code, new_r_salt, new_r_iterations)
+        profile["recovery_salt"] = new_r_salt
+        profile["recovery_iterations"] = new_r_iterations
+        profile["recovery_failed_attempts"] = 0
+        profile["recovery_locked_until"] = 0.0
+        profile["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+        try:
+            save_operator_profiles(server.sessions_root, db)
+        except Exception as e:
+            import sys
+            print(f"[ERROR] Failed to save profiles after host PIN reset: {e}", file=sys.stderr)
+            return 500, {"ok": False, "error": {"code": "INTERNAL_SERVER_ERROR", "message": "Failed to persist host PIN reset."}}
+
+        _invalidate_operator_sessions(server, operator_id)
+
+        import sys
+        print(f"[AUTH] PIN reset via loopback host-reset for operator {operator_id}", file=sys.stderr)
+
+        return 200, {
+            "ok": True,
+            "recovery_code": new_recovery_code,
         }
 
 
@@ -395,6 +598,12 @@ __all__ = [
     "verify_pin",
     "login_operator",
     "create_operator_profile",
+    "reset_pin_with_recovery",
+    "host_reset_pin",
+    "_mint_recovery_code",
+    "_RECOVERY_ALPHABET",
+    "_RECOVERY_FAILURE_LIMIT",
+    "_RECOVERY_LOCKOUT_S",
     "_PIN_TTL_S",
     "_PIN_MAX",
     "_PAIR_FAILURE_LIMIT",

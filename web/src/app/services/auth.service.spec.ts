@@ -144,4 +144,95 @@ describe('AuthService', () => {
       headers: { 'X-RVT-Auth': 'stale-token' }
     });
   });
+
+  it('createProfile returns recoveryCode from API response', async () => {
+    // Step 1: POST /api/operator-profiles
+    mockApi.request.mockResolvedValueOnce({
+      ok: true,
+      operator: { operator_id: 'op_new', display_name: 'New Op', initials: 'NO' },
+      recovery_code: 'ABCD-EFGH-JKMN',
+    });
+    // Step 2: loadProfiles (GET /api/operator-profiles)
+    mockApi.request.mockResolvedValueOnce({
+      schema_version: 'rvt-operator-profiles-v12.0',
+      profiles: [{ operator_id: 'op_new', display_name: 'New Op', initials: 'NO' }],
+    });
+    // Step 3: login
+    mockApi.request.mockResolvedValueOnce({
+      token: 'tok-new',
+      expires_at: Date.now() / 1000 + 28800,
+      operator: { operator_id: 'op_new', display_name: 'New Op', initials: 'NO' },
+    });
+
+    const result = await service.createProfile('New Op', 'NO', '1234');
+
+    expect(result.success).toBe(true);
+    expect(result.recoveryCode).toBe('ABCD-EFGH-JKMN');
+  });
+
+  it('createProfile returns success:false on API error', async () => {
+    mockApi.request.mockRejectedValueOnce(new Error('Server error'));
+
+    const result = await service.createProfile('New Op', 'NO', '1234');
+
+    expect(result.success).toBe(false);
+    expect(result.recoveryCode).toBeUndefined();
+  });
+
+  it('resetPin returns success and rotated recovery code', async () => {
+    mockApi.request.mockResolvedValueOnce({
+      ok: true,
+      recovery_code: 'NEWC-ODEN-EWCO',
+    });
+
+    const result = await service.resetPin('op_1', 'ABCD-EFGH-JKMN', '5678');
+
+    expect(result.success).toBe(true);
+    expect(result.recoveryCode).toBe('NEWC-ODEN-EWCO');
+    expect(mockApi.request).toHaveBeenCalledWith(
+      '/api/auth/reset-pin',
+      expect.objectContaining({ method: 'POST' }),
+      false,
+      30000,
+    );
+  });
+
+  it('resetPin handles LOCKOUT_ACTIVE error with countdown', async () => {
+    mockApi.request.mockRejectedValueOnce(
+      new Error('Too many failed recovery attempts. Try again in 28 seconds. (LOCKOUT_ACTIVE)')
+    );
+
+    const result = await service.resetPin('op_1', 'XXXX-YYYY-ZZZZ', '1234');
+
+    expect(result.success).toBe(false);
+    expect(service.loginError()).toContain('28 seconds');
+  });
+
+  it('hostReset returns success and new recovery code', async () => {
+    mockApi.request.mockResolvedValueOnce({
+      ok: true,
+      recovery_code: 'HOST-RESE-TNEW',
+    });
+
+    const result = await service.hostReset('op_1', '9999');
+
+    expect(result.success).toBe(true);
+    expect(result.recoveryCode).toBe('HOST-RESE-TNEW');
+    expect(mockApi.request).toHaveBeenCalledWith(
+      '/api/auth/host-reset',
+      expect.objectContaining({ method: 'POST' }),
+      false,
+      30000,
+    );
+  });
+
+  it('hostReset surfaces error on failure', async () => {
+    mockApi.request.mockRejectedValueOnce(new Error('Host reset failed'));
+
+    const result = await service.hostReset('op_1', '1234');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Host reset failed');
+    expect(service.loginError()).toBe('Host reset failed');
+  });
 });

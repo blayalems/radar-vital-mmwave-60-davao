@@ -37,6 +37,21 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
   `docs/play/store-listing.md` and `docs/play/data-safety.md` covering app
   identity, descriptions, screenshot shot-list, content-rating answers, closed-
   testing constraints, and Play Data Safety form answers mirroring PRIVACY.md.
+- PIN recovery codes: each operator profile now receives a one-time XXXX-XXXX-XXXX
+  recovery code at creation (only the PBKDF2 hash is stored). `POST /api/auth/reset-pin`
+  accepts `{operator_id, recovery_code, new_pin}`; on success the old code is consumed
+  and a fresh code is returned (single-use rotation). A separate 5-attempt/30 s lockout
+  tracks recovery attempts independently of the PIN lockout. Legacy profiles without a
+  recovery code receive a clear error directing to host-reset.
+- `POST /api/auth/host-reset`: loopback-only (`127.0.0.1`/`::1`) PIN reset; returns a
+  new recovery code; 403 from any other IP even with a valid session token. Useful for
+  local EXE operators who have lost their recovery code.
+- Recovery-code dialog (`RecoveryCodeDialogComponent`): shown after profile creation and
+  after any reset; large monospace display, one-click copy (clipboard API + fallback),
+  "I saved my recovery code" required to dismiss (`disableClose: true`).
+- "Forgot PIN?" link on the lock overlay → inline 3-step recovery flow (operator picker →
+  recovery code → new PIN). EXE/Tauri hosts also show "Reset from this computer" →
+  host-reset flow.
 
 ## [16.2.0] — 2026-06-12
 

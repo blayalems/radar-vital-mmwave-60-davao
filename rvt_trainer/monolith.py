@@ -5248,6 +5248,8 @@ from rvt_trainer.api.auth import (  # noqa: E402
     load_operator_profiles as _load_operator_profiles,
     login_operator as _login_operator,
     create_operator_profile as _create_operator_profile,
+    reset_pin_with_recovery as _reset_pin_with_recovery,
+    host_reset_pin as _host_reset_pin,
 )
 
 
@@ -6288,6 +6290,12 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             is_discovery = True
         elif path == "/api/operator-profiles" and self.command == "POST" and is_bootstrap:
             is_discovery = True
+        elif path == "/api/auth/reset-pin" and self.command == "POST":
+            # Accessible without session token — recovery code replaces auth
+            is_discovery = True
+        elif path == "/api/auth/host-reset" and self.command == "POST":
+            # Accessible without session token — loopback check in handler replaces auth
+            is_discovery = True
 
         # 4b. Loopback-only native bootstrap: the EXE shell reads pairing details
         # over 127.0.0.1 with no pairing token (tokens belong to phones). The route
@@ -6838,6 +6846,27 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "expires_at": now + 30.0
             }
             self._send_json(200, {"sse_token": token})
+            return
+        if path == "/api/auth/reset-pin":
+            status, payload = _reset_pin_with_recovery(
+                self.server,
+                str(body.get("operator_id") or ""),
+                str(body.get("recovery_code") or ""),
+                str(body.get("new_pin") or ""),
+            )
+            self._send_json(status, payload, cache_control="no-store")
+            return
+        if path == "/api/auth/host-reset":
+            client_host = str(self.client_address[0] if self.client_address else "")
+            if client_host not in {"127.0.0.1", "::1", "localhost"}:
+                self._send_json(403, {"ok": False, "error": {"code": "LOOPBACK_ONLY", "message": "host-reset is loopback-only"}}, cache_control="no-store")
+                return
+            status, payload = _host_reset_pin(
+                self.server,
+                str(body.get("operator_id") or ""),
+                str(body.get("new_pin") or ""),
+            )
+            self._send_json(status, payload, cache_control="no-store")
             return
         if path == "/api/defaults":
             current = _effective_defaults(self.server.sessions_root)

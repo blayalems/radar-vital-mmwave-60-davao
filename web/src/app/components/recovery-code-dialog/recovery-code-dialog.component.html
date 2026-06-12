@@ -1,0 +1,35 @@
+<h2 mat-dialog-title class="recovery-dialog-title">
+  <span class="material-symbols-rounded recovery-icon">key</span>
+  Save your recovery code
+</h2>
+
+<mat-dialog-content class="recovery-dialog-content">
+  <p class="recovery-intro">
+    This code is shown <strong>only once</strong>. Store it somewhere safe — you will need it to reset your PIN if you ever forget it.
+  </p>
+
+  <div class="recovery-code-block" aria-label="Recovery code">
+    <span class="recovery-code-text">{{ data.recoveryCode }}</span>
+  </div>
+
+  <div class="copy-row">
+    <button mat-stroked-button type="button" (click)="copyCode()" class="copy-button">
+      <mat-icon>{{ copied() ? 'check' : 'content_copy' }}</mat-icon>
+      {{ copied() ? 'Copied!' : 'Copy code' }}
+    </button>
+  </div>
+
+  <p class="recovery-warning">
+    If you lose this code and forget your PIN, use the "Reset from this computer" option on the host machine.
+  </p>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="recovery-dialog-actions">
+  <button
+    mat-flat-button
+    type="button"
+    (click)="confirm()"
+    class="confirm-button">
+    I saved my recovery code
+  </button>
+</mat-dialog-actions>

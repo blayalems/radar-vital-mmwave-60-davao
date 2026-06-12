@@ -47,6 +47,26 @@ test.describe('v12 dashboard visual baseline', () => {
         // Block external font loading to prevent screenshot hanging in offline/sandboxed environments
         await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
         if (view === 'home') {
+          await page.route('**/api/status', async (route) => {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                ok: true,
+                trainer_version: 'visual',
+                dashboard_version: 'visual',
+                firmware_expected: 'visual',
+                control_server_started_at: '2026-01-01T00:00:00Z',
+                active_session: {
+                  session_id: 'mock',
+                  session_dir: '',
+                  mock: true,
+                  started_at: '2026-01-01T00:00:00Z'
+                },
+                feature_flags: {}
+              })
+            });
+          });
           // Suppress streamed changes before taking the Home layout/theme capture.
           // Plot rendering remains asserted on the Live route.
           await page.addInitScript(() => {
@@ -54,12 +74,17 @@ test.describe('v12 dashboard visual baseline', () => {
             Object.defineProperty(window, 'EventSource', {
               configurable: true,
               value: class VisualBaselineEventSource {
-                onopen: ((event: Event) => void) | null = null;
+                private openHandler: ((event: Event) => void) | null = null;
                 onerror: ((event: Event) => void) | null = null;
                 onmessage: ((event: MessageEvent) => void) | null = null;
 
-                constructor() {
-                  setTimeout(() => this.onopen?.(new Event('open')), 0);
+                set onopen(handler: ((event: Event) => void) | null) {
+                  this.openHandler = handler;
+                  queueMicrotask(() => this.openHandler?.(new Event('open')));
+                }
+
+                get onopen(): ((event: Event) => void) | null {
+                  return this.openHandler;
                 }
 
                 addEventListener(): void {}
@@ -119,7 +144,23 @@ test.describe('v12 dashboard visual baseline', () => {
           // baselines still cover rendered plots; hide only these moving
           // pixels so home comparisons validate layout and theme surfaces.
           await page.addStyleTag({
-            content: '.scope-canvas, .trend-canvas-graph { visibility: hidden !important; }'
+            content: `
+              .scope-canvas, .trend-canvas-graph { visibility: hidden !important; }
+              .session-progress-bar .mdc-linear-progress__bar,
+              .session-progress-bar .mdc-linear-progress__primary-bar,
+              .session-progress-bar .mdc-linear-progress__secondary-bar {
+                transform: scaleX(0) !important;
+              }
+              .session-progress-bar .mdc-linear-progress__bar-inner {
+                border-color: transparent !important;
+              }
+            `
+          });
+          await page.evaluate(() => {
+            const cards = Array.from(document.querySelectorAll<HTMLElement>('.home-stat-card'));
+            const environmentCard = cards.find(card => card.textContent?.includes('Environment'));
+            const subtitle = environmentCard?.querySelector<HTMLElement>('.home-stat-sub');
+            if (subtitle) subtitle.textContent = 'Awaiting live telemetry';
           });
         }
         const snapshotName = theme === 'hc' && view === 'live'

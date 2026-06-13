@@ -6,6 +6,8 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+## [16.3.0] — 2026-06-12
+
 ### Added
 - One-tap GitHub issue reporting (`IssueReportService`, `ReportIssueCardComponent`):
   pre-fills all bug-form fields (version, platform, connection mode, de-identified
@@ -95,4 +97,5 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
   ML-readiness audit pipeline; Playwright smoke/visual CI across four
   viewports.
 
-[Unreleased]: https://github.com/blayalems/radar-vital-mmwave-60-davao/compare/v16.2.0...HEAD
+[Unreleased]: https://github.com/blayalems/radar-vital-mmwave-60-davao/compare/v16.3.0...HEAD
+[16.3.0]: https://github.com/blayalems/radar-vital-mmwave-60-davao/compare/v16.2.0...v16.3.0

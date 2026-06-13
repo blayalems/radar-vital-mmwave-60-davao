@@ -34,7 +34,7 @@ async function main() {
   console.log('--- Phase 2: Copying Static SW & Manifest Assets ---');
   await fs.copyFile(path.join(SRC_ASSETS, 'manifest.webmanifest'), path.join(WWW, 'manifest.webmanifest'));
   await fs.copyFile(path.join(SRC_ASSETS, 'sw.js'), path.join(WWW, 'sw.js'));
-  await fs.copyFile(path.join(SRC_ASSETS, 'rvt-sw.js'), path.join(WWW, 'rvt-sw.js'));
+  await fs.rm(path.join(WWW, 'rvt-sw.js'), { force: true });
   for (const directory of ['fonts', 'icons', 'lib']) {
     await fs.cp(path.join(SRC_ASSETS, directory), path.join(WWW, directory), { recursive: true });
   }

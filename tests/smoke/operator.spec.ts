@@ -34,9 +34,12 @@ function cleanProfiles() {
 }
 
 async function pressPin(page: import('@playwright/test').Page, pin: string) {
-  const keypad = page.locator('app-pin-keyboard').last();
+  const keypad = page.locator('app-pin-keyboard:visible').last();
+  await expect(keypad).toBeVisible();
   for (const digit of pin) {
-    await keypad.locator('.keyboard-grid button', { hasText: new RegExp(`^${digit}$`) }).dispatchEvent('click');
+    const key = keypad.locator('.keyboard-grid button', { hasText: new RegExp(`^${digit}$`) }).first();
+    await expect(key).toBeVisible();
+    await key.click();
   }
 }
 
@@ -49,17 +52,27 @@ async function submitPinAndWait(page: import('@playwright/test').Page, pin: stri
 }
 
 async function clearPin(page: import('@playwright/test').Page) {
-  const keypad = page.locator('app-pin-keyboard').last();
-  await keypad.locator('.keyboard-grid button', { hasText: /^C$/ }).dispatchEvent('click');
+  const keypad = page.locator('app-pin-keyboard:visible').last();
+  await expect(keypad).toBeVisible();
+  await keypad.locator('.keyboard-grid button', { hasText: /^C$/ }).first().click();
 }
 
 async function clickConsoleAction(page: import('@playwright/test').Page, name: string) {
-  const directAction = page.getByRole('button', { name }).first();
+  const railAction = page.locator('.operator-actions button', { hasText: name }).first();
+  if (await railAction.isVisible().catch(() => false)) {
+    await railAction.dispatchEvent('click');
+    return;
+  }
+  const directAction = page.getByRole('button', { name }).filter({ hasText: name }).first();
   if (await directAction.isVisible().catch(() => false)) {
     await directAction.dispatchEvent('click');
     return;
   }
-  await page.getByRole('button', { name: 'More console actions' }).click();
+  const moreActions = page
+    .locator('button.tb-more[aria-label="More console actions"], button[aria-label="More console actions"]')
+    .first();
+  await expect(moreActions).toBeVisible();
+  await moreActions.click({ force: true });
   const menuItem = page.getByRole('menuitem', { name });
   await expect(menuItem).toBeVisible();
   await menuItem.click();
@@ -108,6 +121,9 @@ test.describe('Operator profile and lock system', () => {
     // Verify lock screen is gone and operator is set
     await expect(page.locator('section.idle-lock-overlay')).not.toBeVisible();
     await expect(page.locator('.operator-badge .status-txt')).toHaveText('Dr. Sarah Connor');
+    await expect(page.locator('app-recovery-code-dialog')).toBeVisible();
+    await page.locator('app-recovery-code-dialog button', { hasText: /I saved my recovery code/i }).click();
+    await expect(page.locator('app-recovery-code-dialog')).not.toBeVisible();
 
     // 2. Add a second operator from the authenticated switcher and switch to it.
     await clickConsoleAction(page, 'Switch operator');

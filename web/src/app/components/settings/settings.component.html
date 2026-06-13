@@ -343,6 +343,59 @@
       </mat-card-content>
     </mat-card>
 
+    <!-- Privacy & Telemetry -->
+    <mat-card class="settings-card premium-card privacy-telemetry-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="card-avatar privacy-avatar">privacy_tip</mat-icon>
+        <mat-card-title>Privacy & Telemetry</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="settings-row block-row">
+          <div class="settings-copy">
+            <span class="row-title">Terms consent</span>
+            <span class="row-description">
+              Accepted version:
+              <strong>{{ consentRecord()?.version || 'not accepted' }}</strong>
+              · Current required version: <strong>{{ termsVersion }}</strong>
+            </span>
+            <span class="row-description">Accepted at: {{ consentAcceptedLabel() }}</span>
+          </div>
+          <mat-chip-set aria-label="Consent status">
+            <mat-chip [class.running]="consentRecord()?.version === termsVersion" [class.offline]="consentRecord()?.version !== termsVersion">
+              <mat-icon matChipAvatar>{{ consentRecord()?.version === termsVersion ? 'verified_user' : 'gpp_bad' }}</mat-icon>
+              {{ consentRecord()?.version === termsVersion ? 'Current consent' : 'Consent required' }}
+            </mat-chip>
+          </mat-chip-set>
+        </div>
+
+        <div class="settings-row block-row">
+          <div class="settings-copy">
+            <span class="row-title">Issue-report diagnostics</span>
+            <span class="row-description">
+              {{ issueReport.diagnosticsEnabled()
+                ? 'Issue reports include platform, connection mode, controller status, de-identified alert counts, and trainer log tail.'
+                : 'Issue reports include only product version and platform until diagnostics are re-enabled.' }}
+            </span>
+          </div>
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="scrollToIssueDiagnostics()">
+            <mat-icon>bug_report</mat-icon>Review diagnostics toggle
+          </button>
+        </div>
+
+        <div class="privacy-actions">
+          <a mat-stroked-button [href]="termsUrl" target="_blank" rel="noopener noreferrer">
+            <mat-icon>gavel</mat-icon>View terms
+          </a>
+          <a mat-stroked-button [href]="privacyUrl" target="_blank" rel="noopener noreferrer">
+            <mat-icon>policy</mat-icon>View privacy
+          </a>
+          <button mat-flat-button type="button" color="warn" class="mat-tonal-button" (click)="withdrawConsent()">
+            <mat-icon>logout</mat-icon>Withdraw consent
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
     <!-- Haptic Feedback -->
     <mat-card class="settings-card premium-card">
       <mat-card-header>
@@ -616,6 +669,10 @@
         </div>
       </mat-card-content>
     </mat-card>
+
+    <app-about-card id="about-legal" class="settings-mounted-card" [version]="productVersion"></app-about-card>
+
+    <app-report-issue-card id="report-issue-card" class="settings-mounted-card"></app-report-issue-card>
   </div>
 
   <div class="settings-footer">

@@ -394,7 +394,7 @@ export class ApiService {
     const method = String(init?.method || 'GET').toUpperCase();
     if (url.pathname === '/api/status') return { ok: true, mode: 'sandbox', active_session: this.state.sessionActive() ? { session_id: this.state.currentSessionId() || 'sandbox_active', sandbox: true } : null };
     if (url.pathname === '/api/health') return { ok: true, version: 'sandbox' };
-    if (url.pathname === '/api/version') return { product_version: '16.2.0', trainer: 'sandbox', dashboard: 'sandbox', firmware_expected: 'sandbox' };
+    if (url.pathname === '/api/version') return { product_version: '16.3.0', trainer: 'sandbox', dashboard: 'sandbox', firmware_expected: 'sandbox' };
     if (url.pathname === '/api/sessions') {
       const sessions = this.sandboxLoadSessions();
       return { ok: true, sessions, items: sessions };

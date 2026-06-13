@@ -81,11 +81,7 @@ test.describe('PIN recovery code flow', () => {
     );
     await page.getByRole('button', { name: 'Create Profile' }).dispatchEvent('click');
     const createResp = await createResponse;
-    const createBody = await createResp.json();
-
-    // Recovery code must be in the JSON response
-    expect(createBody.recovery_code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
-    const originalRecoveryCode = createBody.recovery_code as string;
+    expect([200, 201]).toContain(createResp.status());
 
     // --- 2. Recovery-code dialog must appear ---
     await expect(page.locator('app-recovery-code-dialog')).toBeVisible({ timeout: 5000 });
@@ -93,8 +89,8 @@ test.describe('PIN recovery code flow', () => {
     // The code is displayed in the dialog
     const codeEl = page.locator('app-recovery-code-dialog .recovery-code-text');
     await expect(codeEl).toBeVisible();
-    const displayedCode = (await codeEl.textContent() || '').trim();
-    expect(displayedCode).toBe(originalRecoveryCode);
+    const originalRecoveryCode = (await codeEl.textContent() || '').trim();
+    expect(originalRecoveryCode).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
 
     // "I saved my recovery code" button dismisses
     await page.locator('app-recovery-code-dialog button', { hasText: /I saved my recovery code/i }).click();
@@ -140,17 +136,13 @@ test.describe('PIN recovery code flow', () => {
     await page.getByRole('button', { name: 'Set PIN' }).click();
     const resetResp = await resetResponse;
     expect(resetResp.status()).toBe(200);
-    const resetBody = await resetResp.json();
-    expect(resetBody.ok).toBe(true);
-    const rotatedCode = resetBody.recovery_code as string;
-    expect(rotatedCode).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
-    expect(rotatedCode).not.toBe(originalRecoveryCode);
 
     // --- 5. Recovery-code dialog with rotated code ---
     await expect(page.locator('app-recovery-code-dialog')).toBeVisible({ timeout: 5000 });
     const rotatedCodeEl = page.locator('app-recovery-code-dialog .recovery-code-text');
-    const displayedRotated = (await rotatedCodeEl.textContent() || '').trim();
-    expect(displayedRotated).toBe(rotatedCode);
+    const rotatedCode = (await rotatedCodeEl.textContent() || '').trim();
+    expect(rotatedCode).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    expect(rotatedCode).not.toBe(originalRecoveryCode);
     await page.locator('app-recovery-code-dialog button', { hasText: /I saved my recovery code/i }).click();
     await expect(page.locator('app-recovery-code-dialog')).not.toBeVisible();
 

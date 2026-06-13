@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 v16.3 RTM/RC Waves 2–4 Completion
+
+- **Wave 2 dashboard closure**: mounted privacy/telemetry, about, and report-issue cards in Settings; wired support commands into the command palette and Help; added PWA install prompt service/home banner, truthful Home/Live/Report empty states, and lazy Help/Report/Settings routes. Retired `/rvt-sw.js` tombstone to an explicit 410 response and kept `/sw.js` as the single service worker.
+- **Wave 3 docs/acceptance**: refreshed Pages workflow/docs/wiki sources, added `docs/milestones.md`, privacy/terms Pages artifacts, and expanded `docs/physical-acceptance-checklist.md` for Android/PWA/EXE/report/accessibility release acceptance while keeping v16.2.0 as the behavior baseline.
+- **Wave 4 identity bump**: promoted package, trainer, dashboard, Tauri, Capacitor, OTA fixtures, changelog, README, and firmware identity to `16.3.0`; renamed firmware to `radar_vital_v16_3_0.ino`; rebuilt `radar_vital_live_dashboard_v12_for_v16_0.html`.
+- **RTM hardening**: recovery login now clears stale unauthenticated control status before unlocking; malformed live telemetry is rejected instead of poisoning state; async report loading marks OnPush views dirty; report-issue smoke now uses real mock-server operator auth and dispatched mobile-safe Material control activation.
+- **Verification**: `npm --prefix web run test:ci` 108/108; `python -m pytest -q tests/test_repo_hygiene_contract.py tests/test_trainer_verdict.py tests/test_v12_static_contract.py tests/test_trainer_security_api.py tests/test_ota_backend.py tests/test_pages_docs_contract.py` 63/63 (Windows pytest temp symlink cleanup warning after success); `npm run build:check` clean with the known initial-bundle warning; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer` clean; `python -m rvt_trainer --help` reports v16.3.0; Playwright targeted smoke passed: desktop non-dashboard 41/41, Pixel 7 non-dashboard 41/41, iPhone non-dashboard 41/41, iPad remaining non-dashboard 30/30, report-issue 32/32, settings-cards 12/12, dashboard smoke desktop/Pixel 7/iPhone 35/35 each.
+
 ### 2026-06-12 — v16.3 Wave 1-A: First-Run Consent Gate + Onboarding Tutorial (WS1-A)
 
 - **FirstRunService** (`web/src/app/services/first-run.service.ts`): reads/writes `rvt-consent-record` (CONSENT_KEY) + `rvt-tutorial-done` (TUTORIAL_DONE_KEY); `consentRequired()` computed signal gated on TERMS_VERSION; `acceptConsent()`, `tutorialDone()`, `markTutorialDone()`, `replayTutorial()` (sets `tutorialOpen` signal for Wave 2 command palette wiring); auto-opens tutorial on `rvt-operator-authenticated` CustomEvent, once per session.

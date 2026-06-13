@@ -1,7 +1,7 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
 import { ApiService } from './api.service';
 import { StateService } from './state.service';
-import { OperatorProfile, OperatorProfilesResponse, LoginResponse } from '../models/rvt.models';
+import { ControlStatus, OperatorProfile, OperatorProfilesResponse, LoginResponse } from '../models/rvt.models';
 import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
 
 @Injectable({
@@ -103,6 +103,7 @@ export class AuthService {
       if (res?.token) {
         sessionStorage.setItem(OPERATOR_TOKEN_KEY, res.token);
         this.currentOperator.set(res.operator);
+        this.clearUnauthenticatedStatus();
         this.isLocked.set(false);
         this.loginError.set(null);
         this.lockoutRetryAfter.set(0);
@@ -261,6 +262,14 @@ export class AuthService {
     try {
       window.dispatchEvent(new CustomEvent('rvt-operator-authenticated'));
     } catch (_) {}
+  }
+
+  private clearUnauthenticatedStatus(): void {
+    this.state.ctlStatus.update(status => {
+      if (status?.reason !== 'unauthenticated') return status;
+      const { reason: _reason, error: _error, message: _message, ...rest } = status;
+      return { ...rest, ok: true } as ControlStatus;
+    });
   }
 
   private async revokeToken(token: string | null): Promise<void> {

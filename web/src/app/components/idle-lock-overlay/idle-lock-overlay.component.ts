@@ -238,11 +238,12 @@ export class IdleLockOverlayComponent {
   async submitRecoveryReset(): Promise<void> {
     const op = this.resetOperator();
     if (!op || this.resetNewPin.length !== 4) return;
+    const newPin = this.resetNewPin;
 
     const result = await this.auth.resetPin(
       op.operator_id,
       this.recoveryCode.trim().toUpperCase(),
-      this.resetNewPin
+      newPin
     );
 
     if (result.success) {
@@ -251,7 +252,7 @@ export class IdleLockOverlayComponent {
       }
       this.cancelReset();
       // Log in with the new PIN automatically
-      const success = await this.auth.login(op.operator_id, this.resetNewPin);
+      const success = await this.auth.login(op.operator_id, newPin);
       if (success) {
         this.idleLock.unlock();
       }
@@ -279,15 +280,16 @@ export class IdleLockOverlayComponent {
   async submitHostReset(): Promise<void> {
     const op = this.resetOperator();
     if (!op || this.hostResetPin.length !== 4) return;
+    const newPin = this.hostResetPin;
 
-    const result = await this.auth.hostReset(op.operator_id, this.hostResetPin);
+    const result = await this.auth.hostReset(op.operator_id, newPin);
 
     if (result.success) {
       if (result.recoveryCode) {
         this.openRecoveryCodeDialog(result.recoveryCode);
       }
       this.cancelReset();
-      const success = await this.auth.login(op.operator_id, this.hostResetPin);
+      const success = await this.auth.login(op.operator_id, newPin);
       if (success) {
         this.idleLock.unlock();
       }

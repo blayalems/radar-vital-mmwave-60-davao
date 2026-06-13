@@ -14,7 +14,7 @@
 
       <mat-form-field appearance="outline" class="session-dropdown-field">
         <mat-label>Choose Session</mat-label>
-        <mat-select [(ngModel)]="selectedSessionId" (selectionChange)="onSessionChange()">
+        <mat-select [(ngModel)]="selectedSessionId" (selectionChange)="onSessionChange()" [disabled]="sessionsLoading || sessions.length === 0">
         @for (s of sessions; track s.session_id) {
         <mat-option [value]="s.session_id">
             {{ s.started_at | date:'short' }} - ({{ s.subject || 'Sandbox' }})
@@ -23,6 +23,9 @@
         </mat-select>
       </mat-form-field>
     </div>
+    @if (sessionsLoading) {
+      <mat-progress-bar mode="indeterminate" aria-label="Loading report sessions"></mat-progress-bar>
+    }
   </mat-card>
 
   <!-- REPORT BODY CONTENT -->
@@ -359,11 +362,23 @@
     }
   </div>
   } @else {
-    <div class="report-empty-state">
-      <mat-icon class="empty-icon animate-pulse">history_toggle_off</mat-icon>
-      <h3>No Telemetry Sessions Found</h3>
-      <p>Please complete a live recording session or enable sandbox simulation in Settings to populate the report history.</p>
-    </div>
+    <mat-card class="report-empty-state premium-card" role="status">
+      <mat-card-content>
+        <mat-icon class="empty-icon animate-pulse" aria-hidden="true">
+          {{ sessionsError ? 'cloud_off' : 'history_toggle_off' }}
+        </mat-icon>
+        <h3>{{ sessionsError ? 'Report history unavailable' : 'No telemetry sessions found' }}</h3>
+        <p>
+          {{ sessionsError || 'Complete a live recording session or enable sandbox simulation in Settings to populate the report history.' }}
+        </p>
+        <div class="report-empty-actions">
+          <button mat-flat-button type="button" color="primary" (click)="loadSessions()" [disabled]="sessionsLoading">
+            <mat-icon>{{ sessionsLoading ? 'sync' : 'refresh' }}</mat-icon>
+            {{ sessionsLoading ? 'Loading...' : 'Retry sessions' }}
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
   }
 
 </div>

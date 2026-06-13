@@ -8,10 +8,13 @@
         </div>
         <div class="server-blocker-copy">
           <p class="eyebrow">Python server</p>
-          <h2 id="serverBlockerTitle">Server not running</h2>
+          <h2 id="serverBlockerTitle">Live telemetry is disconnected</h2>
           <p>
-            Live charts need the Python trainer API. Start the bundled sidecar in the Windows EXE,
-            or pair this APK/PWA with a LAN-bound trainer.
+            Demo mode is off, so this view will not synthesize vitals while the Python trainer API is unreachable.
+            Start the bundled sidecar in the Windows EXE, or pair this APK/PWA with a LAN-bound trainer.
+          </p>
+          <p class="server-blocker-note">
+            No session state was changed. Reconnect first, then resume monitoring or start a new recording from Home.
           </p>
           @if (serverLifecycle.lastError()) {
             <p class="server-blocker-error">{{ serverLifecycle.lastError() }}</p>

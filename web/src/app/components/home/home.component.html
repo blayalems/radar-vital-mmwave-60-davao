@@ -17,6 +17,27 @@
     </div>
   </div>
 
+  @if (installPrompt.showBanner()) {
+  <mat-card class="install-prompt-card premium-card" role="region" aria-labelledby="installPromptTitle">
+    <div class="install-prompt-icon" aria-hidden="true">
+      <mat-icon>install_mobile</mat-icon>
+    </div>
+    <div class="install-prompt-copy">
+      <strong id="installPromptTitle">Install Radar Vital</strong>
+      <span>Add the dashboard to this device for a full-screen PWA shell, faster launch, and offline static assets.</span>
+    </div>
+    <div class="install-prompt-actions">
+      <button mat-flat-button color="primary" type="button" (click)="installApp()" [disabled]="installPrompt.promptInFlight()">
+        <mat-icon>{{ installPrompt.promptInFlight() ? 'sync' : 'download' }}</mat-icon>
+        {{ installPrompt.promptInFlight() ? 'Opening...' : 'Install app' }}
+      </button>
+      <button mat-icon-button type="button" (click)="dismissInstallBanner()" aria-label="Dismiss install prompt">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  </mat-card>
+  }
+
   <!-- READINESS AND KPI SCOREBOARD -->
   <div class="mobile-ready-stack">
     <div class="mobile-confidence-card">
@@ -93,6 +114,20 @@
       </div>
     </mat-card>
   </div>
+
+  @if (!state.lastPayload() && state.sessionItems().length === 0) {
+  <mat-card class="home-empty-card premium-card" role="status">
+    <mat-icon class="empty-icon" aria-hidden="true">monitor_heart</mat-icon>
+    <div class="home-empty-copy">
+      <strong>No telemetry data loaded yet</strong>
+      <span>Run preflight, connect the trainer, or start a demo session before interpreting vitals or report history.</span>
+    </div>
+    <button mat-flat-button type="button" class="mat-tonal-button" (click)="runPreflight()" [disabled]="isPreflightRunning">
+      <mat-icon>{{ isPreflightRunning ? 'sync' : 'fact_check' }}</mat-icon>
+      Run preflight
+    </button>
+  </mat-card>
+  }
 
   <div class="home-two-column-layout">
     <!-- SETUP FORM CARD -->
@@ -336,6 +371,16 @@
           <mat-icon>refresh</mat-icon>
         </button>
       </div>
+      } @empty {
+        @if (!isPreflightRunning && !preflightError) {
+        <div class="preflight-empty-state">
+          <mat-icon aria-hidden="true">rule</mat-icon>
+          <div>
+            <strong>No preflight results yet</strong>
+            <span>Run the pipeline to verify radar serial, BLE reference, storage, and schema readiness.</span>
+          </div>
+        </div>
+        }
       }
     </mat-card-content>
   </mat-card>
@@ -402,7 +447,17 @@
       } @else {
         <div class="sessions-empty-state">
           <mat-icon class="empty-icon">history_toggle_off</mat-icon>
-          <span>No historical sessions found matching filter criteria.</span>
+          <h3>No matching sessions yet</h3>
+          <p>Completed recordings will appear here with verdicts, notes, and review links. Clear the filter or start a new telemetry session.</p>
+          <div class="sessions-empty-actions">
+            @if (sessionFilter !== 'all') {
+              <button mat-flat-button type="button" class="mat-tonal-button" (click)="setSessionFilter('all')">Show all</button>
+            }
+            <button mat-flat-button type="button" color="primary" (click)="startSession()" [disabled]="!canStartSession() || isStartingSession">
+              <mat-icon>play_arrow</mat-icon>
+              Start session
+            </button>
+          </div>
         </div>
       }
     </mat-card-content>

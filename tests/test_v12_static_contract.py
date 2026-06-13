@@ -16,7 +16,7 @@ SW_UPDATE = ROOT / "web" / "src" / "app" / "services" / "sw-update.service.ts"
 STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
-FW = ROOT / "radar_vital_v16_2_0.ino"
+FW = ROOT / "radar_vital_v16_3_0.ino"
 SW = ROOT / "assets" / "sw.js"
 STYLES = ROOT / "web" / "src" / "styles.scss"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
@@ -93,22 +93,22 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
     api = text(API)
     sw = text(SW)
 
-    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.2.0"
-    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.2.0"
-    assert json.loads(text(TAURI_CONF))["version"] == "16.2.0"
-    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.2.0"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.2.0"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.2.0"
-    assert re.search(r'^version = "16\.2\.0"$', text(TAURI_CARGO), re.MULTILINE)
+    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.3.0"
+    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.3.0"
+    assert json.loads(text(TAURI_CONF))["version"] == "16.3.0"
+    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.3.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.3.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.3.0"
+    assert re.search(r'^version = "16\.3\.0"$', text(TAURI_CARGO), re.MULTILINE)
 
-    assert 'VERSION = "16.2.0"' in trainer
-    assert 'DASHBOARD_VERSION = "16.2.0"' in trainer
-    assert 'FIRMWARE_VERSION_EXPECTED = "v16.2.0"' in trainer
-    assert "const PRODUCT_VERSION = '16.2.0';" in settings
-    assert "product_version: '16.2.0'" in api
-    assert '#define FW_VERSION "v16.2.0"' in firmware
+    assert 'VERSION = "16.3.0"' in trainer
+    assert 'DASHBOARD_VERSION = "16.3.0"' in trainer
+    assert 'FIRMWARE_VERSION_EXPECTED = "v16.3.0"' in trainer
+    assert "const PRODUCT_VERSION = '16.3.0';" in settings
+    assert "product_version: '16.3.0'" in api
+    assert '#define FW_VERSION "v16.3.0"' in firmware
     assert "#define SKETCH_VERSION_MAJOR 16" in firmware
-    assert "#define SKETCH_VERSION_SUB 2" in firmware
+    assert "#define SKETCH_VERSION_SUB 3" in firmware
     assert "#define SKETCH_VERSION_MOD 0" in firmware
 
     for schema_id in [
@@ -148,7 +148,7 @@ def test_release_manifest_contract_and_ci_validation():
     assert "ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}" in release_workflow
     assert "node scripts/generate-rvt-latest.mjs" in release_workflow
     assert "dist/rvt-latest.json" in release_workflow
-    assert "startsWith(github.ref_name, 'v16.2.0-alpha')" not in release_workflow
+    assert "startsWith(github.ref_name, 'v16.3.0-alpha')" not in release_workflow
     assert "contains(github.ref_name, '-alpha')" in release_workflow
     assert "contains(github.ref_name, '-rc')" in release_workflow
     assert "actions/deploy-pages@v4" in release_workflow
@@ -209,7 +209,6 @@ def test_trainer_routes_and_security_contract():
     for route in [
         "/manifest.webmanifest",
         "/sw.js",
-        "/rvt-sw.js",
         "/api/server-info",
         "/api/auth/exchange",
         "/api/events/subscribe",
@@ -217,6 +216,7 @@ def test_trainer_routes_and_security_contract():
         "/pair",
     ]:
         assert route in py
+    assert "SERVICE_WORKER_TOMBSTONE_REMOVED" in py
     assert "Port {start_port} in use. Stop the other instance or pass --port <N>." in py
     assert "WWW-Authenticate" in py and "RVT-Token" in py
     
@@ -250,7 +250,7 @@ def test_manifest_payload_is_plain_manifest():
 
 def test_firmware_ble_contract():
     ino = text(FW)
-    assert '#define FW_VERSION "v16.2.0"' in ino
+    assert '#define FW_VERSION "v16.3.0"' in ino
     assert "#define ENABLE_BLE false" in ino
     assert "NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN" in ino
     assert "bleSuppressUntilMs = millis() + 500UL" in ino

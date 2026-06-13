@@ -1,51 +1,147 @@
-// TODO(Wave 2): unskip when <app-report-issue-card> is mounted in Settings
-import { test, expect } from '@playwright/test';
-import { seedFirstRunComplete } from './helpers/first-run';
+import { test, expect, type APIRequestContext } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
+import { seedFirstRunComplete, TERMS_VERSION } from './helpers/first-run';
 
-const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
+const SETTINGS = '/settings';
 const DIAGNOSTICS_KEY = 'rvt-diagnostics-optin';
+const REPORT_PIN = '2468';
+const REPORT_OPERATOR = {
+  display_name: 'Report Issue User',
+  initials: 'RI'
+};
+const CONFIGURED_SESSIONS_PROFILES_PATH = path.resolve(
+  process.cwd(),
+  process.env.RVT_TEST_SESSIONS_ROOT || '.playwright-state/sessions',
+  'operator_profiles.json'
+);
 // Mirrors GITHUB_REPO_URL in web/src/app/services/app-meta.ts — Playwright's
 // loader cannot named-import from the Angular sources (CommonJS interop).
 const GITHUB_REPO_URL = 'https://github.com/blayalems/radar-vital-mmwave-60-davao';
 const ISSUES_NEW_URL = `${GITHUB_REPO_URL}/issues/new`;
 
-test.describe.skip('Report-issue card (Wave 2: mount in Settings first)', () => {
-  test.beforeEach(async ({ page }) => {
+async function reportIssueCard(page: import('@playwright/test').Page) {
+  const card = page.locator('app-report-issue-card');
+  await expect(card).toContainText('Report an Issue', { timeout: 30000 });
+  await card.evaluate(element => element.scrollIntoView({ block: 'center', inline: 'nearest' }));
+  return card;
+}
+
+function cleanProfiles() {
+  const profilePaths = [
+    CONFIGURED_SESSIONS_PROFILES_PATH,
+    path.resolve(process.cwd(), 'sessions', 'operator_profiles.json'),
+    path.resolve(process.cwd(), '.playwright-state', 'sessions', 'operator_profiles.json')
+  ];
+  for (const profilePath of profilePaths) {
+    if (fs.existsSync(profilePath)) {
+      try { fs.unlinkSync(profilePath); } catch (_) {}
+    }
+  }
+}
+
+async function createAuthenticatedOperator(request: APIRequestContext) {
+  const createResponse = await request.post('/api/operator-profiles', {
+    data: {
+      display_name: REPORT_OPERATOR.display_name,
+      initials: REPORT_OPERATOR.initials,
+      pin: REPORT_PIN
+    }
+  });
+  expect([200, 201]).toContain(createResponse.status());
+  const created = await createResponse.json();
+  expect(created?.ok).toBe(true);
+  expect(created?.operator?.operator_id).toBeTruthy();
+
+  const loginResponse = await request.post('/api/auth/login', {
+    data: {
+      operator_id: created.operator.operator_id,
+      pin: REPORT_PIN
+    }
+  });
+  expect(loginResponse.status()).toBe(200);
+  const login = await loginResponse.json();
+  expect(login?.token).toBeTruthy();
+  return {
+    token: login.token as string,
+    operator: login.operator ?? created.operator
+  };
+}
+
+async function setDiagnosticsPreference(
+  page: import('@playwright/test').Page,
+  value: '0' | '1' | null,
+  auth: { token: string; operator: { display_name?: string } }
+) {
+  const args = [DIAGNOSTICS_KEY, value, TERMS_VERSION, auth.token, auth.operator] as const;
+  const seedStorage = ([key, next, termsVersion, token, operator]: typeof args) => {
+    localStorage.setItem('rvt-consent-record', JSON.stringify({
+      version: termsVersion,
+      accepted_at: new Date().toISOString()
+    }));
+    localStorage.setItem('rvt-tutorial-done', '1');
+    localStorage.setItem('rvt-demo-mode', '1');
+    sessionStorage.setItem('rvt-operator-token', token);
+    const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
+    setup.operator_label = operator.display_name || 'Report Issue User';
+    localStorage.setItem('rvt-setup', JSON.stringify(setup));
+    if (next === null) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, next);
+    }
+  };
+  await page.evaluate(seedStorage, args);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+}
+
+test.describe('Report-issue card', () => {
+  let authSession: Awaited<ReturnType<typeof createAuthenticatedOperator>>;
+
+  test.use({ serviceWorkers: 'block' });
+
+  test.beforeEach(async ({ page, request }) => {
+    cleanProfiles();
+    authSession = await createAuthenticatedOperator(request);
     await seedFirstRunComplete(page);
-    await page.addInitScript(() => {
+    await page.addInitScript(([token, operator]) => {
       // Put the app in demo mode so no live trainer is required.
       localStorage.setItem('rvt-demo-mode', '1');
-    });
-    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+      sessionStorage.setItem('rvt-operator-token', token);
+      const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
+      setup.operator_label = operator.display_name || 'Report Issue User';
+      localStorage.setItem('rvt-setup', JSON.stringify(setup));
+    }, [authSession.token, authSession.operator] as const);
+    await page.goto(SETTINGS, { waitUntil: 'domcontentloaded' });
+  });
+
+  test.afterAll(() => {
+    cleanProfiles();
   });
 
   // ---- card renders ---------------------------------------------------------
 
   test('report-issue card is present in Settings', async ({ page }) => {
-    // Open settings via keyboard shortcut or nav.
-    await page.keyboard.press('s');
-    await expect(page.getByRole('heading', { name: /report an issue/i })).toBeVisible();
+    const card = await reportIssueCard(page);
+    await expect(card.getByRole('button', { name: /preview what will be sent/i })).toBeVisible();
+    await expect(card.getByRole('button', { name: /open a pre-filled github issue/i })).toBeVisible();
   });
 
   // ---- toggle persistence across reload ------------------------------------
 
   test('diagnostics toggle defaults to ON when key absent', async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.removeItem('rvt-diagnostics-optin');
-    });
-    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.keyboard.press('s');
+    await setDiagnosticsPreference(page, null, authSession);
+    const card = await reportIssueCard(page);
 
-    const toggle = page.getByRole('switch', { name: /include diagnostics/i });
+    const toggle = card.getByRole('switch', { name: /include diagnostics/i });
     await expect(toggle).toBeChecked();
   });
 
   test('toggling diagnostics off persists across reload', async ({ page }) => {
-    // Enable settings panel.
-    await page.keyboard.press('s');
+    const card = await reportIssueCard(page);
 
-    const toggle = page.getByRole('switch', { name: /include diagnostics/i });
-    await toggle.click();
+    const toggle = card.getByRole('switch', { name: /include diagnostics/i });
+    await toggle.dispatchEvent('click');
     await expect(toggle).not.toBeChecked();
 
     // Verify localStorage was updated.
@@ -54,40 +150,34 @@ test.describe.skip('Report-issue card (Wave 2: mount in Settings first)', () => 
 
     // Reload and verify toggle remains off.
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.keyboard.press('s');
-    await expect(page.getByRole('switch', { name: /include diagnostics/i })).not.toBeChecked();
+    const reloadedCard = await reportIssueCard(page);
+    await expect(reloadedCard.getByRole('switch', { name: /include diagnostics/i })).not.toBeChecked();
   });
 
   test('toggling diagnostics on persists across reload', async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem('rvt-diagnostics-optin', '0');
-    });
-    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.keyboard.press('s');
+    await setDiagnosticsPreference(page, '0', authSession);
+    const card = await reportIssueCard(page);
 
-    const toggle = page.getByRole('switch', { name: /include diagnostics/i });
+    const toggle = card.getByRole('switch', { name: /include diagnostics/i });
     await expect(toggle).not.toBeChecked();
-    await toggle.click();
+    await toggle.dispatchEvent('click');
     await expect(toggle).toBeChecked();
 
     const stored = await page.evaluate((key: string) => localStorage.getItem(key), DIAGNOSTICS_KEY);
     expect(stored).toBe('1');
 
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.keyboard.press('s');
-    await expect(page.getByRole('switch', { name: /include diagnostics/i })).toBeChecked();
+    const reloadedCard = await reportIssueCard(page);
+    await expect(reloadedCard.getByRole('switch', { name: /include diagnostics/i })).toBeChecked();
   });
 
   // ---- preview dialog -------------------------------------------------------
 
   test('preview dialog shows diagnostics when toggle is ON', async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem('rvt-diagnostics-optin', '1');
-    });
-    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.keyboard.press('s');
+    await setDiagnosticsPreference(page, '1', authSession);
+    const card = await reportIssueCard(page);
 
-    await page.getByRole('button', { name: /preview report/i }).click();
+    await card.getByRole('button', { name: /preview what will be sent/i }).dispatchEvent('click');
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
@@ -100,13 +190,10 @@ test.describe.skip('Report-issue card (Wave 2: mount in Settings first)', () => 
   });
 
   test('preview dialog hides diagnostics and shows opt-out notice when toggle is OFF', async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem('rvt-diagnostics-optin', '0');
-    });
-    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.keyboard.press('s');
+    await setDiagnosticsPreference(page, '0', authSession);
+    const card = await reportIssueCard(page);
 
-    await page.getByRole('button', { name: /preview report/i }).click();
+    await card.getByRole('button', { name: /preview what will be sent/i }).dispatchEvent('click');
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
@@ -119,40 +206,34 @@ test.describe.skip('Report-issue card (Wave 2: mount in Settings first)', () => 
   });
 
   test('preview dialog closes on Close button', async ({ page }) => {
-    await page.keyboard.press('s');
-    await page.getByRole('button', { name: /preview report/i }).click();
+    const card = await reportIssueCard(page);
+    await card.getByRole('button', { name: /preview what will be sent/i }).dispatchEvent('click');
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
-    await dialog.getByRole('button', { name: /close/i }).click();
+    await dialog.getByRole('button', { name: /close/i }).dispatchEvent('click');
     await expect(dialog).not.toBeVisible();
   });
 
   // ---- GitHub link ----------------------------------------------------------
 
-  test('Open GitHub issue link starts with issues/new URL and contains template=bug_report.yml', async ({ page, context }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem('rvt-diagnostics-optin', '0');
+  test('Open GitHub issue link starts with issues/new URL and contains template=bug_report.yml', async ({ page }) => {
+    await setDiagnosticsPreference(page, '0', authSession);
+    const card = await reportIssueCard(page);
+
+    await page.evaluate(() => {
+      (window as typeof window & { __rvtOpenedIssueUrl?: string }).__rvtOpenedIssueUrl = '';
+      window.open = (url?: string | URL) => {
+        (window as typeof window & { __rvtOpenedIssueUrl?: string }).__rvtOpenedIssueUrl = String(url ?? '');
+        return null;
+      };
     });
-    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.keyboard.press('s');
+    await card.getByRole('button', { name: /open a pre-filled github issue/i }).dispatchEvent('click');
 
-    // Intercept the new-tab navigation instead of actually opening GitHub.
-    const newPagePromise = context.waitForEvent('page', { timeout: 5000 }).catch(() => null);
-    await page.getByRole('button', { name: /open github issue/i }).click();
-
-    const newPage = await newPagePromise;
-    if (newPage) {
-      const url = newPage.url();
-      expect(url).toMatch(new RegExp(`^${ISSUES_NEW_URL.replace(/\//g, '/')}`));
-      expect(url).toContain('template=bug_report.yml');
-      await newPage.close();
-    } else {
-      // In Tauri or single-page navigation context — verify the URL on the
-      // existing page instead (fallback assertion).
-      // The button click still runs — verify no console error.
-      const logs: string[] = [];
-      page.on('console', msg => { if (msg.type() === 'error') logs.push(msg.text()); });
-      expect(logs.filter(l => l.includes('TypeError'))).toHaveLength(0);
-    }
+    const url = await page.waitForFunction(() => {
+      return (window as typeof window & { __rvtOpenedIssueUrl?: string }).__rvtOpenedIssueUrl || '';
+    });
+    const openedUrl = await url.jsonValue();
+    expect(openedUrl.startsWith(ISSUES_NEW_URL)).toBe(true);
+    expect(openedUrl).toContain('template=bug_report.yml');
   });
 });

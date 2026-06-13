@@ -23,6 +23,9 @@ def test_assets_root_is_repo_assets_dir():
     assert root.name == "assets"
     # sw.js is a known canonical file under the assets root.
     assert (root / "sw.js").is_file()
+    # The v12 migration tombstone has been retired; stale worker URLs must not
+    # be copied or served as a second service-worker surface.
+    assert not (root / "rvt-sw.js").exists()
 
 
 def test_safe_asset_path_resolves_real_files():
@@ -44,6 +47,7 @@ def test_safe_asset_path_rejects_paths_outside_whitelist():
     # the dispatcher handles them separately.
     assert safe_asset_path("/sw.js") is None
     assert safe_asset_path("/manifest.webmanifest") is None
+    assert safe_asset_path("/assets/rvt-sw.js") is None
     assert safe_asset_path("/secret/key.pem") is None
 
 

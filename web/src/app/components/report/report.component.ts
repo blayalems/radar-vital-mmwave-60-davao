@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, ViewChild, ElementRef, AfterViewInit, effect } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit, ViewChild, ElementRef, AfterViewInit, effect } from '@angular/core';
 import { DatePipe, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -40,6 +40,7 @@ import { ApiService } from '../../services/api.service';
 export class ReportComponent implements OnInit, AfterViewInit {
   protected readonly state = inject(StateService);
   protected readonly api = inject(ApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly snackBar = inject(MatSnackBar);
 
   constructor() {
@@ -63,6 +64,8 @@ export class ReportComponent implements OnInit, AfterViewInit {
   compareLoading = false;
   analysisStatus: { status?: string; progress_pct?: number; last_line?: string } | null = null;
   sessionDataRows: Array<Record<string, number | string | null>> = [];
+  sessionsLoading = false;
+  sessionsError = '';
   summaryLoading = false;
   summaryError = '';
   sessionNotesInput = '';
@@ -77,6 +80,8 @@ export class ReportComponent implements OnInit, AfterViewInit {
   }
 
   async loadSessions() {
+    this.sessionsLoading = true;
+    this.sessionsError = '';
     try {
       const resp = await this.api.request<{ items?: SessionRecord[] }>('/api/sessions');
       if (resp && Array.isArray(resp.items)) {
@@ -92,8 +97,16 @@ export class ReportComponent implements OnInit, AfterViewInit {
         }
         this.onSessionChange();
       }
-    } catch (e) {
-      console.warn('Could not load sessions', e);
+    } catch (error: unknown) {
+      console.warn('Could not load sessions', error);
+      this.sessions = [];
+      this.state.sessionItems.set([]);
+      this.selectedSessionId = '';
+      this.selectedSession = null;
+      this.sessionsError = error instanceof Error ? error.message : 'Report history could not be loaded from the trainer.';
+    } finally {
+      this.sessionsLoading = false;
+      this.cdr.markForCheck();
     }
   }
 
@@ -131,8 +144,11 @@ export class ReportComponent implements OnInit, AfterViewInit {
         this.summaryError = error instanceof Error ? error.message : 'Recorded session summary is unavailable.';
       } finally {
         this.summaryLoading = false;
+        this.cdr.markForCheck();
         setTimeout(() => this.drawReportTrends(), 50);
       }
+    } else {
+      this.cdr.markForCheck();
     }
   }
 
@@ -394,6 +410,7 @@ export class ReportComponent implements OnInit, AfterViewInit {
       this.snackBar.open(error instanceof Error ? error.message : 'Comparison session could not be loaded.', 'Dismiss', { duration: 5000 });
     } finally {
       this.compareLoading = false;
+      this.cdr.markForCheck();
       setTimeout(() => this.drawReportTrends(), 0);
     }
   }

@@ -126,7 +126,9 @@ export class TelemetryService {
       const startMs = Date.now();
       const payload = await this.api.request<Partial<LivePayload>>(`${path}?t=${Date.now()}`);
       const latency = Date.now() - startMs;
-      this.applyLivePayload(payload);
+      if (!this.applyLivePayload(payload)) {
+        throw new Error('live payload missing telemetry fields');
+      }
       this.httpPollFailures = 0;
       this.state.ctlStatus.update((s) => ({ ...(s ?? { ok: true }), ok: true, latency }));
       this.scheduleNextPoll(1000);
@@ -436,7 +438,7 @@ export class TelemetryService {
         schema_warning_count: 0,
         reconnect_attempts: 0,
         funnel_survival_pct: 100,
-        fw_truthfulness: { version: 'v16.2.0-demo', module_version_valid: true },
+        fw_truthfulness: { version: 'v16.3.0-demo', module_version_valid: true },
         gate_audit: { hr_eval_bins: 120, rr_eval_bins: 120 },
         hr_gate_reason_histogram: { OK: 120 },
         rr_gate_reason_histogram: { OK: 120 },
@@ -448,8 +450,8 @@ export class TelemetryService {
     this.applyLivePayload(payload);
   }
 
-  private applyLivePayload(payload: Partial<LivePayload>) {
-    if (!payload) return;
+  private applyLivePayload(payload: Partial<LivePayload>): boolean {
+    if (!this.hasLivePayloadShape(payload)) return false;
     const receivedAt = Date.now();
     const normalized: LivePayload = {
       meta: payload.meta || {},
@@ -501,6 +503,21 @@ export class TelemetryService {
       const distSeries = this.appendFinite(s.dist, normalized.radar.distance_cm);
       return { hr: hrSeries, rr: rrSeries, fps: fpsSeries, dist: distSeries };
     });
+    return true;
+  }
+
+  private hasLivePayloadShape(payload: Partial<LivePayload> | null | undefined): payload is Partial<LivePayload> {
+    if (!payload || typeof payload !== 'object') return false;
+    return Boolean(
+      payload.meta ||
+      payload.radar ||
+      payload.ble ||
+      payload.thresholds ||
+      payload.series ||
+      payload.analysis ||
+      payload.faults ||
+      payload.events
+    );
   }
 
   private appendFinite(series: number[], value: unknown): number[] {

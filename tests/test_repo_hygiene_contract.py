@@ -36,7 +36,7 @@ def test_legal_files_exist_with_required_anchors():
 def test_changelog_and_contributing_exist():
     changelog = text("CHANGELOG.md")
     assert "[Unreleased]" in changelog
-    assert "16.2.0" in changelog
+    assert "16.3.0" in changelog
     assert "Verification protocol" in text("CONTRIBUTING.md")
 
 

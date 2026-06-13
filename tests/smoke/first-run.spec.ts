@@ -51,7 +51,7 @@ test.describe('First-run consent gate', () => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
 
     // Consent dialog must be visible
-    const dialog = page.getByRole('dialog');
+    const dialog = page.locator('app-consent-dialog');
     await expect(dialog).toBeVisible({ timeout: 8000 });
     await expect(dialog).toContainText('Terms of Use');
     await expect(dialog).toContainText('Accept');
@@ -62,7 +62,7 @@ test.describe('First-run consent gate', () => {
     await applyCommonRoutes(page);
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
 
-    const dialog = page.getByRole('dialog');
+    const dialog = page.locator('app-consent-dialog');
     await expect(dialog).toBeVisible({ timeout: 8000 });
 
     // Click Decline
@@ -84,7 +84,7 @@ test.describe('First-run consent gate', () => {
     await applyCommonRoutes(page);
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
 
-    const dialog = page.getByRole('dialog');
+    const dialog = page.locator('app-consent-dialog');
     await expect(dialog).toBeVisible({ timeout: 8000 });
 
     await dialog.getByRole('button', { name: /Decline/i }).click();
@@ -100,7 +100,7 @@ test.describe('First-run consent gate', () => {
     await applyCommonRoutes(page);
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
 
-    const dialog = page.getByRole('dialog');
+    const dialog = page.locator('app-consent-dialog');
     await expect(dialog).toBeVisible({ timeout: 8000 });
 
     await dialog.getByRole('button', { name: /Accept/i }).click();
@@ -189,7 +189,7 @@ test.describe('First-run tutorial gate', () => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
 
     // 1. Consent dialog appears
-    const dialog = page.getByRole('dialog');
+    const dialog = page.locator('app-consent-dialog');
     await expect(dialog).toBeVisible({ timeout: 8000 });
     await expect(dialog).toContainText('Terms of Use');
 

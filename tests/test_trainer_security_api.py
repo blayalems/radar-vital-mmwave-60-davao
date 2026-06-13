@@ -185,10 +185,10 @@ def test_api_version_additive_product_and_schema_fields(tmp_path: Path):
     try:
         status, payload = _request(base, "/api/version")
         assert status == 200
-        assert payload["trainer"] == "16.2.0"
-        assert payload["dashboard"] == "16.2.0"
-        assert payload["product_version"] == "16.2.0"
-        assert payload["firmware_expected"] == "v16.2.0"
+        assert payload["trainer"] == "16.3.0"
+        assert payload["dashboard"] == "16.3.0"
+        assert payload["product_version"] == "16.3.0"
+        assert payload["firmware_expected"] == "v16.3.0"
         expected_schema_versions = {
             "control_api": "rvt-control-api-v12.0",
             "session_notes": "rvt-session-notes-v12.0",
@@ -242,7 +242,7 @@ def test_update_manifest_proxy_success(tmp_path: Path):
     base = f"http://127.0.0.1:{server.httpd.server_port}"
 
     mock_data = {
-        "product_version": "16.2.0",
+        "product_version": "16.3.0",
         "minimum_supported": "16.0.0",
         "released_at": "2026-06-06T00:00:00Z",
         "artifacts": {}
@@ -264,7 +264,7 @@ def test_update_manifest_proxy_success(tmp_path: Path):
         with patch("urllib.request.urlopen", side_effect=side_effect):
             status, data = _request(base, "/api/update/manifest")
             assert status == 200
-            assert data["product_version"] == "16.2.0"
+            assert data["product_version"] == "16.3.0"
     finally:
         server.stop()
 
@@ -326,7 +326,7 @@ def test_update_manifest_proxy_caching_and_expiration(tmp_path: Path):
             call_count += 1
             mock_response = MagicMock()
             mock_data = {
-                "product_version": f"16.2.0-{call_count}",
+                "product_version": f"16.3.0-{call_count}",
                 "minimum_supported": "16.0.0",
                 "released_at": "2026-06-06T00:00:00Z",
                 "artifacts": {}
@@ -338,25 +338,25 @@ def test_update_manifest_proxy_caching_and_expiration(tmp_path: Path):
 
     try:
         with patch("urllib.request.urlopen", side_effect=side_effect):
-            # First request: should trigger fetch and get 16.2.0-1
+            # First request: should trigger fetch and get 16.3.0-1
             status1, data1 = _request(base, "/api/update/manifest")
             assert status1 == 200
-            assert data1["product_version"] == "16.2.0-1"
+            assert data1["product_version"] == "16.3.0-1"
             assert call_count == 1
 
             # Second request immediately: should return cached data and NOT increment call_count
             status2, data2 = _request(base, "/api/update/manifest")
             assert status2 == 200
-            assert data2["product_version"] == "16.2.0-1"
+            assert data2["product_version"] == "16.3.0-1"
             assert call_count == 1
 
             # Simulate cache expiration: move the cached timestamp back by 301 seconds
             _manifest_cache["ts"] = time.time() - 301
 
-            # Third request: cache has expired, should trigger a new fetch and get 16.2.0-2
+            # Third request: cache has expired, should trigger a new fetch and get 16.3.0-2
             status3, data3 = _request(base, "/api/update/manifest")
             assert status3 == 200
-            assert data3["product_version"] == "16.2.0-2"
+            assert data3["product_version"] == "16.3.0-2"
             assert call_count == 2
     finally:
         server.stop()

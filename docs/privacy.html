@@ -1,0 +1,127 @@
+<!doctype html>
+<!-- Static page generated from ../PRIVACY.md draft 2026-06-12.1 for GitHub Pages. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Radar Vital privacy notice for the hosted PWA and companion apps.">
+  <title>Radar Vital Privacy Notice</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7fbfb;
+      --fg: #102022;
+      --muted: #4b5f63;
+      --panel: #ffffff;
+      --line: #bed5d8;
+      --accent: #0e5e63;
+      --warn-bg: #fff5d6;
+      --warn-fg: #4f3800;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #071517;
+        --fg: #eef8f8;
+        --muted: #a8bdc1;
+        --panel: #0d2023;
+        --line: #244246;
+        --warn-bg: #382d12;
+        --warn-fg: #ffe7a3;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+    main {
+      width: min(920px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 40px 0 64px;
+    }
+    h1, h2 { line-height: 1.2; }
+    h1 { margin: 0 0 8px; font-size: clamp(2rem, 5vw, 3.2rem); }
+    h2 { margin-top: 36px; padding-top: 8px; border-top: 1px solid var(--line); }
+    a { color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; background: var(--panel); }
+    th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .eyebrow { margin: 0 0 12px; color: var(--muted); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .banner {
+      margin: 24px 0;
+      padding: 16px 18px;
+      border: 1px solid #e2b94b;
+      border-radius: 8px;
+      background: var(--warn-bg);
+      color: var(--warn-fg);
+      font-weight: 700;
+    }
+    .source {
+      margin-top: 40px;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Radar Vital legal draft</p>
+    <h1>Privacy Notice</h1>
+    <p>Canonical hosted URL: <a href="https://blayalems.github.io/radar-vital-mmwave-60-davao/privacy.html">https://blayalems.github.io/radar-vital-mmwave-60-davao/privacy.html</a></p>
+
+    <div class="banner">
+      DRAFT 2026-06-12.1 - pending University of Mindanao legal / Research Ethics Committee review. Republic Act No. 10173 (Data Privacy Act of 2012) compliance language has not yet been counsel-verified.
+    </div>
+
+    <p>This notice explains how Radar Vital handles personal data, in line with Republic Act No. 10173 - the Data Privacy Act of 2012, its Implementing Rules and Regulations, and National Privacy Commission guidance, and with University of Mindanao research-ethics requirements.</p>
+
+    <h2>1. Who is responsible</h2>
+    <p>For this thesis research, the personal information controllers are the student researchers <strong>Lemuel Blaya, Angelo Diaz, and Blessie Mugat</strong> (BS Electronics Engineering, University of Mindanao), under the supervision of the University of Mindanao. Contact: open an issue at <a href="https://github.com/blayalems/radar-vital-mmwave-60-davao/issues">GitHub issues</a> or reach the researchers through the University.</p>
+
+    <h2>2. What data the system processes</h2>
+    <table>
+      <thead>
+        <tr><th>Data</th><th>Where it lives</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Operator display name and initials</td><td><code>operator_profiles.json</code> on the trainer computer</td><td>Identifies who ran a session</td></tr>
+        <tr><td>Operator PIN and recovery code</td><td>Stored only as salted PBKDF2 hashes, never plaintext</td><td>Station access control</td></tr>
+        <tr><td>Session vital-sign recordings: heart rate, respiratory rate, presence, and radar telemetry CSV</td><td>Session folders on the trainer computer</td><td>The research itself</td></tr>
+        <tr><td>Subject label entered by the operator</td><td>Session metadata on the trainer computer</td><td>Distinguishing test subjects; use codes, not full names, where possible</td></tr>
+        <tr><td>Device diagnostics: versions, platform, connection state, recent log lines</td><td>Composed only when you use "Report an issue" and shown for review first</td><td>Troubleshooting; can be disabled in Settings</td></tr>
+      </tbody>
+    </table>
+
+    <h2>3. What the system does not do</h2>
+    <ul>
+      <li><strong>No cloud upload.</strong> All measurement data stays on the trainer computer and the paired device. The system has no analytics, advertising, or tracking SDKs.</li>
+      <li><strong>No automatic transmission of diagnostics.</strong> Issue reports open a GitHub page in your browser with text you can read and edit before anything is submitted. Diagnostics inclusion can be switched off entirely in Settings.</li>
+      <li><strong>No biometric identification.</strong> Radar data measures vital signs; it does not identify faces or bodies.</li>
+    </ul>
+
+    <h2>4. Legal basis and consent</h2>
+    <p>Processing is based on informed consent under DPA Section 12(a), collected on first run and re-collected whenever this notice changes. Measurement subjects must consent before a session is recorded; operators are responsible for obtaining that consent.</p>
+
+    <h2>5. Retention and deletion</h2>
+    <p>Session recordings remain on the trainer computer until deleted by an operator. Sessions can be deleted from the dashboard; deleted sessions are moved to a trash folder under the sessions root. Profiles can be removed by deleting the profile entry on the host machine. Research data retention follows the University of Mindanao research-ethics protocol for this thesis.</p>
+
+    <h2>6. Your rights under the Data Privacy Act</h2>
+    <p>Subject to the DPA, data subjects have the right to be informed; to access; to object; to erasure or blocking; to damages; to data portability; and to file a complaint with the National Privacy Commission at <a href="https://privacy.gov.ph">privacy.gov.ph</a>. To exercise these rights, contact the researchers.</p>
+
+    <h2>7. Security measures</h2>
+    <p>PINs and recovery codes are stored only as salted PBKDF2-HMAC-SHA256 hashes; LAN access requires explicit opt-in with single-use pairing PINs; network pairing tokens live in memory only; sensitive API routes require an operator session. Despite these measures, the trainer computer itself must be physically secured because anyone with access to it can read session files.</p>
+
+    <h2>8. Changes to this notice</h2>
+    <p>The application records the version of the notice you accepted (<code>2026-06-12.1</code>) and will ask for consent again when it changes.</p>
+
+    <p class="source">Generated from <code>PRIVACY.md</code>. See also <a href="./terms.html">Terms and Conditions</a> and the <a href="https://github.com/blayalems/radar-vital-mmwave-60-davao">source repository</a>.</p>
+  </main>
+</body>
+</html>

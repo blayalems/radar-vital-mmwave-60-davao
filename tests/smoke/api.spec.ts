@@ -48,16 +48,17 @@ test.describe('Trainer API smoke', () => {
     // The new SW advertises its cache namespace and ships network-first/cache-first strategies.
     expect(body).toContain('rvt-shell-v12');
     expect(body).toMatch(/networkFirst|cacheFirst/);
-    // The new SW must not self-unregister — that behavior lives only in /rvt-sw.js.
+    // The active SW must not self-unregister.
     expect(body).not.toMatch(/self\.registration\.unregister\s*\(\s*\)/);
   });
 
-  test('/rvt-sw.js still serves the unregister tombstone for migration', async ({ request }) => {
+  test('/rvt-sw.js tombstone is retired with an explicit gone response', async ({ request }) => {
     const resp = await request.get('/rvt-sw.js');
-    expect(resp.status()).toBe(200);
-    const body = await resp.text();
-    // The tombstone must actually call unregister — not just mention it in a comment.
-    expect(body).toMatch(/self\.registration\.unregister\s*\(\s*\)/);
+    expect(resp.status()).toBe(410);
+    expect(resp.headers()['content-type']).toMatch(/json/);
+    const json = await resp.json();
+    const payload = json.data ?? json;
+    expect(payload.error?.code).toBe('SERVICE_WORKER_TOMBSTONE_REMOVED');
   });
 
   test('/api/server-info advertises origin and pair state', async ({ request }) => {

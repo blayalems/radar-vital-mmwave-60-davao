@@ -84,9 +84,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.2.0"
-DASHBOARD_VERSION = "16.2.0"
-FIRMWARE_VERSION_EXPECTED = "v16.2.0"
+VERSION = "16.3.0"
+DASHBOARD_VERSION = "16.3.0"
+FIRMWARE_VERSION_EXPECTED = "v16.3.0"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 _manifest_cache = {"data": None, "ts": 0}
 _manifest_cache_lock = threading.Lock()
@@ -4355,7 +4355,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_2_0.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_3_0.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -5354,25 +5354,6 @@ def _system_metrics(path: str) -> Dict[str, object]:
 def _sanitize_user_string(value, max_len: int = 1000) -> str:
     text = str(value or "")[:max_len]
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
-
-def _build_service_worker_js() -> str:
-    fallback = """self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => {
-  e.waitUntil(self.registration.unregister().then(() =>
-    self.clients.matchAll().then(cs => cs.forEach(c => c.navigate(c.url)))));
-});
-"""
-    try:
-        from rvt_trainer.assets.static import assets_root
-        sw_file = assets_root() / "rvt-sw.js"
-        if sw_file.is_file():
-            return sw_file.read_text(encoding="utf-8")
-    except Exception:
-        pass
-    return fallback
-
 
 # Static-asset path resolution + content-type lives in
 # rvt_trainer.assets.static; we re-export under the existing underscored
@@ -6393,7 +6374,17 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/rvt-sw.js":
-            self._send_bytes(200, _build_service_worker_js().encode("utf-8"), "application/javascript; charset=utf-8", cache_control="no-cache")
+            self._send_json(
+                410,
+                {
+                    "ok": False,
+                    "error": {
+                        "code": "SERVICE_WORKER_TOMBSTONE_REMOVED",
+                        "message": "Legacy /rvt-sw.js tombstone was retired; use /sw.js.",
+                    },
+                },
+                cache_control="no-store",
+            )
             return
         if path == "/sw.js":
             sw_path = _assets_root() / "sw.js"
@@ -7257,7 +7248,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_2_0.ino"),
+        Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
         Path("radar_vital_v14.ino"),

@@ -105,7 +105,26 @@
           <button mat-flat-button type="button" routerLink="/settings" class="mat-tonal-button"><mat-icon>settings</mat-icon>Source settings</button>
           <button mat-flat-button type="button" routerLink="/report" class="mat-tonal-button"><mat-icon>assignment</mat-icon>Open reports</button>
           <button mat-flat-button type="button" (click)="openShortcuts()" class="mat-tonal-button"><mat-icon>keyboard</mat-icon>Keyboard shortcuts</button>
+          <button mat-flat-button type="button" (click)="replayTutorial()" class="mat-tonal-button"><mat-icon>school</mat-icon>Replay tutorial</button>
           <button mat-flat-button type="button" (click)="copySupportSummary()" class="mat-tonal-button"><mat-icon>content_copy</mat-icon>Copy support summary</button>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="legal-card">
+        <mat-card-header><mat-card-title>Legal & Project Links</mat-card-title></mat-card-header>
+        <mat-card-content class="legal-links-list">
+          <a mat-flat-button class="mat-tonal-button" [href]="termsUrl" target="_blank" rel="noopener noreferrer">
+            <mat-icon>gavel</mat-icon>Terms of Use
+          </a>
+          <a mat-flat-button class="mat-tonal-button" [href]="privacyUrl" target="_blank" rel="noopener noreferrer">
+            <mat-icon>policy</mat-icon>Privacy Policy
+          </a>
+          <a mat-flat-button class="mat-tonal-button" [href]="licenseUrl" target="_blank" rel="noopener noreferrer">
+            <mat-icon>description</mat-icon>License
+          </a>
+          <a mat-flat-button class="mat-tonal-button" [href]="githubRepoUrl" target="_blank" rel="noopener noreferrer">
+            <mat-icon>open_in_new</mat-icon>Source repository
+          </a>
         </mat-card-content>
       </mat-card>
 

@@ -58,6 +58,16 @@
   color: var(--md-sys-color-error) !important;
 }
 
+.server-blocker-note {
+  display: inline-flex;
+  align-items: flex-start;
+  margin-top: 0;
+  padding: 0.7rem 0.8rem;
+  border: 1px dashed var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container-low);
+}
+
 .server-blocker-actions {
   grid-column: 2;
   display: flex;

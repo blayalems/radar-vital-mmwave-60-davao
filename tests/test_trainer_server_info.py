@@ -109,6 +109,29 @@ def test_pair_page_html_without_active_pin():
     assert "LAN pairing is not active in local bind mode." in page
 
 
+# ---------------------------------------------------------------------------
+# /about copyright footer — WS1-D
+# ---------------------------------------------------------------------------
+
+def test_about_page_contains_all_author_names():
+    """The /about (support matrix) page must name every project author."""
+    s = _StubServer(host="loopback.local")
+    page = support_matrix_html(s)
+    for author in ("Lemuel Blaya", "Angelo Diaz", "Blessie Mugat"):
+        assert author in page, f"Expected author '{author}' in /about response"
+
+
+def test_about_page_contains_current_year():
+    """The /about page must include the dynamically computed current year."""
+    from datetime import datetime
+
+    s = _StubServer(host="loopback.local")
+    page = support_matrix_html(s)
+    assert str(datetime.now().year) in page, (
+        f"Expected year {datetime.now().year} in /about response"
+    )
+
+
 if __name__ == "__main__":
     import pytest
 

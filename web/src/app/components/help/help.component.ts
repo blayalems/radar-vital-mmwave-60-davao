@@ -15,6 +15,8 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 import { ApiService } from '../../services/api.service';
+import { FirstRunService } from '../../services/first-run.service';
+import { GITHUB_REPO_URL } from '../../services/app-meta';
 import { StateService } from '../../services/state.service';
 import { KeyboardShortcutsDialogComponent } from '../keyboard-shortcuts-dialog/keyboard-shortcuts-dialog.component';
 
@@ -82,6 +84,7 @@ interface RecoveryStep {
 export class HelpComponent implements OnInit {
   protected readonly state = inject(StateService);
   protected readonly api = inject(ApiService);
+  protected readonly firstRun = inject(FirstRunService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
@@ -101,6 +104,10 @@ export class HelpComponent implements OnInit {
   protected readonly selectedTopic = signal(this.storageValue('rvt-help-topic') || 'getting_started');
   protected readonly recoverySteps = this.embeddedRecoverySteps();
   protected readonly completedRecoverySteps = signal<Set<string>>(this.readRecoveryProgress());
+  protected readonly termsUrl = `${GITHUB_REPO_URL}/blob/main/TERMS.md`;
+  protected readonly privacyUrl = `${GITHUB_REPO_URL}/blob/main/PRIVACY.md`;
+  protected readonly licenseUrl = `${GITHUB_REPO_URL}/blob/main/LICENSE`;
+  protected readonly githubRepoUrl = GITHUB_REPO_URL;
 
   protected readonly topicLinks: Array<{ id: string; label: string; icon: string }> = [
     { id: 'getting_started', label: 'Getting started', icon: 'rocket_launch' },
@@ -272,6 +279,11 @@ export class HelpComponent implements OnInit {
       restoreFocus: true,
       panelClass: 'm3-dialog-panel'
     });
+  }
+
+  protected replayTutorial(): void {
+    this.state.triggerHaptic('tap');
+    this.firstRun.replayTutorial();
   }
 
   protected openPreflight(): void {

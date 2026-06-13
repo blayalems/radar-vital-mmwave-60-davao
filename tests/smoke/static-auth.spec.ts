@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'fs/promises';
 import http from 'http';
 import path from 'path';
+import { seedFirstRunComplete } from './helpers/first-run';
 
 const WWW = path.resolve(process.cwd(), 'www');
 
@@ -77,6 +78,7 @@ test.describe('Static hosted PWA operator auth', () => {
   test('creates, validates, and reopens a sandbox operator from /live without a trainer', async ({ page, browserName }) => {
     const server = await startStaticPagesServer();
     try {
+      await seedFirstRunComplete(page);
       await page.goto(`${server.origin}/live`, { waitUntil: 'domcontentloaded' });
       await page.locator('#rvtLoadingOverlay').waitFor({ state: 'hidden', timeout: 20_000 }).catch(() => {});
       await createSandboxOperator(page);

@@ -1,6 +1,6 @@
 [package]
 name = "radar-vital"
-version = "16.2.0"
+version = "16.3.0"
 description = "Mobile-first console for mmWave 60 GHz radar vital-sign monitoring."
 edition = "2021"
 rust-version = "1.77"

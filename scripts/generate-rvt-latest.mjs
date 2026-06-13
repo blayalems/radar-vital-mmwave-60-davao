@@ -75,6 +75,7 @@ function readTauriSignature(exePath) {
 function generateManifest(distDir, prodVersion, options = buildOptions(prodVersion)) {
   const apkReleasePath = path.join(distDir, 'radar-vital-release.apk');
   const apkDebugPath = path.join(distDir, 'radar-vital-debug.apk');
+  const aabReleasePath = path.join(distDir, 'radar-vital-release.aab');
   const exePath = path.join(distDir, 'radar-vital-windows-installer.exe');
 
   let apkFilePath = '';
@@ -104,6 +105,17 @@ function generateManifest(distDir, prodVersion, options = buildOptions(prodVersi
     releaseUrl,
     versionCode: options.androidVersionCode
   });
+  const aab = fs.existsSync(aabReleasePath)
+    ? artifactMetadata({
+        kind: 'aab',
+        platform: 'android-play',
+        fileName: 'radar-vital-release.aab',
+        filePath: aabReleasePath,
+        compatibility: 'Google Play Android App Bundle',
+        releaseUrl,
+        versionCode: options.androidVersionCode
+      })
+    : null;
   const exe = artifactMetadata({
     kind: 'exe',
     platform: 'windows',
@@ -113,6 +125,8 @@ function generateManifest(distDir, prodVersion, options = buildOptions(prodVersi
     releaseUrl
   });
   const tauriSignature = readTauriSignature(exePath);
+  const artifacts = aab ? { apk, aab, exe } : { apk, exe };
+  const artifactEntries = aab ? [apk, aab, exe] : [apk, exe];
 
   return {
     product_version: prodVersion,
@@ -122,11 +136,8 @@ function generateManifest(distDir, prodVersion, options = buildOptions(prodVersi
     release_tag: options.releaseTag,
     build_number: options.buildNumber,
     release_url: `https://github.com/${options.repository}/releases/tag/${options.releaseTag}`,
-    artifacts: {
-      apk,
-      exe
-    },
-    artifact_entries: [apk, exe],
+    artifacts,
+    artifact_entries: artifactEntries,
     compatibility: {
       android: 'Android 8.0+',
       windows: 'Windows 10+',
@@ -173,20 +184,25 @@ function runSelfTest() {
   }
 
   const mockApkContent = 'mock apk content ' + Math.random();
+  const mockAabContent = 'mock aab content ' + Math.random();
   const mockExeContent = 'mock exe content ' + Math.random();
   const mockSigContent = 'mock-signature-content';
 
   const mockApkPath = path.join(tempDir, 'radar-vital-release.apk');
+  const mockAabPath = path.join(tempDir, 'radar-vital-release.aab');
   const mockExePath = path.join(tempDir, 'radar-vital-windows-installer.exe');
   const mockSigPath = path.join(tempDir, 'radar-vital-windows-installer.exe.sig');
 
   fs.writeFileSync(mockApkPath, mockApkContent);
+  fs.writeFileSync(mockAabPath, mockAabContent);
   fs.writeFileSync(mockExePath, mockExeContent);
   fs.writeFileSync(mockSigPath, mockSigContent);
 
   const expectedApkSize = Buffer.byteLength(mockApkContent);
+  const expectedAabSize = Buffer.byteLength(mockAabContent);
   const expectedExeSize = Buffer.byteLength(mockExeContent);
   const expectedApkHash = crypto.createHash('sha256').update(mockApkContent).digest('hex');
+  const expectedAabHash = crypto.createHash('sha256').update(mockAabContent).digest('hex');
   const expectedExeHash = crypto.createHash('sha256').update(mockExeContent).digest('hex');
 
   try {
@@ -231,12 +247,13 @@ function runSelfTest() {
     }
 
     const apk = manifest.artifacts?.apk;
+    const aab = manifest.artifacts?.aab;
     const exe = manifest.artifacts?.exe;
 
-    if (!apk || !exe) {
-      throw new Error('Missing apk or exe in artifacts');
+    if (!apk || !aab || !exe) {
+      throw new Error('Missing apk, aab or exe in artifacts');
     }
-    if (!Array.isArray(manifest.artifact_entries) || manifest.artifact_entries.length !== 2) {
+    if (!Array.isArray(manifest.artifact_entries) || manifest.artifact_entries.length !== 3) {
       throw new Error('Missing artifact_entries array');
     }
 
@@ -257,6 +274,25 @@ function runSelfTest() {
     }
     if (apk.compatibility !== 'Android 8.0+') {
       throw new Error(`APK compatibility mismatch: got ${apk.compatibility}`);
+    }
+
+    if (aab.url !== `https://github.com/${DEFAULT_REPOSITORY}/releases/download/${testOptions.releaseTag}/radar-vital-release.aab`) {
+      throw new Error(`AAB url mismatch: got ${aab.url}`);
+    }
+    if (aab.size !== expectedAabSize) {
+      throw new Error(`AAB size mismatch: expected ${expectedAabSize}, got ${aab.size}`);
+    }
+    if (aab.size_bytes !== expectedAabSize) {
+      throw new Error(`AAB size_bytes mismatch: expected ${expectedAabSize}, got ${aab.size_bytes}`);
+    }
+    if (aab.version_code !== testOptions.androidVersionCode) {
+      throw new Error(`AAB version_code mismatch: expected ${testOptions.androidVersionCode}, got ${aab.version_code}`);
+    }
+    if (aab.sha256 !== expectedAabHash) {
+      throw new Error(`AAB sha256 mismatch: expected ${expectedAabHash}, got ${aab.sha256}`);
+    }
+    if (aab.compatibility !== 'Google Play Android App Bundle') {
+      throw new Error(`AAB compatibility mismatch: got ${aab.compatibility}`);
     }
 
     if (exe.url !== `https://github.com/${DEFAULT_REPOSITORY}/releases/download/${testOptions.releaseTag}/radar-vital-windows-installer.exe`) {
@@ -301,6 +337,12 @@ function runSelfTest() {
     }
     if (tauriNsisPlatform.signature !== mockSigContent || tauriNsisPlatform.url !== tauriPlatform.url) {
       throw new Error('Tauri NSIS platform metadata mismatch');
+    }
+
+    fs.rmSync(mockAabPath);
+    const noAabManifest = generateManifest(tempDir, version, testOptions);
+    if (noAabManifest.artifacts?.aab || noAabManifest.artifact_entries.length !== 2) {
+      throw new Error('AAB metadata must be omitted when no .aab artifact is present');
     }
 
     console.log('Self-test validation passed successfully!');

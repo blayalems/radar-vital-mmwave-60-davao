@@ -6,7 +6,7 @@ The repository ships three coupled artefacts:
 
 | Component | File | Role |
 |---|---|---|
-| **Firmware** | [`radar_vital_v16_2_0.ino`](./radar_vital_v16_2_0.ino) | XIAO ESP32-C6 + MR60BHA2 driver. Emits the v15.1 219-column CSV at 115 200 baud over USB; the first 207 columns remain the frozen v15 contract and columns 208-219 are right-edge diagnostics. v16 gates an optional NimBLE GATT path behind `ENABLE_BLE` (Phase 4F). |
+| **Firmware** | [`radar_vital_v16_3_0.ino`](./radar_vital_v16_3_0.ino) | XIAO ESP32-C6 + MR60BHA2 driver. Emits the v15.1 219-column CSV at 115 200 baud over USB; the first 207 columns remain the frozen v15 contract and columns 208-219 are right-edge diagnostics. v16 gates an optional NimBLE GATT path behind `ENABLE_BLE` (Phase 4F). |
 | **Trainer** | [`radar_vital_trainer_v12_for_v16_0.py`](./radar_vital_trainer_v12_for_v16_0.py) + [`rvt_trainer/`](./rvt_trainer/) | Python 3.11 `ThreadingHTTPServer`. The root script is a compatibility shim over the package entrypoint. It reads the firmware CSV, manages sessions, runs preflight/ML-readiness/audit, writes `live_dashboard.json` once per second, and serves the dashboard plus its REST/SSE API. |
 | **Dashboard** | [`web/src/`](./web/src/) -> [`radar_vital_live_dashboard_v12_for_v16_0.html`](./radar_vital_live_dashboard_v12_for_v16_0.html) | Standalone Angular 21 + Material 3 application compiled to a committed single-file PWA artefact and `www/` packages. Polls or subscribes to `/api/events/subscribe`, renders live KPIs, waveforms, alerts, reports, pairing and scoped offline state. |
 
@@ -69,6 +69,8 @@ python3 radar_vital_trainer_v12_for_v16_0.py serve --bind lan
 | Bootstrap/public | None | shell assets, `/pair`, `/api/health`, `/api/version`, `/api/update/manifest`, `/api/server-info`, `/api/auth/exchange`, `/api/help/schema` |
 | EXE native loopback bootstrap | Loopback-only native bridge | `/api/native-pairing-info` (GET; `?format=qr` adds `qr_png_base64` in LAN bind) |
 | Auth / operator management | Operator session token (`X-RVT-Auth`) | `/api/auth/validate` (GET), `/api/auth/login` (POST), `/api/auth/logout` (POST), `/api/auth/sse-token` (POST), `/api/operator-profiles` (GET/POST), `/api/subject-profiles` (GET), `/api/defaults` (GET/POST) |
+| PIN recovery | Recovery code (no session token needed) | `/api/auth/reset-pin` (POST — body: `{operator_id, recovery_code, new_pin}`; verifies PBKDF2 recovery-code hash; rotates code on success; separate 5-attempt/30 s lockout) |
+| Host PIN reset | Loopback-only (127.0.0.1 / ::1); no token | `/api/auth/host-reset` (POST — body: `{operator_id, new_pin}`; 403 from any non-loopback address; re-mints recovery code; use for legacy profiles or when recovery code is lost) |
 | Physiological / session / hardware | `X-RVT-Auth` required in LAN mode | `/api/status`, `/api/events/subscribe`, `/api/session/events`, `/api/session/current`, `/api/session/current/live_dashboard.json`, `/api/session/buffer`, `/api/sessions`, `/api/sessions/<id>/summary`, `/api/sessions/<id>/data`, `/api/sessions/<id>/notes` (GET), `/api/sessions/<id>/signoff` (GET), `/api/sessions/<id>/annotations` (GET), `/api/sessions/<id>/compare`, `/api/sessions/<id>/analyse/status`, `/api/sessions/<id>/training/status`, `/api/sessions/<id>/predict`, `/api/sessions/<id>/files/<rel>`, `/api/ble/scan`, `/api/serial/ports`, `/api/preflight`, `/api/preflight/<id>` (single-check rerun), `/api/trainer/log`, `/api/report/export` |
 | Control / mutation | `X-RVT-Auth` required in LAN mode | `/api/session/start` (POST), `/api/session/stop` (POST), `/api/session/annotate` (POST), `/api/session/annotations` (POST), `/api/sessions/<id>/notes` (PUT), `/api/sessions/<id>/signoff` (PUT), `/api/sessions/<id>/tags` (PUT), `/api/sessions/<id>/analyse` (POST — rerun), `/api/sessions/<id>` (DELETE — soft-trashes to `.trash/`) |
 
@@ -148,7 +150,7 @@ Pre-mobile baseline tag: `v15.0.0-pre-mobile` — rollback point for the redesig
 
 ```
 .
-├── radar_vital_v16_2_0.ino                          # firmware (v16; v15 behavior with optional BLE gated off)
+├── radar_vital_v16_3_0.ino                          # firmware (v16; v15 behavior with optional BLE gated off)
 ├── radar_vital_trainer_v12_for_v16_0.py             # trainer compatibility shim
 ├── rvt_trainer/                                     # trainer package facade + legacy monolith
 ├── radar_vital_live_dashboard_v12_for_v16_0.html    # PWA dashboard (single file)

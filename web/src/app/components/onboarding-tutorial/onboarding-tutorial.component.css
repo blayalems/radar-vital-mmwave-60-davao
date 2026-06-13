@@ -1,0 +1,357 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.tutorial-content {
+  display: grid;
+  gap: 16px;
+  max-height: min(74vh, 720px);
+  padding: 0 0 8px !important;
+  overflow: auto;
+}
+
+.tutorial-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(176px, 0.78fr) minmax(0, 1.22fr);
+  gap: 24px;
+  align-items: center;
+  overflow: hidden;
+  min-height: 268px;
+  padding: 28px;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 22%, var(--md-sys-color-outline-variant, #cbd5e1));
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 14%, transparent), transparent 34%),
+    radial-gradient(circle at 88% 74%, color-mix(in srgb, var(--md-sys-color-tertiary, #00a496) 14%, transparent), transparent 38%),
+    linear-gradient(135deg, var(--md-sys-color-surface-container-lowest, #ffffff), var(--md-sys-color-surface-container-low, #f7fbff));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-on-primary, #ffffff) 56%, transparent),
+    0 22px 48px -34px color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 42%, transparent);
+}
+
+.tutorial-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -8% -38% 35%;
+  height: 180px;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, transparent 0 8%, color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 12%, transparent) 8.5% 9%, transparent 9.5% 100%),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 18%, transparent) 0 1px, transparent 1px 28px);
+  opacity: 0.22;
+  transform: perspective(540px) rotateX(58deg);
+  transform-origin: bottom;
+}
+
+.radar-scene {
+  position: relative;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  width: min(42vw, 220px);
+  min-width: 164px;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  color: var(--md-sys-color-primary, #0061a4);
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 16%, transparent) 0 8%, transparent 9%),
+    radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-primary-container, #d5e3ff) 58%, transparent) 0 42%, transparent 43%);
+}
+
+.radar-ring,
+.radar-sweep,
+.radar-mark,
+.radar-dot {
+  position: absolute;
+  pointer-events: none;
+}
+
+.radar-ring {
+  inset: var(--ring-inset);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 22%, transparent);
+  border-radius: 999px;
+}
+
+.ring-one { --ring-inset: 8px; opacity: 0.34; }
+.ring-two { --ring-inset: 36px; opacity: 0.5; }
+.ring-three { --ring-inset: 66px; opacity: 0.72; }
+
+.radar-sweep {
+  inset: 50% 50% auto auto;
+  width: 43%;
+  height: 43%;
+  transform-origin: 100% 100%;
+  border-radius: 100% 0 0 0;
+  background: conic-gradient(from 12deg, color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 34%, transparent), transparent 42deg);
+  animation: radarSweep 5.4s linear infinite;
+}
+
+.radar-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--md-sys-color-tertiary, #00a496) 76%, var(--md-sys-color-primary, #0061a4));
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--md-sys-color-tertiary, #00a496) 13%, transparent);
+}
+
+.dot-one { top: 22%; left: 38%; }
+.dot-two { right: 18%; top: 48%; }
+.dot-three { left: 26%; bottom: 20%; }
+
+.radar-mark {
+  display: grid;
+  place-items: center;
+  width: 70px;
+  height: 70px;
+  border-radius: 24px;
+  color: var(--md-sys-color-on-primary-container, #001b3d);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--md-sys-color-primary-container, #d5e3ff) 88%, white), var(--md-sys-color-surface-container-lowest, #ffffff));
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 28%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 70%, transparent),
+    0 14px 28px -20px color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 62%, transparent);
+}
+
+.radar-mark mat-icon {
+  font-size: 34px;
+  width: 34px;
+  height: 34px;
+}
+
+.tutorial-copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.tutorial-eyebrow {
+  margin: 0 0 10px;
+  color: var(--md-sys-color-primary, #0061a4);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tutorial-title {
+  margin: 0;
+  color: var(--md-sys-color-on-surface, #0f172a);
+  font-size: clamp(1.55rem, 3.8vw, 2.35rem);
+  line-height: 1.03;
+  letter-spacing: -0.02em;
+}
+
+.tutorial-body {
+  max-width: 58ch;
+  margin: 14px 0 0;
+  color: var(--md-sys-color-on-surface-variant, #475569);
+  font-size: 0.96rem;
+  line-height: 1.68;
+}
+
+.tutorial-body strong {
+  color: var(--md-sys-color-on-surface, #0f172a);
+}
+
+.tutorial-body kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--md-sys-color-outline, #94a3b8);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.8rem;
+  background: var(--md-sys-color-surface-container, #eef4fb);
+  color: var(--md-sys-color-on-surface, #0f172a);
+}
+
+.tutorial-progress-meter {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--md-sys-color-surface-container-high, #e7eef7);
+}
+
+.tutorial-progress-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--md-sys-color-primary, #0061a4), var(--md-sys-color-tertiary, #00a496));
+  transition: width 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.tutorial-step-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(88px, 1fr));
+  gap: 8px;
+}
+
+.step-pill {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-height: 46px;
+  padding: 8px 10px;
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: 12px;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  background: var(--md-sys-color-surface-container-lowest, #ffffff);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1), border-color 160ms, background 160ms;
+}
+
+.step-pill:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 36%, var(--md-sys-color-outline-variant, #cbd5e1));
+}
+
+.step-pill.active {
+  color: var(--md-sys-color-on-primary-container, #001b3d);
+  border-color: color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 44%, transparent);
+  background: color-mix(in srgb, var(--md-sys-color-primary-container, #d5e3ff) 64%, var(--md-sys-color-surface, #ffffff));
+}
+
+.step-pill mat-icon {
+  font-size: 19px;
+  width: 19px;
+  height: 19px;
+  color: var(--md-sys-color-primary, #0061a4);
+}
+
+.step-pill span {
+  overflow: hidden;
+  font-size: 0.75rem;
+  font-weight: 750;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-pill:focus-visible,
+.tutorial-legal a:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary, #0061a4);
+  outline-offset: 3px;
+}
+
+.tutorial-legal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: 14px;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  background: var(--md-sys-color-surface-container-low, #f8fafc);
+  font-size: 0.82rem;
+}
+
+.tutorial-legal span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+}
+
+.tutorial-legal mat-icon {
+  color: var(--md-sys-color-primary, #0061a4);
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.tutorial-legal a {
+  color: var(--md-sys-color-primary, #0061a4);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tutorial-legal a:hover {
+  text-decoration: underline;
+}
+
+.tutorial-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0 0 !important;
+}
+
+.tutorial-skip-btn {
+  color: var(--md-sys-color-outline, #64748b);
+  margin-right: auto;
+}
+
+@keyframes radarSweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 760px) {
+  .tutorial-content {
+    max-height: min(78vh, 680px);
+  }
+
+  .tutorial-hero {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 22px;
+  }
+
+  .radar-scene {
+    width: min(62vw, 188px);
+  }
+
+  .tutorial-step-strip {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+  }
+
+  .step-pill {
+    flex: 0 0 156px;
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .tutorial-hero {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .tutorial-title {
+    font-size: 1.45rem;
+  }
+
+  .tutorial-body {
+    font-size: 0.88rem;
+  }
+
+  .tutorial-legal {
+    align-items: flex-start;
+  }
+
+  .tutorial-legal span {
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-sweep {
+    animation: none;
+  }
+
+  .step-pill,
+  .tutorial-progress-meter span {
+    transition: none;
+  }
+}

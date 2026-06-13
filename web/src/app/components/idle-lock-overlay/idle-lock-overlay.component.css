@@ -232,3 +232,40 @@ h2 {
   justify-content: center;
   margin-right: 8px;
 }
+
+/* Reset / "Forgot PIN?" flow */
+.reset-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.reset-code-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.login-flow.hidden {
+  display: none;
+}
+
+/* "Forgot PIN?" / host-reset links below PIN keyboard */
+.forgot-pin-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.forgot-pin-link {
+  font-size: 0.8rem;
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.8;
+}
+
+.host-reset-link {
+  font-size: 0.75rem;
+}

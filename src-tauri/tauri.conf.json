@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Radar Vital",
-  "version": "16.2.0",
+  "version": "16.3.0",
   "identifier": "app.radarvital.trainer",
   "build": {
     "beforeBuildCommand": "npm run build:web",
@@ -32,12 +32,17 @@
     "targets": ["nsis"],
     "createUpdaterArtifacts": false,
     "externalBin": ["binaries/rvt-trainer"],
-    "publisher": "Radar Vital",
+    "licenseFile": "../packaging/windows/eula.rtf",
+    "publisher": "Lemuel Blaya, Angelo Diaz, Blessie Mugat \u2014 University of Mindanao",
+    "copyright": "Copyright (c) 2026 Lemuel Blaya, Angelo Diaz, Blessie Mugat. All rights reserved.",
     "shortDescription": "Mobile-first console for mmWave 60 GHz radar vital-sign monitoring.",
     "longDescription": "Standalone Windows operator console for the Radar Vital trainer. The installer bundles the Python trainer as a local Tauri sidecar, starts it on loopback, and connects the dashboard to the local API without requiring a manual Python launch. APK builds remain LAN companion clients.",
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installerIcon": "icons/icon.ico"
       }
     }
   },

@@ -101,6 +101,14 @@ mat-icon {
   box-shadow: 0 24px 48px -8px color-mix(in srgb, var(--md-sys-color-shadow, #000) 36%, transparent);
 }
 
+.rvt-onboarding-panel .mat-mdc-dialog-surface {
+  overflow: hidden;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 8%, transparent), transparent 34%),
+    var(--md-sys-color-surface-container-lowest, #ffffff);
+}
+
 /* Keep legacy Home styling from hiding or over-partitioning Angular content. */
 body[data-view='home'] app-home .sandbox-note {
   display: flex !important;

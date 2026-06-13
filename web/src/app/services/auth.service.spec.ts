@@ -82,6 +82,25 @@ describe('AuthService', () => {
     expect(state.setup().operator_label).toBe('Operator One');
   });
 
+  it('does not immediately re-lock a fresh login because of stale unauthenticated status', async () => {
+    state.ctlStatus.set({ ok: true, mode: 'live', reason: 'unauthenticated' });
+    const mockResponse = {
+      token: 'fresh-session-token',
+      expires_at: 123456789,
+      operator: { operator_id: 'op_1', display_name: 'Operator One', initials: 'O1' }
+    };
+    mockApi.request.mockResolvedValueOnce(mockResponse);
+
+    const success = await service.login('op_1', '1234');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(success).toBe(true);
+    expect(sessionStorage.getItem(OPERATOR_TOKEN_KEY)).toBe('fresh-session-token');
+    expect(service.isLocked()).toBe(false);
+    expect(service.currentOperator()).toEqual(mockResponse.operator);
+    expect(state.ctlStatus()?.reason).toBeUndefined();
+  });
+
   it('should set lockout countdown on LOCKOUT_ACTIVE error', async () => {
     const errorMsg = 'Too many failed attempts. Try again in 25 seconds. (LOCKOUT_ACTIVE)';
     mockApi.request.mockRejectedValueOnce(new Error(errorMsg));

@@ -13,11 +13,14 @@ import { firstValueFrom } from 'rxjs';
 import { normalizePreflightStatus, PreflightCheck, SnapshotRecord, ThemeId } from '../../models/rvt.models';
 import { ApiService } from '../../services/api.service';
 import { DEFAULT_KPI_THRESHOLDS, StateService } from '../../services/state.service';
+import { FirstRunService } from '../../services/first-run.service';
+import { InstallPromptService } from '../../services/install-prompt.service';
+import { IssueReportService } from '../../services/issue-report.service';
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 import { CommandPinningService } from '../../services/command-pinning.service';
 
-type CommandGroup = 'Navigate' | 'Live Session' | 'Source' | 'Appearance' | 'Export';
+type CommandGroup = 'Navigate' | 'Live Session' | 'Source' | 'Appearance' | 'Export' | 'Support';
 
 interface PaletteCommand {
   id: string;
@@ -50,6 +53,9 @@ interface PaletteCommand {
 export class CommandPaletteComponent {
   private readonly state = inject(StateService);
   private readonly api = inject(ApiService);
+  private readonly firstRun = inject(FirstRunService);
+  private readonly installPrompt = inject(InstallPromptService);
+  private readonly issueReport = inject(IssueReportService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly dialogRef = inject(MatDialogRef<CommandPaletteComponent>);
@@ -68,6 +74,43 @@ export class CommandPaletteComponent {
     this.navCommand('reports', 'Reports and comparison', 'Summary, recorded trends and analysis status', 'assignment', '/report', 'summary compare thesis analysis'),
     this.navCommand('help', 'Operator playbook', 'Search field guidance and recovery actions', 'help', '/help', 'documentation keyboard troubleshooting'),
     this.navCommand('settings', 'Settings', 'Source, appearance, thresholds and audio', 'settings', '/settings', 'endpoint pairing token audio'),
+    {
+      id: 'report-issue',
+      label: 'Report an issue',
+      description: 'Open a pre-filled GitHub issue with current diagnostics',
+      keywords: 'bug github issue diagnostics support report',
+      group: 'Support',
+      icon: 'bug_report',
+      action: () => this.reportIssue()
+    },
+    {
+      id: 'replay-tutorial',
+      label: 'Replay tutorial',
+      description: 'Open the first-run operator walkthrough again',
+      keywords: 'onboarding tutorial guide walkthrough help',
+      group: 'Support',
+      icon: 'school',
+      action: () => this.firstRun.replayTutorial()
+    },
+    {
+      id: 'about-legal',
+      label: 'About & legal',
+      description: 'Open authorship, version, terms, privacy and license details',
+      keywords: 'about legal terms privacy license authors university copyright version',
+      group: 'Support',
+      icon: 'info',
+      action: () => this.openSettingsSection('about-legal')
+    },
+    {
+      id: 'install-app',
+      label: 'Install app',
+      description: 'Open the browser PWA install prompt when available',
+      keywords: 'install pwa add home screen app offline',
+      group: 'Support',
+      icon: 'install_mobile',
+      disabledReason: () => this.installDisabledReason(),
+      action: () => this.installApp()
+    },
     {
       id: 'capture',
       label: 'Pin current snapshot',
@@ -473,6 +516,41 @@ export class CommandPaletteComponent {
       'Dismiss',
       { duration: 4500 }
     );
+  }
+
+  private async reportIssue(): Promise<void> {
+    try {
+      const report = await this.issueReport.buildReport();
+      const url = this.issueReport.buildIssueUrl(report);
+      await this.issueReport.openReport(url);
+      this.snackBar.open('Opening GitHub issue form.', 'Dismiss', { duration: 3000 });
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Issue report could not be opened.', 'Dismiss', { duration: 5000 });
+    }
+  }
+
+  private async openSettingsSection(sectionId: string): Promise<void> {
+    await this.router.navigate(['/settings']);
+    window.setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 75);
+  }
+
+  private installDisabledReason(): string | null {
+    if (this.installPrompt.nativeShell()) return 'Install is unavailable inside the native shell.';
+    if (this.installPrompt.standalone()) return 'Radar Vital is already installed.';
+    if (this.installPrompt.promptInFlight()) return 'Install prompt is already open.';
+    return this.installPrompt.available() ? null : 'Install prompt is not available yet.';
+  }
+
+  private async installApp(): Promise<void> {
+    const outcome = await this.installPrompt.promptInstall();
+    const message = outcome === 'accepted'
+      ? 'Install accepted.'
+      : outcome === 'dismissed'
+        ? 'Install prompt dismissed.'
+        : 'Install prompt is not available yet.';
+    this.snackBar.open(message, 'Dismiss', { duration: 3000 });
   }
 
   private async toggleDemo(): Promise<void> {

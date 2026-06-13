@@ -42,6 +42,53 @@
   opacity: 0.9;
 }
 
+.install-prompt-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 28%, var(--md-sys-color-outline-variant, #cbd5e1));
+  border-radius: 12px !important;
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--md-sys-color-primary-container, #d5e3ff) 44%, transparent), transparent 58%),
+    var(--md-sys-color-surface, #ffffff) !important;
+  box-shadow: none !important;
+}
+
+.install-prompt-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  color: var(--md-sys-color-on-primary-container, #001b3d);
+  background: var(--md-sys-color-primary-container, #d5e3ff);
+}
+
+.install-prompt-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.install-prompt-copy strong {
+  color: var(--md-sys-color-on-surface, #1e293b);
+}
+
+.install-prompt-copy span {
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.install-prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: end;
+}
+
 /* Confidence Score Widget styling */
 .mobile-ready-stack {
   display: block;
@@ -164,6 +211,34 @@
 .home-stat-sub {
   font-size: 0.75rem;
   color: var(--md-sys-color-on-surface-variant, #94a3b8);
+}
+
+.home-empty-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: 12px !important;
+  background: var(--md-sys-color-surface-container-low, #f8fafc) !important;
+  box-shadow: none !important;
+}
+
+.home-empty-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.home-empty-copy strong {
+  color: var(--md-sys-color-on-surface, #1e293b);
+}
+
+.home-empty-copy span {
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 /* circular readiness ring */
@@ -610,6 +685,37 @@
   border-left: 4px solid var(--md-sys-color-error, #dc2626);
 }
 
+.preflight-empty-state {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 16px;
+  border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: 12px;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  background: var(--md-sys-color-surface-container-low, #f8fafc);
+}
+
+.preflight-empty-state mat-icon {
+  color: var(--md-sys-color-primary, #0061a4);
+}
+
+.preflight-empty-state div {
+  display: grid;
+  gap: 3px;
+}
+
+.preflight-empty-state strong {
+  color: var(--md-sys-color-on-surface, #1e293b);
+}
+
+.preflight-empty-state span {
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .pf-info {
   display: flex;
   align-items: center;
@@ -817,6 +923,30 @@
   padding: 40px;
   gap: 12px;
   color: var(--md-sys-color-on-surface-variant, #94a3b8);
+  text-align: center;
+  border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: 12px;
+  background: var(--md-sys-color-surface-container-low, #f8fafc);
+}
+
+.sessions-empty-state h3 {
+  margin: 0;
+  color: var(--md-sys-color-on-surface, #1e293b);
+  font-size: 1rem;
+}
+
+.sessions-empty-state p {
+  margin: 0;
+  max-width: 520px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.sessions-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
 
 .empty-icon {
@@ -855,6 +985,18 @@
   .icon-action-btn {
     flex: 0 0 52px;
     width: 52px !important;
+  }
+
+  .install-prompt-card,
+  .home-empty-card {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .install-prompt-actions,
+  .home-empty-card button {
+    justify-self: stretch;
+    width: 100%;
   }
 }
 

@@ -20,6 +20,7 @@ import { ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
 import { BluetoothService } from '../../services/bluetooth.service';
+import { InstallPromptService } from '../../services/install-prompt.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
 
@@ -53,6 +54,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly telemetry = inject(TelemetryService);
   protected readonly audio = inject(AudioService);
   protected readonly bluetooth = inject(BluetoothService);
+  protected readonly installPrompt = inject(InstallPromptService);
   protected readonly serverLifecycle = inject(ServerLifecycleService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
@@ -115,6 +117,23 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.loadSessions();
     this.runPreflight();
     void this.scanSerialPorts();
+  }
+
+  protected async installApp(): Promise<void> {
+    this.state.triggerHaptic('tap');
+    const outcome = await this.installPrompt.promptInstall();
+    if (outcome === 'accepted') {
+      this.snackBar.open('Install started. Follow your browser prompt to finish.', 'Dismiss', { duration: 4000 });
+    } else if (outcome === 'dismissed') {
+      this.snackBar.open('Install prompt dismissed. You can still install from your browser menu.', 'Dismiss', { duration: 4000 });
+    } else {
+      this.snackBar.open('Install prompt is not available in this shell.', 'Dismiss', { duration: 4000 });
+    }
+  }
+
+  protected dismissInstallBanner(): void {
+    this.installPrompt.dismiss();
+    this.state.triggerHaptic('tap');
   }
 
   @HostListener('document:keydown', ['$event'])

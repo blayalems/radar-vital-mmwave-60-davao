@@ -1,7 +1,8 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
 import { ApiService } from './api.service';
 import { StateService } from './state.service';
-import { OperatorProfile, OperatorProfilesResponse, LoginResponse } from '../models/rvt.models';
+import { FirstRunService } from './first-run.service';
+import { ControlStatus, OperatorProfile, OperatorProfilesResponse, LoginResponse } from '../models/rvt.models';
 import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
 
 @Injectable({
@@ -10,6 +11,7 @@ import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
 export class AuthService {
   private readonly api = inject(ApiService);
   private readonly state = inject(StateService);
+  private readonly firstRun = inject(FirstRunService);
 
   readonly currentOperator = signal<OperatorProfile | null>(null);
   readonly isLocked = signal<boolean>(true);
@@ -21,24 +23,39 @@ export class AuthService {
   readonly operatorLockouts = signal<Record<string, number>>({});
 
   private lockoutTimers = new Map<string, any>();
+  private authInitAttempted = false;
+  private suppressUnauthenticatedUntil = 0;
 
   constructor() {
     effect(() => {
       const status = this.state.ctlStatus();
-      if (!this.loading() && !this.isLocked() && status?.reason === 'unauthenticated') {
+      if (
+        !this.loading() &&
+        !this.isLocked() &&
+        status?.reason === 'unauthenticated' &&
+        Date.now() >= this.suppressUnauthenticatedUntil
+      ) {
         this.loginError.set('Operator session expired. Sign in again to continue.');
         this.lock();
       }
     });
-    void this.checkAuthInit();
+    effect(() => {
+      if (this.firstRun.consentRequired() || this.authInitAttempted) return;
+      this.authInitAttempted = true;
+      void this.checkAuthInit();
+    });
   }
 
   private async checkAuthInit(): Promise<void> {
     try {
-      await this.waitForConnectionBootstrap();
-      const token = sessionStorage.getItem(OPERATOR_TOKEN_KEY);
-      if (!token) {
+      const startupToken = sessionStorage.getItem(OPERATOR_TOKEN_KEY);
+      if (!startupToken) {
         this.isLocked.set(true);
+        return;
+      }
+
+      await this.waitForConnectionBootstrap();
+      if (sessionStorage.getItem(OPERATOR_TOKEN_KEY) !== startupToken) {
         return;
       }
 
@@ -75,6 +92,11 @@ export class AuthService {
   }
 
   async loadProfiles(): Promise<void> {
+    if (this.firstRun.consentRequired()) {
+      this.profiles.set([]);
+      this.bootstrapping.set(false);
+      return;
+    }
     await this.waitForConnectionBootstrap();
     this.loading.set(true);
     try {
@@ -93,6 +115,7 @@ export class AuthService {
   }
 
   async login(operator_id: string, pin: string): Promise<boolean> {
+    this.authInitAttempted = true;
     this.loading.set(true);
     this.loginError.set(null);
     try {
@@ -127,6 +150,7 @@ export class AuthService {
         }));
 
         await this.api.detectControlMode();
+        this.suppressUnauthenticatedUntil = Date.now() + 1000;
         this.isLocked.set(false);
         this.notifyAuthenticated();
         return true;
@@ -152,25 +176,90 @@ export class AuthService {
     }
   }
 
-  async createProfile(displayName: string, initials: string, pin: string): Promise<boolean> {
+  async createProfile(displayName: string, initials: string, pin: string): Promise<{ success: boolean; recoveryCode?: string }> {
     this.loading.set(true);
     this.loginError.set(null);
     try {
-      const res = await this.api.request<{ ok: boolean; operator?: OperatorProfile }>('/api/operator-profiles', {
+      const res = await this.api.request<{ ok: boolean; operator?: OperatorProfile; recovery_code?: string }>('/api/operator-profiles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_name: displayName, initials, pin })
       }, false, 30000);
 
       if (res?.ok && res.operator) {
+        const recoveryCode = res.recovery_code;
         await this.loadProfiles();
-        return await this.login(res.operator.operator_id, pin);
+        const loggedIn = await this.login(res.operator.operator_id, pin);
+        return { success: loggedIn, recoveryCode };
       }
-      return false;
+      return { success: false };
     } catch (err: any) {
       console.error('Failed to create profile', err);
       this.loginError.set(err.message || 'Failed to create profile.');
-      return false;
+      return { success: false };
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async resetPin(operatorId: string, recoveryCode: string, newPin: string): Promise<{ success: boolean; recoveryCode?: string; error?: string }> {
+    this.loading.set(true);
+    this.loginError.set(null);
+    try {
+      const res = await this.api.request<{ ok: boolean; recovery_code?: string }>(
+        '/api/auth/reset-pin',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operator_id: operatorId, recovery_code: recoveryCode, new_pin: newPin })
+        },
+        false,
+        30000
+      );
+      if (res?.ok) {
+        return { success: true, recoveryCode: res.recovery_code };
+      }
+      return { success: false };
+    } catch (err: any) {
+      console.error('Reset PIN failed', err);
+      const msg = err.message || 'Failed to reset PIN.';
+      if (msg.includes('LOCKOUT_ACTIVE') || msg.toLowerCase().includes('lockout')) {
+        let retryAfter = 30;
+        const match = msg.match(/(\d+)\s*second/i);
+        if (match) retryAfter = parseInt(match[1], 10);
+        this.loginError.set(`Too many failed attempts. Try again in ${retryAfter} seconds.`);
+      } else {
+        this.loginError.set(msg);
+      }
+      return { success: false, error: msg };
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async hostReset(operatorId: string, newPin: string): Promise<{ success: boolean; recoveryCode?: string; error?: string }> {
+    this.loading.set(true);
+    this.loginError.set(null);
+    try {
+      const res = await this.api.request<{ ok: boolean; recovery_code?: string }>(
+        '/api/auth/host-reset',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operator_id: operatorId, new_pin: newPin })
+        },
+        false,
+        30000
+      );
+      if (res?.ok) {
+        return { success: true, recoveryCode: res.recovery_code };
+      }
+      return { success: false };
+    } catch (err: any) {
+      console.error('Host reset failed', err);
+      const msg = err.message || 'Host reset failed.';
+      this.loginError.set(msg);
+      return { success: false, error: msg };
     } finally {
       this.loading.set(false);
     }
@@ -195,13 +284,6 @@ export class AuthService {
     void this.api.detectControlMode();
   }
 
-  private clearUnauthenticatedStatus(): void {
-    const status = this.state.ctlStatus();
-    if (status?.reason !== 'unauthenticated') return;
-    const { reason: _reason, ...nextStatus } = status;
-    this.state.ctlStatus.set(nextStatus);
-  }
-
   private async waitForConnectionBootstrap(): Promise<void> {
     await Promise.race([
       this.api.whenInitialized(),
@@ -213,6 +295,14 @@ export class AuthService {
     try {
       window.dispatchEvent(new CustomEvent('rvt-operator-authenticated'));
     } catch (_) {}
+  }
+
+  private clearUnauthenticatedStatus(): void {
+    this.state.ctlStatus.update(status => {
+      if (status?.reason !== 'unauthenticated') return status;
+      const { reason: _reason, error: _error, message: _message, ...rest } = status;
+      return { ...rest, ok: true } as ControlStatus;
+    });
   }
 
   private async revokeToken(token: string | null): Promise<void> {

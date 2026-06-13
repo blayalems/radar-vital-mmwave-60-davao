@@ -1,0 +1,75 @@
+<mat-card class="settings-card premium-card report-issue-card">
+  <mat-card-header>
+    <mat-icon mat-card-avatar class="card-avatar">bug_report</mat-icon>
+    <mat-card-title>Report an Issue</mat-card-title>
+    <mat-card-subtitle>Pre-fills a GitHub bug report with your current diagnostics.</mat-card-subtitle>
+  </mat-card-header>
+
+  <mat-card-content>
+    <!-- Description textarea -->
+    <mat-form-field appearance="outline" class="form-field-full">
+      <mat-label>Short description (optional)</mat-label>
+      <textarea
+        matInput
+        rows="3"
+        maxlength="500"
+        [ngModel]="userText()"
+        (ngModelChange)="userText.set($event)"
+        placeholder="Describe what went wrong — this pre-fills the issue description."
+        aria-label="Short issue description"
+      ></textarea>
+      <mat-hint align="end">{{ userText().length }} / 500</mat-hint>
+    </mat-form-field>
+
+    <!-- Diagnostics toggle -->
+    <div class="settings-row">
+      <div class="settings-copy">
+        <span class="row-title">Include diagnostics in issue reports</span>
+        <span class="row-description">
+          Attaches your current platform, connection mode, controller status,
+          de-identified alert summary, and sanitized trainer log excerpts.
+          Known tokens, pairing PINs, recovery codes, operator IDs, and configured
+          operator names are redacted before preview or opening GitHub.
+        </span>
+      </div>
+      <mat-slide-toggle
+        [checked]="diagnosticsEnabled"
+        (change)="onToggleChange($event.checked)"
+        aria-label="Include diagnostics in issue reports"
+      ></mat-slide-toggle>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="report-issue-actions">
+      <button
+        mat-stroked-button
+        type="button"
+        [disabled]="busy()"
+        (click)="previewReport()"
+        aria-label="Preview what will be sent in the issue report"
+      >
+        @if (busy()) {
+          <mat-spinner diameter="16" aria-hidden="true"></mat-spinner>
+        } @else {
+          <mat-icon aria-hidden="true">preview</mat-icon>
+        }
+        Preview report
+      </button>
+
+      <button
+        mat-flat-button
+        type="button"
+        [disabled]="busy()"
+        (click)="openIssue()"
+        aria-label="Open a pre-filled GitHub issue"
+      >
+        @if (busy()) {
+          <mat-spinner diameter="16" aria-hidden="true"></mat-spinner>
+        } @else {
+          <mat-icon aria-hidden="true">open_in_new</mat-icon>
+        }
+        Open GitHub issue
+      </button>
+    </div>
+  </mat-card-content>
+</mat-card>

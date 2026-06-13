@@ -42,7 +42,7 @@ def test_backend_manifest_proxy_success(tmp_path: Path):
     base = f"http://127.0.0.1:{server.httpd.server_port}"
 
     mock_data = {
-        "product_version": "16.2.0",
+        "product_version": "16.3.0",
         "minimum_supported": "16.0.0",
         "released_at": "2026-06-06T00:00:00Z",
         "artifacts": {}
@@ -63,7 +63,7 @@ def test_backend_manifest_proxy_success(tmp_path: Path):
         with patch("urllib.request.urlopen", side_effect=mock_fetch):
             status, data, _ = _request(base, "/api/update/manifest")
             assert status == 200
-            assert data["product_version"] == "16.2.0"
+            assert data["product_version"] == "16.3.0"
     finally:
         server.stop()
 
@@ -89,7 +89,7 @@ def test_backend_manifest_proxy_caching_and_expiration(tmp_path: Path):
             call_count += 1
             mock_resp = MagicMock()
             mock_data = {
-                "product_version": f"16.2.0-{call_count}",
+                "product_version": f"16.3.0-{call_count}",
                 "minimum_supported": "16.0.0",
                 "released_at": "2026-06-06T00:00:00Z",
                 "artifacts": {}
@@ -104,13 +104,13 @@ def test_backend_manifest_proxy_caching_and_expiration(tmp_path: Path):
             # First fetch (should call network)
             status1, data1, _ = _request(base, "/api/update/manifest")
             assert status1 == 200
-            assert data1["product_version"] == "16.2.0-1"
+            assert data1["product_version"] == "16.3.0-1"
             assert call_count == 1
 
             # Second fetch within 5 minutes (should be cached)
             status2, data2, _ = _request(base, "/api/update/manifest")
             assert status2 == 200
-            assert data2["product_version"] == "16.2.0-1"
+            assert data2["product_version"] == "16.3.0-1"
             assert call_count == 1
 
             # Expire cache (move ts back by 301s)
@@ -119,7 +119,7 @@ def test_backend_manifest_proxy_caching_and_expiration(tmp_path: Path):
             # Third fetch (should hit network again)
             status3, data3, _ = _request(base, "/api/update/manifest")
             assert status3 == 200
-            assert data3["product_version"] == "16.2.0-2"
+            assert data3["product_version"] == "16.3.0-2"
             assert call_count == 2
     finally:
         server.stop()
@@ -168,7 +168,7 @@ def test_backend_manifest_proxy_auth_checks(tmp_path: Path):
     base = f"http://127.0.0.1:{server.httpd.server_port}"
 
     mock_data = {
-        "product_version": "16.2.0",
+        "product_version": "16.3.0",
         "minimum_supported": "16.0.0",
         "released_at": "2026-06-06T00:00:00Z",
         "artifacts": {}
@@ -190,7 +190,7 @@ def test_backend_manifest_proxy_auth_checks(tmp_path: Path):
             # Health and Manifest endpoints are part of public_api_paths, so they don't require token auth
             status, data, _ = _request(base, "/api/update/manifest")
             assert status == 200
-            assert data["product_version"] == "16.2.0"
+            assert data["product_version"] == "16.3.0"
 
             # A protected endpoint should require token auth in LAN mode
             status_protected, data_protected, _ = _request(base, "/api/status")

@@ -17,6 +17,15 @@ const androidPackagePath = path.join(ROOT, 'android', 'app', 'src', 'main', 'jav
 const mainActivityPath = path.join(androidPackagePath, 'MainActivity.java');
 const openFilePluginPath = path.join(androidPackagePath, 'OpenFilePlugin.kt');
 
+// Adaptive icon resource paths
+const resDrawablePath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'drawable');
+const resMipmapAnydpiPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'mipmap-anydpi-v26');
+const resValuesColorsPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'values', 'colors.xml');
+const resValuesLauncherBgPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'values', 'ic_launcher_background.xml');
+const variablesGradlePath = path.join(ROOT, 'android', 'variables.gradle');
+// Source foreground drawable (committed in repo)
+const srcForegroundDrawable = path.join(ROOT, 'assets', 'icons', 'android', 'ic_launcher_foreground.xml');
+
 const MAIN_ACTIVITY_JAVA = `package app.radarvital.trainer;
 
 import android.os.Bundle;
@@ -167,6 +176,179 @@ function ensureKotlinAndroidPlugin(appGradle) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// SDK version pinning — FAIL LOUDLY if expected gradle text is absent
+// ---------------------------------------------------------------------------
+
+/**
+ * Pins compileSdk and targetSdk to the given sdkVersion in the given gradle
+ * text.  Throws (loudly) if neither the standard `compileSdk N` pattern nor
+ * the Capacitor `compileSdkVersion N` pattern is found — we must never
+ * silently drift on the SDK version.
+ */
+function pinSdkVersions(gradleText, sdkVersion, filePath) {
+  // Capacitor templates use either `compileSdk N` or `compileSdkVersion N`
+  const compileSdkRe = /\bcompileSdk(?:Version)?\s+\d+/;
+  const targetSdkRe = /\btargetSdk(?:Version)?\s+\d+/;
+  // Capacitor 7 templates instead reference rootProject.ext values that are
+  // assigned in variables.gradle — that file is then the authoritative pin.
+  const extRefRe = /rootProject\.ext\.(?:compileSdkVersion|targetSdkVersion)/;
+
+  if (!compileSdkRe.test(gradleText) || !targetSdkRe.test(gradleText)) {
+    if (extRefRe.test(gradleText)) {
+      return null; // defer the pin to variables.gradle
+    }
+    console.error(
+      `[patch-android-shell] FATAL: ${filePath} has neither literal ` +
+      `compileSdk/targetSdk values nor rootProject.ext SDK references.\n` +
+      `  The Capacitor template shape may have changed — update this patch script.`
+    );
+    process.exit(1);
+  }
+
+  return gradleText
+    .replace(compileSdkRe, `compileSdk ${sdkVersion}`)
+    .replace(targetSdkRe, `targetSdk ${sdkVersion}`);
+}
+
+/**
+ * Pins ext variables `compileSdkVersion` and `targetSdkVersion` inside
+ * variables.gradle (used by some Capacitor templates as an ext block).
+ * No-ops if the file does not exist (older templates may not have it).
+ * Fails loudly if the file exists but the expected pattern is missing.
+ */
+async function pinVariablesGradle(sdkVersion) {
+  let text;
+  try {
+    text = await fs.readFile(variablesGradlePath, 'utf8');
+  } catch (e) {
+    if (e.code === 'ENOENT') return false; // template doesn't use variables.gradle
+    throw e;
+  }
+
+  const compileSdkVarRe = /\bcompileSdkVersion\s*=\s*\d+/;
+  const targetSdkVarRe = /\btargetSdkVersion\s*=\s*\d+/;
+
+  if (!compileSdkVarRe.test(text) || !targetSdkVarRe.test(text)) {
+    console.error(
+      `[patch-android-shell] FATAL: variables.gradle exists but is missing ` +
+      `compileSdkVersion or targetSdkVersion assignments.\n` +
+      `  File: ${variablesGradlePath}\n` +
+      `  Update this patch script to match the template shape.`
+    );
+    process.exit(1);
+  }
+
+  text = text
+    .replace(compileSdkVarRe, `compileSdkVersion = ${sdkVersion}`)
+    .replace(targetSdkVarRe, `targetSdkVersion = ${sdkVersion}`);
+
+  await fs.writeFile(variablesGradlePath, text);
+  console.log(`Pinned SDK ${sdkVersion} in: ${path.relative(ROOT, variablesGradlePath)}`);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Adaptive launcher icon installation
+// ---------------------------------------------------------------------------
+
+const IC_LAUNCHER_XML = `<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+`;
+
+const IC_LAUNCHER_ROUND_XML = `<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+`;
+
+/**
+ * Sets `@color/ic_launcher_background` to our brand color in EXACTLY ONE place.
+ *
+ * The Capacitor template ships `res/values/ic_launcher_background.xml` already
+ * defining this resource. Adding a second definition in colors.xml makes AAPT
+ * fail with "Duplicate resources", so we overwrite the template's dedicated
+ * file when present and only fall back to colors.xml when it is absent — and we
+ * strip any stray colors.xml entry to keep the definition unique.
+ */
+async function ensureLauncherBackgroundColor(colorHex) {
+  const dedicatedFile = `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">${colorHex}</color>\n</resources>\n`;
+
+  let dedicatedExists = false;
+  try {
+    await fs.access(resValuesLauncherBgPath);
+    dedicatedExists = true;
+  } catch (_) {
+    dedicatedExists = false;
+  }
+
+  if (dedicatedExists) {
+    // Canonical template location — overwrite its value, leave colors.xml clean.
+    await fs.writeFile(resValuesLauncherBgPath, dedicatedFile);
+    console.log(`Set ic_launcher_background in: ${path.relative(ROOT, resValuesLauncherBgPath)}`);
+
+    // Defensively remove a stray duplicate a prior buggy run may have injected.
+    try {
+      let colors = await fs.readFile(resValuesColorsPath, 'utf8');
+      if (colors.includes('name="ic_launcher_background"')) {
+        colors = colors.replace(/\s*<color name="ic_launcher_background">[^<]*<\/color>/g, '');
+        await fs.writeFile(resValuesColorsPath, colors);
+        console.log(`Removed duplicate ic_launcher_background from colors.xml`);
+      }
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
+    return;
+  }
+
+  // No dedicated file — define it in colors.xml instead.
+  let xml;
+  try {
+    xml = await fs.readFile(resValuesColorsPath, 'utf8');
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      xml = `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n</resources>\n`;
+    } else {
+      throw e;
+    }
+  }
+  if (xml.includes('name="ic_launcher_background"')) {
+    // Replace existing value rather than append a duplicate.
+    xml = xml.replace(/<color name="ic_launcher_background">[^<]*<\/color>/,
+      `<color name="ic_launcher_background">${colorHex}</color>`);
+  } else {
+    xml = xml.replace(/(\s*<\/resources>)/,
+      `\n    <color name="ic_launcher_background">${colorHex}</color>$1`);
+  }
+  await fs.writeFile(resValuesColorsPath, xml);
+  console.log(`Defined ic_launcher_background color in: ${path.relative(ROOT, resValuesColorsPath)}`);
+}
+
+async function installAdaptiveIcon() {
+  // 1. Copy foreground drawable from repo source
+  await fs.mkdir(resDrawablePath, { recursive: true });
+  const fgSrc = await fs.readFile(srcForegroundDrawable, 'utf8');
+  await fs.writeFile(path.join(resDrawablePath, 'ic_launcher_foreground.xml'), fgSrc);
+  console.log(`Installed ic_launcher_foreground.xml into res/drawable/`);
+
+  // 2. Write mipmap-anydpi-v26 adaptive icon XMLs
+  await fs.mkdir(resMipmapAnydpiPath, { recursive: true });
+  await fs.writeFile(path.join(resMipmapAnydpiPath, 'ic_launcher.xml'), IC_LAUNCHER_XML);
+  await fs.writeFile(path.join(resMipmapAnydpiPath, 'ic_launcher_round.xml'), IC_LAUNCHER_ROUND_XML);
+  console.log(`Installed adaptive icon XMLs into res/mipmap-anydpi-v26/`);
+
+  // 3. Ensure background color resource exists
+  await ensureLauncherBackgroundColor('#0E5E63');
+}
+
+// ---------------------------------------------------------------------------
+
 async function main() {
   let rootGradle = await fs.readFile(rootGradlePath, 'utf8');
   rootGradle = ensureKotlinGradlePlugin(rootGradle);
@@ -174,7 +356,27 @@ async function main() {
 
   let appGradle = await fs.readFile(appGradlePath, 'utf8');
   appGradle = ensureKotlinAndroidPlugin(appGradle);
+  // Pin compileSdk and targetSdk to 35: literals in app/build.gradle when the
+  // template uses them, otherwise the variables.gradle ext block. FAILS LOUDLY
+  // if the pin lands in neither location.
+  const literalPin = pinSdkVersions(appGradle, 35, appGradlePath);
+  if (literalPin !== null) {
+    appGradle = literalPin;
+  }
   await fs.writeFile(appGradlePath, appGradle);
+  if (literalPin !== null) {
+    console.log(`Pinned compileSdk/targetSdk=35 in: ${path.relative(ROOT, appGradlePath)}`);
+  }
+
+  const variablesPinned = await pinVariablesGradle(35);
+  if (literalPin === null && !variablesPinned) {
+    console.error(
+      `[patch-android-shell] FATAL: app/build.gradle defers SDK versions to ` +
+      `rootProject.ext but variables.gradle is missing or unpatchable.\n` +
+      `  The Capacitor template shape may have changed — update this patch script.`
+    );
+    process.exit(1);
+  }
 
   let xml = await fs.readFile(stylesPath, 'utf8');
   xml = patchStyle(xml, 'AppTheme');
@@ -213,6 +415,9 @@ async function main() {
   console.log(`Patched Android Kotlin plugin: ${path.relative(ROOT, appGradlePath)}`);
   console.log(`Patched Android backup policy: ${path.relative(ROOT, manifestPath)}`);
   console.log(`Patched Android update installer plugin: ${path.relative(ROOT, openFilePluginPath)}`);
+
+  // Install adaptive launcher icon (ic_launcher_foreground, mipmap-anydpi-v26, background color)
+  await installAdaptiveIcon();
 }
 
 main().catch(err => {

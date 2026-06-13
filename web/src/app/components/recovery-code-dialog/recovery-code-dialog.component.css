@@ -1,0 +1,64 @@
+.recovery-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+}
+
+.recovery-icon {
+  font-size: 1.4rem;
+  color: var(--mat-sys-primary, #6750a4);
+}
+
+.recovery-dialog-content {
+  max-width: 400px;
+}
+
+.recovery-intro {
+  margin: 0 0 16px 0;
+  font-size: 0.9rem;
+  color: var(--mat-sys-on-surface-variant, #49454f);
+}
+
+.recovery-code-block {
+  background: var(--mat-sys-surface-variant, #e7e0ec);
+  border-radius: 8px;
+  padding: 20px 24px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.recovery-code-text {
+  font-family: 'Roboto Mono', 'Courier New', monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--mat-sys-on-surface, #1c1b1f);
+  user-select: all;
+}
+
+.copy-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.copy-button {
+  gap: 6px;
+}
+
+.recovery-warning {
+  font-size: 0.8rem;
+  color: var(--mat-sys-on-surface-variant, #49454f);
+  margin: 0;
+  border-left: 3px solid var(--mat-sys-outline, #79747e);
+  padding-left: 10px;
+}
+
+.recovery-dialog-actions {
+  padding: 8px 16px 16px;
+}
+
+.confirm-button {
+  min-width: 200px;
+}

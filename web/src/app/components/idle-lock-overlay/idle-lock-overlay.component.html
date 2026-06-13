@@ -81,7 +81,181 @@
 
     <!-- 2. Lock / Login Screen Mode -->
     @if (!auth.bootstrapping() && !isAddingNewOperator()) {
-    <div class="login-flow">
+
+      <!-- 2a. PIN Reset — select operator -->
+      @if (resetStep() === 'select-operator') {
+      <div class="reset-flow">
+        <div class="lock-header">
+          <div class="lock-icon">
+            <span class="material-symbols-rounded">lock_reset</span>
+          </div>
+          <p class="eyebrow">PIN recovery</p>
+          <h2 id="idleLockTitle">Select Operator</h2>
+        </div>
+        <div class="profiles-list-container">
+          <div class="profiles-list" role="listbox" aria-label="Select operator for reset">
+            @for (op of auth.profiles(); track op.operator_id) {
+            <button mat-button type="button" class="profile-row" (click)="selectResetOperator(op)">
+              <div class="list-item-content">
+                <span class="avatar-sm">{{ op.initials }}</span>
+                <span class="name-text">{{ op.display_name }}</span>
+              </div>
+            </button>
+            }
+          </div>
+        </div>
+        <div class="actions-row">
+          <button mat-button type="button" (click)="cancelReset()">Cancel</button>
+        </div>
+      </div>
+      }
+
+      <!-- 2b. PIN Reset — enter recovery code -->
+      @if (resetStep() === 'enter-code') {
+      <div class="reset-flow">
+        <div class="lock-header">
+          <div class="lock-icon">
+            <span class="material-symbols-rounded">key</span>
+          </div>
+          <p class="eyebrow">PIN recovery</p>
+          <h2 id="idleLockTitle">Enter Recovery Code</h2>
+          <p class="lock-copy">
+            Enter the recovery code for <strong>{{ resetOperator()?.display_name }}</strong>.
+          </p>
+        </div>
+        <div class="reset-code-form">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Recovery Code</mat-label>
+            <input matInput
+              [value]="recoveryCode"
+              (input)="recoveryCode = inputValue($event)"
+              placeholder="XXXX-XXXX-XXXX"
+              autocomplete="off"
+              style="text-transform: uppercase; font-family: monospace; letter-spacing: 0.1em;">
+            <mat-hint>Format: XXXX-XXXX-XXXX</mat-hint>
+          </mat-form-field>
+          @if (resetError()) {
+          <div class="error-text">{{ resetError() }}</div>
+          }
+        </div>
+        <div class="actions-row">
+          <button mat-button type="button" (click)="cancelReset()">Cancel</button>
+          <button mat-flat-button type="button" (click)="goToNewPin()" [disabled]="recoveryCode.trim().length < 14">
+            Next
+          </button>
+        </div>
+      </div>
+      }
+
+      <!-- 2c. PIN Reset — enter new PIN -->
+      @if (resetStep() === 'enter-new-pin') {
+      <div class="reset-flow">
+        <div class="lock-header">
+          <div class="lock-icon">
+            <span class="material-symbols-rounded">lock_reset</span>
+          </div>
+          <p class="eyebrow">PIN recovery</p>
+          <h2 id="idleLockTitle">New PIN</h2>
+          <p class="lock-copy">Choose a new 4-digit PIN for <strong>{{ resetOperator()?.display_name }}</strong>.</p>
+        </div>
+        <div class="pin-section">
+          <div class="pin-display">
+            <span class="pin-dot" [class.filled]="resetNewPin.length >= 1"></span>
+            <span class="pin-dot" [class.filled]="resetNewPin.length >= 2"></span>
+            <span class="pin-dot" [class.filled]="resetNewPin.length >= 3"></span>
+            <span class="pin-dot" [class.filled]="resetNewPin.length >= 4"></span>
+          </div>
+          @if (resetError()) {
+          <div class="error-text">{{ resetError() }}</div>
+          }
+          <div class="keyboard-grid">
+            <button mat-button type="button" (click)="pressResetNewPin('1')">1</button>
+            <button mat-button type="button" (click)="pressResetNewPin('2')">2</button>
+            <button mat-button type="button" (click)="pressResetNewPin('3')">3</button>
+            <button mat-button type="button" (click)="pressResetNewPin('4')">4</button>
+            <button mat-button type="button" (click)="pressResetNewPin('5')">5</button>
+            <button mat-button type="button" (click)="pressResetNewPin('6')">6</button>
+            <button mat-button type="button" (click)="pressResetNewPin('7')">7</button>
+            <button mat-button type="button" (click)="pressResetNewPin('8')">8</button>
+            <button mat-button type="button" (click)="pressResetNewPin('9')">9</button>
+            <button mat-button type="button" (click)="pressResetNewPin('clear')" class="key-clear">C</button>
+            <button mat-button type="button" (click)="pressResetNewPin('0')">0</button>
+            <button mat-button type="button" (click)="pressResetNewPin('backspace')" class="key-backspace">
+              <span class="material-symbols-rounded">backspace</span>
+            </button>
+          </div>
+        </div>
+        <div class="actions-row">
+          <button mat-button type="button" (click)="cancelReset()" [disabled]="auth.loading()">Cancel</button>
+          <button mat-flat-button type="button"
+            (click)="submitRecoveryReset()"
+            [disabled]="resetNewPin.length !== 4 || auth.loading()">
+            @if (auth.loading()) {
+            <span class="spinner-container"><mat-spinner diameter="16"></mat-spinner></span>
+            }
+            Set PIN
+          </button>
+        </div>
+      </div>
+      }
+
+      <!-- 2d. Host-reset PIN entry (loopback / EXE only) -->
+      @if (resetStep() === 'host-reset-pin') {
+      <div class="reset-flow">
+        <div class="lock-header">
+          <div class="lock-icon">
+            <span class="material-symbols-rounded">computer</span>
+          </div>
+          <p class="eyebrow">Host reset</p>
+          <h2 id="idleLockTitle">Reset from This Computer</h2>
+          <p class="lock-copy">
+            Set a new PIN for <strong>{{ resetOperator()?.display_name }}</strong>.
+            This action is only available on the local machine.
+          </p>
+        </div>
+        <div class="pin-section">
+          <p class="section-label">New PIN</p>
+          <div class="pin-display">
+            <span class="pin-dot" [class.filled]="hostResetPin.length >= 1"></span>
+            <span class="pin-dot" [class.filled]="hostResetPin.length >= 2"></span>
+            <span class="pin-dot" [class.filled]="hostResetPin.length >= 3"></span>
+            <span class="pin-dot" [class.filled]="hostResetPin.length >= 4"></span>
+          </div>
+          @if (resetError()) {
+          <div class="error-text">{{ resetError() }}</div>
+          }
+          <div class="keyboard-grid">
+            <button mat-button type="button" (click)="pressHostResetPin('1')">1</button>
+            <button mat-button type="button" (click)="pressHostResetPin('2')">2</button>
+            <button mat-button type="button" (click)="pressHostResetPin('3')">3</button>
+            <button mat-button type="button" (click)="pressHostResetPin('4')">4</button>
+            <button mat-button type="button" (click)="pressHostResetPin('5')">5</button>
+            <button mat-button type="button" (click)="pressHostResetPin('6')">6</button>
+            <button mat-button type="button" (click)="pressHostResetPin('7')">7</button>
+            <button mat-button type="button" (click)="pressHostResetPin('8')">8</button>
+            <button mat-button type="button" (click)="pressHostResetPin('9')">9</button>
+            <button mat-button type="button" (click)="pressHostResetPin('clear')" class="key-clear">C</button>
+            <button mat-button type="button" (click)="pressHostResetPin('0')">0</button>
+            <button mat-button type="button" (click)="pressHostResetPin('backspace')" class="key-backspace">
+              <span class="material-symbols-rounded">backspace</span>
+            </button>
+          </div>
+        </div>
+        <div class="actions-row">
+          <button mat-button type="button" (click)="cancelReset()" [disabled]="auth.loading()">Cancel</button>
+          <button mat-flat-button type="button"
+            (click)="submitHostReset()"
+            [disabled]="hostResetPin.length !== 4 || auth.loading()">
+            @if (auth.loading()) {
+            <span class="spinner-container"><mat-spinner diameter="16"></mat-spinner></span>
+            }
+            Reset PIN
+          </button>
+        </div>
+      </div>
+      }
+
+    <div class="login-flow" [class.hidden]="resetStep() !== 'idle'">
       <!-- Operator Selection Screen (when multiple exist and none selected) -->
       @if (!selectedOperator()) {
       <div class="select-operator-screen">
@@ -130,6 +304,17 @@
           (submitPin)="handlePinSubmit($event)"
           (cancel)="deselectOperator()">
         </app-pin-keyboard>
+
+        <div class="forgot-pin-row">
+          <button mat-button type="button" class="forgot-pin-link" (click)="startForgotPin()">
+            Forgot PIN?
+          </button>
+          @if (isExeHost()) {
+          <button mat-button type="button" class="forgot-pin-link host-reset-link" (click)="startHostReset()">
+            Reset from this computer
+          </button>
+          }
+        </div>
       </div>
       }
     </div>

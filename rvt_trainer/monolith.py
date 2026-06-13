@@ -84,13 +84,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-try:
-    from importlib.metadata import version as _pkg_version
-    VERSION = _pkg_version("rvt-trainer")
-except Exception:
-    VERSION = "16.2.0"  # fallback for uninstalled/vendored runs
-DASHBOARD_VERSION = "16.2.0"
-FIRMWARE_VERSION_EXPECTED = "v16.2.0"
+VERSION = "16.3.0"
+DASHBOARD_VERSION = "16.3.0"
+FIRMWARE_VERSION_EXPECTED = "v16.3.0"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 _manifest_cache = {"data": None, "ts": 0}
 _manifest_cache_lock = threading.Lock()
@@ -4359,7 +4355,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_2_0.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_3_0.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -5252,6 +5248,8 @@ from rvt_trainer.api.auth import (  # noqa: E402
     load_operator_profiles as _load_operator_profiles,
     login_operator as _login_operator,
     create_operator_profile as _create_operator_profile,
+    reset_pin_with_recovery as _reset_pin_with_recovery,
+    host_reset_pin as _host_reset_pin,
 )
 
 
@@ -5356,25 +5354,6 @@ def _system_metrics(path: str) -> Dict[str, object]:
 def _sanitize_user_string(value, max_len: int = 1000) -> str:
     text = str(value or "")[:max_len]
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
-
-def _build_service_worker_js() -> str:
-    fallback = """self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => {
-  e.waitUntil(self.registration.unregister().then(() =>
-    self.clients.matchAll().then(cs => cs.forEach(c => c.navigate(c.url)))));
-});
-"""
-    try:
-        from rvt_trainer.assets.static import assets_root
-        sw_file = assets_root() / "rvt-sw.js"
-        if sw_file.is_file():
-            return sw_file.read_text(encoding="utf-8")
-    except Exception:
-        pass
-    return fallback
-
 
 # Static-asset path resolution + content-type lives in
 # rvt_trainer.assets.static; we re-export under the existing underscored
@@ -6292,6 +6271,12 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             is_discovery = True
         elif path == "/api/operator-profiles" and self.command == "POST" and is_bootstrap:
             is_discovery = True
+        elif path == "/api/auth/reset-pin" and self.command == "POST":
+            # Accessible without session token — recovery code replaces auth
+            is_discovery = True
+        elif path == "/api/auth/host-reset" and self.command == "POST":
+            # Accessible without session token — loopback check in handler replaces auth
+            is_discovery = True
 
         # 4b. Loopback-only native bootstrap: the EXE shell reads pairing details
         # over 127.0.0.1 with no pairing token (tokens belong to phones). The route
@@ -6333,6 +6318,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         # own WebView holds none after a share-mode sidecar restart. Sensitive
         # endpoints below still require a valid operator session, and same-machine
         # callers already have filesystem access to everything the API serves.
+        if path == "/api/auth/host-reset" and self.command == "POST":
+            return True
+
         if getattr(self.server, "bind_mode", "local") == "lan" and client_host not in {"127.0.0.1", "::1", "localhost"}:
             if not is_valid_pairing and not is_real_valid_operator and not is_valid_sse:
                 self._send_json(401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "LAN pair token required"}})
@@ -6389,7 +6377,11 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/rvt-sw.js":
-            self._send_bytes(200, _build_service_worker_js().encode("utf-8"), "application/javascript; charset=utf-8", cache_control="no-cache")
+            sw_path = _assets_root() / "rvt-sw.js"
+            if sw_path.exists():
+                self._send_bytes(200, sw_path.read_bytes(), "application/javascript; charset=utf-8", cache_control="no-cache")
+            else:
+                self._send_json(404, {"ok": False, "error": {"code": "LEGACY_SW_TOMBSTONE_NOT_FOUND", "message": "assets/rvt-sw.js is missing"}})
             return
         if path == "/sw.js":
             sw_path = _assets_root() / "sw.js"
@@ -6843,6 +6835,27 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             }
             self._send_json(200, {"sse_token": token})
             return
+        if path == "/api/auth/reset-pin":
+            status, payload = _reset_pin_with_recovery(
+                self.server,
+                str(body.get("operator_id") or ""),
+                str(body.get("recovery_code") or ""),
+                str(body.get("new_pin") or ""),
+            )
+            self._send_json(status, payload, cache_control="no-store")
+            return
+        if path == "/api/auth/host-reset":
+            client_host = str(self.client_address[0] if self.client_address else "")
+            if client_host not in {"127.0.0.1", "::1", "localhost"}:
+                self._send_json(403, {"ok": False, "error": {"code": "LOOPBACK_ONLY", "message": "host-reset is loopback-only"}}, cache_control="no-store")
+                return
+            status, payload = _host_reset_pin(
+                self.server,
+                str(body.get("operator_id") or ""),
+                str(body.get("new_pin") or ""),
+            )
+            self._send_json(status, payload, cache_control="no-store")
+            return
         if path == "/api/defaults":
             current = _effective_defaults(self.server.sessions_root)
             current.update({k: v for k, v in body.items() if k in current})
@@ -7232,7 +7245,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_2_0.ino"),
+        Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
         Path("radar_vital_v14.ino"),

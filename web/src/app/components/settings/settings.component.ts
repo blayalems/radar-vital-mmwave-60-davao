@@ -21,12 +21,22 @@ import { AudioService } from '../../services/audio.service';
 import { ApiService } from '../../services/api.service';
 import { DynamicColorService } from '../../services/dynamic-color.service';
 import { IdleLockService } from '../../services/idle-lock.service';
+import { IssueReportService } from '../../services/issue-report.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { UpdateService } from '../../services/update.service';
+import { CONSENT_KEY } from '../../services/rvt-storage-keys';
+import { GITHUB_REPO_URL, TERMS_VERSION } from '../../services/app-meta';
 import { BleScanDevice } from '../../models/rvt.models';
+import { AboutCardComponent } from '../about-card/about-card.component';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
+import { ReportIssueCardComponent } from '../report-issue-card/report-issue-card.component';
 
-const PRODUCT_VERSION = '16.2.0';
+const PRODUCT_VERSION = '16.3.0';
+
+interface ConsentSummary {
+  version: string;
+  accepted_at: string;
+}
 
 @Component({
   selector: 'app-settings',
@@ -44,7 +54,9 @@ const PRODUCT_VERSION = '16.2.0';
     MatDialogModule,
     MatSnackBarModule,
     MatProgressBarModule,
-    MatTooltipModule
+    MatTooltipModule,
+    AboutCardComponent,
+    ReportIssueCardComponent
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.css',
@@ -56,12 +68,23 @@ export class SettingsComponent {
   protected readonly api = inject(ApiService);
   protected readonly dynamicColor = inject(DynamicColorService);
   protected readonly idleLock = inject(IdleLockService);
+  protected readonly issueReport = inject(IssueReportService);
   protected readonly serverLifecycle = inject(ServerLifecycleService);
   protected readonly updateService = inject(UpdateService);
   private readonly router = inject(Router);
   protected readonly Math = Math;
   protected readonly productVersion = PRODUCT_VERSION;
   protected readonly schemaVersion = 'v12.0';
+  protected readonly termsVersion = TERMS_VERSION;
+  protected readonly termsUrl = `${GITHUB_REPO_URL}/blob/main/TERMS.md`;
+  protected readonly privacyUrl = `${GITHUB_REPO_URL}/blob/main/PRIVACY.md`;
+  protected readonly consentRecord = signal<ConsentSummary | null>(this.readConsentRecord());
+  protected readonly consentAcceptedLabel = computed(() => {
+    const record = this.consentRecord();
+    if (!record?.accepted_at) return 'Not accepted in this browser';
+    const date = new Date(record.accepted_at);
+    return Number.isNaN(date.getTime()) ? record.accepted_at : date.toLocaleString();
+  });
   
   // Optional injection of MatDialogRef for close behavior when loaded inside dialog
   private readonly dialogRef = inject(MatDialogRef<SettingsComponent>, { optional: true });
@@ -213,6 +236,44 @@ export class SettingsComponent {
       data: { title, message, confirmLabel },
       restoreFocus: true
     }).afterClosed()));
+  }
+
+  private readConsentRecord(): ConsentSummary | null {
+    try {
+      const raw = localStorage.getItem(CONSENT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<ConsentSummary>;
+      if (typeof parsed.version !== 'string' || typeof parsed.accepted_at !== 'string') return null;
+      return { version: parsed.version, accepted_at: parsed.accepted_at };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  scrollToIssueDiagnostics(): void {
+    document.getElementById('report-issue-card')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    this.state.triggerHaptic('tap');
+  }
+
+  async withdrawConsent(): Promise<void> {
+    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: 'Withdraw terms consent?',
+        message: 'Radar Vital will reload and show the consent gate again before the dashboard can be used.',
+        confirmLabel: 'Withdraw consent'
+      },
+      restoreFocus: true
+    }).afterClosed());
+    if (!confirmed) return;
+    try {
+      localStorage.removeItem(CONSENT_KEY);
+    } catch (_) {
+      // Reload still forces the app-level gate to use the in-memory missing-consent state.
+    }
+    this.consentRecord.set(null);
+    this.state.triggerHaptic('destructiveAccept');
+    this.snackBar.open('Consent withdrawn. Reloading consent gate...', 'Dismiss', { duration: 1200 });
+    window.setTimeout(() => window.location.reload(), 350);
   }
 
   async startPythonServer(): Promise<void> {

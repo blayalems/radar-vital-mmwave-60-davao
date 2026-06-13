@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { seedFirstRunComplete } from './helpers/first-run';
 
 const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
 
@@ -268,6 +269,7 @@ test.describe('Dashboard smoke', () => {
         })
       });
     });
+    await seedFirstRunComplete(page);
     await page.addInitScript(() => {
       sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
       localStorage.setItem('rvt.server.url', 'http://127.0.0.1:8989');

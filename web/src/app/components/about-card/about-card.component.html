@@ -1,0 +1,71 @@
+<mat-card class="settings-card premium-card about-card">
+  <mat-card-header>
+    <mat-icon mat-card-avatar class="card-avatar">info</mat-icon>
+    <mat-card-title>About {{ productName }}</mat-card-title>
+    @if (version()) {
+      <mat-card-subtitle>v{{ version() }}</mat-card-subtitle>
+    }
+  </mat-card-header>
+
+  <mat-card-content>
+    <!-- Copyright -->
+    <div class="about-copyright" aria-label="Copyright notice">{{ copyrightText }}</div>
+
+    <!-- Program & university -->
+    <div class="about-row about-institution">
+      <span class="row-title">{{ program }}</span>
+      <span class="row-description">{{ university }}</span>
+    </div>
+
+    <!-- Authors -->
+    <div class="about-row about-authors">
+      <span class="row-title">Authors</span>
+      <ul class="author-list" aria-label="Project authors">
+        @for (author of authors; track author) {
+          <li>{{ author }}</li>
+        }
+      </ul>
+    </div>
+
+    <!-- Links -->
+    <div class="about-links" role="list" aria-label="About links">
+      <a class="about-link"
+         [href]="termsUrl"
+         target="_blank"
+         rel="noopener noreferrer"
+         role="listitem">
+        <mat-icon aria-hidden="true">gavel</mat-icon>
+        Terms of Use
+      </a>
+      <a class="about-link"
+         [href]="privacyUrl"
+         target="_blank"
+         rel="noopener noreferrer"
+         role="listitem">
+        <mat-icon aria-hidden="true">privacy_tip</mat-icon>
+        Privacy Policy
+      </a>
+      <a class="about-link"
+         [href]="licenseUrl"
+         target="_blank"
+         rel="noopener noreferrer"
+         role="listitem">
+        <mat-icon aria-hidden="true">description</mat-icon>
+        License
+      </a>
+      <a class="about-link"
+         [href]="githubRepoUrl"
+         target="_blank"
+         rel="noopener noreferrer"
+         role="listitem">
+        <mat-icon aria-hidden="true">open_in_new</mat-icon>
+        Source on GitHub
+      </a>
+    </div>
+
+    <!-- Acknowledgements -->
+    <p class="about-acknowledgements settings-help-text">
+      Built with Angular, Capacitor, Tauri, esbuild, and Python.
+    </p>
+  </mat-card-content>
+</mat-card>

@@ -15,6 +15,12 @@ on:
     paths:
       - 'web/**'
       - 'assets/**'
+      - 'PRIVACY.md'
+      - 'TERMS.md'
+      - 'docs/privacy.html'
+      - 'docs/terms.html'
+      - 'docs/wiki/**'
+      - 'docs/milestones.md'
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/**'
@@ -23,6 +29,12 @@ on:
     paths:
       - 'web/**'
       - 'assets/**'
+      - 'PRIVACY.md'
+      - 'TERMS.md'
+      - 'docs/privacy.html'
+      - 'docs/terms.html'
+      - 'docs/wiki/**'
+      - 'docs/milestones.md'
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/**'
@@ -58,6 +70,11 @@ jobs:
       - name: Build www/
         run: npm run build:web
 
+      - name: Publish stable legal pages
+        run: |
+          cp docs/privacy.html www/privacy.html
+          cp docs/terms.html www/terms.html
+
       - name: Preserve latest release manifest
         if: github.event_name != 'pull_request'
         run: |
@@ -73,9 +90,17 @@ jobs:
           test -f www/index.html
           test -f www/404.html
           test -f www/sw.js
+          test -f www/privacy.html
+          test -f www/terms.html
           test -f www/radar_vital_live_dashboard_v12_for_v16_0.html
           grep -q '<app-root></app-root>' www/index.html
           grep -q '<app-root></app-root>' www/404.html
+          grep -q 'Radar Vital Privacy Notice' www/privacy.html
+          grep -q 'Radar Vital Terms and Conditions' www/terms.html
+          grep -q 'DRAFT 2026-06-12.1' www/privacy.html
+          grep -q 'DRAFT 2026-06-12.1' www/terms.html
+          grep -q 'radar-vital-mmwave-60-davao/privacy.html' www/privacy.html
+          grep -q 'radar-vital-mmwave-60-davao/terms.html' www/terms.html
           ! grep -Eqi 'markdown-body|README[.]md' www/index.html
           cmp -s www/index.html www/404.html
           grep -q 'href="./manifest.webmanifest"' www/index.html

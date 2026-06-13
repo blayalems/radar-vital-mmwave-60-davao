@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { seedFirstRunComplete } from './helpers/first-run';
 
 const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
 
@@ -6,6 +7,9 @@ test.describe('Connect Wizard first-run onboarding', () => {
   test.use({ serviceWorkers: 'block' });
 
   test.beforeEach(async ({ page }) => {
+    // Seed consent so the AppComponent consent gate doesn't overlay the wizard.
+    await seedFirstRunComplete(page);
+
     await page.route('**/api/auth/validate', async (route) => {
       await route.fulfill({
         status: 200,

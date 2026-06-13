@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Operator quickstart & troubleshooting
+    url: https://github.com/blayalems/radar-vital-mmwave-60-davao/blob/main/docs/operator-quickstart.md
+    about: Setup guides for the Windows EXE, Android APK, and PWA, plus a troubleshooting table.
+  - name: Privacy notice (RA 10173)
+    url: https://github.com/blayalems/radar-vital-mmwave-60-davao/blob/main/PRIVACY.md
+    about: What data Radar Vital processes and your rights under the Data Privacy Act of 2012.

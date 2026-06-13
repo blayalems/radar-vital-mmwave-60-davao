@@ -11,7 +11,11 @@ export const firstRunGuard: CanActivateFn = () => {
     // pairing for first-run phones/PWAs that have no stored trainer URL yet.
     const hasPairParam = new URLSearchParams(window.location.search).has('pair');
     const serverUrl = localStorage.getItem(SERVER_URL_KEY);
-    if (!serverUrl && !hasPairParam) {
+    // Also allow through when demo/sandbox mode is already engaged so tests
+    // and PWA users that chose "Demo Now" aren't bounced back to /connect.
+    const demoMode = localStorage.getItem('rvt-demo-mode') === '1';
+    const hasToken = Boolean(sessionStorage.getItem('rvt-operator-token'));
+    if (!serverUrl && !hasPairParam && !demoMode && !hasToken) {
       void router.navigate(['/connect']);
       return false;
     }

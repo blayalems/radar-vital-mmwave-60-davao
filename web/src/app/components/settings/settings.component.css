@@ -118,6 +118,81 @@ button,
   color: var(--md-sys-color-on-error-container, #410002) !important;
 }
 
+.privacy-telemetry-card {
+  border-left: 4px solid var(--md-sys-color-tertiary, #0f766e);
+}
+
+.privacy-avatar {
+  color: var(--md-sys-color-tertiary) !important;
+  background: var(--md-sys-color-tertiary-container) !important;
+}
+
+.privacy-telemetry-card mat-chip.running {
+  background: var(--md-sys-color-tertiary-container, #ccfbf1) !important;
+  color: var(--md-sys-color-on-tertiary-container, #064e3b) !important;
+}
+
+.privacy-telemetry-card mat-chip.offline {
+  background: var(--md-sys-color-error-container, #ffdad6) !important;
+  color: var(--md-sys-color-on-error-container, #410002) !important;
+}
+
+.privacy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.privacy-actions a,
+.privacy-actions button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.settings-mounted-card {
+  display: block;
+  min-width: 0;
+}
+
+:host ::ng-deep app-report-issue-card .report-issue-card {
+  background: var(--md-sys-color-surface-container) !important;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-left: 4px solid var(--md-sys-color-error, #ba1a1a);
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+:host ::ng-deep app-report-issue-card .card-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--md-sys-color-error, #ba1a1a);
+  background: var(--md-sys-color-error-container, #ffdad6);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+:host ::ng-deep app-report-issue-card mat-card-header {
+  padding: 1.25rem 1.25rem 0.5rem 1.25rem;
+}
+
+:host ::ng-deep app-report-issue-card mat-card-title {
+  font-size: 1.15rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0;
+}
+
+:host ::ng-deep app-report-issue-card mat-card-subtitle {
+  color: var(--md-sys-color-on-surface-variant, #a4a4ac) !important;
+}
+
+:host ::ng-deep app-report-issue-card mat-card-content {
+  padding: 1.25rem !important;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
 .server-actions {
   display: flex;
   flex-wrap: wrap;
@@ -268,7 +343,8 @@ mat-button-toggle {
   .python-server-card,
   .ble-scanner-card,
   .thresholds-card,
-  .update-info-card {
+  .update-info-card,
+  .privacy-telemetry-card {
     grid-column: span 1;
   }
 
@@ -618,7 +694,9 @@ mat-button-toggle {
   }
   .server-actions button,
   .audio-actions button,
-  .threshold-actions button {
+  .threshold-actions button,
+  .privacy-actions a,
+  .privacy-actions button {
     width: 100%;
   }
 }

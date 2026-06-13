@@ -2,9 +2,6 @@ import { Routes } from '@angular/router';
 import { LayoutComponent } from './components/layout/layout.component';
 import { LiveComponent } from './components/live/live.component';
 import { HomeComponent } from './components/home/home.component';
-import { ReportComponent } from './components/report/report.component';
-import { HelpComponent } from './components/help/help.component';
-import { SettingsComponent } from './components/settings/settings.component';
 import { activeSessionGuard } from './guards/active-session.guard';
 import { connectionGuard } from './guards/connection.guard';
 import { firstRunGuard } from './guards/first-run.guard';
@@ -35,15 +32,15 @@ export const routes: Routes = [
       },
       {
         path: 'report',
-        component: ReportComponent
+        loadComponent: () => import('./components/report/report.component').then(m => m.ReportComponent)
       },
       {
         path: 'help',
-        component: HelpComponent
+        loadComponent: () => import('./components/help/help.component').then(m => m.HelpComponent)
       },
       {
         path: 'settings',
-        component: SettingsComponent
+        loadComponent: () => import('./components/settings/settings.component').then(m => m.SettingsComponent)
       }
     ]
   },

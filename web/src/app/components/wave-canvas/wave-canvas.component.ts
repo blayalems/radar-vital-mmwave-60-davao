@@ -9,6 +9,7 @@ import { ChartAnnotation } from '../../models/rvt.models';
             [attr.aria-label]="ariaLabel()">
     </canvas>
   `,
+  styles: [':host { display: block; width: 100%; height: 100%; }'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class WaveCanvasComponent implements AfterViewInit, OnDestroy {

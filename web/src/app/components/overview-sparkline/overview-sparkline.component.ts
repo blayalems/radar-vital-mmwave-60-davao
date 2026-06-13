@@ -8,6 +8,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, AfterViewIni
             role="img" [attr.aria-label]="ariaLabel()">
     </canvas>
   `,
+  styles: [':host { display: block; width: 100%; height: 100%; }'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OverviewSparklineComponent implements AfterViewInit, OnDestroy {

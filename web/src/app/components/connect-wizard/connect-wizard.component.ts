@@ -242,6 +242,13 @@ export class ConnectWizardComponent implements OnDestroy {
       this.serverLifecycle.setServerAddress(address);
       await this.api.exchangePairPin(pin);
 
+      // Opening /connect with no stored trainer URL can leave the app in
+      // auto-demo/sandbox control mode after the initial same-origin /api/status
+      // probe failed. Clear it and re-detect against the freshly paired trainer
+      // so /live serves real /api/* calls instead of the sandbox mock.
+      this.state.autoDemoActive.set(false);
+      await this.api.detectControlMode();
+
       this.state.triggerHaptic('success');
       await this.router.navigate(['/live']);
     } catch (e: any) {

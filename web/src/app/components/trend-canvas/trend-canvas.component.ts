@@ -21,12 +21,13 @@ import { ChartAnnotation } from '../../models/rvt.models';
         <div class="zoom-indicator-overlay" style="position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; z-index: 10; font-family: monospace;">
           Zoomed (showing {{ visiblePointsCount() }} / {{ totalPointsCount() }} samples)
         </div>
-        <button mat-icon-button class="reset-zoom-btn" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; z-index: 10; width: 36px; height: 36px; line-height: 36px;" (click)="resetZoom()" title="Reset zoom">
+        <button mat-icon-button class="reset-zoom-btn" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; z-index: 10; width: 36px; height: 36px; line-height: 36px;" (click)="$event.stopPropagation(); resetZoom()" title="Reset zoom">
           <mat-icon style="font-size: 20px; width: 20px; height: 20px;">zoom_out_map</mat-icon>
         </button>
       }
     </div>
   `,
+  styles: [':host { display: block; width: 100%; height: 100%; }'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TrendCanvasComponent implements AfterViewInit, OnDestroy {

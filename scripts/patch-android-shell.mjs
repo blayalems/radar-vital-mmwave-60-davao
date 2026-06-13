@@ -21,6 +21,7 @@ const openFilePluginPath = path.join(androidPackagePath, 'OpenFilePlugin.kt');
 const resDrawablePath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'drawable');
 const resMipmapAnydpiPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'mipmap-anydpi-v26');
 const resValuesColorsPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'values', 'colors.xml');
+const resValuesLauncherBgPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'values', 'ic_launcher_background.xml');
 const variablesGradlePath = path.join(ROOT, 'android', 'variables.gradle');
 // Source foreground drawable (committed in repo)
 const srcForegroundDrawable = path.join(ROOT, 'assets', 'icons', 'android', 'ic_launcher_foreground.xml');
@@ -268,10 +269,45 @@ const IC_LAUNCHER_ROUND_XML = `<?xml version="1.0" encoding="utf-8"?>
 `;
 
 /**
- * Ensures `@color/ic_launcher_background` is defined in colors.xml.
- * Creates the file if absent; injects the color entry if missing.
+ * Sets `@color/ic_launcher_background` to our brand color in EXACTLY ONE place.
+ *
+ * The Capacitor template ships `res/values/ic_launcher_background.xml` already
+ * defining this resource. Adding a second definition in colors.xml makes AAPT
+ * fail with "Duplicate resources", so we overwrite the template's dedicated
+ * file when present and only fall back to colors.xml when it is absent — and we
+ * strip any stray colors.xml entry to keep the definition unique.
  */
 async function ensureLauncherBackgroundColor(colorHex) {
+  const dedicatedFile = `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">${colorHex}</color>\n</resources>\n`;
+
+  let dedicatedExists = false;
+  try {
+    await fs.access(resValuesLauncherBgPath);
+    dedicatedExists = true;
+  } catch (_) {
+    dedicatedExists = false;
+  }
+
+  if (dedicatedExists) {
+    // Canonical template location — overwrite its value, leave colors.xml clean.
+    await fs.writeFile(resValuesLauncherBgPath, dedicatedFile);
+    console.log(`Set ic_launcher_background in: ${path.relative(ROOT, resValuesLauncherBgPath)}`);
+
+    // Defensively remove a stray duplicate a prior buggy run may have injected.
+    try {
+      let colors = await fs.readFile(resValuesColorsPath, 'utf8');
+      if (colors.includes('name="ic_launcher_background"')) {
+        colors = colors.replace(/\s*<color name="ic_launcher_background">[^<]*<\/color>/g, '');
+        await fs.writeFile(resValuesColorsPath, colors);
+        console.log(`Removed duplicate ic_launcher_background from colors.xml`);
+      }
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
+    return;
+  }
+
+  // No dedicated file — define it in colors.xml instead.
   let xml;
   try {
     xml = await fs.readFile(resValuesColorsPath, 'utf8');
@@ -282,13 +318,14 @@ async function ensureLauncherBackgroundColor(colorHex) {
       throw e;
     }
   }
-
-  if (xml.includes('name="ic_launcher_background"')) return; // idempotent
-
-  xml = xml.replace(
-    /(\s*<\/resources>)/,
-    `\n    <color name="ic_launcher_background">${colorHex}</color>$1`
-  );
+  if (xml.includes('name="ic_launcher_background"')) {
+    // Replace existing value rather than append a duplicate.
+    xml = xml.replace(/<color name="ic_launcher_background">[^<]*<\/color>/,
+      `<color name="ic_launcher_background">${colorHex}</color>`);
+  } else {
+    xml = xml.replace(/(\s*<\/resources>)/,
+      `\n    <color name="ic_launcher_background">${colorHex}</color>$1`);
+  }
   await fs.writeFile(resValuesColorsPath, xml);
   console.log(`Defined ic_launcher_background color in: ${path.relative(ROOT, resValuesColorsPath)}`);
 }

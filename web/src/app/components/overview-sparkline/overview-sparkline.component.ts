@@ -5,7 +5,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, AfterViewIni
   standalone: true,
   template: `
     <canvas #canvas class="sparkline-canvas" style="display: block; width: 100%; height: 100%;"
-            [attr.aria-label]="ariaLabel()">
+            role="img" [attr.aria-label]="ariaLabel()">
     </canvas>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush

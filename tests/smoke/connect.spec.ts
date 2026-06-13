@@ -62,13 +62,20 @@ test.describe('Connect Wizard first-run onboarding', () => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.waitForURL(/\/connect$/);
 
+    // Pair against the page's own origin: when the dashboard is trainer-served
+    // its CSP pins connect-src to 'self', so the pairing fetch must be
+    // same-origin (the supported EXE/desktop trainer-served case). The hosted
+    // static PWA has no such CSP and can pair cross-origin with a LAN trainer.
+    const trainerOrigin = new URL(page.url()).origin;
+
     await page.getByRole('button', { name: /Enter Address & PIN Manually/ }).click();
-    await page.getByLabel('Trainer Address').fill('http://192.168.1.50:8765');
+    await page.getByLabel('Trainer Address').fill(trainerOrigin);
     await page.getByLabel('6-Digit Pairing PIN').fill('123456');
 
-    // Mock pairing api call
+    // Mock the pairing exchange. The wizard pairs via ApiService.exchangePairPin,
+    // which POSTs to the trainer's /api/auth/exchange endpoint.
     let pairCalled = false;
-    await page.route('**/api/pair/exchange', async (route) => {
+    await page.route('**/api/auth/exchange', async (route) => {
       pairCalled = true;
       await route.fulfill({
         status: 200,
@@ -81,7 +88,7 @@ test.describe('Connect Wizard first-run onboarding', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ trainer_version: '1.0.0', dashboard_version: '1.0.0', active_session: null })
+        body: JSON.stringify({ ok: true, mode: 'live', trainer_version: '1.0.0', dashboard_version: '1.0.0', active_session: null })
       });
     });
 
@@ -90,6 +97,6 @@ test.describe('Connect Wizard first-run onboarding', () => {
 
     expect(pairCalled).toBe(true);
     const serverUrl = await page.evaluate(() => localStorage.getItem('rvt.server.url'));
-    expect(serverUrl).toBe('http://192.168.1.50:8765');
+    expect(serverUrl).toBe(trainerOrigin);
   });
 });

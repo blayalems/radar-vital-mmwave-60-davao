@@ -79,6 +79,12 @@ test.describe('Static hosted PWA operator auth', () => {
     try {
       await page.goto(`${server.origin}/live`, { waitUntil: 'domcontentloaded' });
       await page.locator('#rvtLoadingOverlay').waitFor({ state: 'hidden', timeout: 20_000 }).catch(() => {});
+      // First-run visitors with no configured trainer are routed to the Connect
+      // wizard (PR-69). Choose sandbox mode to reach /live, where the operator
+      // onboarding overlay appears.
+      await page.waitForURL(/\/connect$/, { timeout: 15_000 });
+      await page.getByRole('button', { name: /Demo Now/ }).click();
+      await page.waitForURL(/\/live$/, { timeout: 15_000 });
       await createSandboxOperator(page);
       await expect(page.locator('#demoBanner')).toBeVisible();
 

@@ -52,13 +52,14 @@ test.describe('Trainer API smoke', () => {
     expect(body).not.toMatch(/self\.registration\.unregister\s*\(\s*\)/);
   });
 
-  test('/rvt-sw.js tombstone is retired with an explicit gone response', async ({ request }) => {
+  test('/rvt-sw.js serves the legacy unregister tombstone worker', async ({ request }) => {
     const resp = await request.get('/rvt-sw.js');
-    expect(resp.status()).toBe(410);
-    expect(resp.headers()['content-type']).toMatch(/json/);
-    const json = await resp.json();
-    const payload = json.data ?? json;
-    expect(payload.error?.code).toBe('SERVICE_WORKER_TOMBSTONE_REMOVED');
+    expect(resp.status()).toBe(200);
+    expect(resp.headers()['content-type']).toMatch(/javascript/);
+    expect(resp.headers()['cache-control']).toMatch(/no-cache/);
+    const body = await resp.text();
+    expect(body).toContain('self.registration.unregister');
+    expect(body).toMatch(/clients\.matchAll|clients\.openWindow/);
   });
 
   test('/api/server-info advertises origin and pair state', async ({ request }) => {

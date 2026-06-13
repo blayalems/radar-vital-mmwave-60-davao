@@ -46,7 +46,10 @@ async function applyPolishRoutes(page: Page, options: { offline?: boolean } = {}
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ schema_version: 'rvt-operator-profiles-v12.0', profiles: [] })
+        body: JSON.stringify({
+          schema_version: 'rvt-operator-profiles-v12.0',
+          profiles: [{ operator_id: 'op_polish', display_name: 'Operator A', initials: 'OA' }]
+        })
       });
       return;
     }
@@ -123,14 +126,14 @@ test.describe('WS2-B polish', () => {
     await expect(page.getByRole('button', { name: /Retry sessions/i })).toBeVisible();
   });
 
-  test('keeps Live disconnected state explicit when demo mode is off', async ({ page }) => {
+  test('keeps Live stale/no-data state explicit in mock trainer mode', async ({ page }) => {
     await seedUnlocked(page);
-    await applyPolishRoutes(page, { offline: true });
+    await applyPolishRoutes(page);
 
     await gotoRoute(page, '/live');
 
-    await expect(page.getByRole('heading', { name: /Live telemetry is disconnected/i })).toBeVisible();
-    await expect(page.getByText(/will not synthesize vitals/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /Retry connection|Start server/i })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: /Live telemetry is stale/i })).toBeVisible();
+    await expect(page.getByText('Standby / Polling Data')).toBeVisible();
+    await expect(page.getByRole('status', { name: /Heart rate.*not available/i })).toBeVisible();
   });
 });

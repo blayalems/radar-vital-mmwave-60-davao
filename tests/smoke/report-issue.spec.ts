@@ -71,10 +71,14 @@ async function createAuthenticatedOperator(request: APIRequestContext) {
 async function setDiagnosticsPreference(
   page: import('@playwright/test').Page,
   value: '0' | '1' | null,
-  auth: { token: string; operator: { display_name?: string } }
+  auth: { token: string; operator: { operator_id?: string; display_name?: string; initials?: string } }
 ) {
-  const args = [DIAGNOSTICS_KEY, value, TERMS_VERSION, auth.token, auth.operator] as const;
-  const seedStorage = ([key, next, termsVersion, token, operator]: typeof args) => {
+  const args = [DIAGNOSTICS_KEY, value, TERMS_VERSION, auth.token, auth.operator, REPORT_PIN] as const;
+  const seedStorage = ([key, next, termsVersion, token, operator, pin]: typeof args) => {
+    const operatorId = operator.operator_id || 'op_report_issue';
+    const displayName = operator.display_name || 'Report Issue User';
+    const initials = operator.initials || 'RI';
+
     localStorage.setItem('rvt-consent-record', JSON.stringify({
       version: termsVersion,
       accepted_at: new Date().toISOString()
@@ -82,8 +86,23 @@ async function setDiagnosticsPreference(
     localStorage.setItem('rvt-tutorial-done', '1');
     localStorage.setItem('rvt-demo-mode', '1');
     sessionStorage.setItem('rvt-operator-token', token);
+    sessionStorage.setItem('demo:rvt-operator-sessions', JSON.stringify({
+      [token]: {
+        operator_id: operatorId,
+        expires_at: Date.now() + 8 * 60 * 60 * 1000
+      }
+    }));
+    localStorage.setItem('demo:rvt-operator-profiles', JSON.stringify({
+      schema_version: 'rvt-sandbox-operator-profiles-v12.0',
+      profiles: [{
+        operator_id: operatorId,
+        display_name: displayName,
+        initials,
+        pin
+      }]
+    }));
     const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
-    setup.operator_label = operator.display_name || 'Report Issue User';
+    setup.operator_label = displayName;
     localStorage.setItem('rvt-setup', JSON.stringify(setup));
     if (next === null) {
       localStorage.removeItem(key);
@@ -104,14 +123,33 @@ test.describe('Report-issue card', () => {
     cleanProfiles();
     authSession = await createAuthenticatedOperator(request);
     await seedFirstRunComplete(page);
-    await page.addInitScript(([token, operator]) => {
+    await page.addInitScript(([token, operator, pin]) => {
+      const operatorId = operator.operator_id || 'op_report_issue';
+      const displayName = operator.display_name || 'Report Issue User';
+      const initials = operator.initials || 'RI';
+
       // Put the app in demo mode so no live trainer is required.
       localStorage.setItem('rvt-demo-mode', '1');
       sessionStorage.setItem('rvt-operator-token', token);
+      sessionStorage.setItem('demo:rvt-operator-sessions', JSON.stringify({
+        [token]: {
+          operator_id: operatorId,
+          expires_at: Date.now() + 8 * 60 * 60 * 1000
+        }
+      }));
+      localStorage.setItem('demo:rvt-operator-profiles', JSON.stringify({
+        schema_version: 'rvt-sandbox-operator-profiles-v12.0',
+        profiles: [{
+          operator_id: operatorId,
+          display_name: displayName,
+          initials,
+          pin
+        }]
+      }));
       const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
-      setup.operator_label = operator.display_name || 'Report Issue User';
+      setup.operator_label = displayName;
       localStorage.setItem('rvt-setup', JSON.stringify(setup));
-    }, [authSession.token, authSession.operator] as const);
+    }, [authSession.token, authSession.operator, REPORT_PIN] as const);
     await page.goto(SETTINGS, { waitUntil: 'domcontentloaded' });
   });
 

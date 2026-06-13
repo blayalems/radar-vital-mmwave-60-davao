@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 Smoke Fixture Corrections
+
+- **Smoke contract repair**: API smoke now asserts the restored `/rvt-sw.js` JavaScript unregister tombstone; report issue and settings-style demo fixtures seed sandbox operator profiles/sessions; static hosted auth seeds completed first-run consent; polish live mock asserts the current stale/no-data console state.
+- **CI workflow correction**: reverted the in-job Playwright project fanout after isolated non-desktop webServer startup failures; kept the safer serial `npx playwright test tests/smoke` command with the 60-minute timeout budget.
+- **Verification**: local smoke passed: desktop full smoke 78/78; patched smoke subset across all projects 96/96; settings all projects 12/12.
+
 ### 2026-06-13 — PR54 Parallel Playwright Smoke CI
 
 - **CI runtime hardening**: kept the required `test` job and full `tests/smoke` coverage, but fan out the four Playwright projects inside the job with isolated trainer ports, session roots, result directories, and HTML reports so the 312-test matrix no longer serializes behind one mock trainer.

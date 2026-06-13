@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 Playwright CI Runtime Budget
+
+- **CI timeout hardening**: raised the Playwright smoke job timeout from 35 to 60 minutes after the unchanged 312-test serial smoke matrix exceeded the old cap and was cancelled; coverage remains `npx playwright test tests/smoke`.
+- **Verification**: local targeted smoke remains green: `RVT_TEST_PORT=9004 npx playwright test tests/smoke/settings-cards.spec.ts --reporter=line` 12/12.
+
 ### 2026-06-13 — PR54 Settings Smoke Auth Fixture
 
 - **Smoke fixture repair**: settings support-card smoke now seeds the demo-mode operator profile/session alongside the browser token so sandbox API auth does not fall back to Create Operator bootstrapping; Settings heading assertion is role-based.

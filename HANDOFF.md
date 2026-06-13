@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 Settings Smoke Auth Fixture
+
+- **Smoke fixture repair**: settings support-card smoke now seeds the demo-mode operator profile/session alongside the browser token so sandbox API auth does not fall back to Create Operator bootstrapping; Settings heading assertion is role-based.
+- **Verification**: `RVT_TEST_PORT=9002 npx playwright test tests/smoke/settings-cards.spec.ts --project=desktop --reporter=line` 3/3.
+
 ### 2026-06-13 — PR54 iPad Home Visual Tolerance
 
 - **Visual CI hardening**: scoped a bounded `maxDiffPixels` tolerance to the iPad Home visual fixture only, after the fixture masks known dynamic Home regions, to absorb GitHub Windows runner pixel drift while keeping all other visual baselines strict.

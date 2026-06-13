@@ -109,6 +109,10 @@ export interface PreflightCheck {
   remediation?: string;
 }
 
+export function normalizePreflightStatus(check: Partial<PreflightCheck> | null | undefined): string {
+  return String(check?.status ?? '').toLowerCase();
+}
+
 export interface SubjectProfileRecord {
   label: string;
   age_group?: string;

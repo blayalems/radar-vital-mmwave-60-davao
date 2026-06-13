@@ -13,7 +13,7 @@ async function leaveActiveSessionIfPrompted(page: Page): Promise<void> {
 async function waitForUnlockedShell(page: Page): Promise<void> {
   await page.locator('#rvtLoadingOverlay').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
   const overlay = page.locator('section.idle-lock-overlay');
-  if (await overlay.isVisible({ timeout: 1000 }).catch(() => false)) {
+  for (let attempt = 0; attempt < 2 && await overlay.isVisible({ timeout: 1000 }).catch(() => false); attempt++) {
     if (await overlay.getByRole('heading', { name: /Create Operator/ }).isVisible().catch(() => false)) {
       await overlay.getByLabel('Display Name').fill('Operator A');
       await overlay.getByLabel('Initials').fill('OA');
@@ -21,27 +21,17 @@ async function waitForUnlockedShell(page: Page): Promise<void> {
         await overlay.getByRole('button', { name: digit }).click();
       }
       await overlay.getByRole('button', { name: /Create Profile/ }).click();
-    } else if (await overlay.getByRole('heading', { name: /Enter PIN/ }).isVisible().catch(() => false)) {
-      for (const digit of ['1', '2', '3', '4']) {
-        await overlay.getByRole('button', { name: digit }).click();
+    } else {
+      if (await overlay.getByRole('heading', { name: /Select Operator/ }).isVisible().catch(() => false)) {
+        await overlay.getByRole('button', { name: /Operator A/ }).first().click();
+      }
+      if (await overlay.getByRole('heading', { name: /Enter PIN/ }).isVisible().catch(() => false)) {
+        for (const digit of ['1', '2', '3', '4']) {
+          await overlay.getByRole('button', { name: digit }).click();
+        }
       }
     }
-  }
-  if (await overlay.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await page.addInitScript(() => {
-      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
-      const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
-      setup.operator_label = 'Operator A';
-      localStorage.setItem('rvt-setup', JSON.stringify(setup));
-    });
-    await page.evaluate(() => {
-      sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
-      const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
-      setup.operator_label = 'Operator A';
-      localStorage.setItem('rvt-setup', JSON.stringify(setup));
-    });
-    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.locator('#rvtLoadingOverlay').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+    await overlay.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
   }
   await expect(page.locator('section.idle-lock-overlay')).toHaveCount(0, { timeout: 15000 });
 }

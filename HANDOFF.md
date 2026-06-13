@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 iPad HC Home Baseline Follow-up
+
+- **Visual CI follow-up**: refreshed the committed Windows iPad high-contrast Home baseline after the first-run visual/legal-link push changed rendered theme pixels in CI.
+- **Verification**: `RVT_TEST_PORT=8998 npx playwright test tests/visual/rvt-v12.spec.ts --project=ipad --grep "night home|hc home" --update-snapshots --reporter=line` 2/2.
+
 ### 2026-06-13 — PR54 First-Run Visual Refresh + Legal Links
 
 - **First-run visual refresh**: redesigned the onboarding tutorial as a wider radar-themed first-run card with animated sweep artwork, step rail, progress meter, and improved action layout; consent gate now has a clearer first-run policy header and icon treatment.

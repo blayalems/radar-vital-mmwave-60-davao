@@ -65,10 +65,41 @@ jobs:
         run: npx playwright install --with-deps chromium webkit
 
       - name: Run Playwright smoke + API tests across supported viewports
-        run: npx playwright test tests/smoke
-        env:
-          PYTHON: python3
-          RVT_TEST_PORT: 8989
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          run_project() {
+            local project="$1"
+            local port="$2"
+            local state_root=".playwright-state/sessions-${project}"
+            local output_dir="test-results/smoke-${project}"
+            local report_dir="playwright-report/${project}"
+
+            mkdir -p "${state_root}" "${output_dir}" "${report_dir}"
+            echo "Starting Playwright smoke project ${project} on port ${port}"
+            PYTHON=python3 \
+            RVT_TEST_PORT="${port}" \
+            RVT_TEST_SESSIONS_ROOT="${state_root}" \
+            PLAYWRIGHT_HTML_REPORT="${report_dir}" \
+              npx playwright test tests/smoke --project="${project}" --output="${output_dir}" &
+            pids+=("$!")
+          }
+
+          pids=()
+          run_project desktop 8989
+          run_project pixel-7 8991
+          run_project iphone-14 8992
+          run_project ipad 8993
+
+          failed=0
+          for pid in "${pids[@]}"; do
+            if ! wait "${pid}"; then
+              failed=1
+            fi
+          done
+
+          exit "${failed}"
 
       - name: Upload Playwright report on failure
         if: failure()

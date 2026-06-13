@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 Parallel Playwright Smoke CI
+
+- **CI runtime hardening**: kept the required `test` job and full `tests/smoke` coverage, but fan out the four Playwright projects inside the job with isolated trainer ports, session roots, result directories, and HTML reports so the 312-test matrix no longer serializes behind one mock trainer.
+- **Verification**: workflow-only change; prior local smoke coverage remains green for first-run desktop 9/9 and settings all projects 12/12.
+
 ### 2026-06-13 — PR54 Playwright CI Runtime Budget
 
 - **CI timeout hardening**: raised the Playwright smoke job timeout from 35 to 60 minutes after the unchanged 312-test serial smoke matrix exceeded the old cap and was cancelled; coverage remains `npx playwright test tests/smoke`.

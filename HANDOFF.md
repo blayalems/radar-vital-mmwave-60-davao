@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 iPad Home Baseline Refresh
+
+- **Visual CI follow-up**: refreshed the committed Windows iPad Home baselines for dark and high-contrast themes after the first-run visual/legal-link bundle changed rendered Home pixels in CI.
+- **Verification**: `RVT_TEST_PORT=8999 npx playwright test tests/visual/rvt-v12.spec.ts --project=ipad --grep "home" --update-snapshots --reporter=line` 4/4.
+
 ### 2026-06-13 — PR54 iPad HC Home Baseline Follow-up
 
 - **Visual CI follow-up**: refreshed the committed Windows iPad high-contrast Home baseline after the first-run visual/legal-link push changed rendered theme pixels in CI.

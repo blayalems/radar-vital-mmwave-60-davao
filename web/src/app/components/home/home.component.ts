@@ -22,7 +22,7 @@ import { AudioService } from '../../services/audio.service';
 import { BluetoothService } from '../../services/bluetooth.service';
 import { InstallPromptService } from '../../services/install-prompt.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
-import { BleScanDevice, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
+import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
 
 @Component({
   selector: 'app-home',
@@ -388,7 +388,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   hasBlockingPreflightFailure(): boolean {
-    return this.preflightChecks.some(check => ['bad', 'fail', 'error'].includes(check.status.toLowerCase()));
+    return this.preflightChecks.some(check => ['bad', 'fail', 'error'].includes(normalizePreflightStatus(check)));
   }
 
   canStartSession(): boolean {
@@ -396,7 +396,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private checkPasses(check: PreflightCheck): boolean {
-    return ['good', 'pass', 'ready', 'ok'].includes(check.status.toLowerCase());
+    return ['good', 'pass', 'ready', 'ok'].includes(normalizePreflightStatus(check));
   }
 
   // Placement zones mirror the firmware's distance-confidence bands

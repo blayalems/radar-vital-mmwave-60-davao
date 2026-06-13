@@ -14,7 +14,9 @@ describe('AuthService', () => {
 
     mockApi = {
       request: vi.fn(),
-      detectControlMode: vi.fn().mockResolvedValue(true)
+      detectControlMode: vi.fn().mockResolvedValue(true),
+      connectionLoading: vi.fn(() => false),
+      whenInitialized: vi.fn().mockResolvedValue(undefined)
     };
 
     TestBed.configureTestingModule({
@@ -78,6 +80,25 @@ describe('AuthService', () => {
     expect(service.currentOperator()).toEqual(mockResponse.operator);
     expect(service.isLocked()).toBe(false);
     expect(state.setup().operator_label).toBe('Operator One');
+  });
+
+  it('does not immediately re-lock a fresh login because of stale unauthenticated status', async () => {
+    state.ctlStatus.set({ ok: true, mode: 'live', reason: 'unauthenticated' });
+    const mockResponse = {
+      token: 'fresh-session-token',
+      expires_at: 123456789,
+      operator: { operator_id: 'op_1', display_name: 'Operator One', initials: 'O1' }
+    };
+    mockApi.request.mockResolvedValueOnce(mockResponse);
+
+    const success = await service.login('op_1', '1234');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(success).toBe(true);
+    expect(sessionStorage.getItem(OPERATOR_TOKEN_KEY)).toBe('fresh-session-token');
+    expect(service.isLocked()).toBe(false);
+    expect(service.currentOperator()).toEqual(mockResponse.operator);
+    expect(state.ctlStatus()?.reason).toBeUndefined();
   });
 
   it('should set lockout countdown on LOCKOUT_ACTIVE error', async () => {

@@ -1,4 +1,4 @@
-const CACHE = 'rvt-shell-v12.0.4';
+const CACHE = 'rvt-shell-v12.0.5';
 const DASHBOARD = './index.html';
 const MONOLITH = './radar_vital_live_dashboard_v12_for_v16_0.html';
 const PRECACHE = [
@@ -81,7 +81,12 @@ self.addEventListener('fetch', event => {
   if (url.pathname.includes('/api/')) {
     return;
   }
-  if (url.pathname.endsWith('/') || url.pathname.endsWith('/radar_vital_live_dashboard_v12_for_v16_0.html') || url.pathname.endsWith('/index.html')) {
+  if (
+    request.mode === 'navigate'
+    || url.pathname.endsWith('/')
+    || url.pathname.endsWith('/radar_vital_live_dashboard_v12_for_v16_0.html')
+    || url.pathname.endsWith('/index.html')
+  ) {
     event.respondWith(networkFirst(request, 2000, true));
     return;
   }

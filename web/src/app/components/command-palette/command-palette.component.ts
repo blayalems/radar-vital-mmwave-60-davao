@@ -10,7 +10,7 @@ import { MatListModule } from '@angular/material/list';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 
-import { PreflightCheck, SnapshotRecord, ThemeId } from '../../models/rvt.models';
+import { normalizePreflightStatus, PreflightCheck, SnapshotRecord, ThemeId } from '../../models/rvt.models';
 import { ApiService } from '../../services/api.service';
 import { DEFAULT_KPI_THRESHOLDS, StateService } from '../../services/state.service';
 import { FirstRunService } from '../../services/first-run.service';
@@ -566,7 +566,7 @@ export class CommandPaletteComponent {
     try {
       const response = await this.api.request<{ checks?: PreflightCheck[] }>(`/api/preflight?${query.toString()}`);
       const checks = response.checks || [];
-      const failed = checks.filter(check => ['bad', 'fail', 'error'].includes(check.status.toLowerCase())).length;
+      const failed = checks.filter(check => ['bad', 'fail', 'error'].includes(normalizePreflightStatus(check))).length;
       this.snackBar.open(
         failed
           ? `Preflight complete: ${failed} blocking check${failed === 1 ? '' : 's'} require attention.`

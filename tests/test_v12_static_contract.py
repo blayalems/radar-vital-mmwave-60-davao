@@ -78,10 +78,11 @@ def test_dashboard_pwa_contract():
 
 def test_service_worker_contract():
     sw = text(SW)
-    assert "rvt-shell-v12.0.4" in sw
+    assert "rvt-shell-v12.0.5" in sw
     assert "text/event-stream" in sw
     assert "SKIP_WAITING" in sw
     assert "SW_UPDATED" in sw
+    assert "request.mode === 'navigate'" in sw
     assert "/api/session/current/live_dashboard.json" in sw
     assert "/fonts/material-symbols-rounded.woff2" in sw
 
@@ -122,7 +123,7 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
         "rvt-subject-profiles-v12.0",
     ]:
         assert schema_id in trainer
-    assert "rvt-shell-v12.0.4" in sw
+    assert "rvt-shell-v12.0.5" in sw
     assert "rvt-shell-v16" not in sw
 
 

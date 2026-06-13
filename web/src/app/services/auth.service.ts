@@ -35,6 +35,7 @@ export class AuthService {
 
   private async checkAuthInit(): Promise<void> {
     try {
+      await this.waitForConnectionBootstrap();
       const token = sessionStorage.getItem(OPERATOR_TOKEN_KEY);
       if (!token) {
         this.isLocked.set(true);
@@ -74,6 +75,7 @@ export class AuthService {
   }
 
   async loadProfiles(): Promise<void> {
+    await this.waitForConnectionBootstrap();
     this.loading.set(true);
     try {
       const res = await this.api.request<OperatorProfilesResponse>('/api/operator-profiles');
@@ -104,7 +106,6 @@ export class AuthService {
         sessionStorage.setItem(OPERATOR_TOKEN_KEY, res.token);
         this.currentOperator.set(res.operator);
         this.clearUnauthenticatedStatus();
-        this.isLocked.set(false);
         this.loginError.set(null);
         this.lockoutRetryAfter.set(0);
 
@@ -126,6 +127,7 @@ export class AuthService {
         }));
 
         await this.api.detectControlMode();
+        this.isLocked.set(false);
         this.notifyAuthenticated();
         return true;
       }
@@ -256,6 +258,13 @@ export class AuthService {
     this.currentOperator.set(null);
     this.isLocked.set(true);
     void this.api.detectControlMode();
+  }
+
+  private async waitForConnectionBootstrap(): Promise<void> {
+    await Promise.race([
+      this.api.whenInitialized(),
+      new Promise<void>(resolve => setTimeout(resolve, 500))
+    ]).catch(() => undefined);
   }
 
   private notifyAuthenticated(): void {

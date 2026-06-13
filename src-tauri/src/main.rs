@@ -6,6 +6,7 @@ use std::{
     io::Write,
     net::TcpListener,
     sync::Mutex,
+    thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -237,9 +238,21 @@ fn trainer_sidecar_args<'a>(mode: &str, port_arg: &'a str, sessions_root_arg: &'
 fn ensure_lan_port_available() -> Result<(), String> {
     // LAN mode binds the wildcard address, so probe 0.0.0.0 rather than loopback —
     // a conflict bound only to a LAN interface would pass a 127.0.0.1 probe.
-    TcpListener::bind(("0.0.0.0", LAN_TRAINER_PORT))
-        .map(|listener| drop(listener))
-        .map_err(|error| format!("Port {LAN_TRAINER_PORT} is already in use; stop the other trainer or choose local mode. {error}"))
+    let mut last_error = None;
+    for _ in 0..25 {
+        match TcpListener::bind(("0.0.0.0", LAN_TRAINER_PORT)) {
+            Ok(listener) => {
+                drop(listener);
+                return Ok(());
+            }
+            Err(error) => {
+                last_error = Some(error);
+                thread::sleep(Duration::from_millis(200));
+            }
+        }
+    }
+    let detail = last_error.map(|error| error.to_string()).unwrap_or_else(|| "unknown bind error".to_string());
+    Err(format!("Port {LAN_TRAINER_PORT} is already in use; stop the other trainer or choose local mode. {detail}"))
 }
 
 fn local_trainer_origin(state: &State<'_, NativeState>) -> Option<String> {
@@ -377,7 +390,9 @@ fn trainer_status_snapshot(state: &State<'_, NativeState>) -> TrainerSidecarStat
 }
 
 fn shutdown_local_trainer(state: &State<'_, NativeState>) {
+    let mut was_lan = false;
     if let Ok(mut trainer) = state.trainer.lock() {
+        was_lan = trainer.bind_mode == "lan";
         trainer.stop_requested = true;
         if let Some(pid) = trainer.child_pid.take() {
             terminate_process_tree(pid);
@@ -388,6 +403,13 @@ fn shutdown_local_trainer(state: &State<'_, NativeState>) {
         trainer.running = false;
         trainer.ready = false;
         trainer.error = None;
+        trainer.origin = None;
+    }
+    if let Ok(mut paired) = state.paired_origin.lock() {
+        *paired = None;
+    }
+    if was_lan {
+        let _ = ensure_lan_port_available();
     }
 }
 

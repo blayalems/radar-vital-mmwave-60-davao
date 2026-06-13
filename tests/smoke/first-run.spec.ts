@@ -12,6 +12,41 @@ const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
 
 /** Route stubs shared across tests. */
 async function applyCommonRoutes(page: import('@playwright/test').Page) {
+  await page.addInitScript(() => {
+    const origin = window.location.origin;
+    localStorage.setItem('rvt-api-base', origin);
+    localStorage.setItem('rvt.server.url', origin);
+    sessionStorage.setItem('rvt-pair-token', 'mock-pair-token');
+  });
+  await page.route('**/api/status', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        mode: 'live',
+        trainer_version: '16.3.0-test',
+        dashboard_version: '16.3.0-test',
+        firmware_expected: 'v16.3.0-test',
+        active_session: null,
+        feature_flags: {}
+      })
+    })
+  );
+  await page.route('**/api/health', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, version: '16.3.0-test' })
+    })
+  );
+  await page.route('**/api/version', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ product_version: '16.3.0-test' })
+    })
+  );
   await page.route('**/api/auth/validate', route =>
     route.fulfill({
       status: 200,

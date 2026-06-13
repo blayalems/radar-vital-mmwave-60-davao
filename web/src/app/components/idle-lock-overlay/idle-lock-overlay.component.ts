@@ -11,6 +11,7 @@ import { IdleLockService } from '../../services/idle-lock.service';
 import { StateService } from '../../services/state.service';
 import { AuthService } from '../../services/auth.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
+import { FirstRunService } from '../../services/first-run.service';
 import { A11yModule } from '@angular/cdk/a11y';
 import { OperatorProfile } from '../../models/rvt.models';
 import { PinKeyboardComponent } from '../pin-keyboard/pin-keyboard.component';
@@ -40,9 +41,12 @@ export class IdleLockOverlayComponent {
   protected readonly state = inject(StateService);
   protected readonly auth = inject(AuthService);
   protected readonly serverLifecycle = inject(ServerLifecycleService);
+  protected readonly firstRun = inject(FirstRunService);
   private readonly dialog = inject(MatDialog);
 
-  protected readonly isLocked = computed(() => this.auth.isLocked() || this.idleLock.locked());
+  protected readonly isLocked = computed(() =>
+    !this.firstRun.consentRequired() && (this.auth.isLocked() || this.idleLock.locked())
+  );
   protected readonly isExeHost = computed(() => this.serverLifecycle.platform() === 'exe');
 
   @ViewChild('pinKeyboard') pinKeyboard?: PinKeyboardComponent;

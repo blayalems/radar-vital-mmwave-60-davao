@@ -1,6 +1,7 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
 import { ApiService } from './api.service';
 import { StateService } from './state.service';
+import { FirstRunService } from './first-run.service';
 import { ControlStatus, OperatorProfile, OperatorProfilesResponse, LoginResponse } from '../models/rvt.models';
 import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
 
@@ -10,6 +11,7 @@ import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
 export class AuthService {
   private readonly api = inject(ApiService);
   private readonly state = inject(StateService);
+  private readonly firstRun = inject(FirstRunService);
 
   readonly currentOperator = signal<OperatorProfile | null>(null);
   readonly isLocked = signal<boolean>(true);
@@ -21,24 +23,39 @@ export class AuthService {
   readonly operatorLockouts = signal<Record<string, number>>({});
 
   private lockoutTimers = new Map<string, any>();
+  private authInitAttempted = false;
+  private suppressUnauthenticatedUntil = 0;
 
   constructor() {
     effect(() => {
       const status = this.state.ctlStatus();
-      if (!this.loading() && !this.isLocked() && status?.reason === 'unauthenticated') {
+      if (
+        !this.loading() &&
+        !this.isLocked() &&
+        status?.reason === 'unauthenticated' &&
+        Date.now() >= this.suppressUnauthenticatedUntil
+      ) {
         this.loginError.set('Operator session expired. Sign in again to continue.');
         this.lock();
       }
     });
-    void this.checkAuthInit();
+    effect(() => {
+      if (this.firstRun.consentRequired() || this.authInitAttempted) return;
+      this.authInitAttempted = true;
+      void this.checkAuthInit();
+    });
   }
 
   private async checkAuthInit(): Promise<void> {
     try {
-      await this.waitForConnectionBootstrap();
-      const token = sessionStorage.getItem(OPERATOR_TOKEN_KEY);
-      if (!token) {
+      const startupToken = sessionStorage.getItem(OPERATOR_TOKEN_KEY);
+      if (!startupToken) {
         this.isLocked.set(true);
+        return;
+      }
+
+      await this.waitForConnectionBootstrap();
+      if (sessionStorage.getItem(OPERATOR_TOKEN_KEY) !== startupToken) {
         return;
       }
 
@@ -75,6 +92,11 @@ export class AuthService {
   }
 
   async loadProfiles(): Promise<void> {
+    if (this.firstRun.consentRequired()) {
+      this.profiles.set([]);
+      this.bootstrapping.set(false);
+      return;
+    }
     await this.waitForConnectionBootstrap();
     this.loading.set(true);
     try {
@@ -93,6 +115,7 @@ export class AuthService {
   }
 
   async login(operator_id: string, pin: string): Promise<boolean> {
+    this.authInitAttempted = true;
     this.loading.set(true);
     this.loginError.set(null);
     try {
@@ -127,6 +150,7 @@ export class AuthService {
         }));
 
         await this.api.detectControlMode();
+        this.suppressUnauthenticatedUntil = Date.now() + 1000;
         this.isLocked.set(false);
         this.notifyAuthenticated();
         return true;

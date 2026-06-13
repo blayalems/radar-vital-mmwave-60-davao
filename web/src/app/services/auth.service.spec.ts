@@ -2,7 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { AuthService } from './auth.service';
 import { ApiService } from './api.service';
 import { StateService } from './state.service';
-import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
+import { CONSENT_KEY, OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
+import { TERMS_VERSION } from './app-meta';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -11,6 +12,7 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     sessionStorage.removeItem(OPERATOR_TOKEN_KEY);
+    localStorage.setItem(CONSENT_KEY, JSON.stringify({ version: TERMS_VERSION, accepted_at: new Date().toISOString() }));
 
     mockApi = {
       request: vi.fn(),

@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 Consent/Auth Startup Stabilization
+
+- **Consent-first startup hardening**: root shell now re-checks stale/missing consent reactively without reopening duplicate dialogs, suppresses the PIN idle-lock overlay while consent is required, and defers operator auth bootstrap/profile loading until the current Terms & Privacy version is accepted.
+- **Auth race fix**: explicit operator login supersedes deferred startup-token validation and ignores only the immediate stale `unauthenticated` control-status window after a fresh login, preventing valid sessions from being cleared by pre-login status.
+- **First-run smoke fixture**: first-run Playwright tests now seed stable trainer route stubs and a paired browser token so the consent/tutorial ordering case is tested without falling into unrelated pairing/PIN overlays.
+- **Verification**: `npm --prefix web run test:ci` 124/124; `npm run build:web` clean with known initial-bundle warning; `RVT_TEST_PORT=8992 npx playwright test tests/smoke/first-run.spec.ts --project=desktop --reporter=line` 9/9.
+
 ### 2026-06-13 — PR54 iPad Home Visual CI Stabilization
 
 - **Visual fixture hardening**: stabilized the iPad Home visual baseline by hiding Home-only dynamic metric/progress/history pixels in the visual test fixture while preserving card layout, labels, and theme surfaces; refreshed the four committed iPad Home Windows baselines.

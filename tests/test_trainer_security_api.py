@@ -68,6 +68,27 @@ def test_cors_headers_are_emitted_when_origin_matches(tmp_path: Path):
         server.stop()
 
 
+def test_cors_preflight_allows_operator_auth_header(tmp_path: Path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True, cors_origin="http://allowed.com")
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    try:
+        response = _request_raw(base, "/api/status", method="OPTIONS", headers={
+            "Origin": "http://allowed.com",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "X-RVT-Auth, Content-Type",
+        })
+        assert response.status == 204
+        assert response.headers.get("Access-Control-Allow-Origin") == "http://allowed.com"
+        allowed_headers = response.headers.get("Access-Control-Allow-Headers", "")
+        assert "X-RVT-Auth" in allowed_headers
+        assert "Content-Type" in allowed_headers
+    finally:
+        server.stop()
+
+
 def test_lan_sensitive_reads_require_token_and_public_shell_remains_available(tmp_path: Path):
     sessions = tmp_path / "sessions"
     sessions.mkdir()

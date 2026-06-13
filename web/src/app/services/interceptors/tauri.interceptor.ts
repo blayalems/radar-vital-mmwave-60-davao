@@ -1,7 +1,6 @@
 import { HttpInterceptorFn, HttpResponse, HttpErrorResponse } from '@angular/common/http';
 import { from } from 'rxjs';
-
-const API_BASE_KEY = 'rvt-api-base';
+import { API_BASE_KEY, SERVER_URL_KEY } from '../rvt-storage-keys';
 
 let cachedBase: string | null = null;
 let cachedLocalOrigin: string | null = null;
@@ -23,6 +22,16 @@ interface NativeTrainerStatus {
   origin?: string | null;
   error?: string | null;
   sessions_root?: string | null;
+}
+
+function isApiUrl(value: string): boolean {
+  if (value.startsWith('/api/')) return true;
+  try {
+    const parsed = new URL(value, 'http://rvt.local');
+    return /^https?:$/.test(parsed.protocol) && parsed.pathname.startsWith('/api/');
+  } catch (_) {
+    return false;
+  }
 }
 
 function normalizeHttpOrigin(value: string): string {
@@ -66,12 +75,13 @@ function installTauriSidecarListeners(tauri: any): void {
 
 function explicitStoredOrigin(): string {
   try {
-    const stored = normalizeHttpOrigin(localStorage.getItem(API_BASE_KEY) || '');
+    const stored = normalizeHttpOrigin(localStorage.getItem(API_BASE_KEY) || localStorage.getItem(SERVER_URL_KEY) || '');
     // Dynamic bundled sidecar origins must not survive process restarts. Treat
     // loopback values from older builds as stale and let Rust provide the fresh
     // per-launch sidecar origin through native_trainer_status.
     if (stored && isLoopbackOrigin(stored)) {
       localStorage.removeItem(API_BASE_KEY);
+      localStorage.removeItem(SERVER_URL_KEY);
       return '';
     }
     return stored;
@@ -95,14 +105,19 @@ async function resolveTauriApiBase(tauri: any): Promise<string> {
     return stored;
   }
 
-  if (cachedBase) return cachedBase;
+  if (cachedBase && cachedBase !== cachedLocalOrigin) return cachedBase;
 
   const status = await (tauri.invoke as (cmd: string) => Promise<NativeTrainerStatus>)('native_trainer_status');
   const localOrigin = normalizeHttpOrigin(String(status?.origin || ''));
   if (localOrigin && status?.running !== false) {
     cachedBase = localOrigin;
     cachedLocalOrigin = localOrigin;
-    lastPairedOrigin = localOrigin;
+    if (lastPairedOrigin !== localOrigin) {
+      try {
+        await (tauri.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<unknown>)('native_set_paired_origin', { origin: localOrigin });
+        lastPairedOrigin = localOrigin;
+      } catch (_) {}
+    }
     return localOrigin;
   }
   return '';
@@ -115,9 +130,7 @@ export const rvtTauriInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
-  const knownBase = cachedBase || explicitStoredOrigin();
-  const maybeApi = req.url.startsWith('/api/') || Boolean(knownBase && req.url.startsWith(knownBase));
-  if (!maybeApi) {
+  if (!isApiUrl(req.url)) {
     return next(req);
   }
 

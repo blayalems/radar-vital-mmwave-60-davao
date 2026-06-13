@@ -4,6 +4,9 @@ import { firstValueFrom } from 'rxjs';
 import {
   BleScanDevice,
   ControlStatus,
+  LoginResponse,
+  OperatorProfile,
+  OperatorProfilesResponse,
   PreflightCheck,
   SessionNotesPayload,
   SessionRecord,
@@ -33,6 +36,16 @@ interface TauriBridge {
   };
 }
 
+interface SandboxOperatorProfile extends OperatorProfile {
+  pin: string;
+  failed_attempts?: number;
+  locked_until?: number;
+}
+
+const SANDBOX_OPERATOR_PROFILES_KEY = 'demo:rvt-operator-profiles';
+const SANDBOX_OPERATOR_SESSIONS_KEY = 'demo:rvt-operator-sessions';
+const SANDBOX_OPERATOR_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
 @Injectable({
   providedIn: 'root'
 })
@@ -43,11 +56,16 @@ export class ApiService {
   private readonly API_BASE_KEY = API_BASE_KEY;
   private readonly TOKEN_KEY = TOKEN_KEY;
   private connectionAttempt = 0;
+  private readonly initialization: Promise<void>;
 
   public readonly connectionLoading = signal(true);
 
   constructor() {
-    void this.initializeConnection();
+    this.initialization = this.initializeConnection();
+  }
+
+  whenInitialized(): Promise<void> {
+    return this.initialization;
   }
 
   private async initializeConnection(): Promise<void> {
@@ -179,7 +197,7 @@ export class ApiService {
       || (this.state.ctlOn() && this.state.ctlStatus()?.mode === 'sandbox')
     );
 
-    if (isSandbox && path.startsWith('/api/') && !this.isAuthPath(path)) {
+    if (isSandbox && path.startsWith('/api/')) {
       return this.sandboxApiJson(path, init) as T;
     }
 
@@ -217,7 +235,11 @@ export class ApiService {
     }
 
     try {
-      const httpHeaders = new HttpHeaders(init?.headers as any || {});
+      let httpHeaders = new HttpHeaders(init?.headers as any || {});
+      const tok = this.authToken();
+      if (tok && !httpHeaders.has('X-RVT-Auth')) {
+        httpHeaders = httpHeaders.set('X-RVT-Auth', tok);
+      }
       const body = init?.body;
       const response = this.http.request<T>(method, target, {
         body,
@@ -232,15 +254,6 @@ export class ApiService {
       }
       throw new Error(err.message || 'HTTP Request failed');
     }
-  }
-
-  private isAuthPath(path: string): boolean {
-    const pathname = new URL(path, window.location.origin).pathname;
-    return pathname === '/api/auth/validate'
-      || pathname === '/api/auth/login'
-      || pathname === '/api/auth/logout'
-      || pathname === '/api/auth/sse-token'
-      || pathname === '/api/operator-profiles';
   }
 
   async download(path: string, filename: string): Promise<void> {
@@ -379,6 +392,185 @@ export class ApiService {
     return existing;
   }
 
+  private sandboxReadOperatorProfiles(): SandboxOperatorProfile[] {
+    try {
+      const payload = JSON.parse(localStorage.getItem(SANDBOX_OPERATOR_PROFILES_KEY) || '{}');
+      const profiles = Array.isArray(payload?.profiles) ? payload.profiles : [];
+      return profiles
+        .filter((profile: Partial<SandboxOperatorProfile>) =>
+          typeof profile.operator_id === 'string'
+          && typeof profile.display_name === 'string'
+          && typeof profile.initials === 'string'
+          && typeof profile.pin === 'string'
+        )
+        .map((profile: SandboxOperatorProfile) => ({
+          operator_id: profile.operator_id,
+          display_name: profile.display_name,
+          initials: profile.initials,
+          pin: profile.pin,
+          failed_attempts: Number(profile.failed_attempts || 0),
+          locked_until: Number(profile.locked_until || 0)
+        }));
+    } catch (_) {
+      return [];
+    }
+  }
+
+  private sandboxWriteOperatorProfiles(profiles: SandboxOperatorProfile[]): void {
+    try {
+      localStorage.setItem(SANDBOX_OPERATOR_PROFILES_KEY, JSON.stringify({
+        schema_version: 'rvt-sandbox-operator-profiles-v12.0',
+        profiles
+      }));
+    } catch (_) {}
+  }
+
+  private sandboxPublicOperatorProfiles(): OperatorProfile[] {
+    return this.sandboxReadOperatorProfiles().map(({ operator_id, display_name, initials }) => ({
+      operator_id,
+      display_name,
+      initials
+    }));
+  }
+
+  private sandboxReadOperatorSessions(): Record<string, { operator_id: string; expires_at: number }> {
+    try {
+      const payload = JSON.parse(sessionStorage.getItem(SANDBOX_OPERATOR_SESSIONS_KEY) || '{}');
+      return payload && typeof payload === 'object' ? payload : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  private sandboxWriteOperatorSessions(sessions: Record<string, { operator_id: string; expires_at: number }>): void {
+    try {
+      sessionStorage.setItem(SANDBOX_OPERATOR_SESSIONS_KEY, JSON.stringify(sessions));
+    } catch (_) {}
+  }
+
+  private sandboxOperatorProfilesResponse(): OperatorProfilesResponse {
+    return {
+      schema_version: 'rvt-sandbox-operator-profiles-v12.0',
+      profiles: this.sandboxPublicOperatorProfiles()
+    };
+  }
+
+  private sandboxCreateOperatorProfile(init?: RequestInit): { ok: boolean; operator?: OperatorProfile; error?: { code: string; message: string } } {
+    const body = this.parseJsonBody<{ display_name?: string; initials?: string; pin?: string }>(init?.body);
+    const displayName = String(body.display_name || '').trim();
+    const initials = String(body.initials || '').trim().toUpperCase();
+    const pin = String(body.pin || '').trim();
+    if (displayName.length < 3 || displayName.length > 64) {
+      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'display_name must be 3 to 64 characters' } };
+    }
+    if (!/^[A-Z]{2,5}$/.test(initials)) {
+      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'initials must be 2 to 5 uppercase letters' } };
+    }
+    if (!/^\d{4}$/.test(pin)) {
+      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'pin must be exactly 4 digits' } };
+    }
+    const profiles = this.sandboxReadOperatorProfiles();
+    const operator: SandboxOperatorProfile = {
+      operator_id: `sandbox_op_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      display_name: displayName,
+      initials,
+      pin,
+      failed_attempts: 0,
+      locked_until: 0
+    };
+    this.sandboxWriteOperatorProfiles([...profiles, operator]);
+    const { pin: _pin, failed_attempts: _failed, locked_until: _locked, ...publicOperator } = operator;
+    return { ok: true, operator: publicOperator };
+  }
+
+  private sandboxLogin(init?: RequestInit): LoginResponse | { ok: false; error: { code: string; message: string; retry_after_s?: number } } {
+    const body = this.parseJsonBody<{ operator_id?: string; pin?: string }>(init?.body);
+    const operatorId = String(body.operator_id || '').trim();
+    const pin = String(body.pin || '').trim();
+    const profiles = this.sandboxReadOperatorProfiles();
+    const profile = profiles.find(item => item.operator_id === operatorId);
+    if (!profile) {
+      return { ok: false, error: { code: 'UNAUTHORIZED', message: 'Invalid operator ID or PIN' } };
+    }
+    const now = Date.now();
+    const lockedUntil = Number(profile.locked_until || 0);
+    if (lockedUntil > now) {
+      const retryAfter = Math.max(1, Math.ceil((lockedUntil - now) / 1000));
+      return {
+        ok: false,
+        error: {
+          code: 'LOCKOUT_ACTIVE',
+          message: `Too many failed attempts. Try again in ${retryAfter} seconds.`,
+          retry_after_s: retryAfter
+        }
+      };
+    }
+    if (profile.pin !== pin) {
+      profile.failed_attempts = Number(profile.failed_attempts || 0) + 1;
+      if (profile.failed_attempts >= 5) {
+        profile.locked_until = now + 30_000;
+      }
+      this.sandboxWriteOperatorProfiles(profiles);
+      if (profile.failed_attempts >= 5) {
+        return {
+          ok: false,
+          error: {
+            code: 'LOCKOUT_ACTIVE',
+            message: 'Too many failed attempts. Try again in 30 seconds.',
+            retry_after_s: 30
+          }
+        };
+      }
+      return { ok: false, error: { code: 'UNAUTHORIZED', message: 'Invalid operator ID or PIN' } };
+    }
+    profile.failed_attempts = 0;
+    profile.locked_until = 0;
+    this.sandboxWriteOperatorProfiles(profiles);
+    const expiresAt = now + SANDBOX_OPERATOR_SESSION_TTL_MS;
+    const token = `sandbox_op_token_${operatorId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    const sessions = this.sandboxReadOperatorSessions();
+    sessions[token] = { operator_id: operatorId, expires_at: expiresAt };
+    this.sandboxWriteOperatorSessions(sessions);
+    const operator = { operator_id: profile.operator_id, display_name: profile.display_name, initials: profile.initials };
+    return { token, expires_at: Math.floor(expiresAt / 1000), operator };
+  }
+
+  private sandboxValidateOperator(): { ok: boolean; bootstrap?: boolean; operator: OperatorProfile | null } {
+    const token = this.operatorToken();
+    const sessions = this.sandboxReadOperatorSessions();
+    const session = token ? sessions[token] : null;
+    const now = Date.now();
+    if (session && Number(session.expires_at || 0) > now) {
+      const operator = this.sandboxPublicOperatorProfiles().find(item => item.operator_id === session.operator_id);
+      if (operator) {
+        return { ok: true, operator };
+      }
+    }
+    if (token && sessions[token]) {
+      delete sessions[token];
+      this.sandboxWriteOperatorSessions(sessions);
+    }
+    return { ok: true, bootstrap: this.sandboxPublicOperatorProfiles().length === 0, operator: null };
+  }
+
+  private tokenFromRequestInit(init?: RequestInit): string {
+    try {
+      return new Headers(init?.headers || {}).get('X-RVT-Auth') || this.operatorToken();
+    } catch (_) {
+      return this.operatorToken();
+    }
+  }
+
+  private sandboxLogoutOperator(init?: RequestInit): { ok: true } {
+    const token = this.tokenFromRequestInit(init);
+    if (token) {
+      const sessions = this.sandboxReadOperatorSessions();
+      delete sessions[token];
+      this.sandboxWriteOperatorSessions(sessions);
+    }
+    return { ok: true };
+  }
+
   private parseJsonBody<T extends object>(body: BodyInit | null | undefined): Partial<T> {
     if (typeof body !== 'string') return {};
     try {
@@ -395,6 +587,20 @@ export class ApiService {
     if (url.pathname === '/api/status') return { ok: true, mode: 'sandbox', active_session: this.state.sessionActive() ? { session_id: this.state.currentSessionId() || 'sandbox_active', sandbox: true } : null };
     if (url.pathname === '/api/health') return { ok: true, version: 'sandbox' };
     if (url.pathname === '/api/version') return { product_version: '16.2.0', trainer: 'sandbox', dashboard: 'sandbox', firmware_expected: 'sandbox' };
+    if (url.pathname === '/api/auth/validate') return this.sandboxValidateOperator();
+    if (url.pathname === '/api/auth/login' && method === 'POST') {
+      const login = this.sandboxLogin(init);
+      if ('error' in login) throw new Error(`${login.error.message} (${login.error.code})`);
+      return login;
+    }
+    if (url.pathname === '/api/auth/logout' && method === 'POST') return this.sandboxLogoutOperator(init);
+    if (url.pathname === '/api/auth/sse-token') return { sse_token: `sandbox_sse_${Date.now().toString(36)}` };
+    if (url.pathname === '/api/operator-profiles' && method === 'GET') return this.sandboxOperatorProfilesResponse();
+    if (url.pathname === '/api/operator-profiles' && method === 'POST') {
+      const created = this.sandboxCreateOperatorProfile(init);
+      if (created.error) throw new Error(`${created.error.message} (${created.error.code})`);
+      return created;
+    }
     if (url.pathname === '/api/sessions') {
       const sessions = this.sandboxLoadSessions();
       return { ok: true, sessions, items: sessions };
@@ -472,7 +678,6 @@ export class ApiService {
     if (url.pathname === '/api/defaults') return { sandbox: true, radar_port: 'COM10', ble_address: '', ble_profile: 'ailink_oximeter' };
     if (url.pathname === '/api/preflight') return { ok: true, checks: [{ name: 'Sandbox trainer', ok: true, message: 'Demo mode is available.' }] };
     if (url.pathname === '/api/ble/scan') return { ok: true, devices: [] };
-    if (url.pathname === '/api/operator-profiles') return { schema_version: 'sandbox', profiles: [] };
     return { ok: true, sandbox: true };
   }
 
@@ -568,7 +773,7 @@ export class ApiService {
     const tauri = (window as Window & { __TAURI__?: TauriBridge }).__TAURI__?.core;
     if (!tauri?.invoke || !base) return;
     try {
-      await tauri.invoke('set_paired_origin', { origin: base });
+      await tauri.invoke('native_set_paired_origin', { origin: base });
     } catch (_) {}
   }
 }

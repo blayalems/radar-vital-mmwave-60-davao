@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 iPhone First-Run Smoke Activation
+
+- **Mobile smoke hardening**: first-run Playwright smoke now activates consent/tutorial Material buttons via DOM click dispatch after visibility assertion so the redesigned dialog controls remain testable when positioned outside the iPhone viewport.
+- **Verification**: `RVT_TEST_PORT=9013 npx playwright test tests/smoke/first-run.spec.ts --project=iphone-14 --reporter=line` 9/9.
+
 ### 2026-06-13 — PR54 Smoke Fixture Corrections
 
 - **Smoke contract repair**: API smoke now asserts the restored `/rvt-sw.js` JavaScript unregister tombstone; report issue and settings-style demo fixtures seed sandbox operator profiles/sessions; static hosted auth seeds completed first-run consent; polish live mock asserts the current stale/no-data console state.

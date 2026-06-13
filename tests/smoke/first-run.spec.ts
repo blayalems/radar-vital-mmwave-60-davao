@@ -5,10 +5,16 @@
  * the real first-run flow (consent dialog, onboarding tutorial, etc.).
  * Separate browser contexts ensure isolation from other suites.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator } from '@playwright/test';
 import { seedFirstRunComplete } from './helpers/first-run';
 
 const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
+
+async function activateButton(scope: Locator, name: RegExp): Promise<void> {
+  const button = scope.getByRole('button', { name });
+  await expect(button).toBeVisible();
+  await button.dispatchEvent('click');
+}
 
 /** Route stubs shared across tests. */
 async function applyCommonRoutes(page: import('@playwright/test').Page) {
@@ -103,7 +109,7 @@ test.describe('First-run consent gate', () => {
     await expect(dialog).toBeVisible({ timeout: 8000 });
 
     // Click Decline
-    await dialog.getByRole('button', { name: /Decline/i }).click();
+    await activateButton(dialog, /Decline/i);
 
     // Blocking panel should appear
     await expect(dialog).toContainText('Consent Required');
@@ -124,10 +130,10 @@ test.describe('First-run consent gate', () => {
     const dialog = page.locator('app-consent-dialog');
     await expect(dialog).toBeVisible({ timeout: 8000 });
 
-    await dialog.getByRole('button', { name: /Decline/i }).click();
+    await activateButton(dialog, /Decline/i);
     await expect(dialog).toContainText('Consent Required');
 
-    await dialog.getByRole('button', { name: /Back to Terms/i }).click();
+    await activateButton(dialog, /Back to Terms/i);
     // Terms view restored
     await expect(dialog).toContainText('Terms of Use');
     await expect(dialog).toContainText('Accept');
@@ -140,7 +146,7 @@ test.describe('First-run consent gate', () => {
     const dialog = page.locator('app-consent-dialog');
     await expect(dialog).toBeVisible({ timeout: 8000 });
 
-    await dialog.getByRole('button', { name: /Accept/i }).click();
+    await activateButton(dialog, /Accept/i);
 
     // Dialog must close
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
@@ -191,11 +197,11 @@ test.describe('First-run tutorial gate', () => {
     await expect(tutorial.getByRole('link', { name: /Privacy Policy/i })).toHaveAttribute('href', /PRIVACY\.md$/);
 
     // Can navigate to next step
-    await tutorial.getByRole('button', { name: /Next/i }).click();
+    await activateButton(tutorial, /Next/i);
     await expect(tutorial).toBeVisible();
 
     // Can skip
-    await tutorial.getByRole('button', { name: /Skip/i }).click();
+    await activateButton(tutorial, /Skip/i);
     await expect(tutorial).not.toBeVisible({ timeout: 5000 });
   });
 
@@ -233,7 +239,7 @@ test.describe('First-run tutorial gate', () => {
     await expect(dialog).toContainText('Terms of Use');
 
     // 2. Accept
-    await dialog.getByRole('button', { name: /Accept/i }).click();
+    await activateButton(dialog, /Accept/i);
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
 
     // 3. Simulate auth event to trigger tutorial
@@ -245,7 +251,7 @@ test.describe('First-run tutorial gate', () => {
     await expect(tutorial).toBeVisible({ timeout: 8000 });
 
     // 4. Skip tutorial
-    await tutorial.getByRole('button', { name: /Skip/i }).click();
+    await activateButton(tutorial, /Skip/i);
     await expect(tutorial).not.toBeVisible({ timeout: 5000 });
 
     // 5. Reload — no consent dialog, no tutorial
@@ -275,7 +281,7 @@ test.describe('First-run tutorial gate', () => {
     await expect(dialog).toBeVisible({ timeout: 8000 });
     await expect(page.locator('app-onboarding-tutorial')).toHaveCount(0);
 
-    await dialog.getByRole('button', { name: /Accept/i }).click();
+    await activateButton(dialog, /Accept/i);
     await expect(dialog).not.toBeVisible({ timeout: 5000 });
     await expect(page.locator('app-onboarding-tutorial')).toBeVisible({ timeout: 8000 });
   });

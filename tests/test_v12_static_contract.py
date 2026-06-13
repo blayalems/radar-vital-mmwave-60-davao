@@ -217,7 +217,10 @@ def test_trainer_routes_and_security_contract():
         "/pair",
     ]:
         assert route in py
-    assert "SERVICE_WORKER_TOMBSTONE_REMOVED" in py
+    assert 'path == "/rvt-sw.js"' in py
+    assert '"application/javascript; charset=utf-8"' in py
+    assert "LEGACY_SW_TOMBSTONE_NOT_FOUND" in py
+    assert "SERVICE_WORKER_TOMBSTONE_REMOVED" not in py
     assert "Port {start_port} in use. Stop the other instance or pass --port <N>." in py
     assert "WWW-Authenticate" in py and "RVT-Token" in py
     

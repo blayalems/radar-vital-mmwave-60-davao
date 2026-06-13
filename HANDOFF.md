@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 Review Blockers + CI Follow-up
+
+- **Legacy SW migration restored**: added back `assets/rvt-sw.js` as a one-release JavaScript unregister/navigate tombstone and serve `/rvt-sw.js` as `application/javascript; charset=utf-8` with `Cache-Control: no-cache`; contract tests now reject the JSON/410 tombstone removal path.
+- **Issue-report privacy hardening**: sanitized trainer/EXE log excerpts before preview and URL generation, redacting pairing PINs, auth/session tokens, recovery codes, operator IDs/names/initials where detectable, and local usernames; Settings copy now describes sanitized log excerpts instead of raw log lines.
+- **Consent before tutorial**: deferred `rvt-operator-authenticated` tutorial launch while consent is stale/missing, then opened the tutorial only after accepted consent when an operator token/event is present; added unit and Playwright coverage for valid-token + missing-consent startup.
+- **Host-reset seam coverage**: added handler-level non-loopback `POST /api/auth/host-reset` test proving `403 LOOPBACK_ONLY` before any reset logic runs.
+- **Verification**: `python -m pytest -q tests/test_trainer_static.py tests/test_v12_static_contract.py tests/test_recovery_codes.py` 49/49 (Windows pytest temp symlink cleanup warning after success); `npm --prefix web run test:ci` 124/124; `npm run build:web` clean with known initial-bundle warning; `npx playwright test tests/visual/rvt-v12.spec.ts --grep "report|help|hc live" --update-snapshots --reporter=line` 36/36 and refreshed committed Windows baselines for the failing visual subset.
+
 ### 2026-06-13 — PR54 v16.3 RTM/RC Waves 2–4 Completion
 
 - **Wave 2 dashboard closure**: mounted privacy/telemetry, about, and report-issue cards in Settings; wired support commands into the command palette and Help; added PWA install prompt service/home banner, truthful Home/Live/Report empty states, and lazy Help/Report/Settings routes. Retired `/rvt-sw.js` tombstone to an explicit 410 response and kept `/sw.js` as the single service worker.

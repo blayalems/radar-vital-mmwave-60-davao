@@ -27,8 +27,9 @@
         <span class="row-title">Include diagnostics in issue reports</span>
         <span class="row-description">
           Attaches your current platform, connection mode, controller status,
-          de-identified alert summary, and the last 20 EXE log lines.
-          No operator names are ever included.
+          de-identified alert summary, and sanitized trainer log excerpts.
+          Known tokens, pairing PINs, recovery codes, operator IDs, and configured
+          operator names are redacted before preview or opening GitHub.
         </span>
       </div>
       <mat-slide-toggle

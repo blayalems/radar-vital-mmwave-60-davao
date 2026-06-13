@@ -76,6 +76,33 @@ interface TrainerLogResponse {
 
 const MAX_URL = 7_500;
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function sanitizeDiagnosticLine(line: string, identityHints: string[] = []): string {
+  let redacted = String(line ?? '');
+
+  redacted = redacted.replace(/([?&]pair=)\d{6}\b/gi, '$1[REDACTED_PIN]');
+  redacted = redacted.replace(/\b(pair(?:ing)?[_ -]?(?:pin|code)|active_pin)\b\s*[:=]\s*["']?\d{6}\b/gi, '$1=[REDACTED_PIN]');
+  redacted = redacted.replace(/\b(X-RVT-Auth|Authorization)\b\s*[:=]\s*(Bearer\s+)?[A-Za-z0-9._~+/=-]{8,}/gi, '$1: [REDACTED_TOKEN]');
+  redacted = redacted.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, 'Bearer [REDACTED_TOKEN]');
+  redacted = redacted.replace(/\b(rvt-operator-token|rvt-pair-token|operator_token|session_token|sse_token|token)\b\s*[:=]\s*["']?[A-Za-z0-9._~+/=-]{8,}/gi, '$1=[REDACTED_TOKEN]');
+  redacted = redacted.replace(/\b[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}\b/g, '[REDACTED_RECOVERY_CODE]');
+  redacted = redacted.replace(/\b(?:sandbox_op|op)_[A-Za-z0-9_-]+\b/g, '[REDACTED_OPERATOR_ID]');
+  redacted = redacted.replace(/\b(display_name|operator_label|initials)\b\s*[:=]\s*["']?[^"',;\]\}]+/gi, '$1=[REDACTED_OPERATOR]');
+  redacted = redacted.replace(/[A-Za-z]:\\Users\\[^\\\s]+/g, 'C:\\Users\\[REDACTED_USER]');
+  redacted = redacted.replace(/\/Users\/[^\/\s]+/g, '/Users/[REDACTED_USER]');
+
+  for (const hint of identityHints) {
+    const clean = String(hint || '').trim();
+    if (clean.length < 3) continue;
+    redacted = redacted.replace(new RegExp(escapeRegExp(clean), 'gi'), '[REDACTED_OPERATOR]');
+  }
+
+  return redacted;
+}
+
 // ---- service ---------------------------------------------------------------
 
 @Injectable({ providedIn: 'root' })
@@ -170,7 +197,7 @@ export class IssueReportService {
       connection_mode: report.connection_mode,
       ctl: report.ctl,
       alerts: report.alerts,
-      log_tail: report.log_tail,
+      log_tail: this.sanitizeLogTail(report.log_tail),
     };
 
     // 1. Try with log tail.
@@ -306,16 +333,31 @@ export class IssueReportService {
   private async collectLogTail(): Promise<string[] | undefined> {
     if (this.serverLifecycle.platform() === 'exe') {
       const lines = this.serverLifecycle.logTail();
-      return lines.slice(-20);
+      return this.sanitizeLogTail(lines);
     }
     try {
       const resp = await this.api.request<TrainerLogResponse>('/api/trainer/log');
       if (Array.isArray(resp?.lines)) {
-        return resp.lines.slice(-20);
+        return this.sanitizeLogTail(resp.lines);
       }
     } catch (_) {
       /* omit log_tail on error */
     }
     return undefined;
+  }
+
+  private sanitizeLogTail(lines: string[] | undefined): string[] | undefined {
+    if (!Array.isArray(lines)) return undefined;
+    const hints = this.identityHints();
+    return lines.slice(-20).map(line => sanitizeDiagnosticLine(line, hints));
+  }
+
+  private identityHints(): string[] {
+    const hints = new Set<string>();
+    try {
+      const setup = this.state.setup();
+      if (setup?.operator_label) hints.add(setup.operator_label);
+    } catch (_) {}
+    return Array.from(hints);
   }
 }

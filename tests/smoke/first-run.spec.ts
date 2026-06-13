@@ -218,4 +218,26 @@ test.describe('First-run tutorial gate', () => {
     const tutorialAfterReload = page.locator('app-onboarding-tutorial');
     await expect(tutorialAfterReload).toHaveCount(0);
   });
+
+  test('valid operator token with missing consent shows only consent before tutorial', async ({ page }) => {
+    await applyCommonRoutes(page);
+    await page.addInitScript(() => {
+      sessionStorage.setItem('rvt-operator-token', 'mock-fr-token');
+      const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
+      setup.operator_label = 'FR Tester';
+      localStorage.setItem('rvt-setup', JSON.stringify(setup));
+      localStorage.removeItem('rvt-consent-record');
+      localStorage.removeItem('rvt-tutorial-done');
+    });
+
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+
+    const dialog = page.locator('app-consent-dialog');
+    await expect(dialog).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('app-onboarding-tutorial')).toHaveCount(0);
+
+    await dialog.getByRole('button', { name: /Accept/i }).click();
+    await expect(dialog).not.toBeVisible({ timeout: 5000 });
+    await expect(page.locator('app-onboarding-tutorial')).toBeVisible({ timeout: 8000 });
+  });
 });

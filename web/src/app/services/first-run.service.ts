@@ -1,5 +1,5 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
-import { CONSENT_KEY, TUTORIAL_DONE_KEY } from './rvt-storage-keys';
+import { CONSENT_KEY, OPERATOR_TOKEN_KEY, TUTORIAL_DONE_KEY } from './rvt-storage-keys';
 import { TERMS_VERSION } from './app-meta';
 
 export interface ConsentRecord {
@@ -26,6 +26,7 @@ export class FirstRunService {
   readonly tutorialOpen = signal(false);
 
   private tutorialShownThisSession = false;
+  private tutorialDeferredUntilConsent = false;
 
   constructor() {
     this.bindOperatorAuthEvent();
@@ -43,6 +44,7 @@ export class FirstRunService {
       // Storage may be unavailable (private mode, full quota). Continue in memory.
     }
     this._consentRecord.set(record);
+    this.openDeferredTutorialAfterConsent();
   }
 
   /** True when the operator has not yet completed the tutorial this install. */
@@ -97,10 +99,11 @@ export class FirstRunService {
     if (typeof window === 'undefined') return;
 
     const listener = () => {
-      if (!this.tutorialShownThisSession && !this.tutorialDone()) {
-        this.tutorialShownThisSession = true;
-        this.tutorialOpen.set(true);
+      if (this.consentRequired()) {
+        this.tutorialDeferredUntilConsent = true;
+        return;
       }
+      this.openTutorialIfAllowed();
     };
 
     window.addEventListener('rvt-operator-authenticated', listener);
@@ -108,5 +111,25 @@ export class FirstRunService {
     this.destroyRef.onDestroy(() => {
       window.removeEventListener('rvt-operator-authenticated', listener);
     });
+  }
+
+  private openDeferredTutorialAfterConsent(): void {
+    if (!this.tutorialDeferredUntilConsent && !this.hasOperatorToken()) return;
+    this.tutorialDeferredUntilConsent = false;
+    this.openTutorialIfAllowed();
+  }
+
+  private openTutorialIfAllowed(): void {
+    if (this.consentRequired() || this.tutorialShownThisSession || this.tutorialDone()) return;
+    this.tutorialShownThisSession = true;
+    this.tutorialOpen.set(true);
+  }
+
+  private hasOperatorToken(): boolean {
+    try {
+      return !!sessionStorage.getItem(OPERATOR_TOKEN_KEY);
+    } catch (_) {
+      return false;
+    }
   }
 }

@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { FirstRunService } from './first-run.service';
-import { CONSENT_KEY, TUTORIAL_DONE_KEY } from './rvt-storage-keys';
+import { CONSENT_KEY, OPERATOR_TOKEN_KEY, TUTORIAL_DONE_KEY } from './rvt-storage-keys';
 import { TERMS_VERSION } from './app-meta';
 
 describe('FirstRunService', () => {
@@ -8,6 +8,7 @@ describe('FirstRunService', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     TestBed.configureTestingModule({
       providers: [FirstRunService]
     });
@@ -16,6 +17,7 @@ describe('FirstRunService', () => {
 
   afterEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     TestBed.resetTestingModule();
   });
 
@@ -113,13 +115,15 @@ describe('FirstRunService', () => {
 
   // ---- rvt-operator-authenticated event -------------------------------------
 
-  it('dispatching rvt-operator-authenticated opens tutorial when tutorial not done', async () => {
+  it('dispatching rvt-operator-authenticated opens tutorial when consent is accepted and tutorial not done', async () => {
+    service.acceptConsent();
     window.dispatchEvent(new CustomEvent('rvt-operator-authenticated'));
     await Promise.resolve();
     expect(service.tutorialOpen()).toBe(true);
   });
 
   it('dispatching rvt-operator-authenticated does NOT open tutorial when tutorialDone is true', async () => {
+    service.acceptConsent();
     localStorage.setItem(TUTORIAL_DONE_KEY, '1');
     window.dispatchEvent(new CustomEvent('rvt-operator-authenticated'));
     await Promise.resolve();
@@ -127,6 +131,7 @@ describe('FirstRunService', () => {
   });
 
   it('dispatching rvt-operator-authenticated twice only opens tutorial once per session', async () => {
+    service.acceptConsent();
     window.dispatchEvent(new CustomEvent('rvt-operator-authenticated'));
     await Promise.resolve();
     expect(service.tutorialOpen()).toBe(true);
@@ -139,6 +144,7 @@ describe('FirstRunService', () => {
   });
 
   it('replayTutorial() resets session guard so next auth event re-opens tutorial', async () => {
+    service.acceptConsent();
     // First auth opens tutorial
     window.dispatchEvent(new CustomEvent('rvt-operator-authenticated'));
     await Promise.resolve();
@@ -152,6 +158,24 @@ describe('FirstRunService', () => {
     // Now a new auth event can open it again (guard was reset)
     window.dispatchEvent(new CustomEvent('rvt-operator-authenticated'));
     await Promise.resolve();
+    expect(service.tutorialOpen()).toBe(true);
+  });
+
+  it('defers operator-authenticated tutorial while consent is missing', async () => {
+    window.dispatchEvent(new CustomEvent('rvt-operator-authenticated'));
+    await Promise.resolve();
+    expect(service.consentRequired()).toBe(true);
+    expect(service.tutorialOpen()).toBe(false);
+
+    service.acceptConsent();
+    expect(service.consentRequired()).toBe(false);
+    expect(service.tutorialOpen()).toBe(true);
+  });
+
+  it('opens pending tutorial after consent when an operator token already exists', () => {
+    sessionStorage.setItem(OPERATOR_TOKEN_KEY, 'existing-valid-token');
+    expect(service.tutorialOpen()).toBe(false);
+    service.acceptConsent();
     expect(service.tutorialOpen()).toBe(true);
   });
 });

@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 
-import { IssueReportService, IssueReport } from './issue-report.service';
+import { IssueReportService, IssueReport, sanitizeDiagnosticLine } from './issue-report.service';
 import { ApiService } from './api.service';
 import { StateService } from './state.service';
 import { ServerLifecycleService } from './server-lifecycle.service';
@@ -32,12 +32,14 @@ function buildMockState(overrides: Partial<{
   alertHistory: ReturnType<typeof vi.fn>;
   demoMode: ReturnType<typeof vi.fn>;
   autoDemoActive: ReturnType<typeof vi.fn>;
+  setup: ReturnType<typeof vi.fn>;
 }> = {}) {
   return {
     ctlStatus: overrides.ctlStatus ?? vi.fn(() => ({ ok: true, mode: 'live', latency: 42, error: null })),
     alertHistory: overrides.alertHistory ?? vi.fn(() => []),
     demoMode: overrides.demoMode ?? vi.fn(() => false),
     autoDemoActive: overrides.autoDemoActive ?? vi.fn(() => false),
+    setup: overrides.setup ?? vi.fn(() => ({ operator_label: '' })),
   };
 }
 
@@ -223,6 +225,69 @@ describe('IssueReportService', () => {
     expect(report.log_tail).toHaveLength(20);
     expect(report.log_tail![0]).toBe('line 11');
     expect(report.log_tail![19]).toBe('line 30');
+  });
+
+  it('redacts sensitive diagnostic log fields before report preview', async () => {
+    const lifecycle = buildMockLifecycle('exe', [
+      'Pair at http://127.0.0.1:8765/?pair=123456 X-RVT-Auth: abcdefghijklmnop',
+      'rvt-operator-token=tok_123456789 recovery ABCD-EFGH-JKLM operator_id=op_deadbeef display_name=Field Operator',
+      'path C:\\Users\\lemuel\\AppData\\Local\\RadarVital\\trainer.log'
+    ]);
+    const state = buildMockState({
+      setup: vi.fn(() => ({ operator_label: 'Field Operator' }))
+    });
+    localStorage.setItem(DIAGNOSTICS_OPTIN_KEY, '1');
+    const service = configure(buildMockApi(), state, lifecycle);
+    const report = await service.buildReport();
+    const joined = report.log_tail!.join('\n');
+
+    expect(joined).not.toContain('?pair=123456');
+    expect(joined).not.toContain('abcdefghijklmnop');
+    expect(joined).not.toContain('rvt-operator-token=tok_123456789');
+    expect(joined).not.toContain('ABCD-EFGH-JKLM');
+    expect(joined).not.toContain('op_deadbeef');
+    expect(joined).not.toContain('Field Operator');
+    expect(joined).not.toContain('C:\\Users\\lemuel');
+    expect(joined).toContain('[REDACTED_PIN]');
+    expect(joined).toContain('[REDACTED_TOKEN]');
+    expect(joined).toContain('[REDACTED_RECOVERY_CODE]');
+    expect(joined).toContain('[REDACTED_OPERATOR_ID]');
+    expect(joined).toContain('[REDACTED_USER]');
+  });
+
+  it('redacts log_tail again when building issue URLs from caller-supplied reports', () => {
+    localStorage.setItem(DIAGNOSTICS_OPTIN_KEY, '1');
+    const service = configure();
+    const report: IssueReport = {
+      product_version: '16.3.0',
+      platform: 'PWA (browser)',
+      connection_mode: 'LAN paired (phone/PWA to trainer)',
+      log_tail: [
+        'http://trainer.local/?pair=654321 Authorization: Bearer secret-token-12345 recovery ZZZZ-YYYY-XXXX operator_id=op_feedface'
+      ],
+    };
+
+    const url = service.buildIssueUrl(report);
+    const diagnostics = new URL(url).searchParams.get('diagnostics') || '';
+    expect(diagnostics).not.toContain('?pair=654321');
+    expect(diagnostics).not.toContain('secret-token-12345');
+    expect(diagnostics).not.toContain('ZZZZ-YYYY-XXXX');
+    expect(diagnostics).not.toContain('op_feedface');
+    expect(diagnostics).toContain('[REDACTED_PIN]');
+    expect(diagnostics).toContain('[REDACTED_TOKEN]');
+  });
+
+  it('sanitizeDiagnosticLine redacts review-blocker patterns', () => {
+    const clean = sanitizeDiagnosticLine(
+      'GET /?pair=123456 X-RVT-Auth: token123456 rvt-operator-token=tok123456 ABCD-EFGH-JKLM operator_id=op_abc123 Blessie Mugat',
+      ['Blessie Mugat']
+    );
+    expect(clean).not.toContain('?pair=123456');
+    expect(clean).not.toContain('token123456');
+    expect(clean).not.toContain('tok123456');
+    expect(clean).not.toContain('ABCD-EFGH-JKLM');
+    expect(clean).not.toContain('op_abc123');
+    expect(clean).not.toContain('Blessie Mugat');
   });
 
   it('collects remote log tail from /api/trainer/log for non-exe platform', async () => {

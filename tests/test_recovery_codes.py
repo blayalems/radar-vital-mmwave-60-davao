@@ -14,7 +14,10 @@ from __future__ import annotations
 import json
 import shutil
 import tempfile
+from email.message import Message
+from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -395,6 +398,45 @@ def test_monolith_host_reset_loopback_check(sessions_root: str):
 
     finally:
         srv.stop()
+
+
+def test_monolith_host_reset_rejects_non_loopback_before_reset(sessions_root: str):
+    """Handler seam: a network peer gets explicit 403 LOOPBACK_ONLY."""
+    from rvt_trainer.monolith import _ControlHandler
+
+    body = json.dumps({"operator_id": "op_any", "new_pin": "5678"}).encode("utf-8")
+    headers = Message()
+    headers["Content-Type"] = "application/json"
+    headers["Content-Length"] = str(len(body))
+
+    handler = object.__new__(_ControlHandler)
+    handler.server = SimpleNamespace(
+      bind_mode="lan",
+      sessions_root=sessions_root,
+      operator_sessions={},
+      sse_tokens={},
+      auth_tokens=set(),
+      cors_origin="",
+      content_security_policy="default-src 'self'",
+      tls_trusted=False,
+    )
+    handler.client_address = ("192.0.2.44", 43125)
+    handler.command = "POST"
+    handler.path = "/api/auth/host-reset"
+    handler.requestline = "POST /api/auth/host-reset HTTP/1.1"
+    handler.request_version = "HTTP/1.1"
+    handler.protocol_version = "HTTP/1.0"
+    handler.headers = headers
+    handler.rfile = BytesIO(body)
+    handler.wfile = BytesIO()
+    handler._headers_buffer = []
+
+    handler.do_POST()
+
+    raw = handler.wfile.getvalue()
+    assert b" 403 " in raw.split(b"\r\n", 1)[0]
+    assert b"LOOPBACK_ONLY" in raw
+    assert b"host-reset is loopback-only" in raw
 
 
 # ---------------------------------------------------------------------------

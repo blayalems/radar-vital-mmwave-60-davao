@@ -6318,6 +6318,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         # own WebView holds none after a share-mode sidecar restart. Sensitive
         # endpoints below still require a valid operator session, and same-machine
         # callers already have filesystem access to everything the API serves.
+        if path == "/api/auth/host-reset" and self.command == "POST":
+            return True
+
         if getattr(self.server, "bind_mode", "local") == "lan" and client_host not in {"127.0.0.1", "::1", "localhost"}:
             if not is_valid_pairing and not is_real_valid_operator and not is_valid_sse:
                 self._send_json(401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "LAN pair token required"}})
@@ -6374,17 +6377,11 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/rvt-sw.js":
-            self._send_json(
-                410,
-                {
-                    "ok": False,
-                    "error": {
-                        "code": "SERVICE_WORKER_TOMBSTONE_REMOVED",
-                        "message": "Legacy /rvt-sw.js tombstone was retired; use /sw.js.",
-                    },
-                },
-                cache_control="no-store",
-            )
+            sw_path = _assets_root() / "rvt-sw.js"
+            if sw_path.exists():
+                self._send_bytes(200, sw_path.read_bytes(), "application/javascript; charset=utf-8", cache_control="no-cache")
+            else:
+                self._send_json(404, {"ok": False, "error": {"code": "LEGACY_SW_TOMBSTONE_NOT_FOUND", "message": "assets/rvt-sw.js is missing"}})
             return
         if path == "/sw.js":
             sw_path = _assets_root() / "sw.js"

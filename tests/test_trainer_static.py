@@ -23,9 +23,13 @@ def test_assets_root_is_repo_assets_dir():
     assert root.name == "assets"
     # sw.js is a known canonical file under the assets root.
     assert (root / "sw.js").is_file()
-    # The v12 migration tombstone has been retired; stale worker URLs must not
-    # be copied or served as a second service-worker surface.
-    assert not (root / "rvt-sw.js").exists()
+    # The v12 migration tombstone stays for one release so stale registrations
+    # can install cleanup JS and migrate clients to /sw.js.
+    tombstone = root / "rvt-sw.js"
+    assert tombstone.is_file()
+    body = tombstone.read_text(encoding="utf-8")
+    assert "registration.unregister" in body
+    assert "clients.matchAll" in body
 
 
 def test_safe_asset_path_resolves_real_files():

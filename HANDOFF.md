@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 First-Run Visual Refresh + Legal Links
+
+- **First-run visual refresh**: redesigned the onboarding tutorial as a wider radar-themed first-run card with animated sweep artwork, step rail, progress meter, and improved action layout; consent gate now has a clearer first-run policy header and icon treatment.
+- **Legal access**: full Terms of Use and Privacy Policy links are now asserted in the consent gate and onboarding tutorial; Settings privacy card smoke coverage now checks both persistent View terms and View privacy links.
+- **Verification**: `npm --prefix web run test:ci` 124/124; `npm run build:web` clean with known initial-bundle warning; `RVT_TEST_PORT=8996 npx playwright test tests/smoke/first-run.spec.ts --project=desktop --reporter=line` 9/9. `tests/smoke/settings-cards.spec.ts --project=desktop` was attempted and currently lands in first-run operator setup/idle-lock instead of Settings, so that fixture still needs follow-up.
+
 ### 2026-06-13 — PR54 Consent/Auth Startup Stabilization
 
 - **Consent-first startup hardening**: root shell now re-checks stale/missing consent reactively without reopening duplicate dialogs, suppresses the PIN idle-lock overlay while consent is required, and defers operator auth bootstrap/profile loading until the current Terms & Privacy version is accepted.

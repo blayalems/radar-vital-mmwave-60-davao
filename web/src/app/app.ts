@@ -83,8 +83,8 @@ export class App implements OnInit {
 
     const ref = this.dialog.open(OnboardingTutorialComponent, {
       disableClose: false,
-      panelClass: 'm3-dialog-panel',
-      maxWidth: 'min(520px, calc(100vw - 24px))',
+      panelClass: ['m3-dialog-panel', 'rvt-onboarding-panel'],
+      maxWidth: 'min(760px, calc(100vw - 24px))',
       width: '100%'
     });
 

@@ -11,6 +11,7 @@ import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { FirstRunService } from '../../services/first-run.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
+import { GITHUB_REPO_URL, TERMS_VERSION } from '../../services/app-meta';
 
 export type TutorialPlatform = 'exe' | 'native' | 'pwa';
 
@@ -94,29 +95,58 @@ function buildSteps(platform: TutorialPlatform): TutorialStep[] {
   selector: 'app-onboarding-tutorial',
   imports: [MatButtonModule, MatDialogModule, MatIconModule],
   template: `
-    <h2 mat-dialog-title class="tutorial-title">
-      <mat-icon aria-hidden="true">{{ currentStep().icon }}</mat-icon>
-      <span [innerHTML]="currentStep().title"></span>
-    </h2>
-
     <mat-dialog-content class="tutorial-content">
-      <p class="tutorial-body" [innerHTML]="currentStep().body"></p>
-    </mat-dialog-content>
+      <section class="tutorial-hero" [attr.aria-label]="'Onboarding step ' + (currentIndex() + 1) + ' of ' + steps().length">
+        <div class="radar-scene" aria-hidden="true">
+          <span class="radar-ring ring-one"></span>
+          <span class="radar-ring ring-two"></span>
+          <span class="radar-ring ring-three"></span>
+          <span class="radar-sweep"></span>
+          <span class="radar-dot dot-one"></span>
+          <span class="radar-dot dot-two"></span>
+          <span class="radar-dot dot-three"></span>
+          <span class="radar-mark">
+            <mat-icon>{{ currentStep().icon }}</mat-icon>
+          </span>
+        </div>
 
-    <!-- Progress dots -->
-    <div class="tutorial-progress" role="tablist" aria-label="Tutorial progress">
-      @for (step of steps(); track $index) {
-        <button
-          role="tab"
-          class="progress-dot"
-          [class.active]="$index === currentIndex()"
-          [attr.aria-selected]="$index === currentIndex()"
-          [attr.aria-label]="'Step ' + ($index + 1) + ' of ' + steps().length + ': ' + step.title"
-          (click)="goToStep($index)"
-          type="button"
-        ></button>
-      }
-    </div>
+        <div class="tutorial-copy">
+          <p class="tutorial-eyebrow">First-run orientation · Step {{ currentIndex() + 1 }} of {{ steps().length }}</p>
+          <h2 class="tutorial-title" [innerHTML]="currentStep().title"></h2>
+          <p class="tutorial-body" [innerHTML]="currentStep().body"></p>
+        </div>
+      </section>
+
+      <div class="tutorial-progress-meter" aria-hidden="true">
+        <span [style.width.%]="progressPercent()"></span>
+      </div>
+
+      <div class="tutorial-step-strip" role="tablist" aria-label="Tutorial progress">
+        @for (step of steps(); track $index) {
+          <button
+            role="tab"
+            type="button"
+            class="step-pill"
+            [class.active]="$index === currentIndex()"
+            [attr.aria-selected]="$index === currentIndex()"
+            [attr.aria-label]="'Step ' + ($index + 1) + ' of ' + steps().length"
+            (click)="goToStep($index)"
+          >
+            <mat-icon aria-hidden="true">{{ step.icon }}</mat-icon>
+            <span [innerHTML]="step.title"></span>
+          </button>
+        }
+      </div>
+
+      <nav class="tutorial-legal" aria-label="First-run legal documents">
+        <span>
+          <mat-icon aria-hidden="true">verified_user</mat-icon>
+          Terms v{{ termsVersion }} · local-first data handling
+        </span>
+        <a [href]="termsUrl" target="_blank" rel="noopener noreferrer">Terms of Use</a>
+        <a [href]="privacyUrl" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+      </nav>
+    </mat-dialog-content>
 
     <mat-dialog-actions align="end" class="tutorial-actions">
       <button mat-button type="button" (click)="skip()" class="tutorial-skip-btn">
@@ -153,6 +183,9 @@ export class OnboardingTutorialComponent implements OnInit {
 
   /** Resolved once on init and exposed as a signal to avoid late mutations. */
   readonly steps = signal<TutorialStep[]>([]);
+  readonly termsVersion = TERMS_VERSION;
+  readonly termsUrl = `${GITHUB_REPO_URL}/blob/main/TERMS.md`;
+  readonly privacyUrl = `${GITHUB_REPO_URL}/blob/main/PRIVACY.md`;
 
   ngOnInit(): void {
     const slPlatform = this.serverLifecycle.platform();
@@ -173,6 +206,12 @@ export class OnboardingTutorialComponent implements OnInit {
   readonly isLastStep = computed(
     () => this.currentIndex() === this.steps().length - 1
   );
+
+  readonly progressPercent = computed(() => {
+    const count = this.steps().length;
+    if (count <= 1) return 100;
+    return ((this.currentIndex() + 1) / count) * 100;
+  });
 
   next(): void {
     const max = this.steps().length - 1;

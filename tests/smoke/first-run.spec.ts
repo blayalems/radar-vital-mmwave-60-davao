@@ -91,6 +91,8 @@ test.describe('First-run consent gate', () => {
     await expect(dialog).toContainText('Terms of Use');
     await expect(dialog).toContainText('Accept');
     await expect(dialog).toContainText('Decline');
+    await expect(dialog.getByRole('link', { name: /Full Terms of Use/i })).toHaveAttribute('href', /TERMS\.md$/);
+    await expect(dialog.getByRole('link', { name: /Full Privacy Policy/i })).toHaveAttribute('href', /PRIVACY\.md$/);
   });
 
   test('declining shows blocking panel with back-to-terms action', async ({ page }) => {
@@ -185,6 +187,8 @@ test.describe('First-run tutorial gate', () => {
     // Tutorial dialog should appear
     const tutorial = page.locator('app-onboarding-tutorial');
     await expect(tutorial).toBeVisible({ timeout: 8000 });
+    await expect(tutorial.getByRole('link', { name: /Terms of Use/i })).toHaveAttribute('href', /TERMS\.md$/);
+    await expect(tutorial.getByRole('link', { name: /Privacy Policy/i })).toHaveAttribute('href', /PRIVACY\.md$/);
 
     // Can navigate to next step
     await tutorial.getByRole('button', { name: /Next/i }).click();

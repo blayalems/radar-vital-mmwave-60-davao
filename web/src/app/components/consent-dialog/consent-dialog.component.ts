@@ -21,7 +21,18 @@ import {
   template: `
     @if (!declined()) {
       <!-- ── Terms + Privacy summary ─────────────────────────────────────── -->
-      <h2 mat-dialog-title>Terms of Use &amp; Privacy Notice</h2>
+      <header class="consent-hero">
+        <div class="consent-mark" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <mat-icon>policy</mat-icon>
+        </div>
+        <div>
+          <p class="consent-eyebrow">First-run consent</p>
+          <h2 mat-dialog-title>Terms of Use &amp; Privacy Notice</h2>
+          <p>Review the local data policy before configuring a trainer or demo session.</p>
+        </div>
+      </header>
 
       <mat-dialog-content class="consent-content">
         <section class="consent-section">
@@ -76,9 +87,15 @@ import {
         </section>
 
         <div class="consent-links">
-          <a [href]="termsUrl" target="_blank" rel="noopener noreferrer">Full Terms of Use</a>
+          <a [href]="termsUrl" target="_blank" rel="noopener noreferrer">
+            <mat-icon aria-hidden="true">gavel</mat-icon>
+            Full Terms of Use
+          </a>
           <span aria-hidden="true">&nbsp;·&nbsp;</span>
-          <a [href]="privacyUrl" target="_blank" rel="noopener noreferrer">Full Privacy Policy</a>
+          <a [href]="privacyUrl" target="_blank" rel="noopener noreferrer">
+            <mat-icon aria-hidden="true">privacy_tip</mat-icon>
+            Full Privacy Policy
+          </a>
         </div>
 
         <p class="consent-version">
@@ -112,9 +129,15 @@ import {
           documents below.
         </p>
         <div class="consent-links">
-          <a [href]="termsUrl" target="_blank" rel="noopener noreferrer">Full Terms of Use</a>
+          <a [href]="termsUrl" target="_blank" rel="noopener noreferrer">
+            <mat-icon aria-hidden="true">gavel</mat-icon>
+            Full Terms of Use
+          </a>
           <span aria-hidden="true">&nbsp;·&nbsp;</span>
-          <a [href]="privacyUrl" target="_blank" rel="noopener noreferrer">Full Privacy Policy</a>
+          <a [href]="privacyUrl" target="_blank" rel="noopener noreferrer">
+            <mat-icon aria-hidden="true">privacy_tip</mat-icon>
+            Full Privacy Policy
+          </a>
         </div>
       </mat-dialog-content>
 

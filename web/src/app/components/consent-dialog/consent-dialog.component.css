@@ -1,3 +1,76 @@
+.consent-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  margin: 0 0 14px;
+  padding: 20px 24px 18px;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 24%, var(--md-sys-color-outline-variant, #cbd5e1));
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 12% 22%, color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 12%, transparent), transparent 36%),
+    linear-gradient(135deg, var(--md-sys-color-surface-container-lowest, #ffffff), var(--md-sys-color-surface-container-low, #f8fbff));
+}
+
+.consent-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 20px;
+  color: var(--md-sys-color-primary, #0061a4);
+  background: color-mix(in srgb, var(--md-sys-color-primary-container, #d5e3ff) 70%, var(--md-sys-color-surface, #ffffff));
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 24%, transparent);
+  overflow: hidden;
+}
+
+.consent-mark span {
+  position: absolute;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  opacity: 0.18;
+}
+
+.consent-mark span:first-child {
+  inset: 9px;
+}
+
+.consent-mark span:nth-child(2) {
+  inset: 19px;
+}
+
+.consent-mark mat-icon {
+  position: relative;
+  z-index: 1;
+  font-size: 30px;
+  width: 30px;
+  height: 30px;
+}
+
+.consent-eyebrow {
+  margin: 0 0 5px;
+  color: var(--md-sys-color-primary, #0061a4);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.consent-hero h2 {
+  margin: 0 !important;
+  padding: 0 !important;
+  color: var(--md-sys-color-on-surface, #0f172a);
+  letter-spacing: -0.02em;
+}
+
+.consent-hero p:last-child {
+  margin: 8px 0 0;
+  color: var(--md-sys-color-on-surface-variant, #475569);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 .consent-content {
   max-height: 60vh;
   overflow-y: auto;
@@ -34,14 +107,25 @@
 .consent-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 12px;
   font-size: 0.875rem;
 }
 
 .consent-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--md-sys-color-primary);
+  font-weight: 700;
   text-decoration: underline;
+}
+
+.consent-links mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
 }
 
 .consent-links a:focus-visible {
@@ -84,4 +168,16 @@
   line-height: 1.6;
   color: var(--md-sys-color-on-surface-variant);
   margin: 0 0 12px;
+}
+
+@media (max-width: 520px) {
+  .consent-hero {
+    grid-template-columns: 1fr;
+    padding: 18px;
+  }
+
+  .consent-content,
+  .blocked-content {
+    padding-inline: 18px;
+  }
 }

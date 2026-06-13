@@ -51,6 +51,7 @@ test.describe('Settings support cards and help links', () => {
 
     await expect(page.getByRole('button', { name: /Review diagnostics toggle/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /View terms/i })).toHaveAttribute('href', /TERMS\.md$/);
+    await expect(page.getByRole('link', { name: /View privacy/i })).toHaveAttribute('href', /PRIVACY\.md$/);
     await expect(page.getByRole('button', { name: /Withdraw consent/i })).toBeVisible();
   });
 

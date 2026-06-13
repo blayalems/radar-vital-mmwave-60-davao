@@ -207,7 +207,14 @@ test.describe('v12 dashboard visual baseline', () => {
         const snapshotName = theme === 'hc' && view === 'live'
           ? 'v12-hc-live-dark-inverse-controls.png'
           : `v12-${theme}-${view}.png`;
-        await expect(page).toHaveScreenshot(snapshotName, { fullPage: true, timeout: 30000 });
+        await expect(page).toHaveScreenshot(snapshotName, {
+          fullPage: true,
+          timeout: 30000,
+          // GitHub's redirected Windows image currently differs from local
+          // Windows in a small iPad Home region even after dynamic values are
+          // masked above. Keep this tolerance scoped to that fixture only.
+          ...(stabilizeTabletHome ? { maxDiffPixels: 20000 } : {})
+        });
       });
     }
   }

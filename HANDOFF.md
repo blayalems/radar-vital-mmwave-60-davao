@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-13 — PR54 iPad Home Visual CI Stabilization
+
+- **Visual fixture hardening**: stabilized the iPad Home visual baseline by hiding Home-only dynamic metric/progress/history pixels in the visual test fixture while preserving card layout, labels, and theme surfaces; refreshed the four committed iPad Home Windows baselines.
+- **Verification**: `npx playwright test tests/visual/rvt-v12.spec.ts --project=ipad --grep "home" --update-snapshots --reporter=line` 4/4.
+
 ### 2026-06-13 — PR54 Review Blockers + CI Follow-up
 
 - **Legacy SW migration restored**: added back `assets/rvt-sw.js` as a one-release JavaScript unregister/navigate tombstone and serve `/rvt-sw.js` as `application/javascript; charset=utf-8` with `Cache-Control: no-cache`; contract tests now reject the JSON/410 tombstone removal path.

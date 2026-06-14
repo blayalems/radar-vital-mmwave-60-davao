@@ -54,6 +54,9 @@ test.describe('PIN recovery code flow', () => {
 
   test.beforeEach(async ({ page }) => {
     cleanProfiles();
+    await page.addInitScript(() => {
+      localStorage.setItem('rvt.server.url', 'http://127.0.0.1:8989');
+    });
     await seedFirstRunComplete(page);
   });
 

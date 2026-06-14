@@ -83,6 +83,11 @@ test.describe('Operator profile and lock system', () => {
 
   test.beforeEach(async ({ page }) => {
     cleanProfiles();
+    // Seed a configured trainer URL so PR-69's firstRunGuard does not bounce to
+    // /connect, and seed first-run consent so #54's RA 10173 gate does not block.
+    await page.addInitScript(() => {
+      localStorage.setItem('rvt.server.url', 'http://127.0.0.1:8989');
+    });
     await seedFirstRunComplete(page);
   });
 

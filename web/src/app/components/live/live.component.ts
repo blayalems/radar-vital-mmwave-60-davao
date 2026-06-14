@@ -2,6 +2,9 @@ import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementR
 import { DatePipe, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { WaveCanvasComponent } from '../wave-canvas/wave-canvas.component';
+import { TrendCanvasComponent } from '../trend-canvas/trend-canvas.component';
+import { OverviewSparklineComponent } from '../overview-sparkline/overview-sparkline.component';
 
 // Angular Material 3 modules
 import { MatCardModule } from '@angular/material/card';
@@ -70,7 +73,10 @@ interface BiasBucket {
     MatChipsModule,
     MatProgressBarModule,
     MatProgressSpinnerModule,
-    ChartDataTableComponent
+    ChartDataTableComponent,
+    WaveCanvasComponent,
+    TrendCanvasComponent,
+    OverviewSparklineComponent
   ],
   templateUrl: './live.component.html',
   styleUrl: './live.component.css',
@@ -106,22 +112,18 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   // Canvas element references for dynamic renderers
-  @ViewChild('breathCanvas', { static: false }) breathCanvas!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('heartCanvas', { static: false }) heartCanvas!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('hrTrendCanvas', { static: false }) hrTrendCanvas!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('rrTrendCanvas', { static: false }) rrTrendCanvas!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('breathCanvas', { static: false }) breathCanvas!: WaveCanvasComponent;
+  @ViewChild('heartCanvas', { static: false }) heartCanvas!: WaveCanvasComponent;
+  @ViewChild('hrTrendCanvas', { static: false }) hrTrendCanvas!: TrendCanvasComponent;
+  @ViewChild('rrTrendCanvas', { static: false }) rrTrendCanvas!: TrendCanvasComponent;
   @ViewChild('targetCanvas', { static: false }) targetCanvas!: ElementRef<HTMLCanvasElement>;
 
   // Mini sparkline references
-  @ViewChild('overviewHrSpark', { static: false }) overviewHrSpark!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('overviewRrSpark', { static: false }) overviewRrSpark!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('overviewFpsSpark', { static: false }) overviewFpsSpark!: ElementRef<HTMLCanvasElement>;
-  @ViewChild('overviewDistSpark', { static: false }) overviewDistSpark!: ElementRef<HTMLCanvasElement>;
   @ViewChild('baCanvas', { static: false }) baCanvas?: ElementRef<HTMLCanvasElement>;
-  @ViewChild('breathCanvasClone', { static: false }) breathCanvasClone?: ElementRef<HTMLCanvasElement>;
-  @ViewChild('heartCanvasClone', { static: false }) heartCanvasClone?: ElementRef<HTMLCanvasElement>;
-  @ViewChild('hrTrendCanvasClone', { static: false }) hrTrendCanvasClone?: ElementRef<HTMLCanvasElement>;
-  @ViewChild('rrTrendCanvasClone', { static: false }) rrTrendCanvasClone?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('breathCanvasClone', { static: false }) breathCanvasClone?: WaveCanvasComponent;
+  @ViewChild('heartCanvasClone', { static: false }) heartCanvasClone?: WaveCanvasComponent;
+  @ViewChild('hrTrendCanvasClone', { static: false }) hrTrendCanvasClone?: TrendCanvasComponent;
+  @ViewChild('rrTrendCanvasClone', { static: false }) rrTrendCanvasClone?: TrendCanvasComponent;
 
   protected readonly trendRangeLimit = computed(() => { const val = this.trendRange(); return val === 'max' ? 240 : Number(val); });
   protected readonly showBreathTable = signal(false);
@@ -165,8 +167,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     if (status && !status.active_session && !status.session) return false;
     return this.state.sessionActive();
   });
-  private readonly ghostHrData = signal<number[]>([]);
-  private readonly ghostRrData = signal<number[]>([]);
+  protected readonly ghostHrData = signal<number[]>([]);
+  protected readonly ghostRrData = signal<number[]>([]);
 
   private animeFrameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -249,10 +251,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.requestCanvasDraw());
       [
-        this.breathCanvas, this.heartCanvas, this.hrTrendCanvas, this.rrTrendCanvas,
-        this.targetCanvas, this.overviewHrSpark, this.overviewRrSpark,
-        this.overviewFpsSpark, this.overviewDistSpark, this.baCanvas,
-        this.breathCanvasClone, this.heartCanvasClone, this.hrTrendCanvasClone, this.rrTrendCanvasClone
+        this.targetCanvas, this.baCanvas
       ].filter((ref): ref is ElementRef<HTMLCanvasElement> => !!ref).forEach(ref => this.resizeObserver?.observe(ref.nativeElement));
     }
     document.addEventListener('visibilitychange', this.onVisibilityChange);
@@ -413,9 +412,9 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   handleChartClick(event: MouseEvent, chartKey: string): void {
-    const canvas = event.currentTarget as HTMLCanvasElement;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
+    const element = event.currentTarget as HTMLElement;
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
     const clickX = event.clientX - rect.left;
     const w = rect.width;
 
@@ -423,7 +422,13 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     const innerW = w - pad * 2;
     if (innerW <= 0) return;
 
-    const xPct = Math.max(0, Math.min(1, (clickX - pad) / innerW));
+    let xPct = Math.max(0, Math.min(1, (clickX - pad) / innerW));
+
+    if (chartKey === 'hr' && this.hrTrendCanvas) {
+      xPct = this.hrTrendCanvas.mapZoomedXPctToFull(xPct);
+    } else if (chartKey === 'rr' && this.rrTrendCanvas) {
+      xPct = this.rrTrendCanvas.mapZoomedXPctToFull(xPct);
+    }
 
     const label = window.prompt('Enter label for new annotation:');
     if (label === null || !label.trim()) return;
@@ -821,6 +826,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   resetTrendRange(): void {
     this.trendRange.set(120);
+    if (this.hrTrendCanvas) this.hrTrendCanvas.resetZoom();
+    if (this.rrTrendCanvas) this.rrTrendCanvas.resetZoom();
+    if (this.hrTrendCanvasClone) this.hrTrendCanvasClone.resetZoom();
+    if (this.rrTrendCanvasClone) this.rrTrendCanvasClone.resetZoom();
     this.snackBar.open('Chart window reset to 120 seconds.', 'Dismiss', { duration: 2500 });
     this.state.triggerHaptic('tap');
     this.requestCanvasDraw();
@@ -1162,7 +1171,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     return Array.isArray(values) && values.length > 0 ? values[values.length - 1] : undefined;
   }
 
-  private seriesNumbers(...keys: string[]): number[] {
+  protected seriesNumbers(...keys: string[]): number[] {
     const series = this.state.lastPayload()?.series as Record<string, unknown> | undefined;
     for (const key of keys) {
       const values = series?.[key];
@@ -1173,7 +1182,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     return [];
   }
 
-  private trimTrend(points: number[]): number[] {
+  protected trimTrend(points: number[]): number[] {
     const range = this.trendRange();
     return range === 'max' ? points : points.slice(-range);
   }
@@ -1183,307 +1192,9 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     if (!this.viewReady || document.visibilityState === 'hidden' || this.animeFrameId !== null) return;
     this.animeFrameId = requestAnimationFrame(() => {
       this.animeFrameId = null;
-      this.drawWaves();
-      this.drawTrends();
-      this.drawOverviewSparklines();
       this.drawTargetPosition();
       this.drawBlandAltman();
     });
-  }
-
-  private drawWaves() {
-    const showWaves = this.activeTabIndex === 1 || (this.splitScreenActive() && this.paneBTabIndex() === 1);
-    if (!showWaves) return;
-
-    const payload = this.state.lastPayload();
-    if (!payload || !payload.series) return;
-
-    const breathPoints = this.seriesNumbers('breath_phase', 'breath');
-    const heartPoints = this.seriesNumbers('heart_phase', 'heart');
-
-    const drawPhase = (canvasRef: ElementRef<HTMLCanvasElement>, points: number[], color: string, chartKey: string) => {
-      const canvas = canvasRef.nativeElement;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      const dpr = window.devicePixelRatio || 1;
-
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-      }
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.resetTransform();
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, w, h);
-
-      if (points.length < 2) return;
-
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-
-      const pad = 8;
-      const innerW = w - pad * 2;
-      const innerH = h - pad * 2;
-      const count = points.length;
-
-      points.forEach((val, idx) => {
-        const x = pad + (idx / (count - 1)) * innerW;
-        const y = pad + innerH / 2 - (val / 1.5) * (innerH / 2);
-        
-        if (idx === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-      ctx.stroke();
-
-      // Render annotations
-      const anns = this.getAnnotationsFor(chartKey);
-      anns.forEach(ann => {
-        const x = pad + ann.xPct * innerW;
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(x, pad);
-        ctx.lineTo(x, pad + innerH);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        ctx.fillStyle = '#ef4444';
-        ctx.font = '10px sans-serif';
-        ctx.fillText(ann.label || '', x + 4, pad + 10);
-      });
-    };
-
-    if (this.activeTabIndex === 1) {
-      if (this.breathCanvas) {
-        drawPhase(this.breathCanvas, breathPoints, 'rgba(97, 105, 198, 0.95)', 'breath');
-      }
-      if (this.heartCanvas) {
-        drawPhase(this.heartCanvas, heartPoints, 'rgba(0, 164, 150, 0.95)', 'heart');
-      }
-    }
-
-    if (this.splitScreenActive() && this.paneBTabIndex() === 1) {
-      if (this.breathCanvasClone) {
-        drawPhase(this.breathCanvasClone, breathPoints, 'rgba(97, 105, 198, 0.95)', 'breath');
-      }
-      if (this.heartCanvasClone) {
-        drawPhase(this.heartCanvasClone, heartPoints, 'rgba(0, 164, 150, 0.95)', 'heart');
-      }
-    }
-  }
-
-  private drawTrends() {
-    const showHr = this.activeTabIndex === 2 || (this.splitScreenActive() && this.paneBTabIndex() === 2);
-    const showRr = this.activeTabIndex === 3 || (this.splitScreenActive() && this.paneBTabIndex() === 3);
-    if (!showHr && !showRr) return;
-
-    const payload = this.state.lastPayload();
-    if (!payload || !payload.series) return;
-
-    const plotTrend = (canvasRef: ElementRef<HTMLCanvasElement>, data: number[], color: string, minV: number, maxV: number, type?: 'hr' | 'rr') => {
-      const canvas = canvasRef.nativeElement;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      const dpr = window.devicePixelRatio || 1;
-
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-      }
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.resetTransform();
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, w, h);
-
-      const pad = 16;
-      const innerW = w - pad * 2;
-      const innerH = h - pad * 2;
-      const count = data.length;
-      const diff = Math.max(1, maxV - minV);
-
-      // Render threshold breach warning bands
-      if (type) {
-        const thresholds = this.state.kpiThresholds();
-        const lowLimit = type === 'hr' ? thresholds.hrLow : thresholds.rrLow;
-        const highLimit = type === 'hr' ? thresholds.hrHigh : thresholds.rrHigh;
-
-        const yLow = pad + innerH - ((lowLimit - minV) / diff) * innerH;
-        const yHigh = pad + innerH - ((highLimit - minV) / diff) * innerH;
-
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.05)';
-        if (yLow < pad + innerH) {
-          ctx.fillRect(pad, yLow, innerW, (pad + innerH) - yLow);
-        }
-        if (yHigh > pad) {
-          ctx.fillRect(pad, pad, innerW, yHigh - pad);
-        }
-
-        ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 4]);
-
-        if (lowLimit >= minV && lowLimit <= maxV) {
-          ctx.beginPath();
-          ctx.moveTo(pad, yLow);
-          ctx.lineTo(w - pad, yLow);
-          ctx.stroke();
-        }
-        if (highLimit >= minV && highLimit <= maxV) {
-          ctx.beginPath();
-          ctx.moveTo(pad, yHigh);
-          ctx.lineTo(w - pad, yHigh);
-          ctx.stroke();
-        }
-        ctx.setLineDash([]);
-      }
-
-      // Draw gridlines
-      const outlineColor = this.canvasToken(canvas, '--md-sys-color-outline-variant', '#e2e8f0');
-      ctx.strokeStyle = outlineColor;
-      ctx.lineWidth = 1;
-      for (let i = 0; i <= 4; i++) {
-        const y = pad + (innerH * i / 4);
-        ctx.beginPath();
-        ctx.moveTo(pad, y);
-        ctx.lineTo(w - pad, y);
-        ctx.stroke();
-      }
-
-      // Draw ghost session overlay if active
-      if (this.ghostSessionActive() && type) {
-        const ghostData = type === 'hr' ? this.ghostHrData() : this.ghostRrData();
-        if (ghostData && ghostData.length > 1) {
-          ctx.strokeStyle = 'rgba(148, 163, 184, 0.6)';
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([5, 5]);
-          ctx.beginPath();
-          const ghostCount = ghostData.length;
-          ghostData.forEach((val, idx) => {
-            const x = pad + (idx / (ghostCount - 1)) * innerW;
-            const y = pad + innerH - ((val - minV) / diff) * innerH;
-            if (idx === 0) {
-              ctx.moveTo(x, y);
-            } else {
-              ctx.lineTo(x, y);
-            }
-          });
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
-      }
-
-      if (data.length < 2) return;
-
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-
-      data.forEach((val, idx) => {
-        const x = pad + (idx / (count - 1)) * innerW;
-        const y = pad + innerH - ((val - minV) / diff) * innerH;
-
-        if (idx === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-      ctx.stroke();
-
-      // Draw annotations
-      if (type) {
-        const anns = this.getAnnotationsFor(type);
-        anns.forEach(ann => {
-          const x = pad + ann.xPct * innerW;
-          ctx.strokeStyle = '#ef4444';
-          ctx.lineWidth = 1;
-          ctx.setLineDash([4, 4]);
-          ctx.beginPath();
-          ctx.moveTo(x, pad);
-          ctx.lineTo(x, pad + innerH);
-          ctx.stroke();
-          ctx.setLineDash([]);
-
-          ctx.fillStyle = '#ef4444';
-          ctx.font = '10px sans-serif';
-          ctx.fillText(ann.label || '', x + 4, pad + 10);
-        });
-      }
-    };
-
-    const thresholds = this.state.kpiThresholds();
-    if (this.activeTabIndex === 2 && this.hrTrendCanvas) {
-      plotTrend(this.hrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_hr', 'hr')), 'rgba(0, 164, 150, 0.95)', Math.max(0, thresholds.hrLow - 20), thresholds.hrHigh + 20, 'hr');
-    }
-    if (this.splitScreenActive() && this.paneBTabIndex() === 2 && this.hrTrendCanvasClone) {
-      plotTrend(this.hrTrendCanvasClone, this.trimTrend(this.seriesNumbers('reported_hr', 'hr')), 'rgba(0, 164, 150, 0.95)', Math.max(0, thresholds.hrLow - 20), thresholds.hrHigh + 20, 'hr');
-    }
-
-    if (this.activeTabIndex === 3 && this.rrTrendCanvas) {
-      plotTrend(this.rrTrendCanvas, this.trimTrend(this.seriesNumbers('reported_rr', 'rr')), 'rgba(97, 105, 198, 0.95)', Math.max(0, thresholds.rrLow - 5), thresholds.rrHigh + 5, 'rr');
-    }
-    if (this.splitScreenActive() && this.paneBTabIndex() === 3 && this.rrTrendCanvasClone) {
-      plotTrend(this.rrTrendCanvasClone, this.trimTrend(this.seriesNumbers('reported_rr', 'rr')), 'rgba(97, 105, 198, 0.95)', Math.max(0, thresholds.rrLow - 5), thresholds.rrHigh + 5, 'rr');
-    }
-  }
-
-  private drawOverviewSparklines() {
-    // Only render mini sparklines if Overview tab is active (index 0)
-    if (this.activeTabIndex !== 0) return;
-
-    const spark = this.state.spark();
-    
-    const drawMiniSpark = (canvasRef: ElementRef<HTMLCanvasElement>, data: number[], color: string) => {
-      const canvas = canvasRef.nativeElement;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      const dpr = window.devicePixelRatio || 1;
-
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-      }
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.resetTransform();
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, w, h);
-
-      if (data.length < 2) return;
-
-      const minV = Math.min(...data);
-      const maxV = Math.max(...data);
-      const diff = Math.max(1, maxV - minV);
-
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-
-      const count = data.length;
-      data.forEach((val, idx) => {
-        const x = (idx / (count - 1)) * w;
-        const y = h - 2 - ((val - minV) / diff) * (h - 4);
-        
-        if (idx === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      });
-      ctx.stroke();
-    };
-
-    if (this.overviewHrSpark) drawMiniSpark(this.overviewHrSpark, spark.hr, 'rgba(0, 164, 150, 0.8)');
-    if (this.overviewRrSpark) drawMiniSpark(this.overviewRrSpark, spark.rr, 'rgba(97, 105, 198, 0.8)');
-    if (this.overviewFpsSpark) drawMiniSpark(this.overviewFpsSpark, spark.fps, 'rgba(100, 116, 139, 0.8)');
-    if (this.overviewDistSpark) drawMiniSpark(this.overviewDistSpark, spark.dist, 'rgba(14, 165, 233, 0.8)');
   }
 
   private drawTargetPosition(): void {

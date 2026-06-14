@@ -620,6 +620,7 @@ static const unsigned long THERMAL_WARN_INTERVAL_MS = 60000UL;
 static const float THERMAL_WARN_C = 75.0f;
 static const float LCD_DIM_LUX_ON = 8.0f;
 static const float LCD_DIM_LUX_OFF = 15.0f;
+// REMOVED: BH1750_RETRY_INTERVAL_MS / lastBh1750RetryMs (dead since v16.1)
 static bool powerSaveActive = false;
 static uint32_t powerSaveNormalCpuMhz = 0;
 static bool lcdBacklightDimmed = false;
@@ -3879,6 +3880,10 @@ static void updateLcdBacklightFromLux() {
 
 static void updatePowerSave(unsigned long now, bool presenceVote) {
 #if RV_POWER_SAVE
+  if (powerSaveNormalCpuMhz == 0) {
+    Serial.println("[WARN] powerSaveNormalCpuMhz == 0 at power-save entry; skipping frequency reduction");
+    return;
+  }
   bool idleEligible = (presenceState == PRESENCE_ABSENT) &&
                       (safeElapsedMs(now, presenceStateSinceMs) >= POWER_SAVE_ABSENT_MS);
   if (powerSaveActive && (presenceVote || !idleEligible)) {
@@ -4386,6 +4391,7 @@ void setup() {
   }
   calibStartMs=millis(); radarWatchdogStartMs = calibStartMs; lastValidRateMs=0; sessionReset(); presenceState = PRESENCE_ABSENT; presenceStateSinceMs = millis();
   bleInitMaybe();
+  powerSaveNormalCpuMhz = getCpuFrequencyMhz();
   Serial.println("[BOOT] Setup complete");
   Serial.println("=========================================================");
 }

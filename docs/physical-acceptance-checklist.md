@@ -56,7 +56,19 @@ Ensure the following hardware components are available:
 - [ ] Heat the enclosure or bench environment enough to cross 75 C internal chip temperature and verify `[THERMAL] chip_temp_c=<value>` warns no more than once per minute.
 - [ ] With `RV_LCD_LUX_BACKLIGHT 1`, sweep BH1750 input below 8 lux and above 15 lux and verify the LCD backlight changes only across those hysteresis thresholds.
 
-### Phase F: v16.3 RTM Shell, Dialogs, and Store-Readiness QA
+### Phase F: Session Isolation Manual Verification
+- [ ] Launch the trainer in local or LAN mode.
+- [ ] Start a new session (Session A) from the dashboard. Specify a custom subject label (e.g. `subject_A`).
+- [ ] Observe that a new directory (e.g., `s01`) is created inside the sessions root folder, and that it contains `session_manifest.json` indicating the subject label `subject_A`.
+- [ ] Attempt to start another session (Session B) without stopping Session A. Verify that the UI blocks this action or that a POST to `/api/session/start` returns `409 Conflict` (indicating `SESSION_IN_PROGRESS`).
+- [ ] Add session notes or annotations to Session A. Verify that the file `s01/session_notes.json` is created/updated and contains the added notes.
+- [ ] Stop Session A from the dashboard. Verify that the active session lock is released (i.e. `current_session.json` is deleted from the sessions root).
+- [ ] Start a second session (Session B) with a different subject label (e.g. `subject_B`).
+- [ ] Verify that a separate directory (e.g. `s02`) is created under the sessions root, and that `s02/session_manifest.json` indicates `subject_B`.
+- [ ] Verify that the notes or annotations for Session A remain isolated within `s01/session_notes.json` and are not copied or exposed in `s02/session_notes.json`.
+- [ ] Check `s02/session_notes.json` and verify it is either empty or only contains annotations specific to Session B.
+
+### Phase G: v16.3 RTM Shell, Dialogs, and Store-Readiness QA
 - [ ] Android APK: verify edge-to-edge layout does not clip the topbar, bottom navigation, consent dialog, onboarding tutorial, recovery-code dialog, or issue-report preview on a Pixel-class phone.
 - [ ] Android APK: open each new dialog (consent, tutorial, recovery code, issue preview), use the system back gesture, and verify it either dismisses only when allowed or returns to the previous step without losing operator/session state.
 - [ ] PWA on Android Chrome: verify the Home install banner appears after `beforeinstallprompt`, can be dismissed, and does not reappear in the same accepted/dismissed session.

@@ -8,6 +8,9 @@ for (const theme of THEMES) {
     // Block external font loading to prevent screenshot hanging in offline/sandboxed environments
   await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
 
+    await page.addInitScript(() => {
+      localStorage.setItem('rvt.server.url', 'http://127.0.0.1:8989');
+    });
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     // Allow up to one post-install reload to complete.
     await page.waitForTimeout(1500);

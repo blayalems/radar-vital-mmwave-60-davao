@@ -12,7 +12,7 @@ on:
       - 'rvt_trainer/**'
       - 'radar_vital_trainer_v12_for_v16_0.py'
       - 'requirements*.txt'
-      - 'radar_vital_v16_2_0.ino'
+      - 'radar_vital_v16_*.ino'
       - 'src-tauri/**'
       - 'package.json'
       - 'package-lock.json'

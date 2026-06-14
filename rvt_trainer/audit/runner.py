@@ -91,7 +91,7 @@ def _check_firmware_file_present(
             "Firmware file",
             "fail",
             f"{path.name}: expected {len(expected)} columns, got {len(actual)}",
-            "Use the v15.0.0 firmware file that matches this trainer.",
+            f"Flash radar_vital_v16_3_0.ino — the firmware that emits this trainer's {len(expected)}-column contract.",
             start,
         )
     return runtime.preflight_result(
@@ -99,7 +99,7 @@ def _check_firmware_file_present(
         "Firmware file",
         "fail",
         "No parseable firmware DATA header found",
-        "Place radar_vital_v15_0_0.ino beside the trainer.",
+        "Place radar_vital_v16_3_0.ino beside the trainer.",
         start,
     )
 

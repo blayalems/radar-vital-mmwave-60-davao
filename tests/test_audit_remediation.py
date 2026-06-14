@@ -12,6 +12,9 @@ from __future__ import annotations
 
 import http.client
 import json
+import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -194,6 +197,45 @@ def test_bad_schema_profiles_db_fails_closed(tmp_path):
     assert db.get("_load_error") == "bad_schema"
 
 
+def test_corrupt_legacy_profiles_db_fails_closed(tmp_path):
+    # New-path absent, legacy parent-level DB present but corrupt: migration must
+    # fail closed rather than collapse into an empty bootstrap.
+    root = tmp_path / "root"
+    sessions = root / "sessions"
+    sessions.mkdir(parents=True)
+    (root / "operator_profiles.json").write_text("@@bad@@", encoding="utf-8")
+    db = load_operator_profiles(str(sessions))
+    assert db.get("_load_error") == "legacy_unreadable"
+    assert db.get("profiles") == {}
+    # The legacy file must be preserved (not migrated/destroyed) on error.
+    assert (root / "operator_profiles.json").exists()
+
+
+def test_bad_schema_legacy_profiles_db_fails_closed(tmp_path):
+    root = tmp_path / "root"
+    sessions = root / "sessions"
+    sessions.mkdir(parents=True)
+    (root / "operator_profiles.json").write_text(json.dumps({"nope": True}), encoding="utf-8")
+    db = load_operator_profiles(str(sessions))
+    assert db.get("_load_error") == "legacy_bad_schema"
+    assert (root / "operator_profiles.json").exists()
+
+
+def test_valid_legacy_profiles_db_still_migrates(tmp_path):
+    # Sanity: a *valid* legacy DB must still migrate (and not be treated as error).
+    root = tmp_path / "root"
+    sessions = root / "sessions"
+    sessions.mkdir(parents=True)
+    legacy = {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {"op_x": {"operator_id": "op_x"}}}
+    (root / "operator_profiles.json").write_text(json.dumps(legacy), encoding="utf-8")
+    db = load_operator_profiles(str(sessions))
+    assert "_load_error" not in db
+    assert "op_x" in db.get("profiles", {})
+    # Migrated to the new path; old copy removed.
+    assert (sessions / "operator_profiles.json").exists()
+    assert not (root / "operator_profiles.json").exists()
+
+
 class _MockServer:
     def __init__(self, sessions_root, bind_mode="lan"):
         self.sessions_root = sessions_root
@@ -306,6 +348,53 @@ def test_json_safe_response_sanitizes_nan_and_inf():
 # --------------------------------------------------------------------------- #
 # Wave 4 — preflight firmware guidance is current
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# Wave 3 — legacy compare-modal XSS regression
+# --------------------------------------------------------------------------- #
+LEGACY_PATCHES = ROOT / "web-legacy" / "modules" / "patches" / "legacy-patches.js"
+
+
+def _legacy_src() -> str:
+    return LEGACY_PATCHES.read_text(encoding="utf-8")
+
+
+def test_compare_modal_sinks_are_escaped():
+    """The three compare-modal innerHTML sinks must route dynamic values through
+    the escape helper — guards against a regression that drops the escaping."""
+    src = _legacy_src()
+    assert "function escHtml(v)" in src, "compare-modal escape helper missing"
+    for expected in (
+        "escHtml(snap.label",
+        "escHtml(snap.ts",
+        "escHtml(key)",
+        "escHtml(val)",
+        "escHtml(delta)",
+    ):
+        assert expected in src, f"compare sink not escaped: {expected}"
+    # The pre-fix raw concatenations must be gone.
+    assert "'<tr><td>' + key + '</td><td>'" not in src
+    assert "'<p class=\"rvt-compare-side-label\">' + (snap.label" not in src
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not available")
+def test_legacy_escHtml_neutralizes_xss_payload():
+    """Run the *actual* escHtml() from source through Node and prove a stored-XSS
+    payload becomes inert escaped text (not an executable element)."""
+    src = _legacy_src()
+    match = re.search(r"function escHtml\(v\) \{.*?\n  \}", src, re.DOTALL)
+    assert match, "could not extract escHtml() from legacy-patches.js"
+    fn = match.group(0)
+    payload = "<img src=x onerror=alert(1)>"
+    script = fn + "\nprocess.stdout.write(escHtml(process.argv[1]));"
+    out = subprocess.run(
+        ["node", "-e", script, payload],
+        capture_output=True, text=True, timeout=20, check=True,
+    ).stdout
+    assert "<img" not in out
+    assert "onerror=alert(1)" not in out or "&lt;img" in out
+    assert "&lt;img src=x onerror=alert(1)&gt;" == out
+
+
 def test_preflight_firmware_guidance_points_to_current_firmware():
     runner_src = (ROOT / "rvt_trainer" / "audit" / "runner.py").read_text(encoding="utf-8")
     assert "radar_vital_v16_3_0.ino" in runner_src

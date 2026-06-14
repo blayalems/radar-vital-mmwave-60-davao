@@ -176,17 +176,29 @@ def load_operator_profiles(sessions_root: str) -> dict:
     if not path.exists():
         old_path = Path(sessions_root).resolve().parent / "operator_profiles.json"
         if old_path.exists():
+            # Legacy migration must fail closed for the same reason the main path
+            # does: a corrupt/unreadable legacy DB must NOT silently migrate into
+            # an empty bootstrap state and reopen the unauthenticated admin-create
+            # window. Validate before migrating, and preserve the legacy file on
+            # error (do not destroy it).
             try:
                 with open(old_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                save_operator_profiles(sessions_root, data)
-                try:
-                    old_path.unlink()
-                except Exception:
-                    pass
-                return data
-            except Exception:
-                pass
+            except (OSError, ValueError) as exc:
+                logger.warning(
+                    "legacy operator profiles DB is unreadable (%s); failing closed",
+                    type(exc).__name__,
+                )
+                return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}, "_load_error": "legacy_unreadable"}
+            if not isinstance(data, dict) or "profiles" not in data or not isinstance(data.get("profiles"), dict):
+                logger.warning("legacy operator profiles DB has an invalid schema; failing closed")
+                return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}, "_load_error": "legacy_bad_schema"}
+            save_operator_profiles(sessions_root, data)
+            try:
+                old_path.unlink()
+            except OSError:
+                logger.warning("legacy operator profiles DB migrated but the old copy could not be removed")
+            return data
         return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}}
     # The file is present. Distinguish "legitimately empty" (handled above by the
     # not-exists branch) from "present but unreadable/corrupt". A transient read

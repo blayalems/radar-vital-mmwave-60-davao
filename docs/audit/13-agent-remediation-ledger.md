@@ -12,8 +12,8 @@ several late-agent claims were stale or contradicted by the code and are marked
 `invalid/stale` · `blocked-by-hardware` · `deferred-design-decision` ·
 `fixed` (shipped in this PR).
 
-Baseline before this PR: `236 passed, 1 skipped`. After: `260 passed, 1 skipped`
-(+24 regression tests, 0 regressions).
+Baseline before this PR: `236 passed, 1 skipped`. After: `265 passed, 1 skipped`
+(+29 regression tests, 0 regressions).
 
 ---
 
@@ -24,14 +24,23 @@ Baseline before this PR: `236 passed, 1 skipped`. After: `260 passed, 1 skipped`
 | R1 | 1 | `build-exe.yml` firmware path filter referenced non-existent `radar_vital_v16_2_0.ino`, so firmware edits never triggered the EXE gate | CGPT, Claude, Genspark, Arena, Jules, Grok Fast | P1 | **fixed** | `.github/workflows/build-exe.yml:15`; real file is `radar_vital_v16_3_0.ino` | Changed filter to glob `radar_vital_v16_*.ino` | `test_workflow_firmware_paths_resolve` (scans every workflow `*.ino` filter, asserts each matches a real file) |
 | R2 | 1 | `_read_body()` trusted client `Content-Length` into an unbounded `rfile.read(n)` and silently degraded malformed/oversized/wrong-type bodies to `{}` for state-changing endpoints | CGPT, Gemini, Arena, Sonnet Search | P1 | **fixed** | `rvt_trainer/monolith.py` `_read_body` | Bound by `MAX_JSON_BODY_BYTES` (1 MiB → **413**); **415** on non-JSON Content-Type; **400** on malformed/non-object JSON; bodyless POST still `{}`; callers short-circuit on `None` | `test_read_body_*` (413/415/400/non-object), `test_bodyless_post_still_works`, `test_valid_json_body_accepted`, `test_public_routes_need_no_auth` |
 | R3 | 4 | `_json_safe_response()` only guarded `NaN`, not `±Inf`, and used default `allow_nan=True` → could emit invalid `Infinity` tokens in API responses | Sonnet Search (Claim 3 sibling) | P2 | **fixed** | `rvt_trainer/monolith.py` `_json_safe_response` | `np.isfinite` coercion to `null` + `allow_nan=False` | `test_json_safe_response_sanitizes_nan_and_inf` |
-| R4 | 2 | Operator-profile DB failed **open**: a corrupt/unreadable `operator_profiles.json` silently returned empty profiles → `is_bootstrap=True` → unauthenticated admin-create window | (backend re-validation) | P0 | **fixed** | `rvt_trainer/api/auth.py` `load_operator_profiles`; bootstrap at `monolith.py` `_require_control_auth` | Distinguish absent (legit bootstrap) from present-but-broken; surface `_load_error`, preserve the file, log a no-PHI warning; `is_bootstrap = empty and not _load_error` | `test_corrupt_profiles_db_fails_closed`, `test_bad_schema_*`, `test_absent_profiles_db_is_clean_bootstrap`, `test_corrupt_db_blocks_lan_bootstrap_admin_create`, `test_empty_db_allows_lan_bootstrap_admin_create` |
+| R4 | 2 | Operator-profile DB failed **open**: a corrupt/unreadable `operator_profiles.json` silently returned empty profiles → `is_bootstrap=True` → unauthenticated admin-create window. **Both** the main path **and** the legacy parent-dir migration branch were affected | (backend re-validation; legacy branch via PR #57 review) | P0 | **fixed** | `rvt_trainer/api/auth.py` `load_operator_profiles` (main + legacy-migration branches); bootstrap at `monolith.py` `_require_control_auth` | Distinguish absent (legit bootstrap) from present-but-broken; surface `_load_error` (`unreadable`/`bad_schema`/`legacy_unreadable`/`legacy_bad_schema`), preserve the file, log a no-PHI warning; `is_bootstrap = empty and not _load_error`. Legacy migration validates schema before migrating and fails closed on error | `test_corrupt_profiles_db_fails_closed`, `test_bad_schema_*`, `test_corrupt_legacy_profiles_db_fails_closed`, `test_bad_schema_legacy_profiles_db_fails_closed`, `test_valid_legacy_profiles_db_still_migrates`, `test_absent_profiles_db_is_clean_bootstrap`, `test_corrupt_db_blocks_lan_bootstrap_admin_create`, `test_empty_db_allows_lan_bootstrap_admin_create` |
 | R5 | 2 | Operator `display_name` only `.strip()`+length-checked — accepted control chars, bidi overrides, zero-width/invisible code points (log/RTL/confusable spoofing); echoed into responses, session metadata, reports | (backend re-validation) | P2 | **fixed** | `rvt_trainer/api/auth.py` `create_operator_profile` | New `_sanitize_display_name`: NFC-normalize, reject Unicode categories `Cc/Cf/Cs/Co` | `test_display_name_rejects_unsafe_codepoints`, `test_display_name_accepts_normal_unicode`, `test_create_profile_rejects_bidi_display_name` |
-| R6 | 3 | Legacy snapshot-compare modal built table rows via `innerHTML` with **unescaped** operator/data-derived labels, timestamps, KPI keys & values → stored XSS (the only unescaped sink among ~12 in the file) | Jules, G3.1 Pro Ext, Grok Fast, Sonnet Search | P1 | **fixed** | `web-legacy/modules/patches/legacy-patches.js` `buildCompareModal` (3 sinks) | Added scope-local `escHtml()` and routed `snap.label`, `snap.ts`, KPI `key`, non-numeric `val`, and `delta` through it | `node --check` syntax gate; static-contract assertion (see notes) + manual XSS payload trace |
+| R6 | 3 | Legacy snapshot-compare modal built table rows via `innerHTML` with **unescaped** operator/data-derived labels, timestamps, KPI keys & values → stored XSS (the only unescaped sink among ~12 in the file) | Jules, G3.1 Pro Ext, Grok Fast, Sonnet Search | P1 | **fixed** | `web-legacy/modules/patches/legacy-patches.js` `buildCompareModal` (3 sinks) | Added scope-local `escHtml()` and routed `snap.label`, `snap.ts`, KPI `key`, non-numeric `val`, and `delta` through it | `test_compare_modal_sinks_are_escaped` (static); `test_legacy_escHtml_neutralizes_xss_payload` (runs the **actual** `escHtml` from source through Node and proves `<img src=x onerror=…>` → escaped text); `node --check` gate |
 | R7 | 4 | Preflight firmware guidance told operators to install `radar_vital_v15_0_0.ino` / "v15.0.0 firmware" — a file that does not exist and whose 207-col schema the current 219-col contract check rejects | Jules, GF3.5 Ext, G3.1 Pro Ext, data re-validation | P2 | **fixed** | `rvt_trainer/audit/runner.py:94,102` | Point to `radar_vital_v16_3_0.ino` / the 219-column contract | `test_preflight_firmware_guidance_points_to_current_firmware` |
 
-> R6 note: `web-legacy/` is served unbuilt, so there is no JS unit harness in-repo.
-> The fix is guarded by the `node --check` parse gate and is a minimal, isolated
-> diff; a Playwright DOM assertion is proposed as a follow-up (Wave 9).
+> **R6 note:** `web-legacy/` is served unbuilt with no JS unit harness in-repo, so
+> the regression test extracts the real `escHtml()` from source and executes it via
+> Node in the pytest `test` job (which already provisions Node) — proving behavior,
+> not just presence. A full Playwright DOM assertion remains a Wave 9 follow-up.
+>
+> **R2 note (Content-Type leniency — raised in PR #57 review):** the hardened
+> `_read_body()` is intentionally *lenient on a missing* `Content-Type` (it still
+> rejects an explicitly non-JSON type with 415, oversized bodies with 413, and
+> malformed/non-object JSON with 400). This preserves bodyless-POST clients and
+> any caller that omits the header; the in-repo legacy/Angular callers and the
+> pairing flow all send `application/json`. Tightening to require the header on
+> every non-empty body is a low-risk follow-up once external callers are audited.
 
 ---
 

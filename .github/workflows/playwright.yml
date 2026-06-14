@@ -36,6 +36,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-v12.txt
 
+      - name: Warm matplotlib font cache
+        # The trainer imports matplotlib; building its font cache on first import
+        # can exceed the Playwright webServer start timeout on cold runners.
+        run: python -c "import matplotlib.pyplot"
+
       - name: Verify trainer package imports
         # Catches breakage in rvt_trainer/ package boundary that would otherwise
         # surface as a fast Playwright webServer-start failure with no diagnostic.
@@ -106,6 +111,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-v12.txt
+
+      - name: Warm matplotlib font cache
+        # The trainer imports matplotlib; building its font cache on first import
+        # can exceed the Playwright webServer start timeout on cold runners.
+        run: python -c "import matplotlib.pyplot"
 
       - name: Verify web/ ↔ monolith round-trip on main
         if: github.event_name != 'pull_request'

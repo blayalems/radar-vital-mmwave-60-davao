@@ -9,7 +9,7 @@
 
 /* Playbook Header card */
 .help-header-card {
-  border-radius: 12px !important;
+  border-radius: var(--rv-r1) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
   padding: 16px 20px;
@@ -50,11 +50,11 @@
 
 /* Search toolbar */
 .help-search-card {
-  border-radius: 12px !important;
+  border-radius: var(--rv-r1) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
   padding: 12px 20px;
-  background: var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
 }
 
 .search-toolbar-inner {
@@ -74,8 +74,28 @@
   --mdc-filled-text-field-container-color: var(--md-sys-color-surface-container-low, #f8fafc);
 }
 
+/* Rounded (999px) pill search input with leading icon. */
+.search-field .mat-mdc-text-field-wrapper {
+  border-radius: var(--rv-r-pill) !important;
+}
+
+.search-field .mdc-notched-outline__leading {
+  border-radius: var(--rv-r-pill) 0 0 var(--rv-r-pill) !important;
+  width: 28px;
+}
+
+.search-field .mdc-notched-outline__trailing {
+  border-radius: 0 var(--rv-r-pill) var(--rv-r-pill) 0 !important;
+}
+
+.search-field mat-icon[matPrefix] {
+  color: var(--md-sys-color-on-surface-variant);
+  margin-inline: 4px 6px;
+}
+
 .shortcut-tip {
   font-size: 0.8rem;
+  font-family: var(--rvt-mono-font);
   color: var(--md-sys-color-on-surface-variant, #64748b);
 }
 
@@ -83,10 +103,10 @@
   background: var(--md-sys-color-surface-container-high);
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   color: var(--md-sys-color-on-surface);
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 2px 6px;
   font-size: 0.75rem;
-  font-family: monospace;
+  font-family: var(--rvt-mono-font);
 }
 
 /* Help content layout grid */

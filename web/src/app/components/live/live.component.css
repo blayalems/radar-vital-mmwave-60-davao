@@ -7,7 +7,7 @@
 .server-blocker-card {
   width: min(680px, 100%);
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 8px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   background: var(--md-sys-color-surface-container) !important;
 }
 
@@ -24,7 +24,7 @@
   place-items: center;
   width: 48px;
   height: 48px;
-  border-radius: 8px;
+  border-radius: var(--rv-r2, 14px);
   color: var(--md-sys-color-on-error-container);
   background: var(--md-sys-color-error-container);
 }
@@ -96,11 +96,11 @@
 
 /* Command strip card styling */
 .command-strip-card {
-  border-radius: 12px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
-  padding: 12px 20px;
-  background: var(--md-sys-color-surface-container, #ffffff) !important;
+  padding: 14px 20px;
+  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
 }
 
 .command-strip-inner {
@@ -118,9 +118,14 @@
 }
 
 .timer-icon {
-  font-size: 2rem;
-  width: 32px;
-  height: 32px;
+  font-size: 1.5rem;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--md-sys-color-secondary-container, #e3edf8);
   color: var(--md-sys-color-primary, #0061a4);
 }
 
@@ -132,12 +137,16 @@
 
 .timer-meta strong {
   font-size: 0.95rem;
+  font-weight: 700;
   color: var(--md-sys-color-on-surface, #1e293b);
 }
 
 .timer-meta small {
   font-size: 0.8rem;
   color: var(--md-sys-color-on-surface-variant, #64748b);
+  font-family: var(--rvt-mono-font, "JetBrains Mono", ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 .command-actions {
@@ -148,12 +157,39 @@
 
 .cmd-btn {
   height: 40px !important;
-  border-radius: 20px !important;
-  font-weight: 500 !important;
+  border-radius: 999px !important;
+  font-weight: 600 !important;
+  transition: transform .25s cubic-bezier(0.2, 0, 0, 1),
+              background-color .25s cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+.cmd-btn:active {
+  transform: scale(.96);
+}
+
+.cmd-btn.active-split {
+  background: var(--md-sys-color-primary-container) !important;
+  color: var(--md-sys-color-on-primary-container) !important;
 }
 
 .stop-btn {
-  font-weight: 600 !important;
+  font-weight: 700 !important;
+  background: var(--md-sys-color-error) !important;
+  color: var(--md-sys-color-on-error) !important;
+}
+
+.stop-btn[disabled] {
+  background: var(--md-sys-color-surface-container-high) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmd-btn {
+    transition: none !important;
+  }
+  .cmd-btn:active {
+    transform: none;
+  }
 }
 
 /* Tab container grid layouts */
@@ -180,15 +216,36 @@
   flex-direction: column;
   min-height: 214px;
   padding: 16px;
-  border-radius: 16px;
+  border-radius: var(--rv-r1, 22px);
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
-  background: var(--md-sys-color-surface, #ffffff);
+  background: var(--md-sys-color-surface-container-lowest, #ffffff);
   box-shadow: none;
   position: relative;
   overflow: hidden;
   transition: transform var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
              border-color var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
              box-shadow var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));
+}
+
+/* HR / RR KPI tiles tinted with vital container colours. */
+.kpi-metric-card.kpi-hr {
+  background: var(--rv-hrc);
+  border-color: color-mix(in srgb, var(--rv-hr) 26%, transparent);
+}
+
+.kpi-metric-card.kpi-rr {
+  background: var(--rv-rrc);
+  border-color: color-mix(in srgb, var(--rv-rr) 26%, transparent);
+}
+
+.kpi-metric-card.kpi-hr .kpi-card-header,
+.kpi-metric-card.kpi-hr .kpi-card-header mat-icon {
+  color: var(--rv-hr);
+}
+
+.kpi-metric-card.kpi-rr .kpi-card-header,
+.kpi-metric-card.kpi-rr .kpi-card-header mat-icon {
+  color: var(--rv-rr);
 }
 
 .kpi-metric-card:hover {
@@ -220,8 +277,12 @@
 }
 
 .kpi-card-value strong {
+  font-family: var(--rvt-mono-font, "JetBrains Mono", ui-monospace, monospace);
   font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
   color: var(--md-sys-color-on-surface, #0f172a);
 }
 
@@ -236,8 +297,8 @@
   height: clamp(72px, 7vw, 88px);
   min-height: 72px;
   margin: 6px 0 10px;
-  background: var(--md-sys-color-surface-container-lowest, #f8fafc);
-  border-radius: 6px;
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 60%, transparent);
+  border-radius: var(--rv-r2, 14px);
   overflow: hidden;
 }
 
@@ -271,11 +332,11 @@
 
 /* Session notes styling */
 .session-notes-section-card {
-  border-radius: 16px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
   padding: 16px;
-  background: var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
 }
 
 .notes-content-area {
@@ -289,7 +350,7 @@
   width: 100%;
   min-height: 110px;
   padding: 12px;
-  border-radius: 8px;
+  border-radius: var(--rv-r2, 14px);
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   background: var(--md-sys-color-surface-container-low, #f8fafc);
   font-family: inherit;
@@ -313,9 +374,31 @@
 
 .tag-btn {
   height: 32px !important;
-  border-radius: 16px !important;
+  border-radius: 999px !important;
   font-size: 0.75rem !important;
-  padding: 0 12px !important;
+  font-weight: 600 !important;
+  padding: 0 14px !important;
+  transition: transform .25s cubic-bezier(0.2, 0, 0, 1),
+              background-color .25s cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+.tag-btn:active {
+  transform: scale(.96);
+}
+
+.tag-btn mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tag-btn {
+    transition: none !important;
+  }
+  .tag-btn:active {
+    transform: none;
+  }
 }
 
 /* Diagnostics table styles */
@@ -332,11 +415,11 @@
 }
 
 .diagnostics-card {
-  border-radius: 16px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
   padding: 16px;
-  background: var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
 }
 
 .diagnostics-table-wrap {
@@ -352,7 +435,12 @@
 .diagnostics-table td {
   padding: 10px 12px;
   font-size: 0.85rem;
+  color: var(--md-sys-color-on-surface, #0f172a);
   border-bottom: 1px solid var(--md-sys-color-outline-variant, #f1f5f9);
+}
+
+.diagnostics-table tr:last-child td {
+  border-bottom: none;
 }
 
 .diagnostics-table td:first-child {
@@ -362,6 +450,9 @@
 
 .diagnostics-table td:last-child {
   text-align: right;
+  font-family: var(--rvt-mono-font, "JetBrains Mono", ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 /* Quad grids styling */
@@ -372,11 +463,11 @@
 }
 
 .diagnostics-mini-card {
-  border-radius: 12px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
   padding: 12px;
-  background: var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
 }
 
 .faults-list-container {
@@ -389,10 +480,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px;
-  border-radius: 6px;
+  padding: 8px 10px;
+  border-radius: var(--rv-r2, 14px);
   background: var(--md-sys-color-error-container, rgba(239, 68, 68, 0.05));
-  color: var(--md-sys-color-error, #dc2626);
+  color: var(--md-sys-color-on-error-container, #410002);
   font-size: 0.8rem;
 }
 
@@ -415,11 +506,11 @@
 
 /* Waveforms tab styling */
 .waveforms-container-card {
-  border-radius: 16px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
   padding: 16px;
-  background: var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
 }
 
 .waveforms-grid {
@@ -451,17 +542,21 @@
 .canvas-plot-container {
   width: 100%;
   height: 180px;
-  border-radius: 12px;
+  border-radius: var(--rv-r2, 14px);
   border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
   overflow: hidden;
 }
 
+/* Breathing waveform wrap (RR) tinted with the respiration container. */
 .canvas-plot-container.bg-pink-tint {
-  background: rgba(255, 65, 248, 0.03);
+  background: color-mix(in srgb, var(--rv-rrc) 40%, var(--md-sys-color-surface-container-lowest));
+  border-color: color-mix(in srgb, var(--rv-rr) 22%, var(--md-sys-color-outline-variant));
 }
 
+/* Heartbeat waveform wrap (HR) tinted with the heart-rate container. */
 .canvas-plot-container.bg-teal-tint {
-  background: rgba(0, 164, 150, 0.03);
+  background: color-mix(in srgb, var(--rv-hrc) 40%, var(--md-sys-color-surface-container-lowest));
+  border-color: color-mix(in srgb, var(--rv-hr) 22%, var(--md-sys-color-outline-variant));
 }
 
 .waveform-canvas {
@@ -717,15 +812,15 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: 4px;
-  border-radius: 16px 0 0 16px;
+  border-radius: var(--rv-r1, 22px) 0 0 var(--rv-r1, 22px);
 }
 
 .kpi-hr::before {
-  background: linear-gradient(180deg, var(--md-sys-color-tertiary, #00a496), #5eead4);
+  background: var(--rv-hr);
 }
 
 .kpi-rr::before {
-  background: linear-gradient(180deg, var(--md-sys-color-primary, #0061a4), #7dd3fc);
+  background: var(--rv-rr);
 }
 
 .section-header-row,
@@ -1378,10 +1473,13 @@
   align-items: center;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-family: var(--rvt-mono-font, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 0.7rem;
   font-weight: 700;
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
+  font-variant-numeric: tabular-nums;
+  background: var(--md-sys-color-surface-container-lowest);
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .kpi-card-value.kpi-holding strong {

@@ -6,7 +6,7 @@
       primary: mat.$azure-palette,
       tertiary: mat.$cyan-palette
     ),
-    typography: ('Inter', 'Roboto', sans-serif),
+    typography: ('Figtree', 'Inter', 'Roboto', sans-serif),
     density: 0
   ));
 }
@@ -53,6 +53,8 @@ html[data-theme='hc'] .kpi-card-spark {
 @import './styles/patches/legacy-patches.css';
 @import './styles/rvt-native-shell-final.css';
 @import './styles/print.css';
+/* Material 3 Expressive redesign — palette + token layer (must load last). */
+@import './styles/rvt-redesign-tokens.css';
 
 :root {
   @include mat.theme-overrides((
@@ -559,12 +561,12 @@ html[data-theme='hc'] body[data-view='home'] app-home :is(
   --dur-spring: var(--md-sys-motion-duration-extra-long2);
 
   /* Typography Systems (Expressive) */
-  --md-sys-typescale-display-large-font-family: 'Inter', 'Roboto', sans-serif;
+  --md-sys-typescale-display-large-font-family: 'Figtree', 'Inter', 'Roboto', sans-serif;
   --md-sys-typescale-display-large-font-size: 3.25rem;
   --md-sys-typescale-display-large-font-weight: 700;
   --md-sys-typescale-display-large-line-height: 3.75rem;
 
-  --md-sys-typescale-title-large-font-family: 'Inter', 'Roboto', sans-serif;
+  --md-sys-typescale-title-large-font-family: 'Figtree', 'Inter', 'Roboto', sans-serif;
   --md-sys-typescale-title-large-font-size: 1.35rem;
   --md-sys-typescale-title-large-font-weight: 600;
   --md-sys-typescale-title-large-line-height: 1.75rem;

@@ -77,6 +77,131 @@
   justify-content: center;
 }
 
+/* ==========================================================================
+   NAVIGATION RAIL — Material 3 Expressive (desktop ≥1024px)
+   Expanded, labeled rail with pill-shaped items and a primary-container
+   active indicator. Reads themed M3 tokens so all palettes/themes work.
+   ========================================================================== */
+@media (min-width: 1024px) {
+  .rail.mat-drawer {
+    background: var(--md-sys-color-surface-container-low) !important;
+    border-right: 1px solid var(--md-sys-color-outline-variant) !important;
+    box-shadow: none !important;
+  }
+
+  .rail .brand {
+    border-radius: var(--rv-r2);
+    padding: 10px 12px;
+    margin-bottom: 4px;
+  }
+
+  .rail .brand:hover {
+    background: var(--md-sys-color-surface-container-high);
+  }
+
+  .rail .bl-top {
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .rail .bl-bot {
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .rail .nav-heading {
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .rail .nav-group + .nav-group {
+    border-top-color: var(--md-sys-color-outline-variant);
+  }
+
+  .rail .r-item {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    min-height: 44px;
+    padding: 9px 14px;
+    color: var(--md-sys-color-on-surface-variant);
+    transition:
+      background var(--dur-s, 0.2s) var(--ease, ease),
+      color var(--dur-s, 0.2s) var(--ease, ease),
+      transform var(--dur-s, 0.25s) var(--ease, ease);
+  }
+
+  .rail .r-item .material-symbols-rounded {
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .rail .r-item:hover {
+    background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+    transform: none;
+  }
+
+  .rail .r-item:hover .material-symbols-rounded {
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .rail .r-item:active {
+    transform: scale(0.97);
+  }
+
+  .rail .r-item.active,
+  .rail .r-item[aria-current='page'] {
+    background: var(--md-sys-color-primary-container);
+    border-color: transparent;
+    color: var(--md-sys-color-on-primary-container);
+    font-weight: 700;
+  }
+
+  /* Drop the legacy left accent bar — the pill is the M3 indicator. */
+  .rail .r-item.active::before,
+  .rail .r-item.sub.active::before {
+    display: none;
+  }
+
+  .rail .r-item.active .material-symbols-rounded,
+  .rail .r-item[aria-current='page'] .material-symbols-rounded {
+    color: var(--md-sys-color-on-primary-container);
+    font-variation-settings: 'FILL' 1, 'wght' 600;
+  }
+
+  .rail .r-item.sub {
+    border-radius: 999px;
+    padding: 7px 14px;
+  }
+
+  .rail .r-item.sub.active {
+    background: var(--md-sys-color-secondary-container);
+    color: var(--md-sys-color-on-secondary-container);
+  }
+
+  .rail .r-item.sub.active .material-symbols-rounded {
+    color: var(--md-sys-color-on-secondary-container);
+    font-variation-settings: 'FILL' 1, 'wght' 600;
+  }
+
+  /* Command palette action reads as a tonal pill matching the nav rhythm. */
+  .rail .rail-action.mat-tonal-button {
+    border-radius: 999px;
+    min-height: 44px;
+    justify-content: flex-start;
+  }
+
+  .rail .rail-foot {
+    border-top-color: var(--md-sys-color-outline-variant);
+  }
+}
+
+@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+  .rail .r-item {
+    transition: none;
+  }
+
+  .rail .r-item:active {
+    transform: none;
+  }
+}
+
 @media (min-width: 1024px) {
   /* Deprecated ::ng-deep overrides moved to global styles.scss as non-encapsulated rules */
 
@@ -142,14 +267,14 @@
   .app.rail-collapsed .rail .r-item.sub,
   .app.rail-collapsed .rail .rail-action {
     align-items: center !important;
-    border-radius: 12px !important;
+    border-radius: 999px !important;
     box-sizing: border-box !important;
     display: flex !important;
-    height: 38px !important;
+    height: 40px !important;
     justify-content: center !important;
     margin-inline: auto !important;
     max-width: 40px !important;
-    min-height: 38px !important;
+    min-height: 40px !important;
     min-width: 40px !important;
     padding: 0 !important;
     width: 40px !important;
@@ -184,10 +309,10 @@
 
 .rail .operator {
   align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 16px;
-  color: inherit;
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--rv-r2);
+  color: var(--md-sys-color-on-surface);
   display: flex;
   gap: 12px;
   margin-top: 8px;
@@ -196,13 +321,29 @@
   width: 100%;
 }
 
+.rail .op-avatar {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-radius: 999px;
+}
+
+.rail .op-name {
+  color: var(--md-sys-color-on-surface);
+}
+
+.rail .op-role {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
 .rail .operator-actions {
   display: grid;
   gap: 6px;
+  margin-top: 8px;
   width: 100%;
 }
 
 .rail .operator-action {
+  border-radius: 999px;
   justify-content: flex-start;
   min-height: 40px;
   width: 100%;
@@ -272,6 +413,46 @@
 
   .scroll-to-top-fab {
     bottom: 96px;
+  }
+}
+
+/* ==========================================================================
+   BOTTOM NAVIGATION BAR — Material 3 (mobile ≤760px + tablet 761–1023px)
+   Each tab is a column: a pill indicator behind the icon + a label below.
+   ========================================================================== */
+@media (max-width: 1023px) {
+  .bottom-nav a[mat-navigation-tab] {
+    color: var(--md-sys-color-on-surface-variant);
+    transition: color var(--dur-s, 0.2s) var(--ease, ease);
+  }
+
+  .bottom-nav a[mat-navigation-tab] .mat-navigation-tab-icon-container,
+  .bottom-nav a[mat-navigation-tab] [icon] {
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  /* Active pill behind the icon (primary-container). */
+  .bottom-nav a[mat-navigation-tab].active .mat-navigation-tab-pill {
+    background-color: var(--md-sys-color-primary-container);
+  }
+
+  .bottom-nav a[mat-navigation-tab].active .mat-navigation-tab-icon-container,
+  .bottom-nav a[mat-navigation-tab].active [icon] {
+    color: var(--md-sys-color-on-primary-container);
+    font-variation-settings: 'FILL' 1, 'wght' 600;
+  }
+
+  .bottom-nav a[mat-navigation-tab] .mat-navigation-tab-label,
+  .bottom-nav a[mat-navigation-tab] [label] {
+    color: var(--md-sys-color-on-surface-variant);
+    font-family: var(--rvt-ui-font);
+    font-weight: 600;
+  }
+
+  .bottom-nav a[mat-navigation-tab].active .mat-navigation-tab-label,
+  .bottom-nav a[mat-navigation-tab].active [label] {
+    color: var(--md-sys-color-on-surface);
+    font-weight: 700;
   }
 }
 

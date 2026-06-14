@@ -237,6 +237,32 @@
       <mat-card-content>
         <div class="settings-row block-row">
           <div class="settings-copy">
+            <span class="row-title">Color palette</span>
+            <span class="row-description">Three Material 3 Expressive explorations. Each retunes the whole tonal system.</span>
+          </div>
+          <div class="palette-options" role="radiogroup" aria-label="Color palette">
+            @for (opt of paletteOptions; track opt.id) {
+              <button type="button" class="palette-option" role="radio"
+                [class.active]="state.palette() === opt.id"
+                [attr.aria-checked]="state.palette() === opt.id"
+                (click)="selectPalette(opt.id)">
+                <span class="palette-dots" aria-hidden="true">
+                  @for (dot of opt.dots; track $index) {
+                    <span class="palette-dot" [style.background]="dot"></span>
+                  }
+                </span>
+                <span class="palette-copy">
+                  <span class="palette-name">{{ opt.name }}</span>
+                  <span class="palette-desc">{{ opt.desc }}</span>
+                </span>
+                <span class="palette-radio" aria-hidden="true"></span>
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="settings-row block-row">
+          <div class="settings-copy">
             <span class="row-title">Theme</span>
             <span class="row-description">Choose a fixed theme or follow system settings.</span>
           </div>

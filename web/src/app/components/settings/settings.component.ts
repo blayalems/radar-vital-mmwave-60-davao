@@ -97,6 +97,23 @@ export class SettingsComponent {
   protected readonly bleScanDevices = signal<BleScanDevice[]>([]);
   protected readonly bleScanMessage = signal('No scan run yet.');
 
+  // Material 3 Expressive exploration palettes.
+  protected readonly paletteOptions: {
+    id: 'azure' | 'bloom' | 'mint';
+    name: string;
+    desc: string;
+    dots: string[];
+  }[] = [
+    { id: 'azure', name: 'Azure Expressive', desc: 'Refined evolution of the current azure brand.', dots: ['#36618e', '#b62e63', '#0e7c72', '#e3edf8'] },
+    { id: 'bloom', name: 'Pixel Bloom', desc: 'Dynamic violet, extra-round, most playful.', dots: ['#6750a4', '#c8424d', '#1d8a7a', '#e9e1f8'] },
+    { id: 'mint', name: 'Clinical Mint', desc: 'Calm green, tighter radii, focused density.', dots: ['#1e6b52', '#b12f5d', '#21698c', '#dfeee5'] },
+  ];
+
+  selectPalette(id: 'azure' | 'bloom' | 'mint'): void {
+    this.state.palette.set(id);
+    this.state.triggerHaptic('tap');
+  }
+
   // Material You preset swatches
   protected readonly presetColors: { hex: string; name: string }[] = [
     { hex: '#0061a4', name: 'Azure' },
@@ -359,6 +376,7 @@ export class SettingsComponent {
   exportPreferences(): void {
     const settings = {
       theme: this.state.theme(),
+      palette: this.state.palette(),
       density: this.state.density(),
       fontScale: this.state.fontScale(),
       zenMode: this.state.zenMode(),
@@ -386,6 +404,9 @@ export class SettingsComponent {
       const raw = JSON.parse(await file.text()) as Record<string, unknown>;
       if (['light', 'dark', 'night', 'hc'].includes(String(raw['theme']))) {
         this.state.theme.set(raw['theme'] as 'light' | 'dark' | 'night' | 'hc');
+      }
+      if (['azure', 'bloom', 'mint'].includes(String(raw['palette']))) {
+        this.state.palette.set(raw['palette'] as 'azure' | 'bloom' | 'mint');
       }
       if (['comfortable', 'compact'].includes(String(raw['density']))) {
         this.state.density.set(raw['density'] as 'comfortable' | 'compact');
@@ -450,6 +471,7 @@ export class SettingsComponent {
     }).afterClosed());
     if (confirmed) {
       this.state.theme.set('dark');
+      this.state.palette.set('azure');
       this.state.density.set('comfortable');
       this.state.fontScale.set(1);
       this.state.zenMode.set(false);

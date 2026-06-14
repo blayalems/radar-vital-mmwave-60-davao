@@ -1,0 +1,385 @@
+/* =============================================================================
+   RADAR VITAL — MATERIAL 3 EXPRESSIVE REDESIGN TOKEN LAYER
+   -----------------------------------------------------------------------------
+   Implements the "Radar Vital Redesign" exploration palettes (Azure Expressive,
+   Pixel Bloom, Clinical Mint) on top of the existing Material You / M3 tonal
+   token system. This file is imported LAST so its values win the cascade.
+
+   Strategy:
+   - Each palette remaps the shared `--md-sys-color-*` and legacy `--rv-*` tokens
+     for the light and dark themes (selectors keyed on BOTH the existing
+     `data-theme` and a new `data-palette` attribute). Night + HC keep their
+     special-purpose themes untouched.
+   - The Material You DynamicColorService still composes on top: when enabled it
+     writes inline `--md-sys-color-*` values that beat these stylesheet rules,
+     so the two systems remain fully compatible. The three palette seeds are
+     also offered as Material You presets.
+   - Redesign-only semantics the tonal engine does not produce (HR/RR vitals,
+     expressive corner radii, the Figtree typeface) live here as `--rv-*`
+     tokens that every component reads.
+   ========================================================================== */
+
+/* ---- Figtree as the primary UI typeface (faces declared in rvt-fonts.css) -- */
+:root {
+  --rvt-ui-font: "Figtree", "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+
+  /* Expressive corner radii — overridden per palette below. */
+  --rv-r1: 22px; /* large surfaces: cards, hero tiles */
+  --rv-r2: 14px; /* medium surfaces: rows, chips containers, fields */
+  --rv-r-pill: 999px;
+
+  /* Vital accent defaults (azure light) — overridden per palette/theme. */
+  --rv-hr: #b62e63;
+  --rv-hrc: #ffd9e4;
+  --rv-rr: #0e7c72;
+  --rv-rrc: #bfefe6;
+
+  /* Map Material shape tokens to the expressive scale so MatCard / dialogs
+     pick up the rounder language automatically. */
+  --md-sys-shape-corner-large: var(--rv-r2);
+  --md-sys-shape-corner-extra-large: var(--rv-r1);
+  --shape-lg: var(--rv-r2);
+  --shape-xl: var(--rv-r1);
+
+  /* Material 3 typescale → Figtree. */
+  --md-sys-typescale-display-large-font-family: var(--rvt-ui-font);
+  --md-sys-typescale-title-large-font-family: var(--rvt-ui-font);
+  --md-sys-typescale-body-large-font-family: var(--rvt-ui-font);
+  --md-sys-typescale-label-large-font-family: var(--rvt-ui-font);
+}
+
+body,
+.mat-typography,
+.mat-mdc-card,
+.mat-mdc-dialog-container,
+button.mat-mdc-button-base,
+.mat-mdc-form-field {
+  font-family: var(--rvt-ui-font);
+}
+
+/* Expressive radii are theme-independent — set on the palette attribute. */
+html[data-palette="azure"] { --rv-r1: 22px; --rv-r2: 14px; }
+html[data-palette="bloom"] { --rv-r1: 28px; --rv-r2: 18px; }
+html[data-palette="mint"]  { --rv-r1: 16px; --rv-r2: 10px; }
+
+/* =============================================================================
+   AZURE EXPRESSIVE  — refined evolution of the existing azure brand
+   ========================================================================== */
+html[data-theme="light"][data-palette="azure"] {
+  --md-sys-color-primary: #36618e;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #d3e4ff;
+  --md-sys-color-on-primary-container: #0c2d4d;
+  --md-sys-color-secondary: #50617b;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #e3edf8;
+  --md-sys-color-on-secondary-container: #16212e;
+  --md-sys-color-tertiary: #00697d;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #b8eaf5;
+  --md-sys-color-on-tertiary-container: #001f28;
+  --md-sys-color-error: #ba1a1a;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #ffdad6;
+  --md-sys-color-on-error-container: #410002;
+  --md-sys-color-surface: #f4f8fd;
+  --md-sys-color-on-surface: #16212e;
+  --md-sys-color-on-surface-variant: #4d5e74;
+  --md-sys-color-outline: #73839a;
+  --md-sys-color-outline-variant: #d3dfec;
+  --md-sys-color-surface-container-lowest: #ffffff;
+  --md-sys-color-surface-container-low: #f4f8fd;
+  --md-sys-color-surface-container: #eaf1f9;
+  --md-sys-color-surface-container-high: #e3edf8;
+  --md-sys-color-surface-container-highest: #dce7f4;
+  --md-sys-color-background: #eaf1f9;
+  --md-sys-color-success: #256d3b;
+  --md-sys-color-success-container: #c6efc9;
+  --md-sys-color-on-success-container: #00210c;
+  --md-sys-color-warning-container: #ffe3b3;
+  --md-sys-color-on-warning-container: #2a1800;
+
+  --rv-bg: #eaf1f9; --rv-panel: #ffffff; --rv-panel-2: #f4f8fd;
+  --rv-surface: #e3edf8; --rv-surface-hover: #dce7f4;
+  --rv-ink: #16212e; --rv-ink-2: #0c2d4d; --rv-muted: #4d5e74; --rv-dim: #73839a;
+  --rv-line: #d3dfec; --rv-line-2: #c2d2e4;
+  --rv-brand: #36618e; --rv-brand-2: #284e76; --rv-signal: #00697d;
+  --rv-ok: #256d3b; --rv-warn: #8a5a00; --rv-bad: #ba1a1a;
+  --rv-hr: #b62e63; --rv-hrc: #ffd9e4; --rv-rr: #0e7c72; --rv-rrc: #bfefe6;
+}
+
+html[data-theme="dark"][data-palette="azure"] {
+  --md-sys-color-primary: #a0cafd;
+  --md-sys-color-on-primary: #003258;
+  --md-sys-color-primary-container: #234866;
+  --md-sys-color-on-primary-container: #d3e4ff;
+  --md-sys-color-secondary: #b9c8dc;
+  --md-sys-color-on-secondary: #243140;
+  --md-sys-color-secondary-container: #22303f;
+  --md-sys-color-on-secondary-container: #e0e8f2;
+  --md-sys-color-tertiary: #54d7e6;
+  --md-sys-color-on-tertiary: #00363f;
+  --md-sys-color-tertiary-container: #004e5b;
+  --md-sys-color-on-tertiary-container: #b8eaf5;
+  --md-sys-color-error: #ffb4ab;
+  --md-sys-color-on-error: #690005;
+  --md-sys-color-error-container: #5a1119;
+  --md-sys-color-on-error-container: #ffdad6;
+  --md-sys-color-surface: #111923;
+  --md-sys-color-on-surface: #e0e8f2;
+  --md-sys-color-on-surface-variant: #93a4b8;
+  --md-sys-color-outline: #5e6e80;
+  --md-sys-color-outline-variant: #2b3a4b;
+  --md-sys-color-surface-container-lowest: #070c12;
+  --md-sys-color-surface-container-low: #111923;
+  --md-sys-color-surface-container: #18222e;
+  --md-sys-color-surface-container-high: #22303f;
+  --md-sys-color-surface-container-highest: #2c3b4c;
+  --md-sys-color-background: #0c1218;
+  --md-sys-color-success: #8bd395;
+  --md-sys-color-success-container: #143d22;
+  --md-sys-color-on-success-container: #c6efc9;
+  --md-sys-color-warning-container: #46350c;
+  --md-sys-color-on-warning-container: #ffe3b3;
+
+  --rv-bg: #0c1218; --rv-panel: #18222e; --rv-panel-2: #111923;
+  --rv-surface: #22303f; --rv-surface-hover: #2c3b4c;
+  --rv-ink: #e0e8f2; --rv-ink-2: #d3e4ff; --rv-muted: #93a4b8; --rv-dim: #5e6e80;
+  --rv-line: #2b3a4b; --rv-line-2: #34465a;
+  --rv-brand: #a0cafd; --rv-brand-2: #c7deff; --rv-signal: #54d7e6;
+  --rv-ok: #8bd395; --rv-warn: #efbe6b; --rv-bad: #ffb4ab;
+  --rv-hr: #ff9fc0; --rv-hrc: #4a1029; --rv-rr: #5cd6c8; --rv-rrc: #0a3e38;
+}
+
+/* =============================================================================
+   PIXEL BLOOM — dynamic violet, extra-round, most playful
+   ========================================================================== */
+html[data-theme="light"][data-palette="bloom"] {
+  --md-sys-color-primary: #6750a4;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #e9ddff;
+  --md-sys-color-on-primary-container: #2a1a5e;
+  --md-sys-color-secondary: #635b70;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #e9e1f8;
+  --md-sys-color-on-secondary-container: #1c1827;
+  --md-sys-color-tertiary: #7d5260;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #ffd8e4;
+  --md-sys-color-on-tertiary-container: #31101d;
+  --md-sys-color-error: #ba1a1a;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #ffdad6;
+  --md-sys-color-on-error-container: #410002;
+  --md-sys-color-surface: #f8f5ff;
+  --md-sys-color-on-surface: #1c1827;
+  --md-sys-color-on-surface-variant: #554e6b;
+  --md-sys-color-outline: #7c7488;
+  --md-sys-color-outline-variant: #dcd3ee;
+  --md-sys-color-surface-container-lowest: #ffffff;
+  --md-sys-color-surface-container-low: #f8f5ff;
+  --md-sys-color-surface-container: #f1edfa;
+  --md-sys-color-surface-container-high: #e9e1f8;
+  --md-sys-color-surface-container-highest: #e3d9f5;
+  --md-sys-color-background: #f1edfa;
+  --md-sys-color-success: #2e6e3f;
+  --md-sys-color-success-container: #cbefcb;
+  --md-sys-color-on-success-container: #00210c;
+  --md-sys-color-warning-container: #ffe3b3;
+  --md-sys-color-on-warning-container: #2a1800;
+
+  --rv-bg: #f1edfa; --rv-panel: #ffffff; --rv-panel-2: #f8f5ff;
+  --rv-surface: #e9e1f8; --rv-surface-hover: #e3d9f5;
+  --rv-ink: #1c1827; --rv-ink-2: #2a1a5e; --rv-muted: #554e6b; --rv-dim: #7c7488;
+  --rv-line: #dcd3ee; --rv-line-2: #cabee2;
+  --rv-brand: #6750a4; --rv-brand-2: #54408d; --rv-signal: #7d5260;
+  --rv-ok: #2e6e3f; --rv-warn: #8a5a00; --rv-bad: #ba1a1a;
+  --rv-hr: #c8424d; --rv-hrc: #ffdad8; --rv-rr: #1d8a7a; --rv-rrc: #bff2e5;
+}
+
+html[data-theme="dark"][data-palette="bloom"] {
+  --md-sys-color-primary: #cfbdfe;
+  --md-sys-color-on-primary: #352185;
+  --md-sys-color-primary-container: #4f3d8b;
+  --md-sys-color-on-primary-container: #e9ddff;
+  --md-sys-color-secondary: #cbc2db;
+  --md-sys-color-on-secondary: #332d41;
+  --md-sys-color-secondary-container: #2b2347;
+  --md-sys-color-on-secondary-container: #e8e1f5;
+  --md-sys-color-tertiary: #efb8c8;
+  --md-sys-color-on-tertiary: #4a2532;
+  --md-sys-color-tertiary-container: #633b48;
+  --md-sys-color-on-tertiary-container: #ffd8e4;
+  --md-sys-color-error: #ffb4ab;
+  --md-sys-color-on-error: #690005;
+  --md-sys-color-error-container: #5a1119;
+  --md-sys-color-on-error-container: #ffdad6;
+  --md-sys-color-surface: #181331;
+  --md-sys-color-on-surface: #e8e1f5;
+  --md-sys-color-on-surface-variant: #a398be;
+  --md-sys-color-outline: #6e6586;
+  --md-sys-color-outline-variant: #3a3153;
+  --md-sys-color-surface-container-lowest: #0d0a1a;
+  --md-sys-color-surface-container-low: #181331;
+  --md-sys-color-surface-container: #201a38;
+  --md-sys-color-surface-container-high: #2b2347;
+  --md-sys-color-surface-container-highest: #362c54;
+  --md-sys-color-background: #131020;
+  --md-sys-color-success: #8bd395;
+  --md-sys-color-success-container: #16402a;
+  --md-sys-color-on-success-container: #cbefcb;
+  --md-sys-color-warning-container: #46350c;
+  --md-sys-color-on-warning-container: #ffe3b3;
+
+  --rv-bg: #131020; --rv-panel: #201a38; --rv-panel-2: #181331;
+  --rv-surface: #2b2347; --rv-surface-hover: #362c54;
+  --rv-ink: #e8e1f5; --rv-ink-2: #e9ddff; --rv-muted: #a398be; --rv-dim: #6e6586;
+  --rv-line: #3a3153; --rv-line-2: #463c63;
+  --rv-brand: #cfbdfe; --rv-brand-2: #e0d3ff; --rv-signal: #efb8c8;
+  --rv-ok: #8bd395; --rv-warn: #efbe6b; --rv-bad: #ffb4ab;
+  --rv-hr: #ffb2b8; --rv-hrc: #511a23; --rv-rr: #66d9c5; --rv-rrc: #0b3f36;
+}
+
+/* =============================================================================
+   CLINICAL MINT — calm green, tighter radii, focused density
+   ========================================================================== */
+html[data-theme="light"][data-palette="mint"] {
+  --md-sys-color-primary: #1e6b52;
+  --md-sys-color-on-primary: #ffffff;
+  --md-sys-color-primary-container: #bfefd6;
+  --md-sys-color-on-primary-container: #053826;
+  --md-sys-color-secondary: #4e6357;
+  --md-sys-color-on-secondary: #ffffff;
+  --md-sys-color-secondary-container: #dfeee5;
+  --md-sys-color-on-secondary-container: #141d18;
+  --md-sys-color-tertiary: #21698c;
+  --md-sys-color-on-tertiary: #ffffff;
+  --md-sys-color-tertiary-container: #c8e6f6;
+  --md-sys-color-on-tertiary-container: #001e2e;
+  --md-sys-color-error: #ba1a1a;
+  --md-sys-color-on-error: #ffffff;
+  --md-sys-color-error-container: #ffdad6;
+  --md-sys-color-on-error-container: #410002;
+  --md-sys-color-surface: #f3f9f4;
+  --md-sys-color-on-surface: #141d18;
+  --md-sys-color-on-surface-variant: #46584f;
+  --md-sys-color-outline: #6c7c72;
+  --md-sys-color-outline-variant: #cfe0d6;
+  --md-sys-color-surface-container-lowest: #ffffff;
+  --md-sys-color-surface-container-low: #f3f9f4;
+  --md-sys-color-surface-container: #eaf3ee;
+  --md-sys-color-surface-container-high: #dfeee5;
+  --md-sys-color-surface-container-highest: #d4e5db;
+  --md-sys-color-background: #eaf3ee;
+  --md-sys-color-success: #256d3b;
+  --md-sys-color-success-container: #c6efc9;
+  --md-sys-color-on-success-container: #00210c;
+  --md-sys-color-warning-container: #ffe3b3;
+  --md-sys-color-on-warning-container: #2a1800;
+
+  --rv-bg: #eaf3ee; --rv-panel: #ffffff; --rv-panel-2: #f3f9f4;
+  --rv-surface: #dfeee5; --rv-surface-hover: #d4e5db;
+  --rv-ink: #141d18; --rv-ink-2: #053826; --rv-muted: #46584f; --rv-dim: #6c7c72;
+  --rv-line: #cfe0d6; --rv-line-2: #bfd3c7;
+  --rv-brand: #1e6b52; --rv-brand-2: #145440; --rv-signal: #21698c;
+  --rv-ok: #256d3b; --rv-warn: #8a5a00; --rv-bad: #ba1a1a;
+  --rv-hr: #b12f5d; --rv-hrc: #ffd9e4; --rv-rr: #21698c; --rv-rrc: #c8e6f6;
+}
+
+html[data-theme="dark"][data-palette="mint"] {
+  --md-sys-color-primary: #8ad7b2;
+  --md-sys-color-on-primary: #003824;
+  --md-sys-color-primary-container: #14543f;
+  --md-sys-color-on-primary-container: #bfefd6;
+  --md-sys-color-secondary: #b3ccbe;
+  --md-sys-color-on-secondary: #1e352a;
+  --md-sys-color-secondary-container: #1f2f27;
+  --md-sys-color-on-secondary-container: #dee9e1;
+  --md-sys-color-tertiary: #8dcdf2;
+  --md-sys-color-on-tertiary: #00344c;
+  --md-sys-color-tertiary-container: #064b6b;
+  --md-sys-color-on-tertiary-container: #c8e6f6;
+  --md-sys-color-error: #ffb4ab;
+  --md-sys-color-on-error: #690005;
+  --md-sys-color-error-container: #5a1119;
+  --md-sys-color-on-error-container: #ffdad6;
+  --md-sys-color-surface: #101b15;
+  --md-sys-color-on-surface: #dee9e1;
+  --md-sys-color-on-surface-variant: #97ac9f;
+  --md-sys-color-outline: #5c7468;
+  --md-sys-color-outline-variant: #2c4035;
+  --md-sys-color-surface-container-lowest: #060d09;
+  --md-sys-color-surface-container-low: #101b15;
+  --md-sys-color-surface-container: #16231c;
+  --md-sys-color-surface-container-high: #1f2f27;
+  --md-sys-color-surface-container-highest: #293a31;
+  --md-sys-color-background: #0b1410;
+  --md-sys-color-success: #8bd395;
+  --md-sys-color-success-container: #143d22;
+  --md-sys-color-on-success-container: #c6efc9;
+  --md-sys-color-warning-container: #46350c;
+  --md-sys-color-on-warning-container: #ffe3b3;
+
+  --rv-bg: #0b1410; --rv-panel: #16231c; --rv-panel-2: #101b15;
+  --rv-surface: #1f2f27; --rv-surface-hover: #293a31;
+  --rv-ink: #dee9e1; --rv-ink-2: #bfefd6; --rv-muted: #97ac9f; --rv-dim: #5c7468;
+  --rv-line: #2c4035; --rv-line-2: #374c40;
+  --rv-brand: #8ad7b2; --rv-brand-2: #a6e9c9; --rv-signal: #8dcdf2;
+  --rv-ok: #8bd395; --rv-warn: #efbe6b; --rv-bad: #ffb4ab;
+  --rv-hr: #ff9fbe; --rv-hrc: #4a1227; --rv-rr: #82ceea; --rv-rrc: #0d3d52;
+}
+
+/* =============================================================================
+   NIGHT + HIGH-CONTRAST — keep their special themes; only retune the vital
+   accent tokens so HR/RR surfaces never show the light-mode pink/teal tints.
+   These are theme-level (palette-independent) since night/hc are fixed themes.
+   ========================================================================== */
+html[data-theme="night"] {
+  --rv-hr: #ff9fc0;
+  --rv-hrc: #4a1029;
+  --rv-rr: #5cd6c8;
+  --rv-rrc: #0a3e38;
+}
+
+html[data-theme="hc"] {
+  /* Monochrome high-contrast: black vital surfaces, white accents. */
+  --rv-hr: #ffffff;
+  --rv-hrc: #000000;
+  --rv-rr: #ffffff;
+  --rv-rrc: #000000;
+}
+
+/* =============================================================================
+   SHARED EXPRESSIVE PRIMITIVES
+   Reusable helpers the redesigned components compose with. Kept here so the
+   per-component stylesheets stay lean and consistent.
+   ========================================================================== */
+
+/* Surface card — the canonical expressive container. */
+.rv-card {
+  background: var(--md-sys-color-surface-container-lowest, #fff);
+  border: 1px solid var(--md-sys-color-outline-variant, #d3dfec);
+  border-radius: var(--rv-r1, 22px);
+  transition: background var(--dur-m, 240ms) var(--ease, ease),
+    border-radius var(--dur-m, 240ms) var(--ease, ease);
+}
+
+/* Section header icon tile (38px rounded square with primary glyph). */
+.rv-card-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 12px;
+  background: var(--md-sys-color-secondary-container, #e3edf8);
+  color: var(--md-sys-color-primary, #36618e);
+  display: grid;
+  place-items: center;
+}
+
+/* Pill button / chip radius helper. */
+.rv-pill { border-radius: var(--rv-r-pill, 999px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-card { transition: none; }
+}

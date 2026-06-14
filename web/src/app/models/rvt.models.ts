@@ -1,5 +1,6 @@
 export type ThemeId = 'light' | 'dark' | 'night' | 'hc';
 export type DensityId = 'comfortable' | 'compact';
+export type PaletteId = 'azure' | 'bloom' | 'mint';
 export type HapticMode = 'on' | 'off' | 'auto';
 export type AlertSeverity = 'info' | 'warn' | 'critical';
 export type StorageScope = 'demo' | 'live' | 'legacy-unclassified';

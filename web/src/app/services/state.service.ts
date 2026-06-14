@@ -6,6 +6,7 @@ import {
   DensityId,
   HapticMode,
   LivePayload,
+  PaletteId,
   SessionRecord,
   SetupState,
   SnapshotRecord,
@@ -95,6 +96,7 @@ export class StateService {
   
   // Theme & Accessibility
   theme = this.uiStore.theme;
+  palette = this.uiStore.palette;
   density = this.uiStore.density;
   fontScale = this.uiStore.fontScale;
   zenMode = this.uiStore.zenMode;
@@ -166,6 +168,16 @@ export class StateService {
 
       // Reactively sync native status bar background and style on Capacitor dynamically via DynamicColorService (A4)
       this.dynamicColor.updateNativeStatusBar();
+    });
+
+    // Material 3 Expressive exploration palette. Drives the static
+    // `data-palette` token layer only. Material You dynamic color stays an
+    // independent overlay so a user's custom seed is never overwritten — the
+    // two systems compose via the shared tonal tokens.
+    effect(() => {
+      const currentPalette = this.palette();
+      localStorage.setItem('rvt-palette', currentPalette);
+      document.documentElement.dataset['palette'] = currentPalette;
     });
 
     effect(() => {
@@ -284,6 +296,13 @@ export class StateService {
         this.theme.set(themeVal as ThemeId);
       } else if (themeVal) {
         localStorage.removeItem('rvt-theme');
+      }
+
+      const paletteVal = localStorage.getItem('rvt-palette');
+      if (paletteVal && ['azure', 'bloom', 'mint'].includes(paletteVal)) {
+        this.palette.set(paletteVal as PaletteId);
+      } else if (paletteVal) {
+        localStorage.removeItem('rvt-palette');
       }
 
       const densityVal = localStorage.getItem('rvt-density');

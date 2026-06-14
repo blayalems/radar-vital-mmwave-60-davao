@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
-import { ThemeId, DensityId, HapticMode } from '../../models/rvt.models';
+import { ThemeId, DensityId, PaletteId, HapticMode } from '../../models/rvt.models';
 
 @Injectable({
   providedIn: 'root'
@@ -13,6 +13,7 @@ export class UiStore {
   alertsOpen = signal<boolean>(false);
   
   theme = signal<ThemeId>('dark');
+  palette = signal<PaletteId>('azure');
   density = signal<DensityId>('comfortable');
   fontScale = signal<number>(1);
   zenMode = signal<boolean>(false);

@@ -9,11 +9,11 @@
 
 /* Selector card styling */
 .selector-card {
-  border-radius: 12px !important;
-  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: var(--rv-r1) !important;
+  border: 1px solid var(--md-sys-color-outline-variant);
   box-shadow: none !important;
   padding: 16px 20px;
-  background: var(--md-sys-color-surface-container, #ffffff) !important;
+  background: var(--md-sys-color-surface-container-lowest) !important;
 }
 
 .selector-row {
@@ -30,22 +30,30 @@
   gap: 12px;
 }
 
+/* Section header icon tile (38px rounded square, secondary-container + primary glyph) */
 .selector-label-group mat-icon {
-  font-size: 2rem;
-  width: 32px;
-  height: 32px;
-  color: var(--md-sys-color-primary, #0061a4);
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  font-size: 22px;
+  line-height: 38px;
+  border-radius: 12px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-primary);
+  display: grid;
+  place-items: center;
 }
 
 .selector-label-group strong {
-  font-size: 0.95rem;
-  color: var(--md-sys-color-on-surface, #1e293b);
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface);
   display: block;
 }
 
 .selector-label-group small {
-  font-size: 0.8rem;
-  color: var(--md-sys-color-on-surface-variant, #64748b);
+  font-size: 12px;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .session-dropdown-field {
@@ -59,24 +67,33 @@
   gap: 20px;
 }
 
-/* Verdict hero card colors */
+/* Verdict hero banner — Material 3 container/foreground tokens */
 .verdict-hero-card {
-  border-radius: 16px !important;
+  border-radius: var(--rv-r1) !important;
   box-shadow: none !important;
   padding: 24px;
-  color: #ffffff;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-lowest) !important;
+  color: var(--md-sys-color-on-surface);
+  transition: background-color .25s ease, color .25s ease;
 }
 
 .verdict-hero-card[data-verdict="ready"], .verdict-hero-card[data-verdict="pass"] {
-  background: linear-gradient(135deg, var(--md-sys-color-tertiary, #00a496), #065f46) !important;
+  background: var(--md-sys-color-success-container) !important;
+  color: var(--md-sys-color-on-success-container);
+  border-color: transparent;
 }
 
 .verdict-hero-card[data-verdict="conditional"], .verdict-hero-card[data-verdict="warn"] {
-  background: linear-gradient(135deg, #eab308, #854d0e) !important;
+  background: var(--md-sys-color-warning-container) !important;
+  color: var(--md-sys-color-on-warning-container);
+  border-color: transparent;
 }
 
 .verdict-hero-card[data-verdict="unready"], .verdict-hero-card[data-verdict="fail"] {
-  background: linear-gradient(135deg, var(--md-sys-color-error, #dc2626), #991b1b) !important;
+  background: var(--md-sys-color-error-container) !important;
+  color: var(--md-sys-color-on-error-container);
+  border-color: transparent;
 }
 
 .verdict-banner-inner {
@@ -98,19 +115,20 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 1px;
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 .verdict-meta h2 {
   font-size: 1.6rem;
   margin: 0;
-  font-weight: 600;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .verdict-meta p {
   font-size: 0.9rem;
   margin: 4px 0 0;
-  opacity: 0.9;
+  opacity: 0.92;
   line-height: 1.4;
 }
 
@@ -121,21 +139,22 @@
   justify-content: center;
   width: 90px;
   height: 90px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(8px);
+  border-radius: var(--rv-r1);
+  background: rgba(0, 0, 0, 0.08);
   flex-shrink: 0;
+  gap: 2px;
 }
 
 .verdict-badge-icon {
-  font-size: 2.2rem;
-  width: 36px;
-  height: 36px;
+  font-size: 2.4rem;
+  width: 40px;
+  height: 40px;
   margin-bottom: 2px;
 }
 
 .verdict-badge-box strong {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 800;
   letter-spacing: 0.5px;
 }
 
@@ -153,20 +172,24 @@
 }
 
 .attributes-card, .notes-card {
-  border-radius: 16px !important;
-  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: var(--rv-r1) !important;
+  border: 1px solid var(--md-sys-color-outline-variant);
   box-shadow: none !important;
   padding: 16px;
-  background: var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface-container-lowest) !important;
 }
 
+/* Section header icon tile (38px rounded square, secondary-container + primary glyph) */
 .header-avatar-ic {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 97, 164, 0.08);
-  color: var(--md-sys-color-primary, #0061a4);
-  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  font-size: 20px;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-primary);
+  border-radius: 12px;
 }
 
 .attributes-table-wrap {
@@ -181,17 +204,28 @@
 .attributes-table td {
   padding: 11px 12px;
   font-size: 0.85rem;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant, #f1f5f9);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.attributes-table tr:last-child td {
+  border-bottom: none;
 }
 
 .attributes-table td:first-child {
-  color: var(--md-sys-color-on-surface-variant, #64748b);
+  color: var(--md-sys-color-on-surface-variant);
   font-weight: 500;
 }
 
 .attributes-table td:last-child {
   text-align: right;
-  color: var(--md-sys-color-on-surface, #0f172a);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* Numeric/value cells use mono with tight tracking */
+.attributes-table td:last-child strong {
+  font-family: var(--rvt-mono-font);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 /* Notes section */
@@ -206,9 +240,10 @@
   width: 100%;
   min-height: 120px;
   padding: 12px;
-  border-radius: 8px;
-  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
-  background: var(--md-sys-color-surface-container-low, #f8fafc);
+  border-radius: var(--rv-r2);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
   font-family: inherit;
   font-size: 0.9rem;
   resize: vertical;

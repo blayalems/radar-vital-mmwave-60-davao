@@ -33,6 +33,8 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe',
     stderr: 'pipe',
-    timeout: 60_000
+    // The trainer imports matplotlib, which builds its font cache on first run
+    // (slow on cold CI runners, especially Windows). Allow ample startup grace.
+    timeout: 120_000
   }
 });

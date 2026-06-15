@@ -161,3 +161,105 @@ def test_hmac_required_but_absent_in_manifest(tmp_path, monkeypatch):
     monkeypatch.setenv(MODEL_SIGNING_KEY_ENV, "now-required")
     with pytest.raises(ValueError, match="no HMAC signature"):
         _verify_model_dir(model_dir)
+
+
+# ---------------------------------------------------------------------------
+# Structural artifact-set validation (PR #58 review: close model-integrity
+# bypass where a manifest omits preprocessor.pkl or lists unknown / path-like
+# names, while cmd_predict ALWAYS unpickles preprocessor.pkl).
+# ---------------------------------------------------------------------------
+
+def _make_dir_with_manifest_artifacts(tmp_path, file_names, manifest_artifacts):
+    """Create a model dir with real .pkl files `file_names` and a manifest that
+    declares exactly `manifest_artifacts` (name -> recorded sha256 of an
+    on-disk file). Returns the model dir path.
+    """
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    for name in file_names:
+        with open(model_dir / os.path.basename(name), "wb") as f:
+            pickle.dump({"artifact": name, "payload": list(range(8))}, f)
+
+    artifacts = {}
+    for name in manifest_artifacts:
+        # Hash a real on-disk file so the only thing under test is the
+        # structural check, not a hash mismatch. Path-like names hash whatever
+        # is at model_dir/basename so the test reaches the structural reject.
+        path = os.path.join(str(model_dir), os.path.basename(name))
+        digest = _file_sha256(path)
+        artifacts[name] = digest if digest is not None else "0" * 64
+
+    manifest = {
+        "schema_version": MODEL_MANIFEST_SCHEMA_VERSION,
+        "trainer_version": "test",
+        "created_at": "2026-01-01T00:00:00Z",
+        "artifacts": artifacts,
+    }
+    with open(model_dir / MODEL_MANIFEST_FILENAME, "w", encoding="utf-8") as f:
+        json.dump(manifest, f)
+    return str(model_dir)
+
+
+def test_verify_raises_when_manifest_missing_preprocessor(tmp_path):
+    # cmd_predict always unpickles preprocessor.pkl; a manifest that omits it
+    # must be rejected BEFORE any artifact is trusted/unpickled.
+    model_dir = _make_dir_with_manifest_artifacts(
+        tmp_path,
+        file_names=("model_hr.pkl", "model_rr.pkl", "preprocessor.pkl"),
+        manifest_artifacts=("model_hr.pkl", "model_rr.pkl"),
+    )
+    with pytest.raises(ValueError, match="preprocessor.pkl"):
+        _verify_model_dir(model_dir)
+
+
+def test_verify_raises_on_unknown_traversal_artifact_name(tmp_path):
+    # A path-like / traversal name in the manifest must be rejected.
+    model_dir = _make_dir_with_manifest_artifacts(
+        tmp_path,
+        file_names=("model_hr.pkl", "preprocessor.pkl"),
+        manifest_artifacts=("model_hr.pkl", "preprocessor.pkl", "../evil.pkl"),
+    )
+    with pytest.raises(ValueError, match="unknown artifact"):
+        _verify_model_dir(model_dir)
+
+
+def test_verify_raises_on_unknown_plain_artifact_name(tmp_path):
+    # An unrelated but non-path name must also be rejected.
+    model_dir = _make_dir_with_manifest_artifacts(
+        tmp_path,
+        file_names=("model_hr.pkl", "preprocessor.pkl"),
+        manifest_artifacts=("model_hr.pkl", "preprocessor.pkl", "model_xx.pkl"),
+    )
+    with pytest.raises(ValueError, match="unknown artifact"):
+        _verify_model_dir(model_dir)
+
+
+def test_verify_passes_for_hr_only_with_preprocessor(tmp_path):
+    # HR-only (model_hr.pkl + preprocessor.pkl) is valid.
+    model_dir = _make_dir_with_manifest_artifacts(
+        tmp_path,
+        file_names=("model_hr.pkl", "preprocessor.pkl"),
+        manifest_artifacts=("model_hr.pkl", "preprocessor.pkl"),
+    )
+    _verify_model_dir(model_dir)  # should not raise
+
+
+def test_verify_passes_for_rr_only_with_preprocessor(tmp_path):
+    # RR-only (model_rr.pkl + preprocessor.pkl) is valid.
+    model_dir = _make_dir_with_manifest_artifacts(
+        tmp_path,
+        file_names=("model_rr.pkl", "preprocessor.pkl"),
+        manifest_artifacts=("model_rr.pkl", "preprocessor.pkl"),
+    )
+    _verify_model_dir(model_dir)  # should not raise
+
+
+def test_verify_raises_when_manifest_has_only_preprocessor(tmp_path):
+    # preprocessor.pkl alone (no model) cannot satisfy prediction; reject.
+    model_dir = _make_dir_with_manifest_artifacts(
+        tmp_path,
+        file_names=("preprocessor.pkl",),
+        manifest_artifacts=("preprocessor.pkl",),
+    )
+    with pytest.raises(ValueError, match="no model artifact"):
+        _verify_model_dir(model_dir)

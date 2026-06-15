@@ -1293,10 +1293,16 @@ def _verify_model_dir(model_dir: str) -> None:
 
     Behaviour:
       * Resolves model_dir to a real absolute path.
-      * If model_manifest.json is present, recomputes each listed artifact's
-        sha256 and raises on a missing artifact or hash mismatch (tamper
-        detection). If RVT_MODEL_SIGNING_KEY is set, the manifest HMAC is also
-        verified.
+      * If model_manifest.json is present, first validates the *structure* of
+        the declared artifact set: every listed name must be one of the allowed
+        model artifacts, 'preprocessor.pkl' (always loaded at predict time) must
+        be present, and at least one of model_hr.pkl / model_rr.pkl must be
+        present. This runs before any file is trusted, so a manifest that omits
+        preprocessor.pkl or lists unknown / path-like names is rejected rather
+        than silently letting an unverified pickle be loaded.
+      * It then recomputes each listed artifact's sha256 and raises on a missing
+        artifact or hash mismatch (tamper detection). If RVT_MODEL_SIGNING_KEY is
+        set, the manifest HMAC is also verified.
       * If no manifest is present, this is a legacy/unsigned model dir: emit a
         warning to stderr and proceed, UNLESS RVT_REQUIRE_MODEL_MANIFEST=1 is
         set, in which case it raises.
@@ -1335,6 +1341,29 @@ def _verify_model_dir(model_dir: str) -> None:
     expected = manifest.get("artifacts")
     if not isinstance(expected, dict) or not expected:
         raise ValueError(f"Model manifest has no 'artifacts' hashes: {manifest_path}")
+
+    # Structural validation of the artifact set BEFORE any file is trusted.
+    # cmd_predict ALWAYS unpickles preprocessor.pkl and at least one of the
+    # model artifacts, so a manifest that omits them (or that lists unrelated /
+    # path-like names) cannot be the complete, verified set of files. Reject
+    # such manifests outright to close the model-integrity bypass.
+    allowed_artifact_names = set(MODEL_ARTIFACT_NAMES)  # {"model_hr.pkl", "model_rr.pkl", "preprocessor.pkl"}
+    unknown = sorted(name for name in expected if name not in allowed_artifact_names)
+    if unknown:
+        raise ValueError(
+            f"Model manifest lists unknown artifact name(s) {unknown} in '{manifest_path}'. "
+            f"Only {sorted(allowed_artifact_names)} are permitted; refusing to unpickle."
+        )
+    if "preprocessor.pkl" not in expected:
+        raise ValueError(
+            f"Model manifest does not list 'preprocessor.pkl' in '{manifest_path}', "
+            "but it is always loaded at predict time. Refusing to unpickle an unverified preprocessor."
+        )
+    if "model_hr.pkl" not in expected and "model_rr.pkl" not in expected:
+        raise ValueError(
+            f"Model manifest lists no model artifact (model_hr.pkl / model_rr.pkl) in '{manifest_path}'. "
+            "At least one model is required for prediction; refusing to unpickle."
+        )
 
     for name, expected_hash in expected.items():
         artifact_path = os.path.join(real_dir, name)

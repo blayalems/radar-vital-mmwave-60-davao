@@ -35,6 +35,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          # Installs root deps (npm ci) and web deps (npm --prefix web ci),
+          # so include both lockfiles in the npm cache key.
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
 
       - uses: actions/setup-python@v5
         with:

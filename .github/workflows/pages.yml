@@ -60,6 +60,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          # Installs root deps (npm ci) and web deps (npm --prefix web ci),
+          # so include both lockfiles in the npm cache key.
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -78,12 +83,45 @@ jobs:
       - name: Preserve latest release manifest
         if: github.event_name != 'pull_request'
         run: |
+          set -euo pipefail
           manifest_url="https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
-          if curl -fsSL "$manifest_url" -o www/rvt-latest.json; then
-            echo "Preserved published rvt-latest.json in Pages artifact."
-          else
-            echo "No published rvt-latest.json found yet; release-artifacts.yml will publish it after the next release."
-          fi
+          dest="www/rvt-latest.json"
+
+          # Distinguish three cases so a transient blip never silently ships an
+          # artifact that drops the live manifest:
+          #   200  -> keep the fetched file (happy path).
+          #   404  -> manifest not published yet; proceed without it (OK).
+          #   other/network errors -> retry, then fail the step on persistence.
+          attempts=3
+          status=""
+          for attempt in $(seq 1 "$attempts"); do
+            # -w prints only the final HTTP status; -o writes the body to dest.
+            # No -f here: we want to inspect the status code ourselves rather
+            # than let curl collapse every failure into a single exit code.
+            status="$(curl -sS -w '%{http_code}' -o "$dest" "$manifest_url" || echo '000')"
+            echo "Attempt ${attempt}/${attempts}: HTTP ${status} for ${manifest_url}"
+
+            if [ "$status" = "200" ]; then
+              echo "Preserved published rvt-latest.json in Pages artifact."
+              exit 0
+            fi
+
+            if [ "$status" = "404" ]; then
+              # Legitimate "not published yet" — remove the 404 body we wrote and
+              # proceed. release-artifacts.yml publishes it after the next release.
+              rm -f "$dest"
+              echo "No published rvt-latest.json found yet (404); release-artifacts.yml will publish it after the next release."
+              exit 0
+            fi
+
+            # Transient/network/5xx: discard the partial body and back off.
+            rm -f "$dest"
+            echo "Transient error fetching manifest (HTTP ${status}); retrying after backoff..."
+            sleep $(( attempt * 3 ))
+          done
+
+          echo "::error::Failed to fetch ${manifest_url} after ${attempts} attempts (last HTTP ${status}). Refusing to ship Pages artifact without the live manifest."
+          exit 1
 
       - name: Verify repository-scoped static PWA output
         run: |

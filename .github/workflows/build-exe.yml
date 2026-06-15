@@ -37,6 +37,12 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          # This job installs both the root deps and the Angular web deps
+          # (npm --prefix web ci), so key the npm cache on BOTH lockfiles.
+          # A root-only key would never bust when only web/ deps change.
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
 
       - uses: actions/setup-python@v5
         with:

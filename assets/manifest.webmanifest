@@ -10,7 +10,7 @@
   "background_color": "#f4f6fb",
   "theme_color": "#3b82f6",
   "orientation": "any",
-  "categories": ["health", "medical", "utilities"],
+  "categories": ["health", "utilities"],
   "lang": "en",
   "dir": "ltr",
   "icons": [

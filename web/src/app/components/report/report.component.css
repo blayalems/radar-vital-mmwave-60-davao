@@ -1,19 +1,33 @@
 .report-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
   max-width: 1200px;
   margin: 0 auto;
   padding-bottom: 40px;
 }
 
-/* Selector card styling */
-.selector-card {
+/* =========================================================================
+   Shared expressive card surface — maps mockup --card / --out / --r1.
+   ========================================================================= */
+.selector-card,
+.quality-card,
+.attributes-card,
+.notes-card,
+.signoff-card,
+.analysis-card,
+.report-trends-card {
   border-radius: var(--rv-r1) !important;
   border: 1px solid var(--md-sys-color-outline-variant);
   box-shadow: none !important;
+  background: var(--md-sys-color-surface-container) !important;
+  color: var(--md-sys-color-on-surface);
+  transition: background-color .25s ease, border-radius .25s ease;
+}
+
+/* Selector card */
+.selector-card {
   padding: 16px 20px;
-  background: var(--md-sys-color-surface-container-lowest) !important;
 }
 
 .selector-row {
@@ -64,33 +78,38 @@
 .report-body-layout {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
-/* Verdict hero banner — Material 3 container/foreground tokens */
+/* =========================================================================
+   Verdict hero — tinted by pass/warn/fail, large filled symbol + mono badge.
+   ========================================================================= */
 .verdict-hero-card {
   border-radius: var(--rv-r1) !important;
   box-shadow: none !important;
-  padding: 24px;
+  padding: 22px var(--cpad, 24px);
   border: 1px solid var(--md-sys-color-outline-variant);
-  background: var(--md-sys-color-surface-container-lowest) !important;
+  background: var(--md-sys-color-surface-container) !important;
   color: var(--md-sys-color-on-surface);
-  transition: background-color .25s ease, color .25s ease;
+  transition: background-color .25s ease, color .25s ease, border-color .25s ease;
 }
 
-.verdict-hero-card[data-verdict="ready"], .verdict-hero-card[data-verdict="pass"] {
+.verdict-hero-card[data-verdict="ready"],
+.verdict-hero-card[data-verdict="pass"] {
   background: var(--md-sys-color-success-container) !important;
   color: var(--md-sys-color-on-success-container);
   border-color: transparent;
 }
 
-.verdict-hero-card[data-verdict="conditional"], .verdict-hero-card[data-verdict="warn"] {
+.verdict-hero-card[data-verdict="conditional"],
+.verdict-hero-card[data-verdict="warn"] {
   background: var(--md-sys-color-warning-container) !important;
   color: var(--md-sys-color-on-warning-container);
   border-color: transparent;
 }
 
-.verdict-hero-card[data-verdict="unready"], .verdict-hero-card[data-verdict="fail"] {
+.verdict-hero-card[data-verdict="unready"],
+.verdict-hero-card[data-verdict="fail"] {
   background: var(--md-sys-color-error-container) !important;
   color: var(--md-sys-color-on-error-container);
   border-color: transparent;
@@ -109,27 +128,31 @@
   flex-direction: column;
   gap: 6px;
   flex: 1;
+  min-width: 200px;
 }
 
 .verdict-meta .eyebrow {
-  font-size: 0.75rem;
+  font-size: 10.5px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  opacity: 0.85;
+  letter-spacing: 1.2px;
+  opacity: 0.75;
 }
 
 .verdict-meta h2 {
-  font-size: 1.6rem;
-  margin: 0;
+  font-size: 1.5rem;
+  margin: 2px 0 4px;
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.3px;
+  line-height: 1.1;
 }
 
 .verdict-meta p {
-  font-size: 0.9rem;
-  margin: 4px 0 0;
-  opacity: 0.92;
-  line-height: 1.4;
+  font-size: 0.82rem;
+  margin: 0;
+  opacity: 0.85;
+  line-height: 1.45;
+  max-width: 60ch;
 }
 
 .verdict-badge-box {
@@ -137,49 +160,29 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 90px;
-  height: 90px;
-  border-radius: var(--rv-r1);
-  background: rgba(0, 0, 0, 0.08);
+  gap: 4px;
+  padding: 0 10px;
   flex-shrink: 0;
-  gap: 2px;
 }
 
+/* Large filled Material symbol, matching the mockup hero glyph. */
 .verdict-badge-icon {
-  font-size: 2.4rem;
-  width: 40px;
-  height: 40px;
-  margin-bottom: 2px;
+  font-size: 44px;
+  width: 44px;
+  height: 44px;
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 44;
 }
 
-.verdict-badge-box strong {
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.5px;
+.verdict-badge-label {
+  font-family: var(--rvt-mono-font);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
 }
 
-/* Two-column layout */
-.report-two-column {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr;
-  gap: 20px;
-}
-
-@media (max-width: 760px) {
-  .report-two-column {
-    grid-template-columns: 1fr;
-  }
-}
-
-.attributes-card, .notes-card {
-  border-radius: var(--rv-r1) !important;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  box-shadow: none !important;
-  padding: 16px;
-  background: var(--md-sys-color-surface-container-lowest) !important;
-}
-
-/* Section header icon tile (38px rounded square, secondary-container + primary glyph) */
+/* =========================================================================
+   Consistent card headers — circular icon tile matches Home's header-avatar-ic.
+   ========================================================================= */
 .header-avatar-ic {
   display: grid;
   place-items: center;
@@ -192,8 +195,33 @@
   border-radius: 12px;
 }
 
+/* Two-column layout */
+.report-two-column {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 18px;
+}
+
+@media (max-width: 760px) {
+  .report-two-column {
+    grid-template-columns: 1fr;
+  }
+}
+
+.attributes-card,
+.notes-card,
+.signoff-card,
+.analysis-card,
+.report-trends-card,
+.quality-card {
+  padding: var(--cpad, 18px);
+}
+
+/* =========================================================================
+   Telemetry attributes — label / mono value rows with subtle --out borders.
+   ========================================================================= */
 .attributes-table-wrap {
-  margin-top: 16px;
+  margin-top: 14px;
 }
 
 .attributes-table {
@@ -202,8 +230,8 @@
 }
 
 .attributes-table td {
-  padding: 11px 12px;
-  font-size: 0.85rem;
+  padding: 10px 12px;
+  font-size: 0.84rem;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
@@ -213,7 +241,7 @@
 
 .attributes-table td:first-child {
   color: var(--md-sys-color-on-surface-variant);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .attributes-table td:last-child {
@@ -233,7 +261,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  margin-top: 16px;
+  margin-top: 14px;
 }
 
 .report-textarea {
@@ -252,32 +280,14 @@
 
 .notes-action-row {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
+  margin-top: 4px;
 }
 
-/* Sparkline trends card */
-.report-trends-card {
-  border-radius: 16px !important;
-  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
-  box-shadow: none !important;
-  padding: 16px;
-  background: var(--md-sys-color-surface, #ffffff) !important;
-}
-
-.analysis-card {
-  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
-  border-radius: 16px !important;
-  padding: 16px;
-}
-
-.signoff-card {
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 16px !important;
-  padding: 16px;
-  background: var(--md-sys-color-surface) !important;
-}
-
+/* =========================================================================
+   Sign-off, analysis, comparison cards.
+   ========================================================================= */
 .signoff-card.signed {
   border-color: var(--md-sys-color-primary);
 }
@@ -287,7 +297,7 @@
   display: grid;
   gap: 12px;
   grid-template-columns: minmax(180px, 1fr) minmax(130px, 0.45fr) minmax(260px, 1.4fr) auto;
-  margin-top: 16px;
+  margin-top: 14px;
 }
 
 .signoff-comment {
@@ -298,16 +308,30 @@
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 16px;
+  margin-top: 14px;
 }
 
 .compare-item {
   background: var(--md-sys-color-surface-container-low);
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 12px;
+  border-radius: var(--rv-r2);
   display: grid;
   gap: 6px;
-  padding: 12px;
+  padding: 12px 14px;
+}
+
+.compare-item strong {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.compare-item span {
+  font-family: var(--rvt-mono-font);
+  font-size: 0.8rem;
+  color: var(--md-sys-color-on-surface);
 }
 
 @media (max-width: 760px) {
@@ -324,11 +348,14 @@
   }
 }
 
+/* =========================================================================
+   Trend / sparkline plots.
+   ========================================================================= */
 .report-trends-content {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  margin-top: 20px;
+  gap: 18px;
+  margin-top: 16px;
 }
 
 @media (max-width: 760px) {
@@ -347,27 +374,27 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
-  color: var(--md-sys-color-on-surface-variant, #64748b);
-  font-weight: 500;
+  font-size: 0.84rem;
+  color: var(--md-sys-color-on-surface);
+  font-weight: 700;
 }
 
 .legend-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
 }
 
-.legend-dot.hr { background: rgba(0, 164, 150, 0.95); }
-.legend-dot.rr { background: rgba(97, 105, 198, 0.95); }
+.legend-dot.hr { background: var(--rv-hr); }
+.legend-dot.rr { background: var(--rv-rr); }
 
 .canvas-plot-wrap {
   width: 100%;
   height: 180px;
-  background: var(--md-sys-color-surface-container-lowest, #f8fafc);
-  border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
-  border-radius: 12px;
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--rv-r2);
   overflow: hidden;
 }
 
@@ -377,11 +404,13 @@
   display: block;
 }
 
-/* Empty state styling */
+/* =========================================================================
+   Empty state.
+   ========================================================================= */
 .report-empty-state {
-  border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
-  border-radius: 16px !important;
-  background: var(--md-sys-color-surface-container-low, #f8fafc) !important;
+  border: 1px dashed var(--md-sys-color-outline-variant);
+  border-radius: var(--rv-r1) !important;
+  background: var(--md-sys-color-surface-container-low) !important;
   box-shadow: none !important;
 }
 
@@ -392,7 +421,7 @@
   justify-content: center;
   padding: 60px;
   gap: 12px;
-  color: var(--md-sys-color-on-surface-variant, #94a3b8);
+  color: var(--md-sys-color-on-surface-variant);
   text-align: center;
   max-width: 560px;
   margin: 40px auto;
@@ -402,14 +431,14 @@
   font-size: 4rem;
   width: 64px;
   height: 64px;
-  color: var(--md-sys-color-outline, #cbd5e1);
+  color: var(--md-sys-color-outline);
 }
 
 .report-empty-state h3 {
   font-size: 1.25rem;
-  color: var(--md-sys-color-on-surface, #1e293b);
+  color: var(--md-sys-color-on-surface);
   margin: 0;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .report-empty-state p {
@@ -427,51 +456,80 @@
   margin-top: 4px;
 }
 
-/* ---- Session quality scorecard ---- */
-.quality-card {
-  margin-bottom: 1rem;
-}
-
+/* =========================================================================
+   Session quality scorecard — quick-stat tiles + numeric results table.
+   ========================================================================= */
 .quality-stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: 10px;
+  margin: 14px 0 16px;
 }
 
+/* Quick-stat tile: --srf bg + --out border + --r2 radius, mono value. */
 .quality-stat {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  padding: 0.75rem;
-  border-radius: 10px;
-  background: var(--md-sys-color-surface-container-high);
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--rv-r2);
+  background: var(--md-sys-color-surface-container-low);
   border: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .quality-stat-label {
-  font-size: 0.74rem;
+  font-size: 11px;
   font-weight: 600;
   color: var(--md-sys-color-on-surface-variant);
 }
 
 .quality-stat strong {
-  font-size: 1.3rem;
+  font-family: var(--rvt-mono-font);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--md-sys-color-on-surface);
 }
 
+/* Results table — right-aligned mono numeric cells, subtle --out row borders. */
 .quality-metrics-table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
+  margin-bottom: 16px;
+  font-size: 12.5px;
 }
 
 .quality-metrics-table th,
 .quality-metrics-table td {
-  text-align: left;
-  padding: 0.4rem 0.6rem;
+  padding: 9px 10px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.quality-metrics-table thead th {
+  color: var(--md-sys-color-on-surface-variant);
+  font-weight: 600;
+}
+
+/* First column: metric label, left aligned. */
+.quality-metrics-table th:first-child,
+.quality-metrics-table td:first-child {
+  text-align: left;
+}
+
+.quality-metrics-table tbody th[scope="row"] {
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface);
+}
+
+/* Numeric columns: right aligned, mono. */
+.quality-metrics-table th:not(:first-child),
+.quality-metrics-table td:not(:first-child) {
+  text-align: right;
+}
+
+.quality-metrics-table tbody td {
+  font-family: var(--rvt-mono-font);
+  color: var(--md-sys-color-on-surface);
 }
 
 .quality-gates-row {
@@ -485,11 +543,11 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.2rem 0.65rem;
-  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  border-radius: var(--rv-r-pill, 999px);
   font-size: 0.78rem;
   font-weight: 600;
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-surface-container-low);
   color: var(--md-sys-color-on-surface-variant);
   border: 1px solid var(--md-sys-color-outline-variant);
 }
@@ -501,8 +559,8 @@
 }
 
 .quality-gate-chip[data-passed='true'] {
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
   border-color: transparent;
 }
 
@@ -524,6 +582,10 @@
   display: flex;
   gap: 0.6rem;
   align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--rv-r2);
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .quality-category mat-icon {
@@ -533,8 +595,8 @@
   height: 20px;
 }
 
-.quality-category[data-status='pass'] mat-icon { color: var(--md-sys-color-primary); }
-.quality-category[data-status='warn'] mat-icon { color: var(--md-sys-color-tertiary); }
+.quality-category[data-status='pass'] mat-icon { color: var(--md-sys-color-tertiary); }
+.quality-category[data-status='warn'] mat-icon { color: var(--md-sys-color-on-warning-container); }
 .quality-category[data-status='fail'] mat-icon { color: var(--md-sys-color-error); }
 
 .quality-category-copy {
@@ -549,7 +611,9 @@
   font-style: italic;
 }
 
-/* ---- Operator-selectable session comparison ---- */
+/* =========================================================================
+   Operator-selectable session comparison.
+   ========================================================================= */
 .compare-picker-wrap {
   border-top: 1px solid var(--md-sys-color-outline-variant);
   padding-top: 1rem;
@@ -574,18 +638,43 @@
   height: 18px;
 }
 
+/* Delta results table — right-aligned mono numeric cells, --out row borders. */
 .compare-delta-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 12.5px;
 }
 
 .compare-delta-table th,
 .compare-delta-table td {
-  text-align: left;
-  padding: 0.4rem 0.6rem;
+  padding: 9px 10px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
-.delta-cell[data-tone='better'] { color: var(--md-sys-color-primary); font-weight: 700; }
+.compare-delta-table thead th {
+  color: var(--md-sys-color-on-surface-variant);
+  font-weight: 600;
+}
+
+.compare-delta-table th:first-child,
+.compare-delta-table td:first-child {
+  text-align: left;
+}
+
+.compare-delta-table tbody th[scope="row"] {
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface);
+}
+
+.compare-delta-table th:not(:first-child),
+.compare-delta-table td:not(:first-child) {
+  text-align: right;
+}
+
+.compare-delta-table tbody td {
+  font-family: var(--rvt-mono-font);
+  color: var(--md-sys-color-on-surface);
+}
+
+.delta-cell[data-tone='better'] { color: var(--md-sys-color-tertiary); font-weight: 700; }
 .delta-cell[data-tone='worse'] { color: var(--md-sys-color-error); font-weight: 700; }

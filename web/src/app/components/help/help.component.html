@@ -97,7 +97,10 @@
 
     <aside class="support-column">
       <mat-card class="recovery-card">
-        <mat-card-header><mat-card-title>Quick Support Actions</mat-card-title></mat-card-header>
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="header-avatar-ic">support_agent</mat-icon>
+          <mat-card-title>Quick Support Actions</mat-card-title>
+        </mat-card-header>
         <mat-card-content class="recovery-actions-list">
           <p>Verify source mode and preflight before relying on live readings.</p>
           <button mat-flat-button type="button" (click)="openPreflight()"><mat-icon>fact_check</mat-icon>Run preflight</button>
@@ -111,7 +114,10 @@
       </mat-card>
 
       <mat-card class="legal-card">
-        <mat-card-header><mat-card-title>Legal & Project Links</mat-card-title></mat-card-header>
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="header-avatar-ic">gavel</mat-icon>
+          <mat-card-title>Legal & Project Links</mat-card-title>
+        </mat-card-header>
         <mat-card-content class="legal-links-list">
           <a mat-flat-button class="mat-tonal-button" [href]="termsUrl" target="_blank" rel="noopener noreferrer">
             <mat-icon>gavel</mat-icon>Terms of Use
@@ -130,6 +136,7 @@
 
       <mat-card class="checklist-card" data-help-topic="troubleshooting">
         <mat-card-header>
+          <mat-icon mat-card-avatar class="header-avatar-ic">checklist</mat-icon>
           <mat-card-title>Interactive Recovery Checklist</mat-card-title>
           <button mat-button type="button" (click)="resetRecoveryChecklist()">Reset</button>
         </mat-card-header>

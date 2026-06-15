@@ -460,7 +460,7 @@ export class TelemetryService {
       thresholds: payload.thresholds || {},
       faults: Array.isArray(payload.faults) ? payload.faults : [],
       events: Array.isArray(payload.events) ? payload.events : [],
-      series: payload.series || {},
+      series: this.boundSeries(payload.series),
       analysis: payload.analysis || null,
     };
     normalized.meta.received_at_ms = receivedAt;
@@ -523,6 +523,22 @@ export class TelemetryService {
   private appendFinite(series: number[], value: unknown): number[] {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? [...series, numeric].slice(-20) : series.slice(-20);
+  }
+
+  /**
+   * Clamp every telemetry series array to the configured `maxChartPoints` so a
+   * long-running session cannot grow the waveform/trend arrays without bound
+   * (the setting was previously declared but never enforced). Non-array fields
+   * (e.g. timestamps metadata) pass through unchanged.
+   */
+  private boundSeries(raw: unknown): LivePayload['series'] {
+    const max = Math.max(1, Math.floor(this.state.maxChartPoints() || 3600));
+    const src = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(src)) {
+      out[key] = Array.isArray(value) && value.length > max ? value.slice(-max) : value;
+    }
+    return out as LivePayload['series'];
   }
 
   private resolveFps(payload: LivePayload): number | null {

@@ -136,7 +136,7 @@
                       </span>
                     }
                     <mat-icon class="drag-icon">drag_indicator</mat-icon>
-                    <mat-icon>ecg_heart</mat-icon>
+                    <mat-icon class="kpi-vital-icon">ecg_heart</mat-icon>
                   </div>
                 </div>
                 <div class="kpi-card-value" [class.kpi-holding]="hrHolding()">
@@ -150,7 +150,7 @@
                   <overview-sparkline [data]="state.spark().hr" color="rgba(0, 164, 150, 0.8)" [ariaLabel]="chartLabel('Heart rate recent trend', 'reported_hr', 'beats per minute')"></overview-sparkline>
                 </div>
                 <div class="kpi-card-footer">
-                  Ref: {{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : 'no reference' }}
+                  Ref oximeter: {{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : 'no reference' }}
                 </div>
               </div>
             }
@@ -169,7 +169,7 @@
                   <span>Respiration</span>
                   <div class="kpi-header-icons">
                     <mat-icon class="drag-icon">drag_indicator</mat-icon>
-                    <mat-icon>air</mat-icon>
+                    <mat-icon class="kpi-vital-icon">air</mat-icon>
                   </div>
                 </div>
                 <div class="kpi-card-value" [class.kpi-holding]="rrHolding()">
@@ -183,7 +183,7 @@
                   <overview-sparkline [data]="state.spark().rr" color="rgba(97, 105, 198, 0.8)" [ariaLabel]="chartLabel('Respiration recent trend', 'reported_rr', 'breaths per minute')"></overview-sparkline>
                 </div>
                 <div class="kpi-card-footer">
-                  Ref: {{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : 'no reference' }}
+                  Ref oximeter: {{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : 'no reference' }}
                 </div>
               </div>
             }

@@ -279,16 +279,7 @@ export class UpdateService {
   }
 
   private isNewerVersion(current: string, latest: string): boolean {
-    const parse = (version: string) => version.replace(/^v/, '').split(/[+-]/)[0].split('.').map(part => Number(part) || 0);
-    const currParts = parse(current);
-    const lateParts = parse(latest);
-    for (let i = 0; i < Math.max(currParts.length, lateParts.length); i++) {
-      const curr = currParts[i] || 0;
-      const late = lateParts[i] || 0;
-      if (late > curr) return true;
-      if (late < curr) return false;
-    }
-    return false;
+    return compareSemver(latest, current) > 0;
   }
 
   private async readResponseBytes(response: Response, expectedSize: number | undefined, onProgress: (progress: number) => void): Promise<Uint8Array> {
@@ -350,4 +341,54 @@ export class UpdateService {
     if (typeof window === 'undefined') return null;
     return (window as any).Capacitor || null;
   }
+}
+
+/**
+ * Compare two version strings by SemVer 2.0.0 precedence.
+ * Returns >0 if `a` is newer than `b`, <0 if older, 0 if equal precedence.
+ *
+ * Fixes the previous comparator, which discarded everything after the first
+ * `-`/`+` (so `16.3.0` and `16.3.0-rc1` compared equal). Build metadata (`+…`)
+ * is ignored per spec; a release outranks a prerelease of the same core; and
+ * prerelease identifiers compare dot-by-dot (numeric < alphanumeric, numeric
+ * compared numerically, a larger set of identifiers outranks a prefix subset).
+ */
+export function compareSemver(a: string, b: string): number {
+  const parse = (v: string) => {
+    const cleaned = String(v ?? '').trim().replace(/^v/i, '').split('+')[0];
+    const dash = cleaned.indexOf('-');
+    const core = dash === -1 ? cleaned : cleaned.slice(0, dash);
+    const pre = dash === -1 ? '' : cleaned.slice(dash + 1);
+    const nums = core.split('.').map(p => (Number.isFinite(Number(p)) ? Number(p) : 0));
+    while (nums.length < 3) nums.push(0);
+    return { nums, pre };
+  };
+  const pa = parse(a);
+  const pb = parse(b);
+  for (let i = 0; i < 3; i++) {
+    if (pa.nums[i] !== pb.nums[i]) return pa.nums[i] > pb.nums[i] ? 1 : -1;
+  }
+  // Equal numeric core: a release (no prerelease) has higher precedence than a prerelease.
+  if (!pa.pre && !pb.pre) return 0;
+  if (!pa.pre) return 1;
+  if (!pb.pre) return -1;
+  const ida = pa.pre.split('.');
+  const idb = pb.pre.split('.');
+  for (let i = 0; i < Math.max(ida.length, idb.length); i++) {
+    if (i >= ida.length) return -1; // fewer identifiers → lower precedence
+    if (i >= idb.length) return 1;
+    const x = ida[i];
+    const y = idb[i];
+    const xNum = /^\d+$/.test(x);
+    const yNum = /^\d+$/.test(y);
+    if (xNum && yNum) {
+      const nx = Number(x), ny = Number(y);
+      if (nx !== ny) return nx > ny ? 1 : -1;
+    } else if (xNum !== yNum) {
+      return xNum ? -1 : 1; // numeric identifiers rank below alphanumeric
+    } else if (x !== y) {
+      return x > y ? 1 : -1;
+    }
+  }
+  return 0;
 }

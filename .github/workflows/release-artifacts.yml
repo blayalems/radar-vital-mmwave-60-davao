@@ -453,10 +453,13 @@ jobs:
           $aabZip = Join-Path $tmpDir "radar-vital-aab.zip"
           $exeZip = Join-Path $tmpDir "radar-vital-exe.zip"
           Compress-Archive -LiteralPath $apkSrc -DestinationPath $apkZip
-          $verifyArgs = @("-ApkZip", $apkZip, "-ExeZip", $exeZip)
+          # Use HASHTABLE splatting for named parameters. Array splatting passes
+          # elements positionally, so "-ApkZip"/"-ExeZip" were bound as VALUES and
+          # the 4th element overflowed ("A positional parameter cannot be found").
+          $verifyArgs = @{ ApkZip = $apkZip; ExeZip = $exeZip }
           if ($aab) {
             Compress-Archive -LiteralPath $aab.FullName -DestinationPath $aabZip
-            $verifyArgs += @("-AabZip", $aabZip)
+            $verifyArgs['AabZip'] = $aabZip
           } else {
             Write-Host "No AAB artifact found; signed APK-only or debug fallback release."
           }

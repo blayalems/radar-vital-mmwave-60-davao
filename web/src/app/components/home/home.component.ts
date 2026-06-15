@@ -649,77 +649,102 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     const cy = h / 2;
     const radius = Math.min(cx, cy) - 24;
 
-    const styles = getComputedStyle(document.documentElement);
-    const primaryColor = styles.getPropertyValue('--md-sys-color-primary').trim() || '#0061a4';
-    const tertiaryColor = styles.getPropertyValue('--md-sys-color-tertiary').trim() || '#00a496';
-    const secondaryColor = styles.getPropertyValue('--md-sys-color-secondary').trim() || '#6169c6';
-    const onSurfaceVariant = styles.getPropertyValue('--md-sys-color-on-surface-variant').trim() || '#64748b';
-    const onSurface = styles.getPropertyValue('--md-sys-color-on-surface').trim() || '#94a3b8';
+    // Fixed teal/green instrument palette — the scope container is dark in every
+    // theme (see redesign mockup), so themed surface tokens would wash out.
+    const ring = 'rgba(45, 212, 191, 0.16)';
+    const sweepCore = 'rgba(52, 211, 153, 0.55)';
+    const blipColor = '#34d399';
+    const mutedText = 'rgba(148, 197, 190, 0.75)';
+    const rootStyles = getComputedStyle(document.documentElement);
+    const monoFont = rootStyles.getPropertyValue('--rvt-mono-font').trim() || 'monospace';
+    const uiFont = rootStyles.getPropertyValue('--rvt-ui-font').trim() || 'sans-serif';
 
-    const primaryRGB = this.parseColorToRgb(primaryColor, { r: 0, g: 97, b: 164 });
-    const tertiaryRGB = this.parseColorToRgb(tertiaryColor, { r: 0, g: 164, b: 150 });
-    const secondaryRGB = this.parseColorToRgb(secondaryColor, { r: 97, g: 105, b: 198 });
-
-    // Draw scanning circles
-    ctx.strokeStyle = `rgba(${primaryRGB}, 0.15)`;
+    // Concentric range rings + crosshairs.
+    ctx.strokeStyle = ring;
     ctx.lineWidth = 1;
+    for (const r of [radius, radius * 0.66, radius * 0.33]) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.moveTo(cx - radius, cy);
+    ctx.lineTo(cx + radius, cy);
+    ctx.moveTo(cx, cy - radius);
+    ctx.lineTo(cx, cy + radius);
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius * 0.66, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius * 0.33, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Radar scanning sweep sweep line
+    // Rotating sweep: a trailing conic gradient sector + a bright leading edge.
     const angle = (Date.now() / 1500) % (Math.PI * 2);
-    ctx.strokeStyle = `rgba(${primaryRGB}, 0.35)`;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    const conic = typeof ctx.createConicGradient === 'function' ? ctx.createConicGradient(0, 0, 0) : null;
+    if (conic) {
+      conic.addColorStop(0, 'rgba(52, 211, 153, 0.28)');
+      conic.addColorStop(0.13, 'rgba(52, 211, 153, 0)');
+      conic.addColorStop(1, 'rgba(52, 211, 153, 0)');
+      ctx.fillStyle = conic;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, radius, 0, Math.PI * 0.55);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.strokeStyle = sweepCore;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle));
+    ctx.moveTo(0, 0);
+    ctx.lineTo(radius, 0);
     ctx.stroke();
+    ctx.restore();
 
-    // Dynamic wave ripples from telemetry heartbeat/breathing
+    // Dynamic wave ripples + target blip from telemetry heartbeat/breathing.
     const payload = this.state.lastPayload();
     const hasData = payload && payload.radar && payload.radar.human;
-    
+
     if (hasData) {
       const reportedHr = payload.radar.reported_hr || 70;
       const reportedRr = payload.radar.reported_rr || 15;
       const range = payload.radar.distance_cm || 50;
 
-      // Pulse circle representing heart rate frequency
       const hrSpeed = (Date.now() / (60000 / reportedHr)) % 1;
       const hrPulseRadius = radius * 0.33 + (radius * 0.33) * Math.sin(hrSpeed * Math.PI);
-      ctx.fillStyle = `rgba(${tertiaryRGB}, 0.15)`;
+      ctx.fillStyle = 'rgba(45, 212, 191, 0.12)';
       ctx.beginPath();
       ctx.arc(cx, cy, hrPulseRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // Breathing ring ripple
       const rrSpeed = (Date.now() / (60000 / reportedRr)) % 1;
       const rrPulseRadius = radius * 0.66 + (radius * 0.25) * Math.sin(rrSpeed * Math.PI);
-      ctx.strokeStyle = `rgba(${secondaryRGB}, 0.45)`;
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(110, 231, 183, 0.40)';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(cx, cy, rrPulseRadius, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Text indicators
-      ctx.fillStyle = onSurfaceVariant;
-      ctx.font = '10px Roboto, sans-serif';
+      // Target blip positioned by range (clamped) along the sweep heading, with a glow.
+      const norm = Math.max(0.12, Math.min(1, range / 210));
+      const bx = cx + radius * norm * Math.cos(angle);
+      const by = cy + radius * norm * Math.sin(angle);
+      ctx.save();
+      ctx.fillStyle = blipColor;
+      ctx.shadowColor = blipColor;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(bx, by, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.fillStyle = mutedText;
+      ctx.font = `600 10px ${monoFont}`;
       ctx.textAlign = 'center';
-      ctx.fillText(`Target: ${Math.round(range)} cm`, cx, cy + radius + 12);
+      ctx.fillText(`Target ${Math.round(range)} cm`, cx, cy + radius + 14);
     } else {
-      ctx.fillStyle = onSurface;
-      ctx.font = '11px Roboto, sans-serif';
+      ctx.fillStyle = mutedText;
+      ctx.font = `11px ${uiFont}`;
       ctx.textAlign = 'center';
-      ctx.fillText('Searching for subject...', cx, cy);
+      ctx.fillText('Searching for subject…', cx, cy + radius + 14);
     }
   }
 

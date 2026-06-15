@@ -689,8 +689,10 @@
   max-width: 320px;
   height: 240px;
   position: relative;
-  background: var(--md-sys-color-surface-container-lowest, #f8fafc);
-  border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
+  /* The radar scope renders as a dark instrument display in every theme (per the
+     redesign mockup) so the green sweep/blip reads with proper contrast. */
+  background: radial-gradient(circle at 50% 45%, #0e1722, #070d14 72%);
+  border: 1px solid color-mix(in srgb, var(--rv-rr, #0e7c72) 24%, #0a1016);
   border-radius: var(--rv-r2, 14px);
   overflow: hidden;
 }

@@ -1232,6 +1232,141 @@ def _file_sha256(path: str) -> Optional[str]:
     return h.hexdigest()
 
 
+MODEL_MANIFEST_FILENAME = "model_manifest.json"
+MODEL_MANIFEST_SCHEMA_VERSION = "rvt-model-manifest-v1"
+MODEL_ARTIFACT_NAMES = ("model_hr.pkl", "model_rr.pkl", "preprocessor.pkl")
+MODEL_SIGNING_KEY_ENV = "RVT_MODEL_SIGNING_KEY"
+REQUIRE_MODEL_MANIFEST_ENV = "RVT_REQUIRE_MODEL_MANIFEST"
+
+
+def _model_signing_key() -> Optional[bytes]:
+    """Return the HMAC signing key bytes from the environment, or None if unset/blank."""
+    raw = os.environ.get(MODEL_SIGNING_KEY_ENV)
+    if not raw:
+        return None
+    return raw.encode("utf-8")
+
+
+def _model_artifact_hashes(model_dir: str) -> "Dict[str, str]":
+    """Map of artifact filename -> sha256 hex for every present model artifact in model_dir."""
+    hashes: Dict[str, str] = {}
+    for name in MODEL_ARTIFACT_NAMES:
+        digest = _file_sha256(os.path.join(model_dir, name))
+        if digest is not None:
+            hashes[name] = digest
+    return hashes
+
+
+def _model_manifest_hmac(artifact_hashes: "Dict[str, str]", key: bytes) -> str:
+    """HMAC-SHA256 over the artifact hashes, stable across dict ordering."""
+    import hmac as _hmac
+
+    payload = "\n".join(f"{name}={artifact_hashes[name]}" for name in sorted(artifact_hashes))
+    return _hmac.new(key, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _build_model_manifest(model_dir: str) -> "Dict[str, object]":
+    """Build the model manifest dict for the artifacts written into model_dir."""
+    artifact_hashes = _model_artifact_hashes(model_dir)
+    manifest: Dict[str, object] = {
+        "schema_version": MODEL_MANIFEST_SCHEMA_VERSION,
+        "trainer_version": VERSION,
+        "created_at": _iso_now(),
+        "artifacts": artifact_hashes,
+    }
+    key = _model_signing_key()
+    if key is not None:
+        manifest["hmac_sha256"] = _model_manifest_hmac(artifact_hashes, key)
+    return manifest
+
+
+def _write_model_manifest(model_dir: str) -> str:
+    """Write model_manifest.json into model_dir and return its path."""
+    manifest = _build_model_manifest(model_dir)
+    manifest_path = os.path.join(model_dir, MODEL_MANIFEST_FILENAME)
+    save_json(manifest, manifest_path)
+    return manifest_path
+
+
+def _verify_model_dir(model_dir: str) -> None:
+    """Verify the integrity of pickled model artifacts before they are unpickled.
+
+    Behaviour:
+      * Resolves model_dir to a real absolute path.
+      * If model_manifest.json is present, recomputes each listed artifact's
+        sha256 and raises on a missing artifact or hash mismatch (tamper
+        detection). If RVT_MODEL_SIGNING_KEY is set, the manifest HMAC is also
+        verified.
+      * If no manifest is present, this is a legacy/unsigned model dir: emit a
+        warning to stderr and proceed, UNLESS RVT_REQUIRE_MODEL_MANIFEST=1 is
+        set, in which case it raises.
+
+    Raises:
+        ValueError: on missing manifest (when required), missing artifact,
+            hash mismatch, or HMAC mismatch.
+    """
+    real_dir = os.path.realpath(os.path.abspath(model_dir))
+    if not os.path.isdir(real_dir):
+        raise ValueError(f"model_dir does not exist or is not a directory: {model_dir}")
+
+    manifest_path = os.path.join(real_dir, MODEL_MANIFEST_FILENAME)
+    if not os.path.exists(manifest_path):
+        require = str(os.environ.get(REQUIRE_MODEL_MANIFEST_ENV, "")).strip().lower() in {"1", "true", "yes", "on"}
+        msg = (
+            f"No {MODEL_MANIFEST_FILENAME} found in model dir '{real_dir}'. "
+            "Model integrity cannot be verified before unpickling."
+        )
+        if require:
+            raise ValueError(
+                msg + f" Refusing to load because {REQUIRE_MODEL_MANIFEST_ENV} is set. "
+                "Re-train to generate a manifest, or unset the variable to allow legacy loads."
+            )
+        print(
+            "[WARN] " + msg + " Proceeding with an UNVERIFIED legacy model dir; "
+            f"set {REQUIRE_MODEL_MANIFEST_ENV}=1 to refuse unsigned models.",
+            file=sys.stderr,
+        )
+        return
+
+    manifest = _read_json_if_exists(manifest_path)
+    if not isinstance(manifest, dict):
+        raise ValueError(f"Model manifest is not valid JSON or not an object: {manifest_path}")
+
+    expected = manifest.get("artifacts")
+    if not isinstance(expected, dict) or not expected:
+        raise ValueError(f"Model manifest has no 'artifacts' hashes: {manifest_path}")
+
+    for name, expected_hash in expected.items():
+        artifact_path = os.path.join(real_dir, name)
+        actual_hash = _file_sha256(artifact_path)
+        if actual_hash is None:
+            raise ValueError(
+                f"Model artifact listed in manifest is missing: '{name}' in '{real_dir}'."
+            )
+        if actual_hash != expected_hash:
+            raise ValueError(
+                f"Model artifact integrity check FAILED for '{name}' in '{real_dir}': "
+                f"expected sha256 {expected_hash}, got {actual_hash}. "
+                "The model file may be corrupted or tampered with; refusing to unpickle."
+            )
+
+    key = _model_signing_key()
+    if key is not None:
+        signed_hmac = manifest.get("hmac_sha256")
+        if not isinstance(signed_hmac, str) or not signed_hmac:
+            raise ValueError(
+                f"{MODEL_SIGNING_KEY_ENV} is set but model manifest has no HMAC signature: {manifest_path}."
+            )
+        recomputed = _model_manifest_hmac({str(k): str(v) for k, v in expected.items()}, key)
+        import hmac as _hmac
+
+        if not _hmac.compare_digest(recomputed, signed_hmac):
+            raise ValueError(
+                f"Model manifest HMAC verification FAILED for '{real_dir}'. "
+                "The manifest may be tampered with or signed with a different key; refusing to unpickle."
+            )
+
+
 def _scoring_weights_hash() -> str:
     return _json_hash(SCORING_WEIGHTS)
 
@@ -12069,6 +12204,7 @@ def maybe_export_embedded(args, out_dir, X_train_all, X_eval_all, train_pred, ev
 
 def cmd_predict(args):
     os.makedirs(args.out, exist_ok=True)
+    _verify_model_dir(args.model_dir)
     model_hr = None
     model_rr = None
     hr_path = os.path.join(args.model_dir, "model_hr.pkl")
@@ -12758,6 +12894,10 @@ def cmd_train(args):
             "slew_limit_rr_per_s": args.slew_limit_rr_per_s,
             "trained_targets": available_targets,
         }, f)
+    # Integrity manifest: content hashes of the pickled artifacts, written after
+    # the .pkl files so the digests cover the exact bytes on disk. Verified by
+    # _verify_model_dir before any pickle.load at predict time (audit item D4).
+    _write_model_manifest(args.out)
     if model_hr is not None:
         save_feature_importance(model_hr, expanded_feature_cols,
                                 os.path.join(args.out, "feature_importance_hr.csv"))

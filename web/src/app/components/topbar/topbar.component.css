@@ -168,7 +168,31 @@
   display: none;
 }
 
-@media (max-width: 1023px) {
+/* Desktop/tablet: match the redesign mockup — the action cluster is exactly
+   [ status pill ] [ alerts ] [ theme ] [ overflow ⋮ ]. The detail/density
+   segments, pause and settings move into the overflow menu (which already
+   lists them), and the redundant server / connection / operator pills collapse
+   to the single mode pill ("Demo · simulated" / "Connected"). */
+@media (min-width: 768px) {
+  :host .topbar-actions > .tb-live-mode,
+  :host .topbar-actions > .tb-density,
+  :host .topbar-actions > .tb-pause,
+  :host .topbar-actions > .tb-settings {
+    display: none !important;
+  }
+
+  :host .topbar-actions > .tb-more {
+    display: inline-flex !important;
+  }
+
+  :host .topbar-status .server-status,
+  :host .topbar-status .conn,
+  :host .topbar-status .operator-badge {
+    display: none !important;
+  }
+}
+
+@media (max-width: 767px) {
   :host .topbar {
     align-items: center !important;
     background: var(--md-sys-color-surface-container);
@@ -206,11 +230,12 @@
     order: 1 !important;
   }
 
-  :host .topbar-status .status-pill:not(.server-status) {
+  /* Single mode pill, consistent with the desktop bar. */
+  :host .topbar-status .status-pill:not(.mode-badge) {
     display: none !important;
   }
 
-  :host .topbar-status .server-status {
+  :host .topbar-status .mode-badge {
     align-items: center !important;
     display: inline-flex !important;
     height: 44px !important;
@@ -222,7 +247,7 @@
     width: 44px !important;
   }
 
-  :host .topbar-status .server-status .status-txt {
+  :host .topbar-status .mode-badge :is(.status-txt, .status-sub, .status-dot) {
     clip-path: inset(50%);
     height: 1px;
     overflow: hidden;
@@ -231,7 +256,7 @@
     width: 1px;
   }
 
-  :host .topbar-status .server-dot {
+  :host .topbar-status .mode-badge .material-symbols-rounded {
     margin: 0 !important;
   }
 

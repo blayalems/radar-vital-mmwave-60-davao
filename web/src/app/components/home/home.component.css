@@ -11,13 +11,27 @@
 .sandbox-note {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   padding: 16px 20px;
   border-radius: 12px;
   background: var(--md-sys-color-error-container, rgba(220, 38, 38, 0.08));
   color: var(--md-sys-color-on-error-container, #881b1b);
   border: 1px solid var(--md-sys-color-error, rgba(220, 38, 38, 0.2));
   transition: all 0.3s ease;
+}
+
+/* Banner status icon: a fixed, self-centered tile so the glyph sits flush with
+   the title/body block instead of floating to the top-left. */
+.sandbox-note .status-icon {
+  flex: 0 0 auto;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  font-size: 24px;
+  line-height: 1;
+  margin: 0;
 }
 
 .sandbox-note.connected {
@@ -463,6 +477,15 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* Keep the Radar Port and BLE Oximeter input boxes identical in size. Without
+   this, flex-shrink lets each form-field collapse to fit its own (differently
+   sized) action button, so the two boxes render at different widths. Forcing
+   the field to claim the full row makes both boxes equal; the action buttons
+   wrap to a consistent position beneath. */
+.field-controls .form-field-full {
+  flex: 1 1 100%;
 }
 
 .native-ble-probe {

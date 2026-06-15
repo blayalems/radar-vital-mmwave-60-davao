@@ -29,6 +29,7 @@ import pytest
 from rvt_trainer.api.auth import (
     _OPERATOR_LOCK,
     _invalidate_operator_sessions,
+    _invalidate_operator_sse_tokens,
     create_operator_profile,
     host_reset_pin,
     login_operator,
@@ -200,21 +201,60 @@ def test_host_reset_drops_operator_sse_tokens(sessions_root):
     assert sse_tok not in server.sse_tokens
 
 
+def _logout(server: _MockServer, token: str) -> None:
+    """Emulate the production do_POST /api/auth/logout branch.
+
+    Mirrors the shipping handler exactly: under ``_OPERATOR_LOCK``, pop ONLY the
+    presented session token, then drop that operator's SSE tokens via the
+    logout-scoped helper (NOT the global ``_invalidate_operator_sessions``).
+    """
+    with _OPERATOR_LOCK:
+        if token in server.operator_sessions:
+            dropped_operator_id = server.operator_sessions.pop(token, {}).get("operator_id")
+            _invalidate_operator_sse_tokens(server, dropped_operator_id)
+
+
 def test_logout_drops_operator_sse_tokens(sessions_root):
     """The do_POST /api/auth/logout branch must drop the operator's SSE tokens."""
     server = _MockServer(sessions_root)
     operator_id, session_token, _ = _create_and_login(server)
     sse_tok = _mint_sse_token(server, session_token)
 
-    # Emulate the production logout branch (token resolved, session + SSE dropped).
-    token = session_token
-    with _OPERATOR_LOCK:
-        if token in server.operator_sessions:
-            dropped_operator_id = server.operator_sessions.pop(token, {}).get("operator_id")
-            _invalidate_operator_sessions(server, dropped_operator_id)
+    _logout(server, session_token)
 
     assert session_token not in server.operator_sessions
     assert sse_tok not in server.sse_tokens
+
+
+def test_logout_revokes_only_presented_session_not_other_sessions(sessions_root):
+    """Key regression (PR #60 review): logging out one session of an operator
+    must NOT revoke that operator's OTHER active sessions.
+
+    Two active sessions for the SAME operator (tokenA, tokenB) plus an SSE token
+    bound to that operator. Logout with tokenA: tokenA is removed, the operator's
+    SSE token is removed, but tokenB REMAINS active.
+    """
+    server = _MockServer(sessions_root)
+    operator_id, token_a, _ = _create_and_login(server, pin="1234")
+    # Second active session for the same operator (e.g. another tab/device).
+    status, login_b = login_operator(server, operator_id, "1234")
+    assert status == 200, login_b
+    token_b = login_b["token"]
+    assert token_a != token_b
+    assert token_a in server.operator_sessions
+    assert token_b in server.operator_sessions
+
+    sse_tok = _mint_sse_token(server, token_a)
+    assert sse_tok in server.sse_tokens
+
+    _logout(server, token_a)
+
+    # The presented session and the operator's SSE token are gone...
+    assert token_a not in server.operator_sessions
+    assert sse_tok not in server.sse_tokens
+    # ...but the OTHER session for the same operator survives.
+    assert token_b in server.operator_sessions
+    assert server.operator_sessions[token_b]["operator_id"] == operator_id
 
 
 # ---------------------------------------------------------------------------

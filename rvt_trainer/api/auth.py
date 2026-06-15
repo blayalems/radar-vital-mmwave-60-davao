@@ -486,6 +486,31 @@ def _invalidate_operator_sessions(server, operator_id: str) -> None:
             server.sse_tokens.pop(t, None)
 
 
+def _invalidate_operator_sse_tokens(server, operator_id: str) -> None:
+    """Drop only the SSE tokens bound to *operator_id*; leave sessions intact.
+
+    This is the logout-scoped counterpart to
+    :func:`_invalidate_operator_sessions`. Logging out one tab/device must revoke
+    only the presented session token (popped by the caller) plus that operator's
+    short-lived SSE tokens — it must NOT silently revoke the same operator's OTHER
+    active sessions. So, unlike :func:`_invalidate_operator_sessions`, this helper
+    deliberately leaves ``server.operator_sessions`` untouched.
+
+    Callers must already hold :data:`_OPERATOR_LOCK` (it guards
+    ``server.sse_tokens``); this helper performs no locking of its own, mirroring
+    :func:`_invalidate_operator_sessions` so it can run inside the logout critical
+    section without re-entrancy/deadlock.
+
+    SSE tokens carry an ``operator_id`` recorded at mint time. A bootstrap-minted
+    token has ``operator_id=None`` and is left untouched unless *operator_id* is
+    also ``None``.
+    """
+    if hasattr(server, "sse_tokens"):
+        sse_drop = [t for t, s in server.sse_tokens.items() if s.get("operator_id") == operator_id]
+        for t in sse_drop:
+            server.sse_tokens.pop(t, None)
+
+
 def reset_pin_with_recovery(server, operator_id: str, recovery_code: str, new_pin: str) -> Tuple[int, dict]:
     """Reset a PIN using the operator's recovery code.
 
@@ -668,6 +693,7 @@ __all__ = [
     "reset_pin_with_recovery",
     "host_reset_pin",
     "_invalidate_operator_sessions",
+    "_invalidate_operator_sse_tokens",
     "_OPERATOR_LOCK",
     "_mint_recovery_code",
     "_RECOVERY_ALPHABET",

@@ -5261,6 +5261,7 @@ from rvt_trainer.api.auth import (  # noqa: E402
     reset_pin_with_recovery as _reset_pin_with_recovery,
     host_reset_pin as _host_reset_pin,
     _invalidate_operator_sessions,
+    _invalidate_operator_sse_tokens,
     _OPERATOR_LOCK,
 )
 
@@ -6887,13 +6888,16 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if getattr(self, "headers", None) else "").strip()
             if not token:
                 token = (parse_qs(urlparse(self.path).query).get("token") or [""])[-1].strip()
-            # Logout must also drop any SSE tokens this operator minted; otherwise
-            # a short-lived SSE token outlives the session for its ~30s TTL.
+            # Logout revokes ONLY the presented session token, plus that
+            # operator's short-lived SSE tokens (otherwise an SSE token outlives
+            # the session for its ~30s TTL). It must NOT drop the operator's OTHER
+            # active sessions — logging out one tab/device must not log out the
+            # rest. (reset-pin / host-reset use the global _invalidate_operator_sessions.)
             # All operator_sessions / sse_tokens access goes through _OPERATOR_LOCK.
             with _OPERATOR_LOCK:
                 if token and hasattr(self.server, "operator_sessions") and token in self.server.operator_sessions:
                     operator_id = self.server.operator_sessions.pop(token, {}).get("operator_id")
-                    _invalidate_operator_sessions(self.server, operator_id)
+                    _invalidate_operator_sse_tokens(self.server, operator_id)
             self._send_json(200, {"ok": True})
             return
         if path == "/api/auth/sse-token":

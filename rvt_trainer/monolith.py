@@ -1237,6 +1237,12 @@ MODEL_MANIFEST_SCHEMA_VERSION = "rvt-model-manifest-v1"
 MODEL_ARTIFACT_NAMES = ("model_hr.pkl", "model_rr.pkl", "preprocessor.pkl")
 MODEL_SIGNING_KEY_ENV = "RVT_MODEL_SIGNING_KEY"
 REQUIRE_MODEL_MANIFEST_ENV = "RVT_REQUIRE_MODEL_MANIFEST"
+REQUIRE_MODEL_SIGNATURE_ENV = "RVT_REQUIRE_MODEL_SIGNATURE"
+
+
+def _env_flag_enabled(name: str) -> bool:
+    """Truthy parse of an env flag: 1/true/yes/on, case-insensitive, whitespace-trimmed."""
+    return str(os.environ.get(name, "")).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _model_signing_key() -> Optional[bytes]:
@@ -1307,17 +1313,41 @@ def _verify_model_dir(model_dir: str) -> None:
         warning to stderr and proceed, UNLESS RVT_REQUIRE_MODEL_MANIFEST=1 is
         set, in which case it raises.
 
+    Strict-signature mode (RVT_REQUIRE_MODEL_SIGNATURE=1):
+        An unsigned manifest is self-attesting: an attacker who controls the
+        model dir can rewrite both a .pkl and the manifest hash, and an unsigned
+        sha256-only manifest still verifies. sha256 alone is therefore only
+        accidental-corruption / local-drift detection. Strict mode upgrades this
+        to tamper/authenticity protection BEFORE pickle.load by requiring an
+        authenticated (HMAC-signed) manifest:
+          * RVT_MODEL_SIGNING_KEY MUST be set (authenticity is unverifiable
+            without a key) -> raise if unset.
+          * The manifest MUST carry an 'hmac_sha256' field -> raise if absent
+            (an unsigned manifest is not acceptable in strict mode).
+          * The HMAC is verified with hmac.compare_digest and FAILS CLOSED on
+            mismatch (wrong key / tampered manifest -> raise).
+          * It also implies manifest-required: a missing manifest raises, exactly
+            like RVT_REQUIRE_MODEL_MANIFEST.
+        When the flag is NOT set, behaviour is unchanged: an unsigned manifest
+        still passes (corruption/drift detection), and the HMAC is verified
+        opportunistically only when a key is configured.
+
     Raises:
-        ValueError: on missing manifest (when required), missing artifact,
-            hash mismatch, or HMAC mismatch.
+        ValueError: on missing manifest (when required/strict), missing artifact,
+            hash mismatch, missing key/signature in strict mode, or HMAC mismatch.
     """
     real_dir = os.path.realpath(os.path.abspath(model_dir))
     if not os.path.isdir(real_dir):
         raise ValueError(f"model_dir does not exist or is not a directory: {model_dir}")
 
+    strict_signature = _env_flag_enabled(REQUIRE_MODEL_SIGNATURE_ENV)
+
     manifest_path = os.path.join(real_dir, MODEL_MANIFEST_FILENAME)
     if not os.path.exists(manifest_path):
-        require = str(os.environ.get(REQUIRE_MODEL_MANIFEST_ENV, "")).strip().lower() in {"1", "true", "yes", "on"}
+        # Strict-signature mode implies manifest-required: a missing manifest
+        # can never be authenticated, so it must fail closed regardless of
+        # RVT_REQUIRE_MODEL_MANIFEST.
+        require = strict_signature or _env_flag_enabled(REQUIRE_MODEL_MANIFEST_ENV)
         msg = (
             f"No {MODEL_MANIFEST_FILENAME} found in model dir '{real_dir}'. "
             "Model integrity cannot be verified before unpickling."
@@ -1380,6 +1410,25 @@ def _verify_model_dir(model_dir: str) -> None:
             )
 
     key = _model_signing_key()
+
+    if strict_signature:
+        # Strict mode: authenticity is mandatory BEFORE pickle.load. Without a
+        # key we cannot verify the manifest at all; without an HMAC field the
+        # manifest is unsigned (self-attesting) and unacceptable. Fail closed.
+        if key is None:
+            raise ValueError(
+                f"{REQUIRE_MODEL_SIGNATURE_ENV} is set but {MODEL_SIGNING_KEY_ENV} is unset for "
+                f"'{real_dir}'. A signing key is required to verify model manifest authenticity; "
+                "refusing to unpickle an unauthenticated model."
+            )
+        signed_hmac = manifest.get("hmac_sha256")
+        if not isinstance(signed_hmac, str) or not signed_hmac:
+            raise ValueError(
+                f"{REQUIRE_MODEL_SIGNATURE_ENV} is set but model manifest has no HMAC signature "
+                f"(unsigned manifest): {manifest_path}. Re-train with {MODEL_SIGNING_KEY_ENV} set to "
+                "produce a signed manifest; refusing to unpickle in strict mode."
+            )
+
     if key is not None:
         signed_hmac = manifest.get("hmac_sha256")
         if not isinstance(signed_hmac, str) or not signed_hmac:

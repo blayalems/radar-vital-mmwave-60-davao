@@ -4,6 +4,16 @@ These cover the manifest writer (`_write_model_manifest` / `_build_model_manifes
 and the pre-unpickle verifier (`_verify_model_dir`) in rvt_trainer.monolith. They
 exercise the helpers directly against tiny fake .pkl artifacts so they stay fast
 and avoid the heavy training path.
+
+Two distinct integrity levels are tested here:
+
+* Unsigned manifest (sha256 only) = accidental-corruption / local-drift
+  detection. It is self-attesting: anyone who can edit a .pkl can also rewrite
+  its recorded hash, so it does NOT defend against a tampering attacker.
+* Signed manifest under strict mode (RVT_REQUIRE_MODEL_SIGNATURE=1 +
+  RVT_MODEL_SIGNING_KEY) = tamper / authenticity protection BEFORE
+  pickle.load. Strict mode requires the key AND an HMAC signature and fails
+  closed on a missing key, missing/absent signature, or HMAC mismatch.
 """
 
 import json
@@ -17,6 +27,7 @@ from rvt_trainer.monolith import (
     MODEL_MANIFEST_FILENAME,
     MODEL_MANIFEST_SCHEMA_VERSION,
     REQUIRE_MODEL_MANIFEST_ENV,
+    REQUIRE_MODEL_SIGNATURE_ENV,
     MODEL_SIGNING_KEY_ENV,
     _build_model_manifest,
     _file_sha256,
@@ -40,6 +51,7 @@ def _clean_manifest_env(monkeypatch):
     """Ensure manifest-related env vars never leak between tests."""
     monkeypatch.delenv(MODEL_SIGNING_KEY_ENV, raising=False)
     monkeypatch.delenv(REQUIRE_MODEL_MANIFEST_ENV, raising=False)
+    monkeypatch.delenv(REQUIRE_MODEL_SIGNATURE_ENV, raising=False)
     yield
 
 
@@ -161,6 +173,80 @@ def test_hmac_required_but_absent_in_manifest(tmp_path, monkeypatch):
     monkeypatch.setenv(MODEL_SIGNING_KEY_ENV, "now-required")
     with pytest.raises(ValueError, match="no HMAC signature"):
         _verify_model_dir(model_dir)
+
+
+# ---------------------------------------------------------------------------
+# Strict-signature mode (RVT_REQUIRE_MODEL_SIGNATURE): an UNSIGNED manifest is
+# self-attesting (an attacker who edits the .pkl can edit its recorded hash),
+# so strict mode requires an AUTHENTICATED (HMAC-signed) manifest + a key and
+# fails closed. Non-strict mode is unchanged: unsigned manifest = corruption /
+# drift detection only.
+# ---------------------------------------------------------------------------
+
+def test_strict_mode_unsigned_manifest_raises(tmp_path, monkeypatch):
+    # Manifest written without a key -> no hmac_sha256 field. Strict mode must
+    # refuse to load an unsigned (self-attesting) manifest.
+    model_dir = _make_fake_model_dir(tmp_path)
+    _write_model_manifest(model_dir)
+
+    monkeypatch.setenv(REQUIRE_MODEL_SIGNATURE_ENV, "1")
+    monkeypatch.setenv(MODEL_SIGNING_KEY_ENV, "strict-key")
+    with pytest.raises(ValueError, match="no HMAC signature"):
+        _verify_model_dir(model_dir)
+
+
+def test_strict_mode_signed_manifest_but_key_unset_raises(tmp_path, monkeypatch):
+    # Manifest IS signed, but no key is configured at verify time. Authenticity
+    # is unverifiable without a key, so strict mode must raise.
+    monkeypatch.setenv(MODEL_SIGNING_KEY_ENV, "build-time-key")
+    model_dir = _make_fake_model_dir(tmp_path)
+    _write_model_manifest(model_dir)  # produces hmac_sha256
+
+    monkeypatch.delenv(MODEL_SIGNING_KEY_ENV, raising=False)
+    monkeypatch.setenv(REQUIRE_MODEL_SIGNATURE_ENV, "1")
+    with pytest.raises(ValueError, match=MODEL_SIGNING_KEY_ENV):
+        _verify_model_dir(model_dir)
+
+
+def test_strict_mode_signed_manifest_correct_key_passes(tmp_path, monkeypatch):
+    # Signed manifest + matching key under strict mode -> authenticated, passes.
+    monkeypatch.setenv(MODEL_SIGNING_KEY_ENV, "matching-key")
+    model_dir = _make_fake_model_dir(tmp_path)
+    _write_model_manifest(model_dir)
+
+    monkeypatch.setenv(REQUIRE_MODEL_SIGNATURE_ENV, "true")
+    _verify_model_dir(model_dir)  # should not raise
+
+
+def test_strict_mode_signed_manifest_wrong_key_raises(tmp_path, monkeypatch):
+    # Signed with one key, verified with another under strict mode -> HMAC
+    # mismatch must fail closed.
+    monkeypatch.setenv(MODEL_SIGNING_KEY_ENV, "correct-key")
+    model_dir = _make_fake_model_dir(tmp_path)
+    _write_model_manifest(model_dir)
+
+    monkeypatch.setenv(MODEL_SIGNING_KEY_ENV, "attacker-key")
+    monkeypatch.setenv(REQUIRE_MODEL_SIGNATURE_ENV, "on")
+    with pytest.raises(ValueError, match="HMAC verification FAILED"):
+        _verify_model_dir(model_dir)
+
+
+def test_strict_mode_missing_manifest_raises(tmp_path, monkeypatch):
+    # Strict mode implies manifest-required: a missing manifest can never be
+    # authenticated, so it must fail closed even without RVT_REQUIRE_MODEL_MANIFEST.
+    model_dir = _make_fake_model_dir(tmp_path)
+    monkeypatch.setenv(REQUIRE_MODEL_SIGNATURE_ENV, "yes")
+    monkeypatch.setenv(MODEL_SIGNING_KEY_ENV, "strict-key")
+    with pytest.raises(ValueError, match="No model_manifest.json"):
+        _verify_model_dir(model_dir)
+
+
+def test_non_strict_unsigned_manifest_still_passes(tmp_path):
+    # Backward-compat: with strict mode OFF and no key, an unsigned manifest is
+    # accepted (sha256-only corruption/drift detection). Unchanged behaviour.
+    model_dir = _make_fake_model_dir(tmp_path)
+    _write_model_manifest(model_dir)
+    _verify_model_dir(model_dir)  # should not raise
 
 
 # ---------------------------------------------------------------------------

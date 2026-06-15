@@ -462,12 +462,28 @@ def create_operator_profile(server, body: dict) -> Tuple[int, dict]:
 
 
 def _invalidate_operator_sessions(server, operator_id: str) -> None:
-    """Remove all active sessions for *operator_id* from server.operator_sessions."""
-    if not hasattr(server, "operator_sessions"):
-        return
-    to_drop = [t for t, s in server.operator_sessions.items() if s.get("operator_id") == operator_id]
-    for t in to_drop:
-        server.operator_sessions.pop(t, None)
+    """Drop every operator session AND SSE token bound to *operator_id*.
+
+    Callers must already hold :data:`_OPERATOR_LOCK` (it guards both
+    ``server.operator_sessions`` and ``server.sse_tokens``); this helper performs
+    no locking of its own so it can run inside the reset/host-reset critical
+    sections that mutate the profile DB under that same lock.
+
+    SSE tokens carry an ``operator_id`` (recorded at mint time in the
+    ``/api/auth/sse-token`` handler). Without dropping them here, a short-lived
+    SSE token minted by an operator would outlive a PIN reset / host-reset /
+    logout for its ~30s TTL — defeating the purpose of session invalidation.
+    A bootstrap-minted token has ``operator_id=None`` and is left untouched
+    unless *operator_id* is also ``None``.
+    """
+    if hasattr(server, "operator_sessions"):
+        to_drop = [t for t, s in server.operator_sessions.items() if s.get("operator_id") == operator_id]
+        for t in to_drop:
+            server.operator_sessions.pop(t, None)
+    if hasattr(server, "sse_tokens"):
+        sse_drop = [t for t, s in server.sse_tokens.items() if s.get("operator_id") == operator_id]
+        for t in sse_drop:
+            server.sse_tokens.pop(t, None)
 
 
 def reset_pin_with_recovery(server, operator_id: str, recovery_code: str, new_pin: str) -> Tuple[int, dict]:
@@ -651,6 +667,8 @@ __all__ = [
     "create_operator_profile",
     "reset_pin_with_recovery",
     "host_reset_pin",
+    "_invalidate_operator_sessions",
+    "_OPERATOR_LOCK",
     "_mint_recovery_code",
     "_RECOVERY_ALPHABET",
     "_RECOVERY_FAILURE_LIMIT",

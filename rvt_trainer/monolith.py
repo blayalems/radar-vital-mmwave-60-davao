@@ -5260,6 +5260,8 @@ from rvt_trainer.api.auth import (  # noqa: E402
     create_operator_profile as _create_operator_profile,
     reset_pin_with_recovery as _reset_pin_with_recovery,
     host_reset_pin as _host_reset_pin,
+    _invalidate_operator_sessions,
+    _OPERATOR_LOCK,
 )
 
 
@@ -6301,24 +6303,29 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return True
 
         # 5. Check operator session token validity
+        # operator_sessions / sse_tokens are mutated from many request threads
+        # (ThreadingHTTPServer) and from auth.py; all access goes through the
+        # shared _OPERATOR_LOCK to avoid data races ("dict changed size during
+        # iteration"). Hold-time is kept to plain dict ops only — no I/O.
         is_real_valid_operator = False
-        if token and hasattr(self.server, "operator_sessions") and token in self.server.operator_sessions:
-            session = self.server.operator_sessions[token]
-            if time.time() < session.get("expires_at", 0.0):
-                is_real_valid_operator = True
-                self.current_operator_id = session.get("operator_id")
-            else:
-                self.server.operator_sessions.pop(token, None)
-
-        is_valid_operator = is_real_valid_operator or (is_bootstrap and getattr(self.server, "bind_mode", "local") == "local")
-
-        # 6. Check SSE single-use token validity
         is_valid_sse = False
         is_sse_path = (path in {"/api/session/events", "/api/events/subscribe"}) or (path.startswith("/api/sessions/") and path.endswith("/events"))
-        if is_sse_path and token and hasattr(self.server, "sse_tokens") and token in self.server.sse_tokens:
-            sse_info = self.server.sse_tokens.pop(token)
-            if time.time() < sse_info.get("expires_at", 0.0):
-                is_valid_sse = True
+        with _OPERATOR_LOCK:
+            if token and hasattr(self.server, "operator_sessions") and token in self.server.operator_sessions:
+                session = self.server.operator_sessions[token]
+                if time.time() < session.get("expires_at", 0.0):
+                    is_real_valid_operator = True
+                    self.current_operator_id = session.get("operator_id")
+                else:
+                    self.server.operator_sessions.pop(token, None)
+
+            # 6. Check SSE single-use token validity
+            if is_sse_path and token and hasattr(self.server, "sse_tokens") and token in self.server.sse_tokens:
+                sse_info = self.server.sse_tokens.pop(token)
+                if time.time() < sse_info.get("expires_at", 0.0):
+                    is_valid_sse = True
+
+        is_valid_operator = is_real_valid_operator or (is_bootstrap and getattr(self.server, "bind_mode", "local") == "local")
 
         # 7. Check pairing token validity
         is_valid_pairing = False
@@ -6489,8 +6496,12 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/auth/validate":
             token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if getattr(self, "headers", None) else "").strip()
-            if token and hasattr(self.server, "operator_sessions") and token in self.server.operator_sessions:
-                sess = self.server.operator_sessions[token]
+            with _OPERATOR_LOCK:
+                sess = self.server.operator_sessions.get(token) if (token and hasattr(self.server, "operator_sessions")) else None
+                # Snapshot the fields we need while holding the lock; the dict
+                # entry itself must not escape the critical section.
+                sess = dict(sess) if sess is not None else None
+            if sess is not None:
                 self._send_json(200, {
                     "ok": True,
                     "operator": {
@@ -6876,22 +6887,34 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if getattr(self, "headers", None) else "").strip()
             if not token:
                 token = (parse_qs(urlparse(self.path).query).get("token") or [""])[-1].strip()
-            if token and hasattr(self.server, "operator_sessions") and token in self.server.operator_sessions:
-                self.server.operator_sessions.pop(token, None)
+            # Logout must also drop any SSE tokens this operator minted; otherwise
+            # a short-lived SSE token outlives the session for its ~30s TTL.
+            # All operator_sessions / sse_tokens access goes through _OPERATOR_LOCK.
+            with _OPERATOR_LOCK:
+                if token and hasattr(self.server, "operator_sessions") and token in self.server.operator_sessions:
+                    operator_id = self.server.operator_sessions.pop(token, {}).get("operator_id")
+                    _invalidate_operator_sessions(self.server, operator_id)
             self._send_json(200, {"ok": True})
             return
         if path == "/api/auth/sse-token":
             token = secrets.token_urlsafe(24)
-            if not hasattr(self.server, "sse_tokens"):
-                self.server.sse_tokens = {}
-            # Reap expired SSE tokens to prevent unbounded memory growth
+            # Bind the SSE token to the requesting operator so session
+            # invalidation (reset / host-reset / logout) can also drop it.
+            # _require_control_auth set current_operator_id when a valid operator
+            # session authorised this request; bootstrap/no-operator => None.
+            operator_id = getattr(self, "current_operator_id", None)
             now = time.time()
-            expired = [t for t, s in self.server.sse_tokens.items() if now >= s.get("expires_at", 0.0)]
-            for t in expired:
-                self.server.sse_tokens.pop(t, None)
-            self.server.sse_tokens[token] = {
-                "expires_at": now + 30.0
-            }
+            with _OPERATOR_LOCK:
+                if not hasattr(self.server, "sse_tokens"):
+                    self.server.sse_tokens = {}
+                # Reap expired SSE tokens to prevent unbounded memory growth
+                expired = [t for t, s in self.server.sse_tokens.items() if now >= s.get("expires_at", 0.0)]
+                for t in expired:
+                    self.server.sse_tokens.pop(t, None)
+                self.server.sse_tokens[token] = {
+                    "expires_at": now + 30.0,
+                    "operator_id": operator_id,
+                }
             self._send_json(200, {"sse_token": token})
             return
         if path == "/api/auth/reset-pin":

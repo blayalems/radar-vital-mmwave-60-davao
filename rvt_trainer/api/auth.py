@@ -22,12 +22,16 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 from pathlib import Path
 import re
 import secrets
 import threading
 import time
+import unicodedata
 from typing import Dict, Tuple
+
+logger = logging.getLogger("rvt_trainer.auth")
 
 _PIN_TTL_S = 300       # 5 minute PIN expiry
 _PIN_MAX = 8           # max concurrent outstanding PINs
@@ -172,26 +176,54 @@ def load_operator_profiles(sessions_root: str) -> dict:
     if not path.exists():
         old_path = Path(sessions_root).resolve().parent / "operator_profiles.json"
         if old_path.exists():
+            # Legacy migration must fail closed for the same reason the main path
+            # does: a corrupt/unreadable legacy DB must NOT silently migrate into
+            # an empty bootstrap state and reopen the unauthenticated admin-create
+            # window. Validate before migrating, and preserve the legacy file on
+            # error (do not destroy it).
             try:
                 with open(old_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                save_operator_profiles(sessions_root, data)
-                try:
-                    old_path.unlink()
-                except Exception:
-                    pass
-                return data
-            except Exception:
-                pass
+            except (OSError, ValueError) as exc:
+                logger.warning(
+                    "legacy operator profiles DB is unreadable (%s); failing closed",
+                    type(exc).__name__,
+                )
+                return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}, "_load_error": "legacy_unreadable"}
+            if not isinstance(data, dict) or "profiles" not in data or not isinstance(data.get("profiles"), dict):
+                logger.warning("legacy operator profiles DB has an invalid schema; failing closed")
+                return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}, "_load_error": "legacy_bad_schema"}
+            save_operator_profiles(sessions_root, data)
+            try:
+                old_path.unlink()
+            except OSError:
+                logger.warning("legacy operator profiles DB migrated but the old copy could not be removed")
+            return data
         return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}}
+    # The file is present. Distinguish "legitimately empty" (handled above by the
+    # not-exists branch) from "present but unreadable/corrupt". A transient read
+    # error or on-disk corruption must NOT silently collapse into an empty
+    # bootstrap state — that would let a LAN client create a fresh admin profile
+    # (the bootstrap POST /api/operator-profiles path) during the failure window.
+    # Fail closed: surface a ``_load_error`` marker so the auth layer refuses to
+    # treat a damaged DB as bootstrap. The file is deliberately left in place
+    # (not deleted) so a transient error cannot destroy real profiles.
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            if not isinstance(data, dict) or "profiles" not in data:
-                return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}}
-            return data
-    except Exception:
-        return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}}
+    except (OSError, ValueError) as exc:
+        logger.warning(
+            "operator profiles DB at %s is unreadable (%s); failing closed",
+            path.name, type(exc).__name__,
+        )
+        return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}, "_load_error": "unreadable"}
+    if not isinstance(data, dict) or "profiles" not in data or not isinstance(data.get("profiles"), dict):
+        logger.warning(
+            "operator profiles DB at %s has an invalid schema; failing closed",
+            path.name,
+        )
+        return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}, "_load_error": "bad_schema"}
+    return data
 
 
 def save_operator_profiles(sessions_root: str, data: dict):
@@ -339,13 +371,32 @@ def login_operator(server, operator_id: str, pin: str) -> Tuple[int, dict]:
                 return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid operator ID or PIN"}}
 
 
+def _sanitize_display_name(raw: str) -> str:
+    """Normalize and reject unsafe code points in an operator display name.
+
+    Display names are echoed back in API responses, session metadata, and PDF/
+    HTML reports. Stripping control characters, bidi overrides, and zero-width /
+    invisible code points prevents log-spoofing, right-to-left display spoofing,
+    and confusable/invisible-name attacks. Returns the normalized name, or ``""``
+    if any disallowed code point is present (the caller rejects empty results).
+    """
+    normalized = unicodedata.normalize("NFC", raw).strip()
+    for ch in normalized:
+        # Reject control (Cc), format incl. bidi/zero-width (Cf), surrogate (Cs),
+        # and private-use (Co) categories. Ordinary letters, marks, digits,
+        # punctuation, and spaces are preserved.
+        if unicodedata.category(ch) in {"Cc", "Cf", "Cs", "Co"}:
+            return ""
+    return normalized
+
+
 def create_operator_profile(server, body: dict) -> Tuple[int, dict]:
-    display_name = str(body.get("display_name") or "").strip()
+    display_name = _sanitize_display_name(str(body.get("display_name") or ""))
     initials = str(body.get("initials") or "").strip().upper()
     pin = str(body.get("pin") or "").strip()
 
     if not display_name:
-        return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "display_name is required"}}
+        return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "display_name is required (and must not contain control or invisible characters)"}}
     if len(display_name) > 64:
         return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "display_name must not exceed 64 characters"}}
     if not re.fullmatch(r"[A-Z]{2,5}", initials):

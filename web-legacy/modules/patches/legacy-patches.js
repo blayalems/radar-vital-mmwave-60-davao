@@ -9657,6 +9657,16 @@
   var compareModal = null;
   var multiSelectMode = false;
 
+  // Snapshot labels/timestamps/KPI keys+values are operator- and data-derived
+  // (persisted snapshot notes, session labels, arbitrary KPI maps). They are
+  // interpolated into innerHTML below, so every dynamic value MUST be escaped to
+  // prevent stored XSS in the compare modal.
+  function escHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+
   function getSnapId(el) {
     return el.getAttribute('data-snap-id') || el.getAttribute('id') || '';
   }
@@ -9765,7 +9775,7 @@
     [snap1, snap2].forEach(function(snap, idx) {
       var side = document.createElement('div');
       side.className = 'rvt-compare-side';
-      side.innerHTML = '<p class="rvt-compare-side-label">' + (snap.label || 'Snapshot ' + (idx + 1)) + ' (' + (snap.ts || 'N/A') + ')</p>';
+      side.innerHTML = '<p class="rvt-compare-side-label">' + escHtml(snap.label || 'Snapshot ' + (idx + 1)) + ' (' + escHtml(snap.ts || 'N/A') + ')</p>';
 
       var table = document.createElement('table');
       table.className = 'rvt-compare-kpi-table';
@@ -9775,7 +9785,7 @@
       var kpis = snap.kpis || snap.data || {};
       Object.keys(kpis).slice(0, 5).forEach(function(key) {
         var val = kpis[key];
-        table.innerHTML += '<tr><td>' + key + '</td><td>' + (typeof val === 'number' ? val.toFixed(2) : val) + '</td></tr>';
+        table.innerHTML += '<tr><td>' + escHtml(key) + '</td><td>' + (typeof val === 'number' ? val.toFixed(2) : escHtml(val)) + '</td></tr>';
       });
 
       table.innerHTML += '</tbody>';
@@ -9798,7 +9808,7 @@
         var v2 = parseFloat(kpis2[key]) || 0;
         var delta = (v2 - v1).toFixed(2);
         var deltaClass = delta > 0 ? 'increase' : (delta < 0 ? 'decrease' : '');
-        deltaTable.innerHTML += '<tr><td>' + key + '</td><td class="rvt-compare-delta ' + deltaClass + '">' + delta + '</td></tr>';
+        deltaTable.innerHTML += '<tr><td>' + escHtml(key) + '</td><td class="rvt-compare-delta ' + deltaClass + '">' + escHtml(delta) + '</td></tr>';
       });
 
       deltaTable.innerHTML += '</tbody>';

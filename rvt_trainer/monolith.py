@@ -88,6 +88,13 @@ VERSION = "16.3.0"
 DASHBOARD_VERSION = "16.3.0"
 FIRMWARE_VERSION_EXPECTED = "v16.3.0"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
+
+# Hard upper bound for JSON control-API request bodies. The control surface only
+# ever carries small JSON objects (PINs, session metadata, notes capped at a few
+# thousand chars). A 1 MiB ceiling is generous for those payloads while turning a
+# client-supplied Content-Length into a bounded allocation instead of an
+# unbounded ``rfile.read(n)`` memory-exhaustion vector.
+MAX_JSON_BODY_BYTES = 1_048_576
 _manifest_cache = {"data": None, "ts": 0}
 _manifest_cache_lock = threading.Lock()
 DEFAULT_RADAR_PORT = "COM10"
@@ -4244,11 +4251,14 @@ def _json_safe_response(obj) -> bytes:
         if isinstance(v, (list, tuple)):
             return [clean(val) for val in v]
         if isinstance(v, (np.floating, float)):
-            return None if np.isnan(v) else float(v)
+            # Coerce NaN *and* ±Inf to null: json.dumps with the default
+            # allow_nan=True would otherwise emit bare `NaN`/`Infinity` tokens,
+            # which are invalid JSON and break strict client parsers.
+            return float(v) if np.isfinite(v) else None
         if isinstance(v, (np.integer, int)):
             return int(v)
         return v
-    return json.dumps(clean(obj), ensure_ascii=False).encode("utf-8")
+    return json.dumps(clean(obj), ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
 def _pid_alive(pid) -> bool:
@@ -6254,10 +6264,13 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             q = parse_qs(parsed.query)
             token = (q.get("token") or [""])[-1].strip()
 
-        # 3. Load operator profiles database to check bootstrapping
+        # 3. Load operator profiles database to check bootstrapping. A corrupt or
+        # unreadable DB sets ``_load_error`` (see load_operator_profiles); treat
+        # that as NOT-bootstrap so a damaged DB never opens an unauthenticated
+        # admin-creation window. Existing in-memory operator sessions still work.
         db = _load_operator_profiles(self.server.sessions_root)
         profiles = db.get("profiles", {})
-        is_bootstrap = (len(profiles) == 0)
+        is_bootstrap = (len(profiles) == 0) and not db.get("_load_error")
 
         # 4. Check if it is a Discovery endpoint
         is_discovery = False
@@ -6364,12 +6377,56 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def _read_body(self):
+        """Read and validate a JSON request body for a mutation endpoint.
+
+        Returns the parsed dict on success, or ``None`` if the request was
+        rejected — in which case an error response has already been sent and the
+        caller must ``return`` immediately. An empty body (no Content-Length)
+        parses to ``{}`` so that bodyless POSTs (logout, sse-token) keep working.
+
+        Hardening vs. the previous "swallow everything, return {}" behaviour:
+          * bounds the read by ``MAX_JSON_BODY_BYTES`` (413 on overflow) instead
+            of trusting a client-supplied Content-Length;
+          * rejects a non-JSON Content-Type when a body is present (415);
+          * rejects malformed JSON / non-object bodies (400) instead of silently
+            degrading a corrupt payload to ``{}`` for state-changing endpoints.
+        """
+        headers = getattr(self, "headers", None)
+        raw_len = (headers.get("Content-Length", "0") if headers else "0") or "0"
         try:
-            headers = getattr(self, "headers", None)
-            n = int((headers.get("Content-Length", "0") if headers else "0") or 0)
-            return json.loads(self.rfile.read(n).decode("utf-8")) if n > 0 else {}
-        except Exception:
+            n = int(raw_len)
+        except (TypeError, ValueError):
+            self._send_json(400, {"ok": False, "error": {"code": "BAD_CONTENT_LENGTH", "message": "Content-Length must be a non-negative integer"}})
+            return None
+        if n < 0:
+            self._send_json(400, {"ok": False, "error": {"code": "BAD_CONTENT_LENGTH", "message": "Content-Length must be a non-negative integer"}})
+            return None
+        if n == 0:
             return {}
+        if n > MAX_JSON_BODY_BYTES:
+            self._send_json(413, {"ok": False, "error": {"code": "PAYLOAD_TOO_LARGE", "message": f"Request body exceeds {MAX_JSON_BODY_BYTES} bytes"}})
+            return None
+        content_type = (headers.get("Content-Type", "") if headers else "") or ""
+        media_type = content_type.split(";", 1)[0].strip().lower()
+        # Lenient on a missing Content-Type (some bodyless-by-convention clients
+        # omit it), but reject a body that is explicitly declared as non-JSON.
+        if media_type and media_type != "application/json" and not media_type.endswith("+json"):
+            self._send_json(415, {"ok": False, "error": {"code": "UNSUPPORTED_MEDIA_TYPE", "message": "Content-Type must be application/json"}})
+            return None
+        try:
+            raw = self.rfile.read(n)
+        except Exception:
+            self._send_json(400, {"ok": False, "error": {"code": "BODY_READ_ERROR", "message": "failed to read request body"}})
+            return None
+        try:
+            parsed = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_json(400, {"ok": False, "error": {"code": "BAD_JSON", "message": "request body is not valid JSON"}})
+            return None
+        if not isinstance(parsed, dict):
+            self._send_json(400, {"ok": False, "error": {"code": "BAD_JSON", "message": "request body must be a JSON object"}})
+            return None
+        return parsed
 
     def do_GET(self):
         if self._reject_untrusted():
@@ -6798,6 +6855,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         path = urlparse(self.path).path
         body = self._read_body()
+        if body is None:
+            return
         if path == "/api/auth/exchange":
             client_ip = (self.client_address[0] if self.client_address else "") or "unknown"
             status, payload = _exchange_pair_pin(self.server, str(body.get("pin") or ""), client_ip)
@@ -6965,6 +7024,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         path = urlparse(self.path).path
         body = self._read_body()
+        if body is None:
+            return
         if path.startswith("/api/sessions/") and path.endswith("/notes"):
             sid = unquote(path.split("/")[3])
             try:

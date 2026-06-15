@@ -691,7 +691,7 @@ def write_text_report(path: str, info: Dict):
     with open(path, "w", encoding="utf-8") as f:
         f.write(f"RADAR VITAL TRAINER REPORT v{VERSION}\n")
         f.write("=" * 72 + "\n")
-        f.write(f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        f.write(f"Generated: {_report_stamp()}\n\n")
         for section, payload in info.items():
             f.write(f"[{section}]\n")
             if isinstance(payload, dict):
@@ -1522,7 +1522,7 @@ def _write_session_manifest(
     manifest = {
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
-        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "generated_at": _report_stamp(),
         "session_root": session_root,
         **_manifest_identity(fw_truthfulness),
         "auto_analysed": os.path.exists(os.path.join(analysis_dir, "analyse_summary.json")),
@@ -1773,7 +1773,7 @@ def _write_simple_html_report(title: str, sections: List[Tuple[str, str]], image
         "img{max-width:100%%;height:auto;border:1px solid #ddd;border-radius:8px;margin:12px 0;}"
         ".muted{color:#666}</style></head><body>",
         f"<h1>{html_escape(title)}</h1>",
-        f"<p class='muted'>Generated: {html_escape(time.strftime('%Y-%m-%d %H:%M:%S'))}</p>",
+        f"<p class='muted'>Generated: {html_escape(_report_stamp())}</p>",
     ]
     for heading, body in sections:
         parts.append(f"<h2>{html_escape(heading)}</h2><pre>{html_escape(body)}</pre>")
@@ -4455,6 +4455,16 @@ def _iso_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+def _report_stamp() -> str:
+    """Human-readable, unambiguous UTC stamp for report headers / 'generated_at'.
+
+    Uses time.gmtime() so the value is always UTC regardless of the host's
+    local timezone, and labels it explicitly with a trailing ' UTC' so
+    downstream readers cannot mistake it for naive local time.
+    """
+    return time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+
+
 def _json_safe_response(obj) -> bytes:
     def clean(v):
         if isinstance(v, bool) or v is None or isinstance(v, str):
@@ -5519,7 +5529,7 @@ def _load_subject_profiles(sessions_root: str) -> Dict[str, object]:
 
 
 def _append_trainer_log(line: str):
-    stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    stamp = _report_stamp()
     _TRAINER_LOG.append(f"{stamp} {line}")
 
 
@@ -5881,7 +5891,7 @@ def _ensure_self_signed_cert(cert_path: str, key_path: str, host: str):
         except Exception:
             if candidate:
                 alt_names.append(x509.DNSName(candidate))
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     certificate = (
         x509.CertificateBuilder()
         .subject_name(subject)
@@ -8744,7 +8754,7 @@ def cmd_session(args):
     initial_manifest = {
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
-        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "generated_at": _report_stamp(),
         "trainer_version": VERSION,
         "dashboard_version": DASHBOARD_VERSION,
         "auto_analysed": False,
@@ -10349,6 +10359,25 @@ def _check_monotonic_before_sort(df: pd.DataFrame, path: str):
         warn(f"Non-monotonic timestamps in {path}; rows will be sorted by timestamp_s.")
 
 
+def _radar_parse_stats(timestamp_s: pd.Series, path: str) -> Dict[str, int]:
+    """Return CSV parse-drop metrics for a radar frame's ``timestamp_s`` column.
+
+    ``timestamp_s`` must already be coerced with ``pd.to_numeric(..., errors='coerce')``
+    so unparseable values are NaN. Reports how many rows will be discarded by the
+    subsequent ``dropna(subset=['timestamp_s'])`` in :func:`load_radar`.
+
+    No PHI is included — only counts and the file basename.
+    """
+    total = int(len(timestamp_s))
+    dropped = int(timestamp_s.isna().sum())
+    if dropped:
+        warn(
+            f"load_radar: dropped {dropped}/{total} rows with unparseable "
+            f"timestamp_s from {os.path.basename(path)}"
+        )
+    return {"parse_total_rows": total, "parse_dropped_rows": dropped}
+
+
 def load_radar(path: str) -> pd.DataFrame:
     df = lower_columns(pd.read_csv(path))
     df = canonicalize_with_synonyms(df, RADAR_SYNONYMS, source_name=os.path.basename(path))
@@ -10499,6 +10528,9 @@ def load_radar(path: str) -> pd.DataFrame:
     for col in [c for c in numeric_candidates if c in df.columns]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    # Surface (log + count) rows discarded for an unparseable timestamp_s rather
+    # than dropping them silently.
+    _radar_parse_stats(df["timestamp_s"], path)
     df = df.dropna(subset=["timestamp_s"]).copy()
     _check_monotonic_before_sort(df, path)
     if "in_motion" in df.columns:
@@ -13551,7 +13583,7 @@ def _generate_compare_html(rows: List[Dict], out_path: str, delta_rows: Optional
         g = r.get("ml_gate", "-")
         gate_counts[g if g in gate_counts else "-"] += 1
 
-    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = _report_stamp()
     best_rmse = min((float(r["hr_rmse"]) for r in rows
                      if r.get("hr_rmse") and np.isfinite(float(r["hr_rmse"]))),
                     default=float("nan"))

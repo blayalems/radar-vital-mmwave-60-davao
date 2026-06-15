@@ -260,13 +260,38 @@
   align-items: center;
   color: var(--md-sys-color-on-surface-variant, #64748b);
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .kpi-card-header mat-icon {
   font-size: 1.25rem;
   width: 20px;
   height: 20px;
+}
+
+/* HR/RR hero tiles carry an expressive bolder/upper label like the mockup. */
+.kpi-metric-card.kpi-hr .kpi-card-header > span,
+.kpi-metric-card.kpi-rr .kpi-card-header > span {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Filled, vital-tinted symbol on the HR/RR hero tiles. */
+.kpi-vital-icon {
+  font-variation-settings: 'FILL' 1;
+  font-size: 1.5rem !important;
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.kpi-metric-card.kpi-hr .kpi-vital-icon {
+  color: var(--rv-hr);
+}
+
+.kpi-metric-card.kpi-rr .kpi-vital-icon {
+  color: var(--rv-rr);
 }
 
 .kpi-card-value {
@@ -288,7 +313,14 @@
 
 .kpi-card-value small {
   font-size: 0.9rem;
+  font-weight: 600;
   color: var(--md-sys-color-on-surface-variant, #64748b);
+}
+
+/* HR/RR are the hero vitals — push their numerals larger than the aux KPIs. */
+.kpi-metric-card.kpi-hr .kpi-card-value strong,
+.kpi-metric-card.kpi-rr .kpi-card-value strong {
+  font-size: 2.7rem;
 }
 
 .kpi-card-spark {
@@ -302,6 +334,13 @@
   overflow: hidden;
 }
 
+/* On the vital hero tiles, keep the spark inset transparent so the card's
+   HR/RR tint shows through (mockup waves sit directly on the tinted surface). */
+.kpi-metric-card.kpi-hr .kpi-card-spark,
+.kpi-metric-card.kpi-rr .kpi-card-spark {
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 28%, transparent);
+}
+
 .sparkline-canvas {
   width: 100%;
   height: 100%;
@@ -311,6 +350,14 @@
 .kpi-card-footer {
   font-size: 0.75rem;
   color: var(--md-sys-color-on-surface-variant, #94a3b8);
+}
+
+/* The HR/RR "Ref oximeter" subline reads as a mono caption in the mockup. */
+.kpi-metric-card.kpi-hr .kpi-card-footer,
+.kpi-metric-card.kpi-rr .kpi-card-footer {
+  font-family: var(--rvt-mono-font, "JetBrains Mono", ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 /* Alert styles on KPI cards */
@@ -567,11 +614,11 @@
 
 /* Large trend cards */
 .trend-large-card {
-  border-radius: 16px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
   padding: 16px;
-  background: var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
 }
 
 .trend-large-content {
@@ -583,7 +630,7 @@
   height: 320px;
   background: var(--md-sys-color-surface-container-lowest, #f8fafc);
   border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
-  border-radius: 12px;
+  border-radius: var(--rv-r2, 14px);
   padding: 12px;
   box-sizing: border-box;
 }
@@ -596,11 +643,11 @@
 
 /* Snapshots tab styling */
 .snapshots-container-card {
-  border-radius: 16px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
   padding: 16px;
-  background: var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
 }
 
 .snapshots-header-row {
@@ -627,7 +674,7 @@
 }
 
 .snap-card {
-  border-radius: 12px !important;
+  border-radius: var(--rv-r2, 14px) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
   padding: 12px;
@@ -666,7 +713,7 @@
   margin-bottom: 16px;
   padding: 14px 16px;
   border: 1px solid color-mix(in srgb, var(--md-sys-color-primary) 28%, transparent);
-  border-radius: 16px;
+  border-radius: var(--rv-r2, 14px);
   background: color-mix(in srgb, var(--md-sys-color-primary-container) 36%, var(--md-sys-color-surface));
 }
 
@@ -869,11 +916,11 @@
 
 .tracking-card,
 .advanced-card {
-  border-radius: 16px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
   padding: 16px;
-  background: var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
 }
 
 .tracking-layout {
@@ -885,7 +932,7 @@
 }
 
 .target-plot-panel {
-  border-radius: 16px;
+  border-radius: var(--rv-r2, 14px);
   background:
     radial-gradient(circle at 50% 100%, color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 12%, transparent), transparent 56%),
     var(--md-sys-color-surface-container-lowest, #f8fafc);
@@ -946,7 +993,7 @@
 .spatial-kpis div {
   min-width: 0;
   padding: 12px 8px;
-  border-radius: 12px;
+  border-radius: var(--rv-r2, 14px);
   text-align: center;
   background: var(--md-sys-color-surface-container-low, #f1f5f9);
 }
@@ -1117,7 +1164,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  border-radius: 12px;
+  border-radius: var(--rv-r2, 14px);
   padding: 10px 12px;
   font-size: 0.84rem;
 }
@@ -1219,10 +1266,10 @@
 /* Bland-Altman card styling */
 .bland-altman-card {
   margin-top: 16px;
-  border-radius: 16px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
-  background: var(--md-sys-color-surface, #ffffff);
+  background: var(--md-sys-color-surface-container-lowest, #ffffff);
 }
 
 .bland-altman-card mat-card-header {
@@ -1340,10 +1387,10 @@
 .split-pane-card {
   width: 100%;
   height: 100%;
-  border-radius: 16px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
-  background: var(--md-sys-color-surface, #ffffff);
+  background: var(--md-sys-color-surface-container-lowest, #ffffff);
   display: flex;
   flex-direction: column;
 }
@@ -1471,7 +1518,7 @@
 .kpi-conf-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.1rem 0.45rem;
+  padding: 0.15rem 0.5rem;
   border-radius: 999px;
   font-family: var(--rvt-mono-font, "JetBrains Mono", ui-monospace, monospace);
   font-size: 0.7rem;
@@ -1480,6 +1527,22 @@
   background: var(--md-sys-color-surface-container-lowest);
   color: var(--md-sys-color-on-surface);
   border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+/* On HR/RR hero tiles the confidence chip is tinted in the vital colour and
+   sits on a solid surface chip (mockup: background var(--card), color var(--hr)). */
+.kpi-metric-card.kpi-hr .kpi-conf-badge,
+.kpi-metric-card.kpi-rr .kpi-conf-badge {
+  background: var(--md-sys-color-surface-container-lowest);
+  border-color: transparent;
+}
+
+.kpi-metric-card.kpi-hr .kpi-conf-badge {
+  color: var(--rv-hr);
+}
+
+.kpi-metric-card.kpi-rr .kpi-conf-badge {
+  color: var(--rv-rr);
 }
 
 .kpi-card-value.kpi-holding strong {

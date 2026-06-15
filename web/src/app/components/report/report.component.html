@@ -55,10 +55,10 @@
         </div>
 
         <div class="verdict-badge-box">
-          <mat-icon class="verdict-badge-icon">
+          <mat-icon class="verdict-badge-icon" aria-hidden="true">
             {{ reportVerdict() === 'ready' || reportVerdict() === 'pass' ? 'check_circle' : 'warning' }}
           </mat-icon>
-          <strong>{{ (selectedSummary?.sandbox ? 'demo' : reportVerdict() || 'pending') | uppercase }}</strong>
+          <strong class="verdict-badge-label">{{ (selectedSummary?.sandbox ? 'demo' : reportVerdict() || 'pending') | uppercase }}</strong>
         </div>
       </div>
     </mat-card>
@@ -259,6 +259,7 @@
     <!-- DYNAMIC REPORT SPARKLINE GRAPH PLOTS -->
     <mat-card class="report-trends-card">
       <mat-card-header>
+        <mat-icon mat-card-avatar class="header-avatar-ic">show_chart</mat-icon>
         <mat-card-title>Historical Telemetry Trend Plot</mat-card-title>
         <mat-card-subtitle>Recorded series are rendered only when the session summary provides them; no values are synthesized.</mat-card-subtitle>
       </mat-card-header>
@@ -288,6 +289,7 @@
 
     <mat-card class="report-trends-card">
       <mat-card-header>
+        <mat-icon mat-card-avatar class="header-avatar-ic">compare_arrows</mat-icon>
         <mat-card-title>Session Comparison</mat-card-title>
         <mat-card-subtitle>Trainer-produced comparison against the preceding and strongest available session.</mat-card-subtitle>
         <button mat-flat-button type="button" (click)="downloadComparisonJson()" [disabled]="!comparison" class="mat-tonal-button">
@@ -347,7 +349,10 @@
 
     @if ((selectedSummary?.downloads?.length || 0) > 0) {
       <mat-card class="report-trends-card">
-        <mat-card-header><mat-card-title>Recorded Artifacts</mat-card-title></mat-card-header>
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="header-avatar-ic">folder_zip</mat-icon>
+          <mat-card-title>Recorded Artifacts</mat-card-title>
+        </mat-card-header>
         <mat-card-content>
           <mat-nav-list aria-label="Session artifact downloads">
             @for (file of selectedSummary?.downloads || []; track file.relpath || file.path || file.label) {

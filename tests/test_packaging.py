@@ -123,7 +123,9 @@ def test_release_workflow_builds_signed_aab_and_keeps_windows_fallbacks() -> Non
     assert "./gradlew assembleRelease bundleRelease" in workflow
     assert "radar-vital-release.aab" in workflow
     assert "dist/*.aab" in workflow
-    assert "-AabZip" in workflow
+    # The AAB zip is verified via hashtable splatting into verify-release-artifacts.ps1
+    # (array splatting passed names positionally and broke the binding).
+    assert "$verifyArgs['AabZip'] = $aabZip" in workflow
 
     azure_sign = workflow.index("Sign EXE with Azure Trusted Signing")
     pfx_sign = workflow.index("Sign EXE with PFX fallback")

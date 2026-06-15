@@ -48,3 +48,6 @@ sessions/
 rvt_trainer.egg-info/
 build/
 *.egg-info/
+
+# Claude Code agent worktrees / harness state (never commit)
+.claude/

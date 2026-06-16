@@ -90,12 +90,19 @@ import { ChangeDetectionStrategy, Component, ViewEncapsulation } from '@angular/
       transition: color var(--md-sys-motion-duration-long1, 300ms) var(--md-sys-motion-easing-emphasized, cubic-bezier(0.2, 0, 0, 1)),
                   font-weight var(--md-sys-motion-duration-long1, 300ms) var(--md-sys-motion-easing-emphasized, cubic-bezier(0.2, 0, 0, 1));
       text-align: center;
-      white-space: nowrap;
+      /* Translation-safe: wrap long localized labels (up to two lines) instead
+         of clipping with an ellipsis, which previously hid non-English text. */
+      white-space: normal;
+      overflow-wrap: anywhere;
+      hyphens: auto;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
       overflow: hidden;
-      text-overflow: ellipsis;
       width: 100%;
       box-sizing: border-box;
-      padding: 0 4px;
+      padding: 0 2px;
     }
  
     /* Active States */

@@ -17,6 +17,13 @@
    - Redesign-only semantics the tonal engine does not produce (HR/RR vitals,
      expressive corner radii, the Figtree typeface) live here as `--rv-*`
      tokens that every component reads.
+
+   Accessibility note (2026-06-17):
+   - `--rv-dim` is the shared low-emphasis text token consumed by muted,
+     secondary, placeholder, metadata, timestamp, helper-text, table-caption,
+     nav-label and chart-label styles. Its previous values fell below the WCAG
+     2.1 AA 4.5:1 minimum for body text, so they were corrected here at the
+     source (see web/src/app/a11y/contrast.spec.ts for the locked ratios).
    ========================================================================== */
 
 /* ---- Figtree as the primary UI typeface (faces declared in rvt-fonts.css) -- */
@@ -102,7 +109,7 @@ html[data-theme="light"][data-palette="azure"] {
 
   --rv-bg: #eaf1f9; --rv-panel: #ffffff; --rv-panel-2: #f4f8fd;
   --rv-surface: #e3edf8; --rv-surface-hover: #dce7f4;
-  --rv-ink: #16212e; --rv-ink-2: #0c2d4d; --rv-muted: #4d5e74; --rv-dim: #73839a;
+  --rv-ink: #16212e; --rv-ink-2: #0c2d4d; --rv-muted: #4d5e74; --rv-dim: #556578;
   --rv-line: #d3dfec; --rv-line-2: #c2d2e4;
   --rv-brand: #36618e; --rv-brand-2: #284e76; --rv-signal: #00697d;
   --rv-ok: #256d3b; --rv-warn: #8a5a00; --rv-bad: #ba1a1a;
@@ -145,7 +152,7 @@ html[data-theme="dark"][data-palette="azure"] {
 
   --rv-bg: #0c1218; --rv-panel: #18222e; --rv-panel-2: #111923;
   --rv-surface: #22303f; --rv-surface-hover: #2c3b4c;
-  --rv-ink: #e0e8f2; --rv-ink-2: #d3e4ff; --rv-muted: #93a4b8; --rv-dim: #5e6e80;
+  --rv-ink: #e0e8f2; --rv-ink-2: #d3e4ff; --rv-muted: #93a4b8; --rv-dim: #9fb0c4;
   --rv-line: #2b3a4b; --rv-line-2: #34465a;
   --rv-brand: #a0cafd; --rv-brand-2: #c7deff; --rv-signal: #54d7e6;
   --rv-ok: #8bd395; --rv-warn: #efbe6b; --rv-bad: #ffb4ab;
@@ -191,7 +198,7 @@ html[data-theme="light"][data-palette="bloom"] {
 
   --rv-bg: #f1edfa; --rv-panel: #ffffff; --rv-panel-2: #f8f5ff;
   --rv-surface: #e9e1f8; --rv-surface-hover: #e3d9f5;
-  --rv-ink: #1c1827; --rv-ink-2: #2a1a5e; --rv-muted: #554e6b; --rv-dim: #7c7488;
+  --rv-ink: #1c1827; --rv-ink-2: #2a1a5e; --rv-muted: #554e6b; --rv-dim: #5d566f;
   --rv-line: #dcd3ee; --rv-line-2: #cabee2;
   --rv-brand: #6750a4; --rv-brand-2: #54408d; --rv-signal: #7d5260;
   --rv-ok: #2e6e3f; --rv-warn: #8a5a00; --rv-bad: #ba1a1a;
@@ -234,7 +241,7 @@ html[data-theme="dark"][data-palette="bloom"] {
 
   --rv-bg: #131020; --rv-panel: #201a38; --rv-panel-2: #181331;
   --rv-surface: #2b2347; --rv-surface-hover: #362c54;
-  --rv-ink: #e8e1f5; --rv-ink-2: #e9ddff; --rv-muted: #a398be; --rv-dim: #6e6586;
+  --rv-ink: #e8e1f5; --rv-ink-2: #e9ddff; --rv-muted: #a398be; --rv-dim: #ada2c8;
   --rv-line: #3a3153; --rv-line-2: #463c63;
   --rv-brand: #cfbdfe; --rv-brand-2: #e0d3ff; --rv-signal: #efb8c8;
   --rv-ok: #8bd395; --rv-warn: #efbe6b; --rv-bad: #ffb4ab;
@@ -280,7 +287,7 @@ html[data-theme="light"][data-palette="mint"] {
 
   --rv-bg: #eaf3ee; --rv-panel: #ffffff; --rv-panel-2: #f3f9f4;
   --rv-surface: #dfeee5; --rv-surface-hover: #d4e5db;
-  --rv-ink: #141d18; --rv-ink-2: #053826; --rv-muted: #46584f; --rv-dim: #6c7c72;
+  --rv-ink: #141d18; --rv-ink-2: #053826; --rv-muted: #46584f; --rv-dim: #4f6258;
   --rv-line: #cfe0d6; --rv-line-2: #bfd3c7;
   --rv-brand: #1e6b52; --rv-brand-2: #145440; --rv-signal: #21698c;
   --rv-ok: #256d3b; --rv-warn: #8a5a00; --rv-bad: #ba1a1a;
@@ -323,7 +330,7 @@ html[data-theme="dark"][data-palette="mint"] {
 
   --rv-bg: #0b1410; --rv-panel: #16231c; --rv-panel-2: #101b15;
   --rv-surface: #1f2f27; --rv-surface-hover: #293a31;
-  --rv-ink: #dee9e1; --rv-ink-2: #bfefd6; --rv-muted: #97ac9f; --rv-dim: #5c7468;
+  --rv-ink: #dee9e1; --rv-ink-2: #bfefd6; --rv-muted: #97ac9f; --rv-dim: #9bb0a3;
   --rv-line: #2c4035; --rv-line-2: #374c40;
   --rv-brand: #8ad7b2; --rv-brand-2: #a6e9c9; --rv-signal: #8dcdf2;
   --rv-ok: #8bd395; --rv-warn: #efbe6b; --rv-bad: #ffb4ab;
@@ -332,7 +339,8 @@ html[data-theme="dark"][data-palette="mint"] {
 
 /* =============================================================================
    NIGHT + HIGH-CONTRAST — keep their special themes; only retune the vital
-   accent tokens so HR/RR surfaces never show the light-mode pink/teal tints.
+   accent tokens so HR/RR surfaces never show the light-mode pink/teal tints,
+   and lift low-emphasis text to an accessible tone.
    These are theme-level (palette-independent) since night/hc are fixed themes.
    ========================================================================== */
 html[data-theme="night"] {
@@ -340,6 +348,11 @@ html[data-theme="night"] {
   --rv-hrc: #4a1029;
   --rv-rr: #5cd6c8;
   --rv-rrc: #0a3e38;
+
+  /* Lift muted/dim text to the theme's accessible on-surface-variant tone so
+     low-emphasis copy clears WCAG AA instead of inheriting a too-faint value. */
+  --rv-muted: var(--md-sys-color-on-surface-variant, #c3cad6);
+  --rv-dim: var(--md-sys-color-on-surface-variant, #c3cad6);
 }
 
 html[data-theme="hc"] {
@@ -348,6 +361,11 @@ html[data-theme="hc"] {
   --rv-hrc: #000000;
   --rv-rr: #ffffff;
   --rv-rrc: #000000;
+
+  /* High-contrast must not be weakened: pin low-emphasis text to full-strength
+     ink so 'dim' copy stays at maximum contrast. */
+  --rv-muted: var(--md-sys-color-on-surface, #ffffff);
+  --rv-dim: var(--md-sys-color-on-surface, #ffffff);
 }
 
 /* =============================================================================

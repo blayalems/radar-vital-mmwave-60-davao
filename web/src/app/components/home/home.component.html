@@ -4,15 +4,15 @@
   <!-- CONNECTIONS / SANDBOX BANNER STATUS -->
   <div class="sandbox-note" [class.connected]="state.ctlStatus()?.ok && state.ctlStatus()?.mode !== 'sandbox'">
     <mat-icon class="status-icon">
-      {{ state.ctlStatus()?.mode === 'sandbox' ? 'warning' : 'cloud_done' }}
+       state.ctlStatus()?.mode === 'sandbox' ? 'warning' : 'cloud_done' 
     </mat-icon>
     <div class="sandbox-note-copy">
-      <strong>{{ state.ctlStatus()?.mode === 'sandbox' ? 'Sandbox Mode Active' : 'Connected Server Mode' }}</strong>
+      <strong> state.ctlStatus()?.mode === 'sandbox' ? 'Sandbox Mode Active' : 'Connected Server Mode' </strong>
       <span>
-        {{ state.ctlStatus()?.mode === 'sandbox' 
+         state.ctlStatus()?.mode === 'sandbox' 
           ? 'The trainer API was unreachable, so the dashboard is running in a local functional preview. Actions are simulated in-browser.' 
           : 'The trainer API is reachable. Start, Stop, preflight, reports, and live telemetry are backed by the Python control server.' 
-        }}
+        
       </span>
     </div>
   </div>
@@ -28,8 +28,8 @@
     </div>
     <div class="install-prompt-actions">
       <button mat-flat-button color="primary" type="button" (click)="installApp()" [disabled]="installPrompt.promptInFlight()">
-        <mat-icon>{{ installPrompt.promptInFlight() ? 'sync' : 'download' }}</mat-icon>
-        {{ installPrompt.promptInFlight() ? 'Opening...' : 'Install app' }}
+        <mat-icon> installPrompt.promptInFlight() ? 'sync' : 'download' </mat-icon>
+         installPrompt.promptInFlight() ? 'Opening...' : 'Install app' 
       </button>
       <button mat-icon-button type="button" (click)="dismissInstallBanner()" aria-label="Dismiss install prompt">
         <mat-icon>close</mat-icon>
@@ -43,7 +43,7 @@
     <div class="mobile-confidence-card">
       <div class="mobile-confidence-head">
         <span>Session Readiness Confidence</span>
-        <strong><span>{{ getReadinessPercentage() }}</span><em>%</em></strong>
+        <strong><span> getReadinessPercentage() </span><em>%</em></strong>
       </div>
       <div class="ready-progress-track">
         <span class="ready-progress-fill" [style.width.%]="getReadinessPercentage()"></span>
@@ -56,17 +56,17 @@
     <mat-card class="home-stat-card home-stat-readiness">
       <div class="home-stat-ic home-stat-ring">
         <div class="home-ring" [attr.data-pct]="getReadinessPercentage()">
-          <strong>{{ getReadinessPercentage() }}</strong>
+          <strong> getReadinessPercentage() </strong>
           <small>%</small>
         </div>
       </div>
       <div class="home-stat-copy">
         <div class="home-stat-title">Overall Readiness</div>
         <div class="home-stat-line">
-          <strong>{{ getReadinessPercentage() }}%</strong>
-          <span>{{ getReadinessPercentage() >= 80 ? 'Ready' : 'Incomplete' }}</span>
+          <strong> getReadinessPercentage() %</strong>
+          <span> getReadinessPercentage() >= 80 ? 'Ready' : 'Incomplete' </span>
         </div>
-        <div class="home-stat-sub">{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo checks only' : (getReadinessPercentage() >= 80 ? 'Preflight complete' : 'Checks pending') }}</div>
+        <div class="home-stat-sub"> state.ctlStatus()?.mode === 'sandbox' ? 'Demo checks only' : (getReadinessPercentage() >= 80 ? 'Preflight complete' : 'Checks pending') </div>
       </div>
     </mat-card>
 
@@ -78,10 +78,10 @@
       <div class="home-stat-copy">
         <div class="home-stat-title">Checks Passed</div>
         <div class="home-stat-line">
-          <strong>{{ getChecksPassedCount() }} / {{ preflightChecks.length }}</strong>
+          <strong> getChecksPassedCount()  /  preflightChecks.length </strong>
         </div>
         <div class="home-stat-sub">
-          {{ getChecksPassedCount() === preflightChecks.length ? 'All checks good' : 'Requires review' }}
+           getChecksPassedCount() === preflightChecks.length ? 'All checks good' : 'Requires review' 
         </div>
       </div>
     </mat-card>
@@ -94,7 +94,7 @@
       <div class="home-stat-copy">
         <div class="home-stat-title">Session Setup</div>
         <div class="home-stat-line">
-          <strong>{{ selectedDuration }}s</strong>
+          <strong> selectedDuration s</strong>
         </div>
         <div class="home-stat-sub">Duration configured</div>
       </div>
@@ -108,9 +108,9 @@
       <div class="home-stat-copy">
         <div class="home-stat-title">Environment</div>
         <div class="home-stat-line">
-          <strong>{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo' : (state.ctlStatus()?.ok ? 'Connected' : 'Unknown') }}</strong>
+          <strong> state.ctlStatus()?.mode === 'sandbox' ? 'Demo' : (state.ctlStatus()?.ok ? 'Connected' : 'Unknown') </strong>
         </div>
-        <div class="home-stat-sub">{{ state.telemetryStale() ? 'Awaiting live telemetry' : 'Payload recently received' }}</div>
+        <div class="home-stat-sub"> state.telemetryStale() ? 'Awaiting live telemetry' : 'Payload recently received' </div>
       </div>
     </mat-card>
   </div>
@@ -123,7 +123,7 @@
       <span>Run preflight, connect the trainer, or start a demo session before interpreting vitals or report history.</span>
     </div>
     <button mat-flat-button type="button" class="mat-tonal-button" (click)="runPreflight()" [disabled]="isPreflightRunning">
-      <mat-icon>{{ isPreflightRunning ? 'sync' : 'fact_check' }}</mat-icon>
+      <mat-icon> isPreflightRunning ? 'sync' : 'fact_check' </mat-icon>
       Run preflight
     </button>
   </mat-card>
@@ -141,8 +141,8 @@
       <mat-card-content class="setup-card-content">
         <!-- DURATION CHOICE CHIPS -->
         <div class="setup-field span-full">
-          <label class="field-label">Recording Duration <span class="label-hint">how long to record</span></label>
-          <div class="duration-chips">
+          <label class="field-label" id="recDurationLabel">Recording Duration <span class="label-hint">how long to record</span></label>
+          <div class="duration-chips" role="group" aria-labelledby="recDurationLabel">
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 300" (click)="selectDuration(300)">5m</button>
@@ -153,30 +153,30 @@
 
         <!-- PORT SELECT AND DISCOVERY -->
         <div class="setup-field">
-          <label class="field-label">Radar Port</label>
+          <label class="field-label" id="radarPortLabel">Radar Port</label>
           <div class="field-controls">
             <mat-form-field appearance="outline" class="form-field-full">
-              <mat-select [ngModel]="state.setup().radar_port" (ngModelChange)="updateSetup('radar_port', $event); onFormChange()">
+              <mat-select [ngModel]="state.setup().radar_port" (ngModelChange)="updateSetup('radar_port', $event); onFormChange()" aria-labelledby="radarPortLabel">
                 @for (port of radarPorts; track port) {
-                <mat-option [value]="port">{{ port }}</mat-option>
+                <mat-option [value]="port"> port </mat-option>
                 }
               </mat-select>
             </mat-form-field>
-            <button mat-flat-button (click)="scanSerialPorts()" [disabled]="isScanningPorts" class="mat-tonal-button icon-action-btn">
-              <mat-icon>{{ isScanningPorts ? 'sync' : 'refresh' }}</mat-icon>
+            <button mat-flat-button (click)="scanSerialPorts()" [disabled]="isScanningPorts" class="mat-tonal-button icon-action-btn" aria-label="Scan for radar serial ports">
+              <mat-icon> isScanningPorts ? 'sync' : 'refresh' </mat-icon>
             </button>
           </div>
         </div>
 
         <!-- BLE SCANNER -->
         <div class="setup-field">
-          <label class="field-label">BLE Oximeter Address</label>
+          <label class="field-label" id="bleAddressLabel">BLE Oximeter Address</label>
           <div class="field-controls">
             <mat-form-field appearance="outline" class="form-field-full">
-              <input matInput [ngModel]="state.setup().ble_address" (ngModelChange)="updateSetup('ble_address', $event)" (blur)="onFormChange()" placeholder="e.g. 10:22:33:9E:8F:63">
+              <input matInput [ngModel]="state.setup().ble_address" (ngModelChange)="updateSetup('ble_address', $event)" (blur)="onFormChange()" placeholder="e.g. 10:22:33:9E:8F:63" aria-labelledby="bleAddressLabel">
             </mat-form-field>
             <button mat-flat-button (click)="scanBleDevices()" [disabled]="isScanningBle" class="mat-tonal-button icon-action-btn pair-sensor-btn">
-              <mat-icon>{{ isScanningBle ? 'sync' : 'bluetooth' }}</mat-icon>
+              <mat-icon> isScanningBle ? 'sync' : 'bluetooth' </mat-icon>
               <span>Pair sensor</span>
             </button>
           </div>
@@ -185,8 +185,8 @@
             @for (dev of bleDevices; track dev.id || dev.address || dev.name) {
             <button mat-button type="button" class="ble-device-item" (click)="applyBleDevice(dev)" [disabled]="!bleDeviceAddress(dev)" [attr.aria-label]="'Use BLE device ' + (dev.name || bleDeviceAddress(dev) || 'without address')">
               <span class="ble-device-main">
-                <strong>{{ dev.name || 'Unnamed BLE device' }}</strong>
-                <small>{{ bleDeviceAddress(dev) || 'No hardware address reported' }}</small>
+                <strong> dev.name || 'Unnamed BLE device' </strong>
+                <small> bleDeviceAddress(dev) || 'No hardware address reported' </small>
               </span>
               <span class="ble-signal"
                     [class.strong]="bleSignalClass(dev.rssi) === 'strong'"
@@ -195,7 +195,7 @@
                     [class.unknown]="bleSignalClass(dev.rssi) === 'unknown'"
                     [attr.aria-label]="bleSignalLabel(dev.rssi)">
                 <span></span><span></span><span></span>
-                <em>{{ dev.rssi ?? '--' }} dBm</em>
+                <em> dev.rssi ?? '--'  dBm</em>
               </span>
             </button>
             }
@@ -215,11 +215,11 @@
             <p>Checks one local AiLink FFE0/FFE2 GATT notification for APK/EXE validation. The trainer remains the recorded session data source.</p>
           </div>
           <button mat-flat-button type="button" (click)="validateNativeBleReference()" [disabled]="isValidatingNativeBle" class="mat-tonal-button">
-            <mat-icon>{{ isValidatingNativeBle ? 'sync' : 'bluetooth_searching' }}</mat-icon>
-            {{ isValidatingNativeBle ? 'Validating...' : 'Validate native GATT' }}
+            <mat-icon> isValidatingNativeBle ? 'sync' : 'bluetooth_searching' </mat-icon>
+             isValidatingNativeBle ? 'Validating...' : 'Validate native GATT' 
           </button>
           @if (nativeBleProbeStatus) {
-          <p class="native-ble-result" role="status">{{ nativeBleProbeStatus }}</p>
+          <p class="native-ble-result" role="status"> nativeBleProbeStatus </p>
           }
         </div>
         }
@@ -229,7 +229,7 @@
             <mat-label>Subject Profile</mat-label>
             <mat-select [ngModel]="state.setup().subject_profile_id" (ngModelChange)="updateSetup('subject_profile_id', $event); state.activeSubjectProfileId.set($event)">
               @for (profile of subjectProfiles | keyvalue; track profile.key) {
-              <mat-option [value]="profile.key">{{ profile.value.label }}</mat-option>
+              <mat-option [value]="profile.key"> profile.value.label </mat-option>
               }
             </mat-select>
           </mat-form-field>
@@ -271,7 +271,7 @@
         @if (preflightChecks.length && getChecksPassedCount() < preflightChecks.length && !hasBlockingPreflightFailure()) {
           <p class="start-gate-hint" role="status">
             <mat-icon aria-hidden="true">info</mat-icon>
-            {{ preflightChecks.length - getChecksPassedCount() }} preflight check(s) need review — starting is still allowed.
+             preflightChecks.length - getChecksPassedCount()  preflight check(s) need review — starting is still allowed.
           </p>
         }
         <button mat-flat-button color="primary" class="start-session-btn" (click)="startSession()" [disabled]="!canStartSession() || isStartingSession">
@@ -306,21 +306,21 @@
         <div class="scope-metrics-row">
           <div class="scope-metric">
             <span>Range</span>
-            <strong>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) + ' cm' : '--' }}</strong>
-            <small>{{ state.lastPayload()?.radar?.human ? 'Subject detected' : 'Searching range' }}</small>
+            <strong> state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) + ' cm' : '--' </strong>
+            <small> state.lastPayload()?.radar?.human ? 'Subject detected' : 'Searching range' </small>
             <span class="placement-zone-chip" [attr.data-zone]="placementZone().id" role="status">
-              {{ placementZone().label }}
+               placementZone().label 
             </span>
-            <small class="placement-hint">{{ placementZone().hint }}</small>
+            <small class="placement-hint"> placementZone().hint </small>
           </div>
           <div class="scope-metric">
             <span>Live HR</span>
-            <strong>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) + ' bpm' : '--' }}</strong>
+            <strong> state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) + ' bpm' : '--' </strong>
             <small>Radar reported</small>
           </div>
           <div class="scope-metric">
             <span>Live RR</span>
-            <strong>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) + ' br' : '--' }}</strong>
+            <strong> state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) + ' br' : '--' </strong>
             <small>Radar reported</small>
           </div>
         </div>
@@ -348,27 +348,27 @@
         <mat-card-subtitle>Verifies serial interfaces, BLE availability, local schemas, and storage space limits.</mat-card-subtitle>
       </div>
       <button mat-flat-button color="primary" (click)="runPreflight()" [disabled]="isPreflightRunning" class="mat-tonal-button">
-        <mat-icon>{{ isPreflightRunning ? 'sync' : 'fact_check' }}</mat-icon>
+        <mat-icon> isPreflightRunning ? 'sync' : 'fact_check' </mat-icon>
         Re-run Preflight Pipeline
       </button>
     </mat-card-header>
 
     <mat-card-content class="preflight-card-grid">
       @if (preflightError) {
-        <p role="alert">{{ preflightError }}</p>
+        <p role="alert"> preflightError </p>
       }
       @for (check of preflightChecks; track check.id) {
       <div class="preflight-row" [class.pf-good]="check.status === 'good' || check.status === 'pass'" [class.pf-warn]="check.status === 'warn'" [class.pf-bad]="check.status === 'bad' || check.status === 'fail'">
         <div class="pf-info">
           <mat-icon class="pf-status-icon">
-            {{ check.status === 'good' || check.status === 'pass' ? 'check_circle' : check.status === 'warn' ? 'warning' : 'error' }}
+             check.status === 'good' || check.status === 'pass' ? 'check_circle' : check.status === 'warn' ? 'warning' : 'error' 
           </mat-icon>
           <div class="pf-text">
-            <strong>{{ check.label }}</strong>
-            <small>{{ check.description }}</small>
+            <strong> check.label </strong>
+            <small> check.description </small>
           </div>
         </div>
-        <button mat-icon-button (click)="runSingleCheck(check.id)" title="Run check singly">
+        <button mat-icon-button (click)="runSingleCheck(check.id)" title="Run check singly" [attr.aria-label]="'Re-run check: ' + check.label">
           <mat-icon>refresh</mat-icon>
         </button>
       </div>
@@ -418,25 +418,25 @@
         @for (group of getGroupedSessions(); track group.dateLabel) {
           <div class="session-date-group-header">
             <mat-icon>calendar_today</mat-icon>
-            <strong>{{ group.dateLabel }}</strong>
-            <span class="group-count-badge">{{ group.items.length }} session{{ group.items.length === 1 ? '' : 's' }}</span>
+            <strong> group.dateLabel </strong>
+            <span class="group-count-badge"> group.items.length  session group.items.length === 1 ? '' : 's' </span>
           </div>
 
           @for (session of group.items; track session.session_id) {
           <div class="session-log-row">
-            <strong>{{ session.started_at | date:'shortTime' }}</strong>
+            <strong> session.started_at | date:'shortTime' </strong>
             <span>
-              <span class="session-duration-badge">{{ sessionDuration(session) }}</span>
+              <span class="session-duration-badge"> sessionDuration(session) </span>
             </span>
-            <span>{{ session.subject_label || session.subject || '--' }}</span>
+            <span> session.subject_label || session.subject || '--' </span>
             <div class="session-sparkline-cell">
               <canvas class="session-micro-sparkline" [attr.data-session-id]="session.session_id" role="img" aria-label="Micro-sparkline recent trend"></canvas>
             </div>
             <span class="session-verdict-badge" [attr.data-verdict]="sessionVerdict(session)">
-              {{ sessionVerdict(session) | uppercase }}
+               sessionVerdict(session) | uppercase 
             </span>
             <span class="session-summary-col">
-              {{ state.sessionNotes()[session.session_id] || session.summary || 'No operator summary recorded.' }}
+               state.sessionNotes()[session.session_id] || session.summary || 'No operator summary recorded.' 
             </span>
             <button mat-icon-button color="primary" aria-label="Review session" (click)="reviewSession(session.session_id)">
               <mat-icon>open_in_new</mat-icon>

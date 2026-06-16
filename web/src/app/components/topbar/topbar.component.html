@@ -1,10 +1,10 @@
 <mat-toolbar class="topbar">
   <div class="crumbs">
-    <span class="crumb-eyebrow">{{ getBreadcrumbEyebrow() }}</span>
-    <h1 class="crumb-title">{{ getBreadcrumbTitle() }}</h1>
+    <span class="crumb-eyebrow"> getBreadcrumbEyebrow() </span>
+    <h1 class="crumb-title"> getBreadcrumbTitle() </h1>
     <div class="crumb-trail" aria-label="Breadcrumb navigation">
-      <span>{{ state.currentView() }}</span>
-      @if (state.currentView() === 'live') { <span> / {{ state.activeTab() }}</span> }
+      <span> state.currentView() </span>
+      @if (state.currentView() === 'live') { <span> /  state.activeTab() </span> }
     </div>
   </div>
 
@@ -21,81 +21,81 @@
       (keydown.enter)="openServerSettings()"
       (keydown.space)="openServerSettings()">
       <span class="server-dot" aria-hidden="true"></span>
-      <span class="status-txt">{{ serverLifecycle.statusLabel() }}</span>
+      <span class="status-txt"> serverLifecycle.statusLabel() </span>
     </mat-chip>
 
     <!-- Connection Health -->
     <mat-chip class="status-pill conn" [class.active]="state.ctlStatus()?.ok" [class.failed]="state.ctlStatus()?.ok === false" id="conn" role="status" aria-live="polite">
       <span class="status-dot dot"></span>
       <span class="status-txt">
-        {{ state.ctlStatus()?.ok ? (state.paused() ? 'Paused' : 'Monitoring') : 'Disconnected' }}
+         state.ctlStatus()?.ok ? (state.paused() ? 'Paused' : 'Monitoring') : 'Disconnected' 
       </span>
       @if (state.ctlStatus()?.ok === false) { <span class="conn-retry-info">
         @if (retryCountdownS(); as seconds) {
-          <span class="conn-retry-countdown" aria-live="off">auto-retry in {{ seconds }}s</span>
+          <span class="conn-retry-countdown" aria-live="off">auto-retry in  seconds s</span>
         }
         <button mat-button class="conn-retry-btn" (click)="manualReconnect()" type="button">Retry now</button>
       </span> }
-      <span class="status-sub">{{ state.ctlStatus()?.latency ? state.ctlStatus()?.latency + 'ms' : '--' }}</span>
+      <span class="status-sub"> state.ctlStatus()?.latency ? state.ctlStatus()?.latency + 'ms' : '--' </span>
     </mat-chip>
 
     <!-- Source Mode -->
     <mat-chip class="status-pill mode mode-badge" [class.sandbox]="state.ctlStatus()?.mode === 'sandbox'" [class.live]="state.ctlStatus()?.mode === 'live'" id="modeBadge" title="Source mode">
       <span class="status-dot dot"></span>
       <span class="material-symbols-rounded" id="modeBadgeIcon">
-        {{ state.ctlStatus()?.mode === 'sandbox' ? 'wifi_tethering_off' : 'sensors' }}
+         state.ctlStatus()?.mode === 'sandbox' ? 'wifi_tethering_off' : 'sensors' 
       </span>
-      <span class="status-txt">{{ state.ctlStatus()?.mode || 'waiting' }}</span>
-      <span class="status-sub">{{ state.ctlStatus()?.mode === 'sandbox' ? 'Sandbox' : (state.ctlStatus()?.ok ? 'Trainer API' : '--') }}</span>
+      <span class="status-txt"> state.ctlStatus()?.mode || 'waiting' </span>
+      <span class="status-sub"> state.ctlStatus()?.mode === 'sandbox' ? 'Sandbox' : (state.ctlStatus()?.ok ? 'Trainer API' : '--') </span>
     </mat-chip>
 
     <!-- Current Operator -->
     <mat-chip class="status-pill operator-badge" id="homeOperatorBadge" title="Current operator">
       <span class="material-symbols-rounded">person</span>
-      <span class="status-txt">{{ state.setup().operator_label || 'Operator A' }}</span>
-      <span class="status-sub">{{ state.setup().station_label || 'Lab · Station 3' }}</span>
+      <span class="status-txt"> state.setup().operator_label || 'Operator A' </span>
+      <span class="status-sub"> state.setup().station_label || 'Lab · Station 3' </span>
     </mat-chip>
   </mat-chip-set>
 
   <div class="topbar-actions" role="group" aria-label="Console actions">
     <!-- Zen/Live Mode Segment -->
     <div class="seg seg-sm tb-live-mode" role="radiogroup" aria-label="Telemetry detail">
-      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.zenMode()" [attr.aria-checked]="state.zenMode()" (click)="setLiveMode('simple')" title="Simple view">
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.zenMode()" [attr.aria-checked]="state.zenMode()" (click)="setLiveMode('simple')" title="Simple view" aria-label="Simple view">
         <span class="material-symbols-rounded">visibility</span>
       </button>
-      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="!state.zenMode()" [attr.aria-checked]="!state.zenMode()" (click)="setLiveMode('advanced')" title="Advanced view">
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="!state.zenMode()" [attr.aria-checked]="!state.zenMode()" (click)="setLiveMode('advanced')" title="Advanced view" aria-label="Advanced view">
         <span class="material-symbols-rounded">data_exploration</span>
       </button>
     </div>
 
     <!-- Density Segment -->
     <div class="seg seg-sm tb-density" role="radiogroup" aria-label="Density">
-      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.density() === 'comfortable'" [attr.aria-checked]="state.density() === 'comfortable'" (click)="setDensity('comfortable')" title="Comfortable">
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.density() === 'comfortable'" [attr.aria-checked]="state.density() === 'comfortable'" (click)="setDensity('comfortable')" title="Comfortable" aria-label="Comfortable density">
         <span class="material-symbols-rounded">density_medium</span>
       </button>
-      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.density() === 'compact'" [attr.aria-checked]="state.density() === 'compact'" (click)="setDensity('compact')" title="Compact">
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.density() === 'compact'" [attr.aria-checked]="state.density() === 'compact'" (click)="setDensity('compact')" title="Compact" aria-label="Compact density">
         <span class="material-symbols-rounded">density_small</span>
       </button>
     </div>
 
     <!-- Pause/Resume Polling -->
-    <button mat-icon-button class="ic-btn icon-btn tb-pause" [class.active]="state.paused()" (click)="togglePause()" type="button" title="Pause / resume live polling">
-      <span class="material-symbols-rounded">{{ state.paused() ? 'play_arrow' : 'pause' }}</span>
+    <button mat-icon-button class="ic-btn icon-btn tb-pause" [class.active]="state.paused()" (click)="togglePause()" type="button" title="Pause / resume live polling" aria-label="Pause or resume live polling">
+      <span class="material-symbols-rounded"> state.paused() ? 'play_arrow' : 'pause' </span>
     </button>
 
     <!-- Settings Button -->
-    <button mat-icon-button class="ic-btn icon-btn tb-alerts" (click)="openAlerts()" type="button" title="Alerts"
+    <button mat-icon-button class="ic-btn icon-btn tb-alerts" (click)="openAlerts()" type="button" title="Alerts" aria-label="Alerts"
       [matBadge]="state.alertHistory().length" [matBadgeHidden]="state.alertHistory().length === 0" matBadgeColor="warn">
       <span class="material-symbols-rounded">notifications</span>
     </button>
 
     <!-- Settings Button -->
-    <button mat-icon-button class="ic-btn icon-btn tb-settings" (click)="openSettings()" type="button" title="Settings">
+    <button mat-icon-button class="ic-btn icon-btn tb-settings" (click)="openSettings()" type="button" title="Settings" aria-label="Settings">
       <span class="material-symbols-rounded">settings</span>
     </button>
 
     <!-- Cycle Theme -->
-    <button mat-icon-button class="ic-btn icon-btn tb-theme" (click)="toggleTheme()" type="button" title="Cycle theme">
+    <button mat-icon-button class="ic-btn icon-btn tb-theme" (click)="toggleTheme()" type="button" title="Cycle theme" aria-label="Cycle theme">
       <span class="material-symbols-rounded">dark_mode</span>
     </button>
 
@@ -104,7 +104,7 @@
     </button>
     <mat-menu #mobileActionsMenu="matMenu" xPosition="before" yPosition="below" aria-label="More console actions menu">
       <button mat-menu-item type="button" (click)="openPalette()"><mat-icon>search</mat-icon><span>Search commands</span></button>
-      <button mat-menu-item type="button" (click)="togglePause()"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon><span>Pause or resume</span></button>
+      <button mat-menu-item type="button" (click)="togglePause()"><mat-icon> state.paused() ? 'play_arrow' : 'pause' </mat-icon><span>Pause or resume</span></button>
       <button mat-menu-item type="button" (click)="openAlerts()"><mat-icon>notifications</mat-icon><span>Alerts</span></button>
       <button mat-menu-item type="button" (click)="openSettings()"><mat-icon>settings</mat-icon><span>Settings</span></button>
       <button mat-menu-item type="button" (click)="lockProfile()"><mat-icon>lock</mat-icon><span>Lock profile</span></button>

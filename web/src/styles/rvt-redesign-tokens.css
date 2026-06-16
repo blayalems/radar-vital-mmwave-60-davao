@@ -401,3 +401,42 @@ html[data-theme="hc"] {
 @media (prefers-reduced-motion: reduce) {
   .rv-card { transition: none; }
 }
+
+/* =============================================================================
+   ACCESSIBILITY PRIMITIVES (2026-06-17)
+   Shared minimum hit-area sizing and translation-safe low-emphasis label
+   helpers. Declared at the token layer so individual component stylesheets do
+   not each re-implement them. Focus outlines are intentionally NOT touched.
+   ========================================================================== */
+:root {
+  --rv-touch-min: 44px;
+}
+
+/* Guarantee a >=44x44 CSS-px hit area for icon-only and segmented controls
+   without changing the rendered glyph size. Disabled controls keep the same
+   geometry (only pointer/visual state differs). */
+.ic-btn,
+.icon-btn,
+.seg-btn,
+.icon-action-btn,
+button.mat-mdc-icon-button {
+  min-inline-size: var(--rv-touch-min, 44px);
+  min-block-size: var(--rv-touch-min, 44px);
+}
+
+/* Bottom-nav tabs already stretch to fill the bar via flex, so enforce only the
+   vertical hit area. Adding a min inline size here would fight their
+   `min-width: 0` flex distribution and overflow the bar. */
+a[mat-navigation-tab],
+button[mat-navigation-tab],
+mat-navigation-tab {
+  min-block-size: var(--rv-touch-min, 44px);
+}
+
+/* Translation-safe low-emphasis labels (e.g. side-rail labels, helper copy):
+   wrap/break long localized strings rather than clipping them. */
+.r-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}

@@ -5,6 +5,16 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-18 - PR-65 Version Identity/Test Contract Slice
+
+- **Version identity/tests**: Promoted remaining active trainer, firmware, Tauri, help-schema, shipped dashboard, smoke, OTA/backend, trainer security, verdict, and static contract version surfaces to `16.4.0` / `v16.4.0` / `App v16.4`; left historical changelog/docs and semver comparison fixtures untouched.
+- **Verification**: Focused `git grep` found no active `v16.3`/`16.3.0` or `App v17` identity drift outside excluded history/semver files; `git diff --check` clean except CRLF warnings; `python -m pytest -q tests/test_v12_static_contract.py tests/test_trainer_security_api.py tests/test_ota_backend.py tests/test_trainer_verdict.py` passed 55/55; `npm run build:web` and `npm run build:check` passed with the known bundle/Live CSS size warnings.
+
+### 2026-06-18 - PR-65 Worker C Settings + Modal Backdrop Polish
+
+- **Settings/modal polish**: Reorganized Settings into the grouped two-column card grid with search and consolidated System/Data/About content, then routed Settings-owned confirmation dialogs through the shared M3 panel plus explicit blurred backdrop class and added dialog focus-visible styling.
+- **Verification**: Source-level checks confirmed 8 Settings group cards plus `rvt-modal-blur-backdrop`/focus rules are wired. `npm --prefix web run test:ci` blocked because local dependencies are absent (`ng` unavailable); earlier `npm ci` attempts failed during Windows npm tar extraction with `TAR_ENTRY_ERROR`, and partial `web/node_modules` debris was removed.
+
 ### 2026-06-18 — PR-65 Worker B Live/Report Redesign Slice
 
 - **Live/Report**: Added in-page Simple/Advanced Live controls, simplified transport/status labels with Standby/Motion badges, Simple info cards, Advanced target/policy label polish, Report session chips, outcome/stat/table polish, and radar-vs-reference chart overlays.

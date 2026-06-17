@@ -84,9 +84,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.3.0"
-DASHBOARD_VERSION = "16.3.0"
-FIRMWARE_VERSION_EXPECTED = "v16.3.0"
+VERSION = "16.4.0"
+DASHBOARD_VERSION = "16.4.0"
+FIRMWARE_VERSION_EXPECTED = "v16.4.0"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only

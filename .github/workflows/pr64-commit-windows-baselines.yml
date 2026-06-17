@@ -1,4 +1,4 @@
-name: PR64 commit Windows baselines
+name: PR64 cleanup temporary automation
 
 on:
   push:
@@ -8,118 +8,27 @@ on:
       - .github/workflows/pr64-commit-windows-baselines.yml
 
 permissions:
-  actions: read
   contents: write
 
 jobs:
-  commit-baselines:
+  cleanup:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      VISUAL_ARTIFACT_ID: '7683353849'
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           ref: claude/operator-console-a11y-i18n
 
-      - name: Download corrected Windows visual report
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p .pr64-artifact
-          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${VISUAL_ARTIFACT_ID}/zip" > .pr64-artifact/report.zip
-          unzip -q .pr64-artifact/report.zip -d .pr64-artifact/report
-
-      - name: Promote Windows actual screenshots to committed baselines
-        shell: python
-        run: |
-          from __future__ import annotations
-
-          import base64
-          import io
-          import json
-          import re
-          import shutil
-          import zipfile
-          from pathlib import Path
-
-          artifact_root = Path('.pr64-artifact/report')
-          indexes = [
-              path for path in artifact_root.rglob('index.html')
-              if (path.parent / 'data').is_dir()
-          ]
-          if len(indexes) != 1:
-              raise SystemExit(f'Expected one Playwright report index, found {indexes}')
-
-          index = indexes[0]
-          html = index.read_text(encoding='utf-8')
-          match = re.search(
-              r'<script id="playwrightReportBase64"[^>]*>'
-              r'data:application/zip;base64,([^<]+)</script>',
-              html,
-          )
-          if not match:
-              raise SystemExit('Embedded Playwright report archive was not found')
-
-          report_archive = base64.b64decode(match.group(1))
-          with zipfile.ZipFile(io.BytesIO(report_archive)) as archive:
-              report = json.loads(archive.read('report.json'))
-
-          snapshot_root = Path('tests/visual/rvt-v12.spec.ts-snapshots')
-          promoted: list[Path] = []
-          for file_result in report['files']:
-              for test in file_result['tests']:
-                  if test.get('ok'):
-                      continue
-                  first_result = test.get('results', [])[0]
-                  actual = next(
-                      attachment
-                      for attachment in first_result.get('attachments', [])
-                      if attachment['name'].endswith('-actual.png')
-                  )
-                  snapshot_name = actual['name'].removesuffix('-actual.png') + '.png'
-                  target = snapshot_root / (
-                      f"{snapshot_name.removesuffix('.png')}-"
-                      f"{test['projectName']}-win32.png"
-                  )
-                  source = index.parent / actual['path']
-                  if not source.is_file():
-                      raise SystemExit(f'Missing Windows actual screenshot: {source}')
-                  if not target.is_file():
-                      raise SystemExit(f'Expected committed snapshot path is missing: {target}')
-                  shutil.copyfile(source, target)
-                  promoted.append(target)
-                  print(f'Promoted {source.name} -> {target}')
-
-          if len(promoted) != 11:
-              raise SystemExit(f'Expected 11 corrected baselines, promoted {len(promoted)}')
-
-          spec_path = Path('tests/visual/rvt-v12.spec.ts')
-          spec = spec_path.read_text(encoding='utf-8')
-          anchor = "        const stabilizeTabletHome = view === 'home' && testInfo.project.name === 'ipad';\n"
-          addition = anchor + "        const stabilizeHighContrastDesktop = theme === 'hc' && testInfo.project.name === 'desktop';\n"
-          if 'stabilizeHighContrastDesktop' not in spec:
-              if anchor not in spec:
-                  raise SystemExit('Visual-spec declaration anchor was not found')
-              spec = spec.replace(anchor, addition, 1)
-
-          old_tolerance = "          ...(stabilizeTabletHome ? { maxDiffPixels: 20000 } : {})\n"
-          new_tolerance = "          ...(stabilizeTabletHome\n            ? { maxDiffPixels: 20000 }\n            : stabilizeHighContrastDesktop\n              ? { maxDiffPixels: 1000 }\n              : {})\n"
-          if old_tolerance in spec:
-              spec = spec.replace(old_tolerance, new_tolerance, 1)
-          elif new_tolerance not in spec:
-              raise SystemExit('Visual-spec tolerance anchor was not found')
-          spec_path.write_text(spec, encoding='utf-8')
-
-      - name: Commit corrected Windows baselines
+      - name: Remove temporary PR64 automation
         shell: bash
         run: |
-          rm -rf .pr64-artifact
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/visual/rvt-v12.spec.ts tests/visual/rvt-v12.spec.ts-snapshots
-          git diff --cached --check
-          git commit -m "test(visual): refresh corrected Windows baselines"
+          git rm \
+            .github/workflows/pr64-apply-port-fix.yml \
+            .github/workflows/pr64-finalize-visuals.yml \
+            .github/workflows/pr64-commit-windows-baselines.yml \
+            scripts/pr64-fix-port-option.mjs
+          git commit -m "chore(ci): remove temporary PR64 automation"
           git pull --rebase origin claude/operator-console-a11y-i18n
           git push origin HEAD:claude/operator-console-a11y-i18n

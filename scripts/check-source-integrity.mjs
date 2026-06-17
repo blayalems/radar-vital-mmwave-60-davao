@@ -10,12 +10,14 @@ const files = [
   'docs/i18n.md',
   'scripts/check-contrast-tokens.mjs',
   'web/angular.json',
+  'web/src/index.html',
   'web/src/app/a11y/contrast-core.mjs',
   'web/src/app/a11y/contrast.spec.ts',
   'web/src/app/a11y/contrast.ts',
   'web/src/app/components/home/home.component.html',
   'web/src/app/components/topbar/topbar.component.html',
   'web/src/app/i18n/translate.pipe.ts',
+  'web/src/app/services/dynamic-color.service.spec.ts',
   'web/src/app/services/i18n.messages.en.ts',
   'web/src/app/services/i18n.service.ts',
   'web/src/styles/rvt-redesign-tokens.css',
@@ -40,6 +42,8 @@ const requiredTemplateBindings = {
     /\{\{\s*check\.label\s*\}\}/,
     /\{\{[\s\S]*?state\.lastPayload\(\)\?\.radar\?\.reported_hr[\s\S]*?\}\}/,
     /\{\{\s*session\.started_at\s*\|\s*date\s*:\s*['"]shortTime['"]\s*\}\}/,
+    /\[attr\.aria-pressed\]="selectedDuration === 30"/,
+    /translate:i18n\.locale\(\):i18n\.revision\(\)/,
   ],
   'web/src/app/components/topbar/topbar.component.html': [
     /\{\{\s*getBreadcrumbTitle\(\)\s*\}\}/,
@@ -47,6 +51,9 @@ const requiredTemplateBindings = {
     /auto-retry\s+in\s+\{\{\s*seconds\s*\}\}\s*s/,
     /\{\{\s*state\.setup\(\)\.operator_label\s*\|\|\s*['"]Operator A['"]\s*\}\}/,
     /\{\{\s*state\.paused\(\)\s*\?\s*['"]play_arrow['"]\s*:\s*['"]pause['"]\s*\}\}/,
+    /\[attr\.aria-pressed\]="state\.paused\(\)"/,
+    /topbar\.resumePolling/,
+    /translate:i18n\.locale\(\):i18n\.revision\(\)/,
   ],
 };
 

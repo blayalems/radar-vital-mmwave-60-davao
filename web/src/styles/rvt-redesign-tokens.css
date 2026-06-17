@@ -152,7 +152,7 @@ html[data-theme="dark"][data-palette="azure"] {
 
   --rv-bg: #0c1218; --rv-panel: #18222e; --rv-panel-2: #111923;
   --rv-surface: #22303f; --rv-surface-hover: #2c3b4c;
-  --rv-ink: #e0e8f2; --rv-ink-2: #d3e4ff; --rv-muted: #93a4b8; --rv-dim: #9fb0c4;
+  --rv-ink: #e0e8f2; --rv-ink-2: #d3e4ff; --rv-muted: #94a5b9; --rv-dim: #9fb0c4;
   --rv-line: #2b3a4b; --rv-line-2: #34465a;
   --rv-brand: #a0cafd; --rv-brand-2: #c7deff; --rv-signal: #54d7e6;
   --rv-ok: #8bd395; --rv-warn: #efbe6b; --rv-bad: #ffb4ab;

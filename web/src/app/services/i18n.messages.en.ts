@@ -11,6 +11,8 @@ export const EN_MESSAGES = {
   "topbar.comfortableDensity": "Comfortable density",
   "topbar.compactDensity": "Compact density",
   "topbar.togglePolling": "Pause or resume live polling",
+  "topbar.pausePolling": "Pause live polling",
+  "topbar.resumePolling": "Resume live polling",
   "topbar.alerts": "Alerts",
   "topbar.settings": "Settings",
   "topbar.cycleTheme": "Cycle theme",

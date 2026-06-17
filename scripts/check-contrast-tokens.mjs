@@ -80,6 +80,24 @@ const baseCss = await readFile(BASE_CSS_PATH, 'utf8');
 const redesignCss = await readFile(REDESIGN_CSS_PATH, 'utf8');
 const overrideCss = await readFile(OVERRIDE_CSS_PATH, 'utf8');
 
+const dynamicSelectors = [
+  'html[data-dynamic-color="1"][data-theme="light"]',
+  'html[data-dynamic-color="1"][data-theme="dark"]',
+  'html[data-dynamic-color="1"][data-theme="night"]',
+];
+const expectedDynamicText =
+  'var(--md-sys-color-on-surface-variant, #c3c7d0)';
+for (const selector of dynamicSelectors) {
+  const declarations = parseDeclarations(overrideCss, selector);
+  for (const token of ['--rv-muted', '--rv-dim']) {
+    if (declarations.get(token) !== expectedDynamicText) {
+      throw new Error(
+        `${selector} must map ${token} to the generated on-surface-variant token`,
+      );
+    }
+  }
+}
+
 const commonSurfaceTokens = [
   '--md-sys-color-surface',
   '--md-sys-color-surface-container-lowest',
@@ -113,7 +131,6 @@ const cases = [
     layers: [
       { css: baseCss, selector: 'html[data-theme="night"]' },
       { css: redesignCss, selector: 'html[data-theme="night"]' },
-      { css: overrideCss, selector: 'html[data-theme="night"]' },
     ],
     backgrounds: [
       '--md-sys-color-surface',
@@ -128,7 +145,6 @@ const cases = [
     layers: [
       { css: baseCss, selector: 'html[data-theme="hc"]' },
       { css: redesignCss, selector: 'html[data-theme="hc"]' },
-      { css: overrideCss, selector: 'html[data-theme="hc"]' },
     ],
     backgrounds: [
       '--md-sys-color-surface',

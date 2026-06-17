@@ -22,6 +22,8 @@ import { AudioService } from '../../services/audio.service';
 import { BluetoothService } from '../../services/bluetooth.service';
 import { InstallPromptService } from '../../services/install-prompt.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
+import { I18nService } from '../../services/i18n.service';
+import { TranslatePipe } from '../../i18n/translate.pipe';
 import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
 
 @Component({
@@ -41,7 +43,8 @@ import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortReco
     MatCheckboxModule,
     MatProgressSpinnerModule,
     MatChipsModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    TranslatePipe
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
@@ -56,6 +59,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly bluetooth = inject(BluetoothService);
   protected readonly installPrompt = inject(InstallPromptService);
   protected readonly serverLifecycle = inject(ServerLifecycleService);
+  protected readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
 

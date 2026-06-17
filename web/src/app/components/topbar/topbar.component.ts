@@ -17,6 +17,8 @@ import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component'
 import { CommandPaletteComponent } from '../command-palette/command-palette.component';
 import { AuthService } from '../../services/auth.service';
 import { SwitchOperatorDialogComponent } from '../switch-operator-dialog/switch-operator-dialog.component';
+import { I18nService } from '../../services/i18n.service';
+import { TranslatePipe } from '../../i18n/translate.pipe';
 
 @Component({
   selector: 'app-topbar',
@@ -28,7 +30,8 @@ import { SwitchOperatorDialogComponent } from '../switch-operator-dialog/switch-
     MatIconModule,
     MatChipsModule,
     MatMenuModule,
-    MatToolbarModule
+    MatToolbarModule,
+    TranslatePipe
   ],
   templateUrl: './topbar.component.html',
   styleUrl: './topbar.component.css',
@@ -38,6 +41,7 @@ export class TopbarComponent {
   protected readonly state = inject(StateService);
   protected readonly serverLifecycle = inject(ServerLifecycleService);
   protected readonly auth = inject(AuthService);
+  protected readonly i18n = inject(I18nService);
   protected readonly mobileActionsOpen = signal(false);
   private readonly api = inject(ApiService);
   private readonly telemetry = inject(TelemetryService);

@@ -7,6 +7,7 @@ export class I18nService {
   readonly locale = signal<string>("en")
   private readonly catalogs = new Map<string, LocaleCatalog>([["en", EN_MESSAGES]])
   private readonly catalogRevision = signal(0)
+  readonly revision = this.catalogRevision.asReadonly()
 
   readonly activeCatalog = computed<LocaleCatalog>(() => {
     this.catalogRevision()
@@ -36,14 +37,14 @@ export class I18nService {
     return [...this.catalogs.keys()]
   }
 
-  translate(key: string, params?: Record<string, string | number>): string {
+  translate(key: string, params?: Record<string, string | number | null | undefined>): string {
     return this.interpolate(this.lookup(key) ?? key, params)
   }
 
   plural(
     key: string,
     count: number,
-    params?: Record<string, string | number>,
+    params?: Record<string, string | number | null | undefined>,
   ): string {
     const category = this.pluralCategory(count)
     const categoryKey = `${key}.${category}`
@@ -75,7 +76,7 @@ export class I18nService {
 
   private interpolate(
     template: string,
-    params?: Record<string, string | number>,
+    params?: Record<string, string | number | null | undefined>,
   ): string {
     if (!params) return template
     return template.replace(/\{(\w+)\}/g, (match, name: string) => {

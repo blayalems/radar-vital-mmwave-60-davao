@@ -51,6 +51,13 @@ describe("I18nService", () => {
     )
   })
 
+  it("falls back to English plural rules for a malformed locale tag", () => {
+    i18n.setLocale("not_a_valid_locale")
+    expect(i18n.plural("home.checksNeedReview", 1)).toBe(
+      "1 check needs review",
+    )
+  })
+
   it("uses the active locale and falls back to English per key", () => {
     i18n.registerCatalog("fil", { "nav.home": "Tahanan" })
     i18n.setLocale("fil")

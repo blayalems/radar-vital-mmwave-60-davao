@@ -69,13 +69,21 @@ export class I18nService {
     count: number,
     params?: Record<string, string | number>,
   ): string {
-    const category = new Intl.PluralRules(this.locale()).select(count)
+    const category = this.pluralCategory(count)
     const categoryKey = `${key}.${category}`
     const fallbackKey = `${key}.other`
     const template =
       this.lookup(categoryKey) ?? this.lookup(fallbackKey) ?? categoryKey
 
     return this.interpolate(template, { ...params, count })
+  }
+
+  private pluralCategory(count: number): Intl.LDMLPluralRule {
+    try {
+      return new Intl.PluralRules(this.locale()).select(count)
+    } catch {
+      return new Intl.PluralRules("en").select(count)
+    }
   }
 
   private lookup(key: string): string | undefined {

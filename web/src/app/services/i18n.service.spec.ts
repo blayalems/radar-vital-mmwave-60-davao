@@ -58,6 +58,28 @@ describe("I18nService", () => {
     )
   })
 
+  it("uses deterministic categories when Intl.PluralRules is absent", () => {
+    const original = Intl.PluralRules
+    Object.defineProperty(Intl, "PluralRules", {
+      configurable: true,
+      value: undefined,
+    })
+
+    try {
+      expect(i18n.plural("home.checksNeedReview", 1)).toBe(
+        "1 check needs review",
+      )
+      expect(i18n.plural("home.checksNeedReview", 2)).toBe(
+        "2 checks need review",
+      )
+    } finally {
+      Object.defineProperty(Intl, "PluralRules", {
+        configurable: true,
+        value: original,
+      })
+    }
+  })
+
   it("uses the active locale and falls back to English per key", () => {
     i18n.registerCatalog("fil", { "nav.home": "Tahanan" })
     i18n.setLocale("fil")

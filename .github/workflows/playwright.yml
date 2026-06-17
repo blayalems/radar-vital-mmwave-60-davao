@@ -7,6 +7,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -136,3 +139,100 @@ jobs:
           name: playwright-visual-report
           path: playwright-report/
           retention-days: 7
+
+  finalize-pr64:
+    name: Finalize PR64 reviewed fixes
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.ref == 'claude/operator-console-a11y-i18n'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Check one-shot marker
+        id: gate
+        shell: bash
+        run: |
+          if [[ -f .github/pr64-finalize-trigger ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "One-shot marker absent; finalizer is inactive."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+
+      - name: Install dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          npm ci
+          npm --prefix web ci
+
+      - name: Apply reviewed follow-up fixes
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          python scripts/pr64-finalize.py
+          cat > assets/fonts/rvt-runtime-accessibility.css <<'CSS'
+          /* Runtime-only accessibility mapping for Material You inline color schemes.
+             Static palette, Night, and High Contrast tokens live in
+             web/src/styles/rvt-redesign-tokens.css as the single source of truth. */
+          html[data-dynamic-color="1"][data-theme="light"],
+          html[data-dynamic-color="1"][data-theme="dark"],
+          html[data-dynamic-color="1"][data-theme="night"] {
+            --rv-muted: var(--md-sys-color-on-surface-variant, #c3c7d0);
+            --rv-dim: var(--md-sys-color-on-surface-variant, #c3c7d0);
+          }
+          CSS
+
+      - name: Validate source, dynamic contrast, and Angular tests
+        if: steps.gate.outputs.run == 'true'
+        run: npm run test:unit:web
+
+      - name: Regenerate and verify committed dashboard
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          npm run build:web
+          npm run build:check
+
+      - name: Commit validated fixes and generated artifact
+        if: steps.gate.outputs.run == 'true'
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          rm scripts/pr64-finalize.py .github/pr64-finalize-trigger
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            assets/fonts/rvt-runtime-accessibility.css \
+            assets/sw.js \
+            docs/i18n.md \
+            radar_vital_live_dashboard_v12_for_v16_0.html \
+            scripts/check-contrast-tokens.mjs \
+            scripts/check-source-integrity.mjs \
+            web/angular.json \
+            web/src/index.html \
+            web/src/app/components/home/home.component.html \
+            web/src/app/components/home/home.component.ts \
+            web/src/app/components/topbar/topbar.component.html \
+            web/src/app/components/topbar/topbar.component.ts \
+            web/src/app/i18n/translate.pipe.spec.ts \
+            web/src/app/i18n/translate.pipe.ts \
+            web/src/app/services/dynamic-color.service.spec.ts \
+            web/src/app/services/i18n.messages.en.ts \
+            web/src/app/services/i18n.service.ts \
+            web/src/styles/rvt-redesign-tokens.css
+          git add -A scripts/pr64-finalize.py .github/pr64-finalize-trigger
+          git diff --cached --check
+          git commit -m "fix(web): close PR64 accessibility review findings"
+          git push origin "HEAD:${HEAD_BRANCH}"

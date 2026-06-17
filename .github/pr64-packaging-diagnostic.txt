@@ -1,0 +1,46 @@
+PR64 packaging diagnostic: build:web
+
+
+> radar-vital-mobile@16.3.0 build:web
+> node scripts/build-angular.mjs
+
+--- Phase 1: Compiling Standalone Angular Dashboard ---
+
+> web@0.0.0 build
+> ng build
+
+[33m❯[39m Building...
+[32m✔[39m Building...
+Application bundle generation failed. [8.495 seconds] - 2026-06-17T07:12:58.048Z
+
+[1m[31m[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mTS2322: Type 'string | undefined' is not assignable to type 'string | number'.
+  Type 'undefined' is not assignable to type 'string | number'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/components/home/home.component.html:374:173:
+[37m      374 │ ... translate:i18n.locale():i18n.revision():{ [32mlabel[37m: check.label }">
+          ╵                                               [32m~~~~~[0m
+
+  Error occurs in the template of component HomeComponent.
+
+    src/app/components/home/home.component.ts:49:15:
+[37m      49 │   templateUrl: [32m'./home.component.html'[37m,
+         ╵                [32m~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+[39m[22m
+Angular compilation failed! Error: Command failed: npm run build
+    at genericNodeError (node:internal/errors:984:15)
+    at wrappedFn (node:internal/errors:538:14)
+    at checkExecSyncError (node:child_process:891:11)
+    at execSync (node:child_process:963:15)
+    at main (file:///home/runner/work/radar-vital-mmwave-60-davao/radar-vital-mmwave-60-davao/scripts/build-angular.mjs:27:5)
+    at file:///home/runner/work/radar-vital-mmwave-60-davao/radar-vital-mmwave-60-davao/scripts/build-angular.mjs:143:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)
+    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 2362,
+  stdout: null,
+  stderr: null
+}

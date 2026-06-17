@@ -1,4 +1,4 @@
-const CACHE = 'rvt-shell-v12.0.5';
+const CACHE = 'rvt-shell-v12.0.6';
 const DASHBOARD = './index.html';
 const MONOLITH = './radar_vital_live_dashboard_v12_for_v16_0.html';
 const PRECACHE = [
@@ -14,6 +14,11 @@ const PRECACHE = [
   './lib/hammer.min.js',
   './lib/jsqr.min.js',
   './fonts/rvt-fonts.css',
+  './fonts/rvt-font-definitions.css',
+  './fonts/rvt-runtime-accessibility.css',
+  './fonts/figtree-latin.woff2',
+  './fonts/figtree-latin-ext.woff2',
+  './fonts/inter-5.woff2',
   './fonts/inter-6.woff2',
   './fonts/jetbrains-mono-5.woff2',
   './fonts/material-symbols-rounded.woff2'

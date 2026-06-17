@@ -13,14 +13,32 @@ describe("contrast helpers", () => {
     expect(WCAG_AA_LARGE).toBe(3)
   })
 
-  it("parses long and shorthand hex colors", () => {
-    expect(parseHex("#ffffff")).toEqual({ r: 255, g: 255, b: 255 })
-    expect(parseHex("#0af")).toEqual({ r: 0, g: 170, b: 255 })
+  it("parses long, shorthand, and alpha hex colors", () => {
+    expect(parseHex("#ffffff")).toEqual({ r: 255, g: 255, b: 255, a: 1 })
+    expect(parseHex("#0af")).toEqual({ r: 0, g: 170, b: 255, a: 1 })
+    expect(parseHex("#0af8")).toEqual({
+      r: 0,
+      g: 170,
+      b: 255,
+      a: 136 / 255,
+    })
+    expect(parseHex("#11223380")).toEqual({
+      r: 17,
+      g: 34,
+      b: 51,
+      a: 128 / 255,
+    })
   })
 
   it("rejects invalid colors", () => {
-    expect(() => parseHex("#ffff")).toThrow("Invalid hex color")
+    expect(() => parseHex("#fffff")).toThrow("Invalid hex color")
     expect(() => parseHex("red")).toThrow("Invalid hex color")
+  })
+
+  it("requires an opaque color for standalone luminance", () => {
+    expect(() => relativeLuminance("#0008")).toThrow(
+      "Relative luminance requires an opaque color",
+    )
   })
 
   it("calculates the luminance endpoints", () => {
@@ -32,7 +50,13 @@ describe("contrast helpers", () => {
     expect(contrastRatio("#000000", "#ffffff")).toBeCloseTo(21, 8)
   })
 
-  it("is symmetric regardless of foreground/background order", () => {
+  it("composites alpha-channel foreground colors over the background", () => {
+    const translucent = contrastRatio("#00000080", "#ffffff")
+    expect(translucent).toBeGreaterThan(3.9)
+    expect(translucent).toBeLessThan(4.1)
+  })
+
+  it("is symmetric for opaque foreground/background colors", () => {
     expect(contrastRatio("#556578", "#dce7f4")).toBeCloseTo(
       contrastRatio("#dce7f4", "#556578"),
       10,

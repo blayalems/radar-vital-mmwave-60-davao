@@ -1,0 +1,17 @@
+/* Loaded through rvt-fonts.css so the standalone dashboard, PWA, and native shells share the same accessibility token corrections. */
+html[data-theme="dark"][data-palette="azure"] {
+  /* 4.54:1 on #2c3b4c, the lightest Azure-dark neutral container. */
+  --rv-muted: #94a5b9;
+}
+
+html[data-theme="night"],
+html[data-theme="night"][data-palette] {
+  --rv-muted: var(--md-sys-color-on-surface-variant, #f5c2bc);
+  --rv-dim: var(--md-sys-color-on-surface-variant, #f5c2bc);
+}
+
+html[data-theme="hc"],
+html[data-theme="hc"][data-palette] {
+  --rv-muted: var(--md-sys-color-on-surface, #ffffff);
+  --rv-dim: var(--md-sys-color-on-surface, #ffffff);
+}

@@ -1,0 +1,88 @@
+name: Finalize PR64 accessibility follow-ups
+
+on:
+  push:
+    branches:
+      - claude/operator-console-a11y-i18n
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr64-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix web ci
+
+      - name: Apply reviewed follow-up fixes
+        run: |
+          python scripts/pr64-finalize.py
+          cat > assets/fonts/rvt-runtime-accessibility.css <<'CSS'
+          /* Runtime-only accessibility mapping for Material You inline color schemes.
+             Static palette, Night, and High Contrast tokens live in
+             web/src/styles/rvt-redesign-tokens.css as the single source of truth. */
+          html[data-dynamic-color="1"][data-theme="light"],
+          html[data-dynamic-color="1"][data-theme="dark"],
+          html[data-dynamic-color="1"][data-theme="night"] {
+            --rv-muted: var(--md-sys-color-on-surface-variant, #c3c7d0);
+            --rv-dim: var(--md-sys-color-on-surface-variant, #c3c7d0);
+          }
+          CSS
+
+      - name: Validate source, contrast, and Angular tests
+        run: npm run test:unit:web
+
+      - name: Regenerate and verify the committed dashboard
+        run: |
+          npm run build:web
+          npm run build:check
+
+      - name: Commit validated source and generated artifact
+        run: |
+          rm .github/workflows/pr64-finalize.yml scripts/pr64-finalize.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            assets/fonts/rvt-runtime-accessibility.css \
+            assets/sw.js \
+            docs/i18n.md \
+            radar_vital_live_dashboard_v12_for_v16_0.html \
+            scripts/check-contrast-tokens.mjs \
+            scripts/check-source-integrity.mjs \
+            web/angular.json \
+            web/src/index.html \
+            web/src/app/components/home/home.component.html \
+            web/src/app/components/home/home.component.ts \
+            web/src/app/components/topbar/topbar.component.html \
+            web/src/app/components/topbar/topbar.component.ts \
+            web/src/app/i18n/translate.pipe.spec.ts \
+            web/src/app/i18n/translate.pipe.ts \
+            web/src/app/services/dynamic-color.service.spec.ts \
+            web/src/app/services/i18n.messages.en.ts \
+            web/src/app/services/i18n.service.ts \
+            web/src/styles/rvt-redesign-tokens.css
+          git add -A .github/workflows/pr64-finalize.yml scripts/pr64-finalize.py
+          git diff --cached --check
+          git commit -m "fix(web): close PR64 accessibility review findings"
+          git push origin HEAD:${GITHUB_REF_NAME}

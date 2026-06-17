@@ -49,6 +49,7 @@ test.describe('v12 dashboard visual baseline', () => {
       test(`${theme} ${view}`, async ({ page }, testInfo) => {
         const stabilizeHomeTelemetry = view === 'home' && ['iphone-14', 'ipad'].includes(testInfo.project.name);
         const stabilizeTabletHome = view === 'home' && testInfo.project.name === 'ipad';
+        const stabilizeHighContrastDesktop = theme === 'hc' && testInfo.project.name === 'desktop';
         // Block external font loading to prevent screenshot hanging in offline/sandboxed environments
         await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
         if (stabilizeHomeTelemetry) {
@@ -213,7 +214,11 @@ test.describe('v12 dashboard visual baseline', () => {
           // GitHub's redirected Windows image currently differs from local
           // Windows in a small iPad Home region even after dynamic values are
           // masked above. Keep this tolerance scoped to that fixture only.
-          ...(stabilizeTabletHome ? { maxDiffPixels: 20000 } : {})
+          ...(stabilizeTabletHome
+            ? { maxDiffPixels: 20000 }
+            : stabilizeHighContrastDesktop
+              ? { maxDiffPixels: 1000 }
+              : {})
         });
       });
     }

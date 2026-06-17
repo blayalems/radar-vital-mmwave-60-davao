@@ -60,42 +60,42 @@
   <div class="topbar-actions" role="group" aria-label="Console actions">
     <!-- Zen/Live Mode Segment -->
     <div class="seg seg-sm tb-live-mode" role="radiogroup" aria-label="Telemetry detail">
-      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.zenMode()" [attr.aria-checked]="state.zenMode()" (click)="setLiveMode('simple')" title="Simple view">
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.zenMode()" [attr.aria-checked]="state.zenMode()" (click)="setLiveMode('simple')" [attr.title]="'topbar.simpleView' | translate:i18n.locale():i18n.revision()" [attr.aria-label]="'topbar.simpleView' | translate:i18n.locale():i18n.revision()">
         <span class="material-symbols-rounded">visibility</span>
       </button>
-      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="!state.zenMode()" [attr.aria-checked]="!state.zenMode()" (click)="setLiveMode('advanced')" title="Advanced view">
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="!state.zenMode()" [attr.aria-checked]="!state.zenMode()" (click)="setLiveMode('advanced')" [attr.title]="'topbar.advancedView' | translate:i18n.locale():i18n.revision()" [attr.aria-label]="'topbar.advancedView' | translate:i18n.locale():i18n.revision()">
         <span class="material-symbols-rounded">data_exploration</span>
       </button>
     </div>
 
     <!-- Density Segment -->
     <div class="seg seg-sm tb-density" role="radiogroup" aria-label="Density">
-      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.density() === 'comfortable'" [attr.aria-checked]="state.density() === 'comfortable'" (click)="setDensity('comfortable')" title="Comfortable">
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.density() === 'comfortable'" [attr.aria-checked]="state.density() === 'comfortable'" (click)="setDensity('comfortable')" [attr.title]="'topbar.comfortableDensity' | translate:i18n.locale():i18n.revision()" [attr.aria-label]="'topbar.comfortableDensity' | translate:i18n.locale():i18n.revision()">
         <span class="material-symbols-rounded">density_medium</span>
       </button>
-      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.density() === 'compact'" [attr.aria-checked]="state.density() === 'compact'" (click)="setDensity('compact')" title="Compact">
+      <button mat-icon-button type="button" class="seg-btn" role="radio" [class.active]="state.density() === 'compact'" [attr.aria-checked]="state.density() === 'compact'" (click)="setDensity('compact')" [attr.title]="'topbar.compactDensity' | translate:i18n.locale():i18n.revision()" [attr.aria-label]="'topbar.compactDensity' | translate:i18n.locale():i18n.revision()">
         <span class="material-symbols-rounded">density_small</span>
       </button>
     </div>
 
     <!-- Pause/Resume Polling -->
-    <button mat-icon-button class="ic-btn icon-btn tb-pause" [class.active]="state.paused()" (click)="togglePause()" type="button" title="Pause / resume live polling">
+    <button mat-icon-button class="ic-btn icon-btn tb-pause" [class.active]="state.paused()" (click)="togglePause()" type="button" [attr.title]="(state.paused() ? 'topbar.resumePolling' : 'topbar.pausePolling') | translate:i18n.locale():i18n.revision()" [attr.aria-label]="(state.paused() ? 'topbar.resumePolling' : 'topbar.pausePolling') | translate:i18n.locale():i18n.revision()" [attr.aria-pressed]="state.paused()">
       <span class="material-symbols-rounded">{{ state.paused() ? 'play_arrow' : 'pause' }}</span>
     </button>
 
-    <!-- Settings Button -->
-    <button mat-icon-button class="ic-btn icon-btn tb-alerts" (click)="openAlerts()" type="button" title="Alerts"
+    <!-- Alerts Button -->
+    <button mat-icon-button class="ic-btn icon-btn tb-alerts" (click)="openAlerts()" type="button" title="Alerts" aria-label="Alerts"
       [matBadge]="state.alertHistory().length" [matBadgeHidden]="state.alertHistory().length === 0" matBadgeColor="warn">
       <span class="material-symbols-rounded">notifications</span>
     </button>
 
     <!-- Settings Button -->
-    <button mat-icon-button class="ic-btn icon-btn tb-settings" (click)="openSettings()" type="button" title="Settings">
+    <button mat-icon-button class="ic-btn icon-btn tb-settings" (click)="openSettings()" type="button" title="Settings" aria-label="Settings">
       <span class="material-symbols-rounded">settings</span>
     </button>
 
     <!-- Cycle Theme -->
-    <button mat-icon-button class="ic-btn icon-btn tb-theme" (click)="toggleTheme()" type="button" title="Cycle theme">
+    <button mat-icon-button class="ic-btn icon-btn tb-theme" (click)="toggleTheme()" type="button" title="Cycle theme" aria-label="Cycle theme">
       <span class="material-symbols-rounded">dark_mode</span>
     </button>
 
@@ -104,7 +104,7 @@
     </button>
     <mat-menu #mobileActionsMenu="matMenu" xPosition="before" yPosition="below" aria-label="More console actions menu">
       <button mat-menu-item type="button" (click)="openPalette()"><mat-icon>search</mat-icon><span>Search commands</span></button>
-      <button mat-menu-item type="button" (click)="togglePause()"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon><span>Pause or resume</span></button>
+      <button mat-menu-item type="button" (click)="togglePause()"><mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon><span>{{ (state.paused() ? 'topbar.resumePolling' : 'topbar.pausePolling') | translate:i18n.locale():i18n.revision() }}</span></button>
       <button mat-menu-item type="button" (click)="openAlerts()"><mat-icon>notifications</mat-icon><span>Alerts</span></button>
       <button mat-menu-item type="button" (click)="openSettings()"><mat-icon>settings</mat-icon><span>Settings</span></button>
       <button mat-menu-item type="button" (click)="lockProfile()"><mat-icon>lock</mat-icon><span>Lock profile</span></button>

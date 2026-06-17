@@ -9,9 +9,9 @@
     <div class="sandbox-note-copy">
       <strong>{{ state.ctlStatus()?.mode === 'sandbox' ? 'Sandbox Mode Active' : 'Connected Server Mode' }}</strong>
       <span>
-        {{ state.ctlStatus()?.mode === 'sandbox' 
-          ? 'The trainer API was unreachable, so the dashboard is running in a local functional preview. Actions are simulated in-browser.' 
-          : 'The trainer API is reachable. Start, Stop, preflight, reports, and live telemetry are backed by the Python control server.' 
+        {{ state.ctlStatus()?.mode === 'sandbox'
+          ? 'The trainer API was unreachable, so the dashboard is running in a local functional preview. Actions are simulated in-browser.'
+          : 'The trainer API is reachable. Start, Stop, preflight, reports, and live telemetry are backed by the Python control server.'
         }}
       </span>
     </div>
@@ -141,28 +141,31 @@
       <mat-card-content class="setup-card-content">
         <!-- DURATION CHOICE CHIPS -->
         <div class="setup-field span-full">
-          <label class="field-label">Recording Duration <span class="label-hint">how long to record</span></label>
-          <div class="duration-chips">
-            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
-            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
-            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 300" (click)="selectDuration(300)">5m</button>
-            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 480" (click)="selectDuration(480)">8m</button>
-            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 1200" (click)="selectDuration(1200)">20m</button>
+          <label class="field-label" id="recDurationLabel">{{ 'home.recordingDuration' | translate:i18n.locale():i18n.revision() }} <span class="label-hint">how long to record</span></label>
+          <div class="duration-chips" role="group" aria-labelledby="recDurationLabel">
+            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 30" [attr.aria-pressed]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
+            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 60" [attr.aria-pressed]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
+            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 300" [attr.aria-pressed]="selectedDuration === 300" (click)="selectDuration(300)">5m</button>
+            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 480" [attr.aria-pressed]="selectedDuration === 480" (click)="selectDuration(480)">8m</button>
+            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 1200" [attr.aria-pressed]="selectedDuration === 1200" (click)="selectDuration(1200)">20m</button>
           </div>
         </div>
 
         <!-- PORT SELECT AND DISCOVERY -->
         <div class="setup-field">
-          <label class="field-label">Radar Port</label>
+          <label class="field-label" id="radarPortLabel">{{ 'home.radarPort' | translate:i18n.locale():i18n.revision() }}</label>
           <div class="field-controls">
             <mat-form-field appearance="outline" class="form-field-full">
-              <mat-select [ngModel]="state.setup().radar_port" (ngModelChange)="updateSetup('radar_port', $event); onFormChange()">
+              <mat-select [ngModel]="state.setup().radar_port" (ngModelChange)="updateSetup('radar_port', $event); onFormChange()" aria-labelledby="radarPortLabel">
+                @if (state.setup().radar_port && !radarPorts.includes(state.setup().radar_port)) {
+                <mat-option [value]="state.setup().radar_port">{{ state.setup().radar_port }}</mat-option>
+                }
                 @for (port of radarPorts; track port) {
                 <mat-option [value]="port">{{ port }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>
-            <button mat-flat-button (click)="scanSerialPorts()" [disabled]="isScanningPorts" class="mat-tonal-button icon-action-btn">
+            <button mat-flat-button (click)="scanSerialPorts()" [disabled]="isScanningPorts" class="mat-tonal-button icon-action-btn" [attr.aria-label]="'home.scanPorts' | translate:i18n.locale():i18n.revision()">
               <mat-icon>{{ isScanningPorts ? 'sync' : 'refresh' }}</mat-icon>
             </button>
           </div>
@@ -170,10 +173,10 @@
 
         <!-- BLE SCANNER -->
         <div class="setup-field">
-          <label class="field-label">BLE Oximeter Address</label>
+          <label class="field-label" id="bleAddressLabel">{{ 'home.bleAddress' | translate:i18n.locale():i18n.revision() }}</label>
           <div class="field-controls">
             <mat-form-field appearance="outline" class="form-field-full">
-              <input matInput [ngModel]="state.setup().ble_address" (ngModelChange)="updateSetup('ble_address', $event)" (blur)="onFormChange()" placeholder="e.g. 10:22:33:9E:8F:63">
+              <input matInput [ngModel]="state.setup().ble_address" (ngModelChange)="updateSetup('ble_address', $event)" (blur)="onFormChange()" placeholder="e.g. 10:22:33:9E:8F:63" aria-labelledby="bleAddressLabel">
             </mat-form-field>
             <button mat-flat-button (click)="scanBleDevices()" [disabled]="isScanningBle" class="mat-tonal-button icon-action-btn pair-sensor-btn">
               <mat-icon>{{ isScanningBle ? 'sync' : 'bluetooth' }}</mat-icon>
@@ -368,7 +371,7 @@
             <small>{{ check.description }}</small>
           </div>
         </div>
-        <button mat-icon-button (click)="runSingleCheck(check.id)" title="Run check singly">
+        <button mat-icon-button (click)="runSingleCheck(check.id)" title="Run check singly" [attr.aria-label]="'home.rerunCheck' | translate:i18n.locale():i18n.revision():{ label: check.label }">
           <mat-icon>refresh</mat-icon>
         </button>
       </div>

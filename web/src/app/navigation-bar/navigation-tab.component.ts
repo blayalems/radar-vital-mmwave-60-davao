@@ -55,7 +55,7 @@ import { ChangeDetectionStrategy, Component, ViewEncapsulation } from '@angular/
       color: var(--md-sys-color-on-surface-variant);
       transition: color var(--md-sys-motion-duration-long1, 300ms) var(--md-sys-motion-easing-emphasized, cubic-bezier(0.2, 0, 0, 1));
     }
- 
+
     .mat-navigation-tab-pill {
       position: absolute;
       inset: 0;
@@ -69,8 +69,7 @@ import { ChangeDetectionStrategy, Component, ViewEncapsulation } from '@angular/
                   transform var(--dur-spring, 500ms) var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1)),
                   clip-path var(--dur-spring, 500ms) var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
     }
- 
-    /* Target the projected icons inside */
+
     .mat-navigation-tab-icon-container .material-symbols-rounded,
     .mat-navigation-tab-icon-container mat-icon {
       position: relative;
@@ -79,7 +78,7 @@ import { ChangeDetectionStrategy, Component, ViewEncapsulation } from '@angular/
       font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
       transition: font-variation-settings var(--md-sys-motion-duration-long1, 300ms) var(--md-sys-motion-easing-emphasized, cubic-bezier(0.2, 0, 0, 1));
     }
- 
+
     .mat-navigation-tab-label {
       font-family: var(--md-sys-typescale-label-medium-font-family, inherit);
       font-size: var(--md-sys-typescale-label-medium-font-size, 12px);
@@ -90,15 +89,21 @@ import { ChangeDetectionStrategy, Component, ViewEncapsulation } from '@angular/
       transition: color var(--md-sys-motion-duration-long1, 300ms) var(--md-sys-motion-easing-emphasized, cubic-bezier(0.2, 0, 0, 1)),
                   font-weight var(--md-sys-motion-duration-long1, 300ms) var(--md-sys-motion-easing-emphasized, cubic-bezier(0.2, 0, 0, 1));
       text-align: center;
-      white-space: nowrap;
+      /* Allow a second localized line before deliberately truncating labels
+         that cannot fit the fixed-height bottom navigation. */
+      white-space: normal;
+      overflow-wrap: anywhere;
+      hyphens: auto;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
       overflow: hidden;
-      text-overflow: ellipsis;
       width: 100%;
       box-sizing: border-box;
-      padding: 0 4px;
+      padding: 0 2px;
     }
- 
-    /* Active States */
+
     a[mat-navigation-tab].active .mat-navigation-tab-pill,
     button[mat-navigation-tab].active .mat-navigation-tab-pill,
     mat-navigation-tab.active .mat-navigation-tab-pill {

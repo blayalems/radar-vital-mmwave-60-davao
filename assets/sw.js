@@ -14,6 +14,11 @@ const PRECACHE = [
   './lib/hammer.min.js',
   './lib/jsqr.min.js',
   './fonts/rvt-fonts.css',
+  './fonts/rvt-font-definitions.css',
+  './fonts/rvt-runtime-accessibility.css',
+  './fonts/figtree-latin.woff2',
+  './fonts/figtree-latin-ext.woff2',
+  './fonts/inter-5.woff2',
   './fonts/inter-6.woff2',
   './fonts/jetbrains-mono-5.woff2',
   './fonts/material-symbols-rounded.woff2'

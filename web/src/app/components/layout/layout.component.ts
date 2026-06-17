@@ -28,6 +28,7 @@ import { IdleLockService } from '../../services/idle-lock.service';
 import { OperatorHandoffDialogComponent } from '../operator-handoff-dialog/operator-handoff-dialog.component';
 import { AuthService } from '../../services/auth.service';
 import { SwitchOperatorDialogComponent } from '../switch-operator-dialog/switch-operator-dialog.component';
+import { PRODUCT_VERSION_SHORT } from '../../services/app-meta';
 
 @Component({
   selector: 'app-layout',
@@ -65,6 +66,7 @@ export class LayoutComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly breakpointObserver = inject(BreakpointObserver);
   protected readonly pinning = inject(CommandPinningService);
+  protected readonly appVersion = PRODUCT_VERSION_SHORT;
   private readonly undoService = inject(UndoService);
   private readonly idleLock = inject(IdleLockService);
 
@@ -179,6 +181,14 @@ export class LayoutComponent implements OnInit {
       panelClass: 'm3-dialog-panel',
       backdropClass: 'rvt-palette-backdrop'
     });
+  }
+
+  exitDemoMode(): void {
+    this.state.demoMode.set(false);
+    this.state.autoDemoActive.set(false);
+    this.state.triggerHaptic('tap');
+    void this.api.detectControlMode();
+    this.snackBar.open('Leaving demo mode - reconnecting to trainer...', 'Dismiss', { duration: 3000 });
   }
 
   lockProfile(): void {

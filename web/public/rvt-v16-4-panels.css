@@ -1,6 +1,0 @@
-/* Radar Vital v16.4 panels */
-.settings-grid { display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.settings-card, .verdict-hero-card, .quality-card { border-radius: 22px; }
-.settings-row, .quality-stat, .verdict-badge-box { border-radius: 14px; }
-.report-two-column { display: grid; gap: 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (max-width: 900px) { .settings-grid, .report-two-column { grid-template-columns: minmax(0, 1fr); } }

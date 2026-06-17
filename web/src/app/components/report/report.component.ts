@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit, ViewChild, ElementRef, AfterViewInit, effect } from '@angular/core';
-import { DatePipe, UpperCasePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 // Angular Material 3 modules
@@ -21,7 +21,6 @@ import { ApiService } from '../../services/api.service';
   selector: 'app-report',
   imports: [
     DatePipe,
-    UpperCasePipe,
     FormsModule,
     MatCardModule,
     MatButtonModule,
@@ -77,6 +76,73 @@ export class ReportComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit() {
     this.drawReportTrends();
+  }
+
+  selectSessionChip(sessionId: string): void {
+    if (!sessionId || sessionId === this.selectedSessionId) return;
+    this.selectedSessionId = sessionId;
+    void this.onSessionChange();
+  }
+
+  sessionChipLabel(session: SessionRecord): string {
+    const started = session.started_at ? new Date(session.started_at) : null;
+    const validDate = started && Number.isFinite(started.getTime()) ? started : null;
+    const day = validDate ? this.relativeSessionDay(validDate) : 'Session';
+    const time = validDate
+      ? validDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : String(session.session_id || '').slice(0, 8);
+    const subject = String(session.subject_label || session.subject || (session.sandbox ? 'Sandbox' : 'Run'));
+    return `${day} ${time} - ${subject}`;
+  }
+
+  outcomeTitle(): string {
+    if (this.selectedSummary?.sandbox) return 'DEMO - Simulated data only';
+    const verdict = this.reportVerdict();
+    if (verdict === 'ready' || verdict === 'pass') return 'READY - Analysis passed';
+    if (verdict === 'conditional' || verdict === 'warn') return 'CONDITIONAL - Review required';
+    if (verdict === 'unready' || verdict === 'fail' || verdict === 'not_ready') return 'NOT READY - Review required';
+    return verdict ? `${verdict.toUpperCase()} - Review required` : 'PENDING - No analysis verdict';
+  }
+
+  outcomeDescription(): string {
+    const message = this.selectedSummary?.['message'];
+    if (typeof message === 'string' && message.trim()) return message;
+    if (this.selectedSession?.summary) return this.selectedSession.summary;
+    const verdict = this.reportVerdict();
+    if (verdict === 'ready' || verdict === 'pass') {
+      return 'All available quality gates passed for this recording.';
+    }
+    return 'Load the recorded analysis summary and source artifacts before interpreting this session.';
+  }
+
+  outcomeIcon(): string {
+    const verdict = this.reportVerdict();
+    return verdict === 'ready' || verdict === 'pass' ? 'check_circle' : 'warning';
+  }
+
+  outcomeBadge(): string {
+    return (this.selectedSummary?.sandbox ? 'demo' : this.reportVerdict() || 'pending').toUpperCase();
+  }
+
+  qualityStatCards(): Array<{ label: string; value: string; sub: string }> {
+    const sq = this.signalQuality();
+    return [
+      { label: 'PQI lock', value: this.qualityStat(sq, 'pqi_lock_pct', 1, '%'), sub: 'locked samples' },
+      { label: 'Quality score', value: this.qualityStat(sq, 'session_quality_score', 1), sub: 'session rollup' },
+      { label: 'Consistency', value: this.qualityStat(sq, 'internal_consistency_score', 1), sub: 'internal agreement' },
+      { label: 'Coverage locked', value: this.qualityStat(sq, 'coverage_locked', 1, '%'), sub: 'usable window' },
+      { label: 'Settling', value: this.qualityStat(sq, 'coverage_settling', 1, '%'), sub: 'settling window' }
+    ];
+  }
+
+  private relativeSessionDay(date: Date): string {
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const dayDelta = Math.round((startOfDate - startOfToday) / 86400000);
+    if (dayDelta === 0) return 'Today';
+    if (dayDelta === -1) return 'Yesterday';
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
   async loadSessions() {
@@ -489,12 +555,30 @@ export class ReportComponent implements OnInit, AfterViewInit {
   private drawReportTrends() {
     if (!this.hrReportCanvas || !this.rrReportCanvas) return;
 
-    const hrPoints = this.sessionDataRows.map(row => Number(row['reported_hr'])).filter(Number.isFinite);
-    const rrPoints = this.sessionDataRows.map(row => Number(row['reported_rr'])).filter(Number.isFinite);
-    const hrCompare = this.compareRows.map(row => Number(row['reported_hr'])).filter(Number.isFinite);
-    const rrCompare = this.compareRows.map(row => Number(row['reported_rr'])).filter(Number.isFinite);
+    const valuesFrom = (rows: Array<Record<string, number | string | null>>, keys: string[]): number[] => rows
+      .map(row => {
+        for (const key of keys) {
+          const value = Number(row[key]);
+          if (Number.isFinite(value) && value > 0) return value;
+        }
+        return null;
+      })
+      .filter((value): value is number => value !== null);
 
-    const plotReportTrend = (canvasRef: ElementRef<HTMLCanvasElement>, color: string, points: number[], overlay: number[] = []) => {
+    const hrPoints = valuesFrom(this.sessionDataRows, ['reported_hr', 'hr']);
+    const rrPoints = valuesFrom(this.sessionDataRows, ['reported_rr', 'rr']);
+    const hrReference = valuesFrom(this.sessionDataRows, ['ble_hr', 'ref_hr', 'reference_hr']);
+    const rrReference = valuesFrom(this.sessionDataRows, ['ble_rr', 'ref_rr', 'reference_rr']);
+    const hrCompare = valuesFrom(this.compareRows, ['reported_hr', 'hr']);
+    const rrCompare = valuesFrom(this.compareRows, ['reported_rr', 'rr']);
+
+    const plotReportTrend = (
+      canvasRef: ElementRef<HTMLCanvasElement>,
+      color: string,
+      points: number[],
+      reference: number[] = [],
+      overlay: number[] = []
+    ) => {
       const canvas = canvasRef.nativeElement;
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
@@ -508,7 +592,7 @@ export class ReportComponent implements OnInit, AfterViewInit {
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, w, h);
 
-      if (!Array.isArray(points) || points.length < 2) {
+      if ((!Array.isArray(points) || points.length < 2) && reference.length < 2) {
         ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-on-surface-variant').trim() || '#64748b';
         ctx.font = '12px Inter, sans-serif';
         ctx.textAlign = 'center';
@@ -519,8 +603,6 @@ export class ReportComponent implements OnInit, AfterViewInit {
       const pad = 12;
       const innerW = w - pad * 2;
       const innerH = h - pad * 2;
-      const count = points.length;
-
       const outlineColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-outline-variant').trim() || '#f1f5f9';
       ctx.strokeStyle = outlineColor;
       ctx.lineWidth = 1;
@@ -532,14 +614,15 @@ export class ReportComponent implements OnInit, AfterViewInit {
         ctx.stroke();
       }
 
-      // Shared vertical scale so the dashed comparison overlay is read against
-      // the same axis as the selected session.
-      const scalePool = overlay.length >= 2 ? points.concat(overlay) : points;
+      // Shared vertical scale so reference and comparison overlays read
+      // against the same axis as the selected radar session.
+      const scalePool = points.concat(reference, overlay);
       const minV = Math.min(...scalePool) - 5;
       const maxV = Math.max(...scalePool) + 5;
-      const diff = maxV - minV;
+      const diff = Math.max(1, maxV - minV);
 
       const traceLine = (series: number[]) => {
+        if (series.length < 2) return;
         ctx.beginPath();
         series.forEach((val, idx) => {
           const x = pad + (idx / (series.length - 1)) * innerW;
@@ -553,9 +636,19 @@ export class ReportComponent implements OnInit, AfterViewInit {
         ctx.stroke();
       };
 
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2.5;
-      traceLine(points);
+      if (reference.length >= 2) {
+        ctx.save();
+        ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-on-surface-variant').trim() || '#64748b';
+        ctx.lineWidth = 2;
+        traceLine(reference);
+        ctx.restore();
+      }
+
+      if (points.length >= 2) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        traceLine(points);
+      }
 
       if (overlay.length >= 2) {
         ctx.save();
@@ -568,7 +661,7 @@ export class ReportComponent implements OnInit, AfterViewInit {
       }
     };
 
-    plotReportTrend(this.hrReportCanvas, 'rgba(0, 164, 150, 0.95)', hrPoints, hrCompare);
-    plotReportTrend(this.rrReportCanvas, 'rgba(97, 105, 198, 0.95)', rrPoints, rrCompare);
+    plotReportTrend(this.hrReportCanvas, 'rgba(182, 46, 99, 0.95)', hrPoints, hrReference, hrCompare);
+    plotReportTrend(this.rrReportCanvas, 'rgba(14, 124, 114, 0.95)', rrPoints, rrReference, rrCompare);
   }
 }

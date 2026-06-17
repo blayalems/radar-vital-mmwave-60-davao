@@ -27,7 +27,7 @@ body:
     id: product_version
     attributes:
       label: Product version
-      placeholder: "16.3.0"
+      placeholder: "16.4.0"
     validations:
       required: true
   - type: dropdown

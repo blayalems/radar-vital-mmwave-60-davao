@@ -438,7 +438,7 @@ export class TelemetryService {
         schema_warning_count: 0,
         reconnect_attempts: 0,
         funnel_survival_pct: 100,
-        fw_truthfulness: { version: 'v16.3.0-demo', module_version_valid: true },
+        fw_truthfulness: { version: 'v16.4.0-demo', module_version_valid: true },
         gate_audit: { hr_eval_bins: 120, rr_eval_bins: 120 },
         hr_gate_reason_histogram: { OK: 120 },
         rr_gate_reason_histogram: { OK: 120 },

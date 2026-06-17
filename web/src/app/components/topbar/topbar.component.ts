@@ -61,6 +61,49 @@ export class TopbarComponent {
     const seconds = Math.ceil((at - this.nowMs()) / 1000);
     return seconds > 0 ? seconds : null;
   });
+  protected readonly themeIcon = computed(() => {
+    switch (this.state.theme()) {
+      case 'light': return 'light_mode';
+      case 'dark': return 'dark_mode';
+      case 'night': return 'bedtime';
+      case 'hc': return 'contrast';
+      default: return 'dark_mode';
+    }
+  });
+  protected readonly themeLabel = computed(() => {
+    switch (this.state.theme()) {
+      case 'light': return 'Theme: Light';
+      case 'dark': return 'Theme: Dark';
+      case 'night': return 'Theme: Night';
+      case 'hc': return 'Theme: High contrast';
+      default: return 'Cycle theme';
+    }
+  });
+  protected readonly isDemoStatus = computed(() =>
+    this.state.demoMode() || this.state.autoDemoActive() || this.state.ctlStatus()?.mode === 'sandbox'
+  );
+  protected readonly statusIcon = computed(() => {
+    if (this.isDemoStatus()) return 'wifi_tethering_off';
+    if (this.state.ctlStatus()?.ok === false) return 'cloud_off';
+    if (this.state.paused()) return 'pause_circle';
+    return 'sensors';
+  });
+  protected readonly statusLabel = computed(() => {
+    if (this.isDemoStatus()) return 'Demo';
+    if (this.state.ctlStatus()?.ok === false) return 'Disconnected';
+    if (this.state.paused()) return 'Paused';
+    return 'Monitoring';
+  });
+  protected readonly statusSub = computed(() => {
+    if (this.isDemoStatus()) return 'simulated';
+    if (this.state.ctlStatus()?.ok === false) {
+      const seconds = this.retryCountdownS();
+      return seconds ? `retry in ${seconds}s` : 'offline';
+    }
+    const latency = this.state.ctlStatus()?.latency;
+    return latency ? `${latency} ms` : 'trainer';
+  });
+  protected readonly statusAriaLabel = computed(() => `${this.statusLabel()}, ${this.statusSub()}`);
 
   constructor() {
     this.destroyRef.onDestroy(() => {
@@ -106,16 +149,6 @@ export class TopbarComponent {
     const current = this.state.theme();
     const nextIdx = (cycle.indexOf(current) + 1) % cycle.length;
     this.state.theme.set(cycle[nextIdx]);
-    this.state.triggerHaptic('tap');
-  }
-
-  setDensity(d: 'comfortable' | 'compact') {
-    this.state.density.set(d);
-    this.state.triggerHaptic('tap');
-  }
-
-  setLiveMode(m: 'simple' | 'advanced') {
-    this.state.zenMode.set(m === 'simple');
     this.state.triggerHaptic('tap');
   }
 
@@ -192,11 +225,11 @@ export class TopbarComponent {
   getBreadcrumbTitle(): string {
     const view = this.state.currentView();
     switch (view) {
-      case 'home': return 'Start a new session';
-      case 'live': return 'Live Monitoring Console';
-      case 'report': return 'ML Readiness Reports';
-      case 'help': return 'Playbook & Documentation';
-      case 'settings': return 'Dashboard Settings';
+      case 'home': return 'Session readiness';
+      case 'live': return 'Live telemetry';
+      case 'report': return 'Session report';
+      case 'help': return 'Playbook';
+      case 'settings': return 'Settings';
       default: return 'Radar Vital Console';
     }
   }
@@ -204,8 +237,8 @@ export class TopbarComponent {
   getBreadcrumbEyebrow(): string {
     const view = this.state.currentView();
     switch (view) {
-      case 'home': return 'Setup';
-      case 'live': return 'Vitals Console';
+      case 'home': return 'Workflow';
+      case 'live': return 'Monitoring';
       case 'report': return 'Review';
       case 'help': return 'Playbook';
       case 'settings': return 'Configuration';

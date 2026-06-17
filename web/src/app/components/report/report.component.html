@@ -7,21 +7,40 @@
       <div class="selector-label-group">
         <mat-icon>assignment</mat-icon>
         <div>
-          <strong>Review Telemetry Report</strong>
-          <small>Select a past recording to review session verdicts and sensor survivals.</small>
+          <strong>Session report</strong>
+          <small>Review recorded verdicts, quality gates, and reference agreement.</small>
         </div>
       </div>
 
-      <mat-form-field appearance="outline" class="session-dropdown-field">
-        <mat-label>Choose Session</mat-label>
-        <mat-select [(ngModel)]="selectedSessionId" (selectionChange)="onSessionChange()" [disabled]="sessionsLoading || sessions.length === 0">
-        @for (s of sessions; track s.session_id) {
-        <mat-option [value]="s.session_id">
-            {{ s.started_at | date:'short' }} - ({{ s.subject || 'Sandbox' }})
-          </mat-option>
+      <div class="selector-controls">
+        @if (sessions.length > 0) {
+          <div class="session-chip-row" role="listbox" aria-label="Recent report sessions">
+            @for (s of sessions.slice(0, 4); track s.session_id) {
+              <button
+                type="button"
+                class="session-chip"
+                role="option"
+                [class.selected]="s.session_id === selectedSessionId"
+                [attr.aria-selected]="s.session_id === selectedSessionId"
+                [disabled]="sessionsLoading"
+                (click)="selectSessionChip(s.session_id)">
+                {{ sessionChipLabel(s) }}
+              </button>
+            }
+          </div>
         }
-        </mat-select>
-      </mat-form-field>
+
+        <mat-form-field appearance="outline" class="session-dropdown-field">
+          <mat-label>All sessions</mat-label>
+          <mat-select [(ngModel)]="selectedSessionId" (selectionChange)="onSessionChange()" [disabled]="sessionsLoading || sessions.length === 0">
+          @for (s of sessions; track s.session_id) {
+          <mat-option [value]="s.session_id">
+              {{ sessionChipLabel(s) }}
+            </mat-option>
+          }
+          </mat-select>
+        </mat-form-field>
+      </div>
     </div>
     @if (sessionsLoading) {
       <mat-progress-bar mode="indeterminate" aria-label="Loading report sessions"></mat-progress-bar>
@@ -37,28 +56,15 @@
       <div class="verdict-banner-inner">
         <div class="verdict-meta">
           <span class="eyebrow">Analysis Readiness Outcome</span>
-          <h2>
-            {{ selectedSummary?.sandbox
-              ? 'DEMO - Simulated Data Only'
-              : reportVerdict() === 'ready' || reportVerdict() === 'pass'
-              ? 'READY - Analysis Passed'
-              : reportVerdict() === 'conditional' || reportVerdict() === 'warn'
-              ? 'CONDITIONAL - Review Required'
-              : reportVerdict()
-              ? 'NOT READY - Review Required'
-              : 'PENDING - No Analysis Verdict'
-            }}
-          </h2>
-          <p>
-            {{ selectedSummary?.['message'] || selectedSession.summary || 'Load the recorded analysis summary and source artifacts before interpreting this session.' }}
-          </p>
+          <h2>{{ outcomeTitle() }}</h2>
+          <p>{{ outcomeDescription() }}</p>
         </div>
 
         <div class="verdict-badge-box">
           <mat-icon class="verdict-badge-icon" aria-hidden="true">
-            {{ reportVerdict() === 'ready' || reportVerdict() === 'pass' ? 'check_circle' : 'warning' }}
+            {{ outcomeIcon() }}
           </mat-icon>
-          <strong class="verdict-badge-label">{{ (selectedSummary?.sandbox ? 'demo' : reportVerdict() || 'pending') | uppercase }}</strong>
+          <strong class="verdict-badge-label">{{ outcomeBadge() }}</strong>
         </div>
       </div>
     </mat-card>
@@ -72,35 +78,20 @@
           <mat-card-subtitle>Signal quality, accuracy against the reference, and readiness gates from the recorded analysis.</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          @if (signalQuality(); as sq) {
-            <div class="quality-stat-grid">
+          <div class="quality-stat-grid">
+            @for (stat of qualityStatCards(); track stat.label) {
               <div class="quality-stat">
-                <span class="quality-stat-label">PQI lock</span>
-                <strong>{{ qualityStat(sq, 'pqi_lock_pct', 1, '%') }}</strong>
+                <span class="quality-stat-label">{{ stat.label }}</span>
+                <strong>{{ stat.value }}</strong>
+                <small>{{ stat.sub }}</small>
               </div>
-              <div class="quality-stat">
-                <span class="quality-stat-label">Session quality score</span>
-                <strong>{{ qualityStat(sq, 'session_quality_score', 1) }}</strong>
-              </div>
-              <div class="quality-stat">
-                <span class="quality-stat-label">Internal consistency</span>
-                <strong>{{ qualityStat(sq, 'internal_consistency_score', 1) }}</strong>
-              </div>
-              <div class="quality-stat">
-                <span class="quality-stat-label">Coverage (locked)</span>
-                <strong>{{ qualityStat(sq, 'coverage_locked', 1, '%') }}</strong>
-              </div>
-              <div class="quality-stat">
-                <span class="quality-stat-label">Coverage (settling)</span>
-                <strong>{{ qualityStat(sq, 'coverage_settling', 1, '%') }}</strong>
-              </div>
-            </div>
-          }
+            }
+          </div>
 
           @if (hrMetrics() || rrMetrics()) {
             <table class="quality-metrics-table" aria-label="Accuracy against the reference device">
               <thead>
-                <tr><th scope="col">Metric</th><th scope="col">RMSE</th><th scope="col">MAE</th><th scope="col">Bias</th><th scope="col">Coverage</th></tr>
+                <tr><th scope="col">Accuracy vs reference</th><th scope="col">RMSE</th><th scope="col">MAE</th><th scope="col">Bias</th><th scope="col">Coverage</th></tr>
               </thead>
               <tbody>
                 @if (hrMetrics(); as hr) {
@@ -267,21 +258,27 @@
       <mat-card-content class="report-trends-content">
         <div class="report-trend-chart">
           <div class="chart-header">
-            <strong>Heart Rate Trend (bpm)</strong>
-            <span class="legend-dot hr"></span>
+            <strong>Recorded HR - radar vs reference</strong>
+            <span class="chart-legend" aria-hidden="true">
+              <span><span class="legend-line hr"></span>Radar</span>
+              <span><span class="legend-line ref"></span>Reference</span>
+            </span>
           </div>
           <div class="canvas-plot-wrap">
-            <canvas #hrReportCanvas class="report-sparkline-canvas"></canvas>
+            <canvas #hrReportCanvas class="report-sparkline-canvas" role="img" aria-label="Recorded heart-rate trend comparing radar and reference values"></canvas>
           </div>
         </div>
 
         <div class="report-trend-chart">
           <div class="chart-header">
-            <strong>Respiration Trend (br/min)</strong>
-            <span class="legend-dot rr"></span>
+            <strong>Recorded RR - radar vs reference</strong>
+            <span class="chart-legend" aria-hidden="true">
+              <span><span class="legend-line rr"></span>Radar</span>
+              <span><span class="legend-line ref"></span>Reference</span>
+            </span>
           </div>
           <div class="canvas-plot-wrap">
-            <canvas #rrReportCanvas class="report-sparkline-canvas"></canvas>
+            <canvas #rrReportCanvas class="report-sparkline-canvas" role="img" aria-label="Recorded respiration trend comparing radar and reference values"></canvas>
           </div>
         </div>
       </mat-card-content>

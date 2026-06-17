@@ -3,7 +3,11 @@
 <!-- DEMO BANNER -->
 <div id="demoBanner" role="alert" aria-live="assertive" [hidden]="!state.demoMode() && !state.autoDemoActive()">
   <span class="material-symbols-rounded" aria-hidden="true">warning</span>
-  DEMO MODE - simulated vitals only; do not use for a live subject.
+  <span class="demo-banner-text">DEMO MODE — simulated vitals only. Pair the trainer in Settings for live data.</span>
+  <button type="button" class="demo-banner-action" (click)="exitDemoMode()">
+    <span class="material-symbols-rounded" aria-hidden="true">sensors</span>
+    <span>Exit demo &amp; reconnect</span>
+  </button>
 </div>
 
 @if (api.connectionLoading()) {
@@ -26,7 +30,7 @@
       </div>
       <div class="brand-label">
         <span class="bl-top">RADAR</span>
-          <span class="bl-bot">VITAL · v16.3</span>
+          <span class="bl-bot">VITAL · {{ appVersion }}</span>
       </div>
       <button mat-icon-button class="rail-collapse-btn" type="button" (click)="toggleRailCollapse()"
         [attr.aria-label]="railCollapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
@@ -94,7 +98,7 @@
 
     <div class="rail-foot">
       <button mat-flat-button class="mat-tonal-button r-item rail-action" (click)="openPalette()" aria-label="Command palette" title="Command palette (Ctrl+K)">
-        <span class="r-ic"><span class="material-symbols-rounded">search</span></span><span class="r-label">Command</span>
+        <span class="r-ic"><span class="material-symbols-rounded">search</span></span><span class="r-label">Commands</span><span class="r-shortcut">Ctrl K</span>
       </button>
       
       <div class="operator" title="Current operator">

@@ -3,6 +3,10 @@
  * for the About card, trainer /about footer, consent dialog, and issue links.
  */
 export const PRODUCT_NAME = 'Radar Vital';
+export const PRODUCT_VERSION = '16.4.0';
+export const PRODUCT_VERSION_SHORT = 'v16.4';
+export const PRODUCT_VERSION_LABEL = 'App v16.4';
+export const SCHEMA_VERSION_LABEL = 'Schema 2026-05';
 export const AUTHORS = ['Lemuel Blaya', 'Angelo Diaz', 'Blessie Mugat'] as const;
 export const PROGRAM = 'BS Electronics Engineering';
 export const UNIVERSITY = 'University of Mindanao';

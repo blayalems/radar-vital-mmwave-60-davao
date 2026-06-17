@@ -274,6 +274,72 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     this.requestCanvasDraw();
   }
 
+  protected setLiveMode(mode: string): void {
+    const simple = mode === 'simple';
+    this.state.zenMode.set(simple);
+    if (simple) {
+      this.openLiveTab('tab-overview');
+    }
+    this.state.triggerHaptic('tap');
+    this.requestCanvasDraw();
+  }
+
+  protected targetRangeDisplay(): string {
+    return this.metricText('distance_cm', 0, ' cm');
+  }
+
+  protected targetZoneLabel(): string {
+    const distance = this.metricNumber('distance_cm');
+    if (distance === null) return 'Waiting for target';
+    if (distance < 60) return 'Too close';
+    if (distance > 180) return 'Too far';
+    return 'In range';
+  }
+
+  protected targetZoneTone(): 'ok' | 'warn' | 'muted' {
+    const distance = this.metricNumber('distance_cm');
+    if (distance === null) return 'muted';
+    return distance >= 60 && distance <= 180 ? 'ok' : 'warn';
+  }
+
+  protected signalQualityPct(): number | null {
+    const confidence = this.hrConfidencePct();
+    if (confidence !== null) return confidence;
+    const values = ['candidate_conf', 'candidate_hr_conf', 'candidate_rr_conf', 'pqi_heart', 'pqi_breath']
+      .map(key => this.metricNumber(key))
+      .filter((value): value is number => value !== null)
+      .map(value => value > 1 ? value : value * 100);
+    if (!values.length) return null;
+    return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+  }
+
+  protected signalQualityDisplay(): string {
+    const pct = this.signalQualityPct();
+    return pct === null ? '--' : `${pct}% locked`;
+  }
+
+  protected signalQualitySub(): string {
+    const pct = this.signalQualityPct();
+    if (pct === null) return 'Waiting for PQI';
+    if (pct >= 80) return 'PQI gate open';
+    if (pct >= 50) return 'Settling';
+    return 'Weak signal';
+  }
+
+  protected signalQualityTone(): 'ok' | 'warn' | 'muted' {
+    const pct = this.signalQualityPct();
+    if (pct === null) return 'muted';
+    return pct >= 80 ? 'ok' : 'warn';
+  }
+
+  protected motionSummary(): string {
+    return this.motionActive() ? 'Active' : 'Still';
+  }
+
+  protected motionSub(): string {
+    return this.motionActive() ? 'Readings hold briefly' : 'Subject steady';
+  }
+
   initializeKpiOrder() {
     try {
       const saved = localStorage.getItem('rvt-kpi-order');

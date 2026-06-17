@@ -97,10 +97,29 @@ mat-icon {
   -webkit-backdrop-filter: blur(12px) saturate(0.86);
 }
 
+.rvt-modal-blur-backdrop.cdk-overlay-backdrop-showing,
+.cdk-overlay-backdrop.cdk-overlay-backdrop-showing:not(.cdk-overlay-transparent-backdrop) {
+  background: color-mix(in srgb, var(--md-sys-color-surface, #0f1318) 58%, transparent);
+  backdrop-filter: blur(14px) saturate(0.86);
+  -webkit-backdrop-filter: blur(14px) saturate(0.86);
+}
+
+html[data-theme='hc'] .rvt-modal-blur-backdrop.cdk-overlay-backdrop-showing,
+html[data-theme='hc'] .cdk-overlay-backdrop.cdk-overlay-backdrop-showing:not(.cdk-overlay-transparent-backdrop) {
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
 .m3-dialog-panel .mat-mdc-dialog-surface {
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-extra-large, 28px);
   box-shadow: 0 24px 48px -8px color-mix(in srgb, var(--md-sys-color-shadow, #000) 36%, transparent);
+}
+
+.m3-dialog-panel :is(button, [href], input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--md-sys-color-primary, #36618e) 74%, white);
+  outline-offset: 3px;
 }
 
 .rvt-onboarding-panel .mat-mdc-dialog-surface {
@@ -789,12 +808,56 @@ html[data-sandbox="1"] body {
 }
 
 body #demoBanner {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   position: relative !important;
   left: auto !important;
   right: auto !important;
   top: auto !important;
   box-shadow: none !important;
   z-index: 1 !important;
+}
+
+body #demoBanner .demo-banner-text {
+  min-width: 0;
+}
+
+body #demoBanner .demo-banner-action {
+  align-items: center;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  border-radius: var(--rv-r-pill, 999px);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 800;
+  gap: 6px;
+  margin-left: auto;
+  min-height: 36px;
+  padding: 6px 14px;
+}
+
+body #demoBanner .demo-banner-action:hover {
+  background: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+body #demoBanner .demo-banner-action .material-symbols-rounded {
+  font-size: 18px;
+}
+
+@media (max-width: 760px) {
+  body #demoBanner {
+    align-items: flex-start;
+  }
+
+  body #demoBanner .demo-banner-action {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 body[data-rail-collapsed="1"] .app.rail-collapsed .rail .brand,

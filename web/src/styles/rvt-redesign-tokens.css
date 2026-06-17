@@ -440,3 +440,54 @@ mat-navigation-tab {
   overflow-wrap: anywhere;
   hyphens: auto;
 }
+
+/* --------------------------------------------------------------------------
+   Success / warning roles
+   Angular Material's theme API does not emit these semantic roles, but the
+   redesign uses them for verdict heroes, quality categories, preflight rows,
+   and session badges. Values mirror the v16.4 design handoff.
+   -------------------------------------------------------------------------- */
+:root,
+html[data-theme='light'] {
+  --md-sys-color-success: #256d3b;
+  --md-sys-color-on-success: #ffffff;
+  --md-sys-color-success-container: #c6efc9;
+  --md-sys-color-on-success-container: #00210e;
+  --md-sys-color-warning: #8a5a00;
+  --md-sys-color-on-warning: #ffffff;
+  --md-sys-color-warning-container: #ffe3b3;
+  --md-sys-color-on-warning-container: #2a1800;
+}
+
+html[data-theme='dark'] {
+  --md-sys-color-success: #7cd992;
+  --md-sys-color-on-success: #00391b;
+  --md-sys-color-success-container: #1f5235;
+  --md-sys-color-on-success-container: #97f7ab;
+  --md-sys-color-warning: #f4be6b;
+  --md-sys-color-on-warning: #452b00;
+  --md-sys-color-warning-container: #694200;
+  --md-sys-color-on-warning-container: #ffddb0;
+}
+
+html[data-theme='night'] {
+  --md-sys-color-success: #8fae93;
+  --md-sys-color-on-success: #0a1a0e;
+  --md-sys-color-success-container: #21301f;
+  --md-sys-color-on-success-container: #b7d6ba;
+  --md-sys-color-warning: #c79a5a;
+  --md-sys-color-on-warning: #241500;
+  --md-sys-color-warning-container: #3a2a12;
+  --md-sys-color-on-warning-container: #e8c79a;
+}
+
+html[data-theme='hc'] {
+  --md-sys-color-success: #00e676;
+  --md-sys-color-on-success: #000000;
+  --md-sys-color-success-container: #003d1c;
+  --md-sys-color-on-success-container: #b7ffc6;
+  --md-sys-color-warning: #ffd54f;
+  --md-sys-color-on-warning: #000000;
+  --md-sys-color-warning-container: #3a2a00;
+  --md-sys-color-on-warning-container: #ffe9b3;
+}

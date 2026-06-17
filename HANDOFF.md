@@ -5,6 +5,16 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-18 — PR-65 Worker B Live/Report Redesign Slice
+
+- **Live/Report**: Added in-page Simple/Advanced Live controls, simplified transport/status labels with Standby/Motion badges, Simple info cards, Advanced target/policy label polish, Report session chips, outcome/stat/table polish, and radar-vs-reference chart overlays.
+- **Verification**: `git diff --check -- HANDOFF.md web/src/app/components/live web/src/app/components/report` clean except CRLF warnings; Angular `npm --prefix web run test:ci` and `npm run build:web` blocked because local `web/node_modules` lacks Angular CLI shims (`ng` unavailable), and dependency repair with `--package-lock=false` did not complete.
+
+### 2026-06-18 — PR-65 Worker A Shell/Topbar/Home Slice
+
+- **Shell/topbar/Home**: Simplified the topbar to a single demo/live status chip with alert/theme/menu actions, moved status details into the menu, bound the theme icon, kept v16.4 rail/banner metadata, and polished Home readiness labels, duration display, KPI breakpoints, setup controls, and mobile Pair behavior.
+- **Verification**: `git diff --check -- HANDOFF.md web/src/app/components/layout web/src/app/components/topbar web/src/app/components/home web/src/app/pipes/duration.pipe.ts` clean except CRLF warnings; Angular build blocked because npm is off PATH, direct `npm.cmd` cannot find `ng`, and clean `web` install fails on Windows npm tar extraction `ENOENT` after an initial `ENOTEMPTY`.
+
 ### 2026-06-13 — PR-54 Closing-Gap Umbrella Implementation (PR-65 through PR-71)
 
 - **PR-66 (Version Single-Source)**: Implemented single-source versioning reading from `pyproject.toml` using `importlib.metadata` with a fallback, verified with `test_version_single_source.py`.

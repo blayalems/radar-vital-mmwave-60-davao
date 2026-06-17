@@ -10,7 +10,7 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const BASE_CSS_PATH = path.join(ROOT, 'web', 'src', 'styles', 'rvt-v12-mobile-pwa-css.css');
 const REDESIGN_CSS_PATH = path.join(ROOT, 'web', 'src', 'styles', 'rvt-redesign-tokens.css');
-const OVERRIDE_CSS_PATH = path.join(ROOT, 'web', 'src', 'styles', 'rvt-accessibility-overrides.css');
+const OVERRIDE_CSS_PATH = path.join(ROOT, 'assets', 'fonts', 'rvt-runtime-accessibility.css');
 
 function parseDeclarations(css, selector, required = true) {
   const declarations = new Map();

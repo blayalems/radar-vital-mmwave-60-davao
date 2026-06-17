@@ -1,0 +1,54 @@
+name: PR64 apply Radar Port fix
+
+on:
+  push:
+    branches:
+      - claude/operator-console-a11y-i18n
+    paths:
+      - .github/workflows/pr64-apply-port-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/operator-console-a11y-i18n
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+
+      - name: Apply Radar Port fallback fix
+        run: node scripts/pr64-fix-port-option.mjs
+
+      - name: Install and validate
+        run: |
+          npm ci
+          npm --prefix web ci
+          npm run test:unit:web
+          npm run build:web
+          npm run build:check
+
+      - name: Commit source and generated dashboard
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/src/app/components/home/home.component.html
+          git add radar_vital_live_dashboard_v12_for_v16_0.html
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+            exit 0
+          fi
+          git commit -m "fix(web): preserve configured radar port during discovery"
+          git push origin HEAD:claude/operator-console-a11y-i18n

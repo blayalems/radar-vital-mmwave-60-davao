@@ -4,6 +4,9 @@ import url from 'node:url';
 
 const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 const files = [
+  'assets/fonts/rvt-font-definitions.css',
+  'assets/fonts/rvt-fonts.css',
+  'assets/fonts/rvt-runtime-accessibility.css',
   'docs/i18n.md',
   'scripts/check-contrast-tokens.mjs',
   'web/angular.json',
@@ -15,7 +18,6 @@ const files = [
   'web/src/app/i18n/translate.pipe.ts',
   'web/src/app/services/i18n.messages.en.ts',
   'web/src/app/services/i18n.service.ts',
-  'web/src/styles/rvt-accessibility-overrides.css',
   'web/src/styles/rvt-redesign-tokens.css',
 ];
 

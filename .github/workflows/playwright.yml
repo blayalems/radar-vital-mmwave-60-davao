@@ -18,8 +18,6 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          # Installs root deps (npm ci) and web deps (npm --prefix web ci),
-          # so include both lockfiles in the npm cache key.
           cache-dependency-path: |
             package-lock.json
             web/package-lock.json
@@ -42,13 +40,9 @@ jobs:
           pip install -r requirements-v12.txt
 
       - name: Warm matplotlib font cache
-        # The trainer imports matplotlib; building its font cache on first import
-        # can exceed the Playwright webServer start timeout on cold runners.
         run: python -c "import matplotlib.pyplot"
 
       - name: Verify trainer package imports
-        # Catches breakage in rvt_trainer/ package boundary that would otherwise
-        # surface as a fast Playwright webServer-start failure with no diagnostic.
         run: |
           python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer
           python radar_vital_trainer_v12_for_v16_0.py --help > /dev/null
@@ -63,13 +57,8 @@ jobs:
       - name: Validate release manifest generator
         run: node scripts/generate-rvt-latest.mjs --self-test
 
-      - name: Verify web/ ↔ monolith round-trip on main
-        if: github.event_name != 'pull_request'
+      - name: Verify web/ ↔ monolith round-trip
         run: npm run build:check
-
-      - name: Build web bundle for PR smoke tests
-        if: github.event_name == 'pull_request'
-        run: npm run build:web
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
@@ -99,8 +88,6 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          # Installs root deps (npm ci) and web deps (npm --prefix web ci),
-          # so include both lockfiles in the npm cache key.
           cache-dependency-path: |
             package-lock.json
             web/package-lock.json
@@ -123,8 +110,6 @@ jobs:
           pip install -r requirements-v12.txt
 
       - name: Warm matplotlib font cache
-        # The trainer imports matplotlib; building its font cache on first import
-        # can exceed the Playwright webServer start timeout on cold runners.
         run: python -c "import matplotlib.pyplot"
 
       - name: Verify web/ ↔ monolith round-trip on main

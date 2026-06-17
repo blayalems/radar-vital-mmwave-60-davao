@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   finalize-pr64:
@@ -70,21 +71,33 @@ jobs:
 
       - name: Regenerate and verify committed dashboard
         if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set +e
           npm run build:web > /tmp/pr64-build.log 2>&1
           build_status=$?
           if [[ $build_status -ne 0 ]]; then
-            echo "===== build:web failure tail ====="
-            tail -n 100 /tmp/pr64-build.log
+            {
+              echo '### PR64 packaging diagnostic — build:web'
+              echo '```text'
+              tail -n 80 /tmp/pr64-build.log
+              echo '```'
+            } > /tmp/pr64-comment.md
+            gh pr comment 64 --body-file /tmp/pr64-comment.md
             exit $build_status
           fi
           npm run build:check > /tmp/pr64-roundtrip.log 2>&1
           check_status=$?
           if [[ $check_status -ne 0 ]]; then
-            echo "===== build:check failure tail ====="
-            tail -n 100 /tmp/pr64-roundtrip.log
+            {
+              echo '### PR64 packaging diagnostic — build:check'
+              echo '```text'
+              tail -n 80 /tmp/pr64-roundtrip.log
+              echo '```'
+            } > /tmp/pr64-comment.md
+            gh pr comment 64 --body-file /tmp/pr64-comment.md
             exit $check_status
           fi
           set -e

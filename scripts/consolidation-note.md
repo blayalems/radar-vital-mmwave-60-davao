@@ -1,1 +1,0 @@
-Runtime assets are being consolidated into the stable external stylesheet.

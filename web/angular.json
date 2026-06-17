@@ -34,8 +34,7 @@
               }
             ],
             "styles": [
-              "src/styles.scss",
-              "src/styles/rvt-accessibility-overrides.css"
+              "src/styles.scss"
             ]
           },
           "configurations": {

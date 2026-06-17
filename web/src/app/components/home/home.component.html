@@ -157,6 +157,9 @@
           <div class="field-controls">
             <mat-form-field appearance="outline" class="form-field-full">
               <mat-select [ngModel]="state.setup().radar_port" (ngModelChange)="updateSetup('radar_port', $event); onFormChange()" aria-labelledby="radarPortLabel">
+                @if (state.setup().radar_port && !radarPorts.includes(state.setup().radar_port)) {
+                <mat-option [value]="state.setup().radar_port">{{ state.setup().radar_port }}</mat-option>
+                }
                 @for (port of radarPorts; track port) {
                 <mat-option [value]="port">{{ port }}</mat-option>
                 }

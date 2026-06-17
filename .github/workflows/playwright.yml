@@ -73,31 +73,38 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
         shell: bash
         run: |
+          capture_failure() {
+            local label="$1"
+            local logfile="$2"
+            {
+              echo "PR64 packaging diagnostic: ${label}"
+              echo
+              tail -n 100 "$logfile"
+            } > .github/pr64-packaging-diagnostic.txt
+            gh api repos/${GITHUB_REPOSITORY}/issues/64/comments --jq '.[-1].id' > .github/pr64-diagnostic-comment-id
+            rm .github/pr64-finalize-trigger
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/pr64-packaging-diagnostic.txt .github/pr64-diagnostic-comment-id
+            git add -A .github/pr64-finalize-trigger
+            git commit -m "chore: capture PR64 packaging diagnostic"
+            git push origin "HEAD:${HEAD_BRANCH}"
+          }
+
           set +e
           npm run build:web > /tmp/pr64-build.log 2>&1
           build_status=$?
           if [[ $build_status -ne 0 ]]; then
-            {
-              echo '### PR64 packaging diagnostic — build:web'
-              echo '```text'
-              tail -n 80 /tmp/pr64-build.log
-              echo '```'
-            } > /tmp/pr64-comment.md
-            gh pr comment 64 --body-file /tmp/pr64-comment.md
+            capture_failure "build:web" /tmp/pr64-build.log
             exit $build_status
           fi
           npm run build:check > /tmp/pr64-roundtrip.log 2>&1
           check_status=$?
           if [[ $check_status -ne 0 ]]; then
-            {
-              echo '### PR64 packaging diagnostic — build:check'
-              echo '```text'
-              tail -n 80 /tmp/pr64-roundtrip.log
-              echo '```'
-            } > /tmp/pr64-comment.md
-            gh pr comment 64 --body-file /tmp/pr64-comment.md
+            capture_failure "build:check" /tmp/pr64-roundtrip.log
             exit $check_status
           fi
           set -e

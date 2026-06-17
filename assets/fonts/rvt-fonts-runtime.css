@@ -1,2 +1,3 @@
+/* Stable external runtime stylesheet used by the standalone dashboard. */
 @import url("./rvt-runtime-accessibility.css");
-@import url("./rvt-fonts.css");
+@import url("./rvt-font-definitions.css");

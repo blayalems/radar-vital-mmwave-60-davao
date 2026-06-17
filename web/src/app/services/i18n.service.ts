@@ -4,16 +4,10 @@ import { EN_MESSAGES, type LocaleCatalog } from "./i18n.messages.en"
 /** Lightweight runtime localization service for the operator console. */
 @Injectable({ providedIn: "root" })
 export class I18nService {
-  /** Currently active BCP-47 locale code. */
   readonly locale = signal<string>("en")
-
-  /** Registered catalogs keyed by locale code. English is always present. */
   private readonly catalogs = new Map<string, LocaleCatalog>([["en", EN_MESSAGES]])
-
-  /** Bumped whenever a catalog is registered or merged. */
   private readonly catalogRevision = signal(0)
 
-  /** Catalog for the active locale, or an empty catalog for unknown locales. */
   readonly activeCatalog = computed<LocaleCatalog>(() => {
     this.catalogRevision()
     return this.catalogs.get(this.locale()) ?? {}
@@ -23,13 +17,9 @@ export class I18nService {
     return this.catalogs.get("en") ?? {}
   }
 
-  /** Register or merge a partial catalog for a locale. */
   registerCatalog(locale: string, catalog: LocaleCatalog): void {
     const normalized = locale.trim()
-    if (!normalized) {
-      throw new Error("Locale code must not be empty")
-    }
-
+    if (!normalized) throw new Error("Locale code must not be empty")
     const existing = this.catalogs.get(normalized)
     this.catalogs.set(
       normalized,
@@ -38,32 +28,18 @@ export class I18nService {
     this.catalogRevision.update((revision) => revision + 1)
   }
 
-  /** Switch the active locale. Unknown locales still fall back to English. */
   setLocale(locale: string): void {
-    const normalized = locale.trim()
-    this.locale.set(normalized || "en")
+    this.locale.set(locale.trim() || "en")
   }
 
-  /** List registered locale codes. */
   availableLocales(): string[] {
     return [...this.catalogs.keys()]
   }
 
-  /**
-   * Resolve a key using active locale → English → raw key fallback, then
-   * interpolate `{name}` placeholders.
-   */
   translate(key: string, params?: Record<string, string | number>): string {
-    const template = this.lookup(key) ?? key
-    return this.interpolate(template, params)
+    return this.interpolate(this.lookup(key) ?? key, params)
   }
 
-  /**
-   * Resolve a pluralized message using the active locale's plural rules.
-   * Locale-specific categories fall back to `.other` when the catalog does not
-   * provide them. The numeric argument always wins over a caller-supplied
-   * `params.count` value.
-   */
   plural(
     key: string,
     count: number,
@@ -74,11 +50,14 @@ export class I18nService {
     const fallbackKey = `${key}.other`
     const template =
       this.lookup(categoryKey) ?? this.lookup(fallbackKey) ?? categoryKey
-
     return this.interpolate(template, { ...params, count })
   }
 
   private pluralCategory(count: number): string {
+    if (typeof Intl === "undefined" || typeof Intl.PluralRules !== "function") {
+      return Math.abs(count) === 1 ? "one" : "other"
+    }
+
     try {
       return new Intl.PluralRules(this.locale()).select(count)
     } catch {
@@ -99,7 +78,6 @@ export class I18nService {
     params?: Record<string, string | number>,
   ): string {
     if (!params) return template
-
     return template.replace(/\{(\w+)\}/g, (match, name: string) => {
       const value = params[name]
       return value === undefined || value === null ? match : String(value)

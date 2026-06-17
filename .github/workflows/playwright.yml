@@ -72,83 +72,13 @@ jobs:
 
       - name: Regenerate and verify committed dashboard
         if: steps.gate.outputs.run == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-        shell: bash
         run: |
-          capture_failure() {
-            local label="$1"
-            local logfile="$2"
-            {
-              echo "PR64 packaging diagnostic: ${label}"
-              echo
-              tail -n 100 "$logfile"
-            } > .github/pr64-packaging-diagnostic.txt
-            gh api repos/${GITHUB_REPOSITORY}/issues/64/comments --jq '.[-1].id' > .github/pr64-diagnostic-comment-id
-            rm .github/pr64-finalize-trigger
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add .github/pr64-packaging-diagnostic.txt .github/pr64-diagnostic-comment-id
-            git add -A .github/pr64-finalize-trigger
-            git commit -m "chore: capture PR64 packaging diagnostic"
-            git push origin "HEAD:${HEAD_BRANCH}"
-          }
+          npm run build:web
+          npm run build:check
 
-          set +e
-          npm run build:web > /tmp/pr64-build.log 2>&1
-          build_status=$?
-          if [[ $build_status -ne 0 ]]; then
-            capture_failure "build:web" /tmp/pr64-build.log
-            exit $build_status
-          fi
-          npm run build:check > /tmp/pr64-roundtrip.log 2>&1
-          check_status=$?
-          if [[ $check_status -ne 0 ]]; then
-            capture_failure "build:check" /tmp/pr64-roundtrip.log
-            exit $check_status
-          fi
-          set -e
-          echo "build:web and build:check passed"
-
-      - name: Commit validated fixes and generated artifact
+      - name: Publish validated files
         if: steps.gate.outputs.run == 'true'
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          rm -f \
-            scripts/pr64-finalize.py \
-            scripts/pr64-postpatch.py \
-            .github/pr64-finalize-trigger \
-            .github/pr64-packaging-diagnostic.txt \
-            .github/pr64-diagnostic-comment-id
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            assets/fonts/rvt-runtime-accessibility.css \
-            assets/sw.js \
-            docs/i18n.md \
-            radar_vital_live_dashboard_v12_for_v16_0.html \
-            scripts/check-contrast-tokens.mjs \
-            scripts/check-source-integrity.mjs \
-            web/angular.json \
-            web/src/index.html \
-            web/src/app/components/home/home.component.html \
-            web/src/app/components/home/home.component.ts \
-            web/src/app/components/topbar/topbar.component.html \
-            web/src/app/components/topbar/topbar.component.ts \
-            web/src/app/i18n/translate.pipe.spec.ts \
-            web/src/app/i18n/translate.pipe.ts \
-            web/src/app/services/dynamic-color.service.spec.ts \
-            web/src/app/services/i18n.messages.en.ts \
-            web/src/app/services/i18n.service.ts \
-            web/src/styles/rvt-redesign-tokens.css
-          git add -A \
-            scripts/pr64-finalize.py \
-            scripts/pr64-postpatch.py \
-            .github/pr64-finalize-trigger \
-            .github/pr64-packaging-diagnostic.txt \
-            .github/pr64-diagnostic-comment-id
-          git diff --cached --check
-          git commit -m "fix(web): close PR64 accessibility review findings"
-          git push origin "HEAD:${HEAD_BRANCH}"
+        run: node scripts/pr64-publish.mjs

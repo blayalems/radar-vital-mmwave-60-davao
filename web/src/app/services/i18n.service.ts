@@ -78,7 +78,7 @@ export class I18nService {
     return this.interpolate(template, { ...params, count })
   }
 
-  private pluralCategory(count: number): Intl.LDMLPluralRule {
+  private pluralCategory(count: number): string {
     try {
       return new Intl.PluralRules(this.locale()).select(count)
     } catch {

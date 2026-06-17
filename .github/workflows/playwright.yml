@@ -1,84 +1,138 @@
 name: Playwright tests
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
-  finalize-pr64:
-    name: Finalize PR64 reviewed fixes
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.head.ref == 'claude/operator-console-a11y-i18n'
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 1
-          show-progress: false
-
-      - name: Check one-shot marker
-        id: gate
-        shell: bash
-        run: |
-          if [[ -f .github/pr64-finalize-trigger ]]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "One-shot marker absent; finalizer is inactive."
-          fi
 
       - uses: actions/setup-node@v4
-        if: steps.gate.outputs.run == 'true'
         with:
           node-version: '20'
-          cache: npm
+          cache: 'npm'
           cache-dependency-path: |
             package-lock.json
             web/package-lock.json
 
-      - name: Install dependencies
-        if: steps.gate.outputs.run == 'true'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-v12.txt
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Install Angular web dependencies
+        run: npm --prefix web ci
+
+      - name: Install Python deps
         run: |
-          npm ci --silent
-          npm --prefix web ci --silent
+          python -m pip install --upgrade pip
+          pip install -r requirements-v12.txt
 
-      - name: Apply reviewed follow-up fixes
-        if: steps.gate.outputs.run == 'true'
+      - name: Warm matplotlib font cache
+        run: python -c "import matplotlib.pyplot"
+
+      - name: Verify trainer package imports
         run: |
-          python scripts/pr64-finalize.py
-          python scripts/pr64-postpatch.py
-          cat > assets/fonts/rvt-runtime-accessibility.css <<'CSS'
-          /* Runtime-only accessibility mapping for Material You inline color schemes.
-             Static palette, Night, and High Contrast tokens live in
-             web/src/styles/rvt-redesign-tokens.css as the single source of truth. */
-          html[data-dynamic-color="1"][data-theme="light"],
-          html[data-dynamic-color="1"][data-theme="dark"],
-          html[data-dynamic-color="1"][data-theme="night"] {
-            --rv-muted: var(--md-sys-color-on-surface-variant, #c3c7d0);
-            --rv-dim: var(--md-sys-color-on-surface-variant, #c3c7d0);
-          }
-          CSS
+          python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer
+          python radar_vital_trainer_v12_for_v16_0.py --help > /dev/null
+          python -m rvt_trainer --help > /dev/null
 
-      - name: Validate source, dynamic contrast, and Angular tests
-        if: steps.gate.outputs.run == 'true'
-        run: npm run test:unit:web --silent
+      - name: Run Python contract and unit tests
+        run: python -m pytest tests -v
 
-      - name: Regenerate and verify committed dashboard
-        if: steps.gate.outputs.run == 'true'
-        run: |
-          npm run build:web
-          npm run build:check
+      - name: Run Angular unit tests
+        run: npm run test:unit:web
 
-      - name: Publish validated files
-        if: steps.gate.outputs.run == 'true'
+      - name: Validate release manifest generator
+        run: node scripts/generate-rvt-latest.mjs --self-test
+
+      - name: Verify web/ ↔ monolith round-trip
+        run: npm run build:check
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Run Playwright smoke + API tests across supported viewports
+        run: npx playwright test tests/smoke
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: node scripts/pr64-publish.mjs
+          PYTHON: python3
+          RVT_TEST_PORT: 8989
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  visual:
+    name: Visual regression (committed Windows baselines)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-v12.txt
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Install Angular web dependencies
+        run: npm --prefix web ci
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-v12.txt
+
+      - name: Warm matplotlib font cache
+        run: python -c "import matplotlib.pyplot"
+
+      - name: Verify web/ ↔ monolith round-trip on main
+        if: github.event_name != 'pull_request'
+        run: npm run build:check
+
+      - name: Build web bundle for PR visual tests
+        if: github.event_name == 'pull_request'
+        run: npm run build:web
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium webkit
+
+      - name: Run visual regression across themes and supported viewports
+        run: npx playwright test tests/visual
+        env:
+          PYTHON: python
+          RVT_TEST_PORT: 8990
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-visual-report
+          path: playwright-report/
+          retention-days: 7

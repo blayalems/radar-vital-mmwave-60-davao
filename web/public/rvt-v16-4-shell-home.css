@@ -1,0 +1,128 @@
+/* Radar Vital v16.4 shell and Home redesign */
+:root {
+  --rvt-page-max: 1680px;
+  --rvt-page-gap: clamp(14px, 1.6vw, 24px);
+  --rvt-card-radius: var(--rv-r1, 22px);
+  --rvt-control-radius: var(--rv-r2, 14px);
+  --rvt-card-border: var(--md-sys-color-outline-variant, #d3dfec);
+  --rvt-card-bg: var(--md-sys-color-surface-container-lowest, #fff);
+  --rvt-card-muted: var(--md-sys-color-surface-container-low, #f4f8fd);
+  --rvt-soft-shadow: 0 18px 48px -38px color-mix(in srgb, var(--md-sys-color-on-surface, #16212e) 42%, transparent);
+}
+body[data-view] :is(app-home, app-live, app-report, app-settings) { display: block; min-width: 0; }
+body[data-view] :is(app-home .home-container, app-live .live-container, app-report .report-container, app-settings .settings-container) {
+  box-sizing: border-box;
+  gap: var(--rvt-page-gap) !important;
+  margin-inline: auto !important;
+  max-width: var(--rvt-page-max) !important;
+  padding: clamp(16px, 2vw, 30px) clamp(14px, 2.2vw, 34px) 48px !important;
+  width: 100% !important;
+}
+body[data-view] :is(app-home mat-card, app-live mat-card, app-report mat-card, app-settings mat-card, app-about-card mat-card, app-report-issue-card mat-card) {
+  background: var(--rvt-card-bg) !important;
+  border: 1px solid var(--rvt-card-border) !important;
+  border-radius: var(--rvt-card-radius) !important;
+  box-shadow: var(--rvt-soft-shadow) !important;
+  overflow: clip;
+}
+body[data-view] :is(app-home mat-card, app-live mat-card, app-report mat-card, app-settings mat-card) mat-card-header {
+  align-items: center;
+  min-height: 60px;
+  padding: 18px 20px 8px !important;
+}
+body[data-view] :is(app-home mat-card, app-live mat-card, app-report mat-card, app-settings mat-card) mat-card-content {
+  box-sizing: border-box;
+  padding: 12px 20px 20px !important;
+}
+body[data-view] #demoBanner {
+  align-items: center;
+  background: var(--md-sys-color-warning-container, #ffe3b3) !important;
+  color: var(--md-sys-color-on-warning-container, #2a1800) !important;
+  display: flex;
+  gap: 9px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 6px 16px;
+}
+body[data-view] #demoBanner[hidden] { display: none !important; }
+body[data-view] #demoBanner .demo-banner-action { border-radius: 999px; color: inherit !important; font-weight: 800; margin-left: 4px; }
+body[data-view] .rail-action .command-shortcut {
+  background: var(--md-sys-color-surface-container-highest, #dce7f4);
+  border: 1px solid var(--rvt-card-border);
+  border-radius: 7px;
+  color: var(--md-sys-color-on-surface-variant, #4d5e74);
+  font-size: .67rem;
+  font-weight: 800;
+  margin-left: auto;
+  padding: 2px 6px;
+}
+body[data-view] app-topbar .tb-theme .material-symbols-rounded { font-size: 0 !important; }
+body[data-view] app-topbar .tb-theme .material-symbols-rounded::before { content: 'dark_mode'; font-size: 24px; }
+html[data-theme='dark'] body[data-view] app-topbar .tb-theme .material-symbols-rounded::before { content: 'bedtime'; }
+html[data-theme='night'] body[data-view] app-topbar .tb-theme .material-symbols-rounded::before { content: 'contrast'; }
+html[data-theme='hc'] body[data-view] app-topbar .tb-theme .material-symbols-rounded::before { content: 'light_mode'; }
+body[data-view='home'] app-home .mobile-ready-stack { display: none !important; }
+body[data-view='home'] app-home .home-summary-grid {
+  display: grid !important;
+  gap: 16px !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  margin: 0 !important;
+}
+body[data-view='home'] app-home .home-stat-card {
+  align-items: center !important;
+  background: var(--rvt-card-bg) !important;
+  border: 1px solid var(--rvt-card-border) !important;
+  border-radius: var(--rvt-card-radius) !important;
+  box-shadow: var(--rvt-soft-shadow) !important;
+  display: flex !important;
+  gap: 16px !important;
+  min-height: 116px !important;
+  padding: 18px 20px !important;
+}
+body[data-view='home'] app-home .home-stat-title {
+  color: var(--md-sys-color-on-surface-variant, #4d5e74) !important;
+  font-size: .72rem !important;
+  font-weight: 800 !important;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+body[data-view='home'] app-home .home-stat-line {
+  color: var(--md-sys-color-on-surface, #16212e) !important;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: clamp(1.35rem, 2vw, 1.9rem) !important;
+  font-weight: 800 !important;
+}
+body[data-view='home'] app-home .home-two-column-layout {
+  align-items: start;
+  display: grid !important;
+  gap: var(--rvt-page-gap) !important;
+  grid-template-columns: minmax(0, 1.12fr) minmax(340px, .88fr) !important;
+}
+body[data-view='home'] app-home .setup-card-content { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+body[data-view='home'] app-home :is(.span-full, .duration-row, .duration-chips, .setup-card-actions, .start-gate-hint) { grid-column: 1 / -1; }
+body[data-view='home'] app-home :is(.duration-chip, .filter-chip) { border-radius: 999px !important; min-height: 40px; }
+body[data-view='home'] app-home .start-session-btn { border-radius: var(--rvt-control-radius) !important; min-height: 52px; width: 100%; }
+body[data-view='home'] app-home :is(.radar-canvas-container, .scope-trend-container) {
+  background: var(--rvt-card-muted) !important;
+  border: 1px solid var(--rvt-card-border) !important;
+  border-radius: var(--rvt-control-radius) !important;
+  overflow: hidden;
+}
+body[data-view='home'] app-home .preflight-card-grid { display: grid !important; gap: 10px !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+body[data-view='home'] app-home .preflight-row {
+  background: var(--rvt-card-muted) !important;
+  border: 1px solid var(--rvt-card-border) !important;
+  border-radius: var(--rvt-control-radius) !important;
+  min-height: 64px;
+  padding: 12px 14px !important;
+}
+@media (max-width: 1220px) {
+  body[data-view='home'] app-home .home-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  body[data-view='home'] app-home .home-two-column-layout { grid-template-columns: minmax(0, 1fr) !important; }
+}
+@media (max-width: 760px) {
+  body[data-view] :is(app-home .home-container, app-live .live-container, app-report .report-container, app-settings .settings-container) { padding: 12px 12px 40px !important; }
+  body[data-view='home'] app-home :is(.home-summary-grid, .setup-card-content, .preflight-card-grid) { grid-template-columns: minmax(0, 1fr) !important; }
+  body[data-view] #demoBanner { align-items: flex-start; font-size: .75rem; justify-content: flex-start; padding-inline: 12px; }
+  body[data-view] #demoBanner .demo-banner-action { display: none; }
+}

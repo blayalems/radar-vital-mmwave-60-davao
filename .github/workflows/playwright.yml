@@ -53,6 +53,7 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         run: |
           python scripts/pr64-finalize.py
+          python scripts/pr64-postpatch.py
           cat > assets/fonts/rvt-runtime-accessibility.css <<'CSS'
           /* Runtime-only accessibility mapping for Material You inline color schemes.
              Static palette, Night, and High Contrast tokens live in
@@ -115,7 +116,12 @@ jobs:
         env:
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
-          rm scripts/pr64-finalize.py .github/pr64-finalize-trigger
+          rm -f \
+            scripts/pr64-finalize.py \
+            scripts/pr64-postpatch.py \
+            .github/pr64-finalize-trigger \
+            .github/pr64-packaging-diagnostic.txt \
+            .github/pr64-diagnostic-comment-id
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
@@ -137,7 +143,12 @@ jobs:
             web/src/app/services/i18n.messages.en.ts \
             web/src/app/services/i18n.service.ts \
             web/src/styles/rvt-redesign-tokens.css
-          git add -A scripts/pr64-finalize.py .github/pr64-finalize-trigger
+          git add -A \
+            scripts/pr64-finalize.py \
+            scripts/pr64-postpatch.py \
+            .github/pr64-finalize-trigger \
+            .github/pr64-packaging-diagnostic.txt \
+            .github/pr64-diagnostic-comment-id
           git diff --cached --check
           git commit -m "fix(web): close PR64 accessibility review findings"
           git push origin "HEAD:${HEAD_BRANCH}"

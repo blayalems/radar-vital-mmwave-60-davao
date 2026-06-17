@@ -1,0 +1,33 @@
+
+> radar-vital-mobile@16.3.0 test:unit:web
+> npm --prefix web run test:ci
+
+
+> web@0.0.0 test:ci
+> ng test --watch=false
+
+[33m❯[39m Building...
+[32m✔[39m Building...
+Application bundle generation failed. [4.176 seconds] - 2026-06-17T00:05:09.850Z
+
+[1m[31m[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mTS2307: Cannot find module 'node:fs' or its corresponding type declarations.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/a11y/contrast.spec.ts:1:29:
+[37m      1 │ import { readFileSync } from [32m"node:fs"[37m
+        ╵                              [32m~~~~~~~~~[0m
+
+
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mTS2307: Cannot find module 'node:path' or its corresponding type declarations.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/a11y/contrast.spec.ts:2:24:
+[37m      2 │ import { resolve } from [32m"node:path"[37m
+        ╵                         [32m~~~~~~~~~~~[0m
+
+
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mTS2591: Cannot find name 'process'. Do you need to install type definitions for node? Try `npm i --save-dev @types/node` and then add 'node' to the types field in your tsconfig.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/a11y/contrast.spec.ts:7:10:
+[37m      7 │   resolve([32mprocess[37m.cwd(), "src/styles/rvt-redesign-tokens.css"),
+        ╵           [32m~~~~~~~[0m
+
+[39m[22m

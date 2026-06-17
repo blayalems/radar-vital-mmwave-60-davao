@@ -7,6 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Radar Vital Trainer — Operator Console</title>
+  
   <meta name="description" content="Dashboard-first console for trustworthy radar vital-sign monitoring sessions. Configure hardware, run preflight checks, monitor live telemetry, and review ML-readiness verdicts.">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#0b1220">
@@ -15,14 +16,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Radar Vital">
+  
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
   <link rel="icon" type="image/png" href="./icons/icon-192.png">
   <base href="./">
   <link rel="stylesheet" href="./fonts/rvt-fonts.css" data-rvt-runtime-fonts>
-  <link rel="stylesheet" href="./rvt-v16-4-shell-home.css" data-rvt-ui-pass>
-  <link rel="stylesheet" href="./rvt-v16-4-live.css" data-rvt-ui-pass>
-  <link rel="stylesheet" href="./rvt-v16-4-panels.css" data-rvt-ui-pass>
 </head>
 <body>
   <div id="rvtLoadingOverlay">
@@ -36,7 +35,9 @@
     </div>
     <span class="rvt-loader-status" id="rvtLoaderStatus">Initializing console…</span>
   </div>
+
   <app-root></app-root>
+
   <script>
     (function() {
       const overlay = document.getElementById('rvtLoadingOverlay');
@@ -54,6 +55,7 @@
           }
         }
       }, 150);
+
       let removed = false;
       function removeOverlay() {
         if (removed) return;
@@ -61,6 +63,8 @@
         clearInterval(interval);
         if (loaderBar) loaderBar.style.width = '100%';
         if (loaderStatus) loaderStatus.textContent = 'Console ready';
+        
+        // Hide Capacitor SplashScreen dynamically (A1)
         try {
           const cap = window.Capacitor;
           if (cap && cap.isNativePlatform() && cap.Plugins && cap.Plugins.SplashScreen) {
@@ -69,6 +73,7 @@
         } catch (e) {
           console.warn('[SplashScreen] Failed to hide:', e);
         }
+
         setTimeout(() => {
           if (overlay) {
             overlay.classList.add('fade-out');
@@ -78,9 +83,14 @@
           }
         }, 200);
       }
+
       window.addEventListener('load', () => {
-        Promise.all([document.fonts ? document.fonts.ready : Promise.resolve()]).then(removeOverlay);
+        Promise.all([
+          document.fonts ? document.fonts.ready : Promise.resolve()
+        ]).then(removeOverlay);
       });
+
+      // Hard fallback timeout of 8 seconds to prevent permanent lockout
       setTimeout(removeOverlay, 8000);
     })();
   </script>

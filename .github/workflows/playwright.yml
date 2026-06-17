@@ -201,9 +201,26 @@ jobs:
 
       - name: Regenerate and verify committed dashboard
         if: steps.gate.outputs.run == 'true'
+        shell: bash
         run: |
-          npm run build:web
-          npm run build:check
+          set +e
+          npm run build:web > /tmp/pr64-build.log 2>&1
+          build_status=$?
+          if [[ $build_status -ne 0 ]]; then
+            echo "===== build:web failure tail ====="
+            tail -n 120 /tmp/pr64-build.log
+            exit $build_status
+          fi
+
+          npm run build:check > /tmp/pr64-roundtrip.log 2>&1
+          check_status=$?
+          if [[ $check_status -ne 0 ]]; then
+            echo "===== build:check failure tail ====="
+            tail -n 120 /tmp/pr64-roundtrip.log
+            exit $check_status
+          fi
+          set -e
+          echo "build:web and build:check passed"
 
       - name: Commit validated fixes and generated artifact
         if: steps.gate.outputs.run == 'true'

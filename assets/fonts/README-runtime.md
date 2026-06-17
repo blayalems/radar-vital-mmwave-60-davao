@@ -1,0 +1,1 @@
+The standalone dashboard preserves `fonts/rvt-fonts.css` as its stable external stylesheet. Runtime accessibility corrections live beside the fonts so all packaged shells can load the same values without altering the assembled HTML.

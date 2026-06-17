@@ -46,11 +46,17 @@ body[data-view] #demoBanner {
 }
 body[data-view] #demoBanner[hidden] { display: none !important; }
 body[data-view] #demoBanner .demo-banner-action { border-radius: 999px; color: inherit !important; font-weight: 800; margin-left: 4px; }
-body[data-view] .rail-action .command-shortcut {
+body[data-view] #liveTabsGroup { display: none !important; }
+body[data-view] .brand-label .bl-bot { font-size: 0 !important; }
+body[data-view] .brand-label .bl-bot::after { content: 'VITAL · v16.4'; font-size: .71rem; }
+body[data-view] .rail-action .r-label { font-size: 0 !important; }
+body[data-view] .rail-action .r-label::after { content: 'Commands'; font-size: .82rem; }
+body[data-view] .rail-action::after {
   background: var(--md-sys-color-surface-container-highest, #dce7f4);
   border: 1px solid var(--rvt-card-border);
   border-radius: 7px;
   color: var(--md-sys-color-on-surface-variant, #4d5e74);
+  content: '⌘K';
   font-size: .67rem;
   font-weight: 800;
   margin-left: auto;

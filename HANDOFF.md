@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-18 - PR-65 Legacy CSS Cleanup + Smoke Alignment
+
+- **Legacy cleanup/tests**: Removed the detached Angular-source `rvt-consolidated-css.css` and `patches/legacy-patches.css` imports/files, replaced stale topbar live-mode toggle overrides with the current Live segment override, fixed report session-chip button semantics so they no longer collide with Material option roles, and aligned smoke tests with the v16.4 topbar/banner/Live/Report/Settings surfaces.
+- **Verification**: `npm run build:web` and `npm run build:check` passed with the initial bundle warning resolved and only the existing `live.component.css` budget warning remaining; local Chrome desktop smoke passed `tests/smoke/dashboard.spec.ts tests/smoke/settings-cards.spec.ts` 38/38; `python -m pytest -q tests/test_v12_static_contract.py tests/test_trainer_security_api.py tests/test_ota_backend.py tests/test_trainer_verdict.py` passed 55/55.
+
 ### 2026-06-18 - PR-65 Version Identity/Test Contract Slice
 
 - **Version identity/tests**: Promoted remaining active trainer, firmware, Tauri, help-schema, shipped dashboard, smoke, OTA/backend, trainer security, verdict, and static contract version surfaces to `16.4.0` / `v16.4.0` / `App v16.4`; left historical changelog/docs and semver comparison fixtures untouched.

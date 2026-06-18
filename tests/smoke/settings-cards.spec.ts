@@ -52,20 +52,27 @@ test.describe('Settings support cards and help links', () => {
 
   test('inserts privacy, about, and issue cards in semantic settings order', async ({ page }) => {
     await gotoUnlocked(page, '/settings');
-    await expect(page.locator('h2.settings-title')).toHaveText('Dashboard Settings');
+    await expect(page.locator('h2.settings-title')).toHaveText('Settings');
 
-    const titles = (await page.locator('.settings-grid mat-card-title').allTextContents()).map(title => title.trim());
-    const privacyLock = titles.indexOf('Privacy Screen Lock');
-    const privacyTelemetry = titles.indexOf('Privacy & Telemetry');
-    const updates = titles.indexOf('Update & Version Info');
-    const about = titles.indexOf('About Radar Vital');
-    const reportIssue = titles.indexOf('Report an Issue');
+    const groupTitles = page.locator('.settings-grid .settings-group-card > mat-card-header mat-card-title');
+    const titles = (await groupTitles.allTextContents()).map(title => title.trim());
+    expect(titles).toEqual([
+      'Connections & sources',
+      'Display',
+      'Sound & haptics',
+      'Alerts & thresholds',
+      'Telemetry & rendering',
+      'Privacy & security',
+      'Backup & reset',
+      'System & about'
+    ]);
 
-    expect(privacyLock).toBeGreaterThanOrEqual(0);
-    expect(privacyTelemetry).toBeGreaterThan(privacyLock);
-    expect(updates).toBeGreaterThanOrEqual(0);
-    expect(about).toBeGreaterThan(updates);
-    expect(reportIssue).toBeGreaterThan(about);
+    const search = page.getByLabel('Search settings');
+    await expect(search).toBeVisible();
+    await search.fill('privacy');
+    await expect(groupTitles).toHaveText(['Privacy & security']);
+    await search.fill('');
+    await expect(groupTitles).toHaveCount(8);
 
     await expect(page.getByRole('button', { name: /Review diagnostics toggle/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /View terms/i })).toHaveAttribute('href', /TERMS\.md$/);

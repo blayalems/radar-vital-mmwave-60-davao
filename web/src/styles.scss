@@ -48,9 +48,7 @@ html[data-theme='hc'] .kpi-card-spark {
 
 /* Migrated v11/v12 visual contracts load after Material system tokens. */
 @import './styles/rvt-loader-critical.css';
-@import './styles/rvt-consolidated-css.css';
 @import './styles/rvt-v12-mobile-pwa-css.css';
-@import './styles/patches/legacy-patches.css';
 @import './styles/rvt-native-shell-final.css';
 @import './styles/print.css';
 /* Material 3 Expressive redesign — palette + token layer (must load last). */
@@ -708,43 +706,9 @@ h1, h2, h3, h4, h5, h6,
   width: auto !important;
 }
 
-/* Global button toggle overrides for topbar (replacing encapsulated ::ng-deep) */
-@media (min-width: 761px) {
-  body[data-view] app-topbar .tb-live-mode.seg {
-    border-radius: 24px !important;
-    height: 48px !important;
-    padding: 2px !important;
-  }
-
-  body[data-view] app-topbar .tb-live-mode .mat-button-toggle {
-    height: 42px !important;
-    min-width: 50px !important;
-  }
-
-  body[data-view] app-topbar .tb-live-mode .mat-button-toggle-button {
-    align-items: center !important;
-    display: flex !important;
-    height: 42px !important;
-    padding: 0 !important;
-  }
-
-  body[data-view] app-topbar .tb-live-mode .mat-button-toggle-label-content {
-    align-items: center !important;
-    display: flex !important;
-    height: 42px !important;
-    justify-content: center !important;
-    line-height: 1 !important;
-    padding: 0 14px !important;
-  }
-
-  body[data-view] app-topbar .tb-live-mode .mat-pseudo-checkbox,
-  body[data-view] app-topbar .tb-density .mat-pseudo-checkbox {
-    display: none !important;
-  }
-
-  body[data-view] app-topbar .tb-live-mode .material-symbols-rounded {
-    font-size: 20px !important;
-  }
+/* Material toggle internals live outside component encapsulation. */
+app-live .live-mode-segment .mat-pseudo-checkbox {
+  display: none !important;
 }
 
 /* Live component internal Material overrides (replacing deprecated ::ng-deep) */

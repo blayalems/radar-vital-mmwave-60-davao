@@ -14,14 +14,13 @@
 
       <div class="selector-controls">
         @if (sessions.length > 0) {
-          <div class="session-chip-row" role="listbox" aria-label="Recent report sessions">
+          <div class="session-chip-row" aria-label="Recent report sessions">
             @for (s of sessions.slice(0, 4); track s.session_id) {
               <button
                 type="button"
                 class="session-chip"
-                role="option"
                 [class.selected]="s.session_id === selectedSessionId"
-                [attr.aria-selected]="s.session_id === selectedSessionId"
+                [attr.aria-pressed]="s.session_id === selectedSessionId"
                 [disabled]="sessionsLoading"
                 (click)="selectSessionChip(s.session_id)">
                 {{ sessionChipLabel(s) }}

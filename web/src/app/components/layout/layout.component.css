@@ -159,6 +159,56 @@
 .app.rail-collapsed .r-item {
   font-size: 0;
   justify-content: center;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Icon-only (collapsed / tablet) rail: keep every control centered in the
+   narrow rail and drop secondary text affordances. The operator lock/switch
+   actions stay reachable from the topbar overflow menu, matching the mockup
+   which carries no lock/switch buttons in the rail. */
+.app.rail-collapsed .rail.mat-drawer {
+  --rail-w-collapsed: 76px;
+}
+.app.rail-collapsed .operator-actions,
+.app.rail-collapsed .rail-action .r-shortcut {
+  display: none !important;
+}
+.app.rail-collapsed .rail-foot {
+  align-items: center;
+  gap: 8px;
+}
+.app.rail-collapsed .operator {
+  justify-content: center;
+  padding: 6px 0;
+}
+.app.rail-collapsed .rail-action.mat-tonal-button {
+  min-width: 48px !important;
+  width: 48px;
+  padding: 0 !important;
+  justify-content: center;
+}
+.app.rail-collapsed .nav-groups {
+  align-items: center;
+}
+/* font-size:0 on the collapsed item hides the label but also zeroes the icon
+   glyph (Material Symbols size from font-size); restore an explicit size so the
+   nav/command/operator icons stay visible in the icon-only rail. */
+.app.rail-collapsed .r-item .r-ic .material-symbols-rounded,
+.app.rail-collapsed .rail-action .material-symbols-rounded,
+.app.rail-collapsed .r-item .material-symbols-rounded {
+  font-size: 22px !important;
+}
+.app.rail-collapsed .r-item {
+  /* Contain the absolutely-positioned MDC content (it sets inset:0); without a
+     positioned item it escaped to the rail and stacked every icon at the rail
+     centre, leaving the items blank. */
+  position: relative !important;
+  width: 48px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  --mdc-list-list-item-one-line-container-height: 44px;
+  margin: 2px auto;
 }
 
 /* ==========================================================================
@@ -513,7 +563,8 @@
   display: none;
 }
 
-@media (max-width: 760px) {
+/* Compact (<600px): bottom navigation, mobile content padding. */
+@media (max-width: 599.98px) {
   .main-content-scroll {
     margin-bottom: 0;
     padding: 12px 12px calc(112px + env(safe-area-inset-bottom, 0px));
@@ -538,27 +589,12 @@
   }
 }
 
-@media (min-width: 761px) and (max-width: 1023px) {
-  .main-content-scroll {
-    margin-bottom: 0;
-    padding-bottom: 112px;
-  }
-
+/* Medium/tablet (600–1023px): collapsed icon rail, no bottom nav (per the
+   Radar Vital Redesign mockup, which keeps the rail rather than the bottom bar
+   at tablet). */
+@media (min-width: 600px) and (max-width: 1023.98px) {
   .bottom-nav {
-    background: var(--md-sys-color-surface-container);
-    border-top: 1px solid var(--md-sys-color-outline-variant);
-    bottom: 0;
-    display: flex !important;
-    height: 80px !important;
-    left: 0;
-    position: fixed !important;
-    right: 0;
-    transform: translateZ(0);
-    z-index: 900;
-  }
-
-  .scroll-to-top-fab {
-    bottom: 96px;
+    display: none !important;
   }
 }
 

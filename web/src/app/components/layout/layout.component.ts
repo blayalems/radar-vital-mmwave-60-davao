@@ -92,11 +92,27 @@ export class LayoutComponent implements OnInit {
     { initialValue: 'Expanded' }
   );
 
+  // M3 navigation: Compact (<600) uses the bottom nav; Medium/Expanded (>=600)
+  // use the side rail. Below 1024 the rail rides in its collapsed icon form
+  // (mockup tablet), expanding to the labelled rail on >=1024 desktop.
   protected readonly showRail = toSignal(
-    this.breakpointObserver.observe('(min-width: 1024px)').pipe(
+    this.breakpointObserver.observe('(min-width: 600px)').pipe(
       map(r => r.matches)
     ),
     { initialValue: false }
+  );
+
+  // True in the tablet band (600–1023px): force the rail into icon-only mode.
+  protected readonly tabletRail = toSignal(
+    this.breakpointObserver.observe('(min-width: 600px) and (max-width: 1023.98px)').pipe(
+      map(r => r.matches)
+    ),
+    { initialValue: false }
+  );
+
+  // Effective collapsed state = explicit user toggle (desktop) OR tablet band.
+  protected readonly railIsCollapsed = computed(
+    () => this.railCollapsed() || this.tabletRail()
   );
 
   readonly isStaleBannerVisible = signal(false);

@@ -114,6 +114,25 @@
   width: var(--rail-w-collapsed, 64px) !important;
 }
 
+/* Redesign brand lockup: two stacked lines — "RADAR VITAL" over
+   "TRAINER · <version>" — matching Radar Vital Redesign. */
+.brand-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+.brand-label .bl-top {
+  font-size: 14.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+.brand-label .bl-bot {
+  font-size: 10.5px;
+  font-family: var(--rvt-mono-font, "JetBrains Mono", monospace);
+  letter-spacing: 0.3px;
+}
+
 .app.rail-collapsed .brand-label,
 .app.rail-collapsed .nav-heading,
 .app.rail-collapsed .op-meta,

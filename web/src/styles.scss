@@ -711,6 +711,84 @@ h1, h2, h3, h4, h5, h6,
   width: auto !important;
 }
 
+/* ==========================================================================
+   DESKTOP RAIL DENSITY — match the Radar Vital Redesign mockup.
+   The default Material list item renders ~64px tall at 16px; the mockup's rail
+   items are compact (~42px, 13.5px label, 21px icon, pill). Pierce the MDC
+   list-item internals here because they sit outside component encapsulation.
+   ========================================================================== */
+@media (min-width: 1024px) {
+  .rail .r-item.mat-mdc-list-item {
+    --mdc-list-list-item-one-line-container-height: 42px;
+    --mdc-list-list-item-label-text-size: 13.5px;
+    min-height: 42px !important;
+    height: 42px !important;
+    padding: 0 14px !important;
+    gap: 12px;
+  }
+  .rail .r-item.r-item.sub.mat-mdc-list-item {
+    --mdc-list-list-item-one-line-container-height: 38px;
+    min-height: 38px !important;
+    height: 38px !important;
+  }
+  .rail .r-item .mdc-list-item__primary-text,
+  .rail .r-item .mat-mdc-list-item-unscoped-content,
+  .rail .r-item .r-label {
+    font-size: 13.5px !important;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  .rail .r-item.active .r-label,
+  .rail .r-item[aria-current='page'] .r-label {
+    font-weight: 700;
+  }
+  .rail .r-item .r-ic .material-symbols-rounded {
+    font-size: 21px !important;
+  }
+  /* Tighten the rail gutters and inter-item rhythm to the mockup (12px pad). */
+  .rail.mat-drawer {
+    width: 248px !important;
+    padding: 14px 12px !important;
+  }
+  .rail .nav-groups {
+    gap: 2px;
+  }
+  .rail .nav-heading {
+    font-size: 10.5px !important;
+    letter-spacing: 0.6px;
+    padding: 8px 12px 4px;
+  }
+}
+
+/* ==========================================================================
+   DESKTOP CONTROL DENSITY — the mockup's tonal buttons are 12.5px / ~38px and
+   its duration/filter chips are small pills. Material defaults render them at
+   14–16px and ~44–48px, which reads chunky on desktop. Trim on pointer-class
+   widths only so mobile keeps comfortable touch targets.
+   ========================================================================== */
+@media (min-width: 1024px) {
+  .mat-mdc-unelevated-button.mat-tonal-button,
+  .mat-mdc-unelevated-button.mat-mdc-button-base.mat-tonal-button,
+  .mat-mdc-flat-button.mat-mdc-button-base {
+    font-size: 12.75px !important;
+    letter-spacing: 0.1px;
+    --mdc-filled-button-container-height: 40px;
+  }
+  /* Duration / filter / session chips — compact pills per the mockup. */
+  .duration-chip.mat-mdc-button-base,
+  .filter-chip.mat-mdc-button-base {
+    font-size: 12px !important;
+    min-height: 34px !important;
+    --mdc-filled-button-container-height: 34px;
+    padding: 0 13px !important;
+  }
+  /* The rail "Commands" action and operator chip read smaller too. */
+  .rail .rail-action.mat-tonal-button {
+    font-size: 12.5px !important;
+    --mdc-filled-button-container-height: 40px;
+  }
+}
+
 /* Material toggle internals live outside component encapsulation. */
 app-live .live-mode-segment .mat-pseudo-checkbox {
   display: none !important;

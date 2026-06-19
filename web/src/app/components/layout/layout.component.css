@@ -116,6 +116,21 @@
 
 /* Redesign brand lockup: two stacked lines — "RADAR VITAL" over
    "TRAINER · <version>" — matching Radar Vital Redesign. */
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 14px;
+  background: var(--md-sys-color-primary-container, #d3e4ff);
+  color: var(--md-sys-color-on-primary-container, #0c2d4d);
+  display: grid;
+  place-items: center;
+}
+.brand-mark .material-symbols-rounded {
+  font-size: 22px;
+  line-height: 1;
+  font-variation-settings: 'FILL' 1;
+}
 .brand-label {
   display: flex;
   flex-direction: column;

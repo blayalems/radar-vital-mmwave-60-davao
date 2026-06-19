@@ -225,7 +225,9 @@ body[data-view='home'] app-home .home-stat-card {
   }
 
   body[data-view] app-topbar .crumb-title {
-    font-size: clamp(1.55rem, 2.4vw, 2.25rem) !important;
+    /* Mockup title scale: ~24px desktop/tablet, ~20px mobile. The previous
+       clamp ballooned to 34px on wide screens, which read oversized. */
+    font-size: clamp(1.25rem, 1rem + 1vw, 1.5rem) !important;
     overflow: visible !important;
     text-overflow: clip !important;
     white-space: normal !important;
@@ -786,6 +788,19 @@ h1, h2, h3, h4, h5, h6,
   .rail .rail-action.mat-tonal-button {
     font-size: 12.5px !important;
     --mdc-filled-button-container-height: 40px;
+  }
+  /* Topbar icon buttons: mockup uses ~40px circles with 20px glyphs. Keep a
+     44px hit target (a11y floor) but shrink the visual from Material's 48px. */
+  app-topbar .topbar-actions .ic-btn.mat-mdc-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+    padding: 10px !important;
+  }
+  app-topbar .topbar-actions .ic-btn.mat-mdc-icon-button .material-symbols-rounded,
+  app-topbar .topbar-actions .ic-btn.mat-mdc-icon-button mat-icon {
+    font-size: 20px !important;
+    width: 20px;
+    height: 20px;
   }
 }
 

@@ -737,6 +737,49 @@ app-live .section-header-row > .mat-mdc-card-header-text {
   }
 }
 
+/* Radar Vital Redesign: render the Live tab strip as pill chips (matching the
+   .dc.html `tabChips`) instead of the default Material underline tabs. Lives in
+   global styles because the MDC tab internals sit outside component
+   encapsulation; keeps all six tabs and their behaviour intact. */
+app-live .live-tabs-group .mat-mdc-tab-header {
+  border-bottom: none;
+  margin-bottom: 8px;
+}
+app-live .live-tabs-group .mat-mdc-tab-labels {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+app-live .live-tabs-group .mat-mdc-tab {
+  height: auto;
+  min-height: 0;
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--md-sys-color-outline-variant, #d3dfec);
+  background: var(--md-sys-color-surface-container-lowest, #fff);
+  opacity: 1;
+}
+app-live .live-tabs-group .mat-mdc-tab .mdc-tab__text-label {
+  color: var(--md-sys-color-on-surface-variant, #4d5e74);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+app-live .live-tabs-group .mat-mdc-tab.mdc-tab--active {
+  background: var(--md-sys-color-primary-container, #d3e4ff);
+  border-color: transparent;
+}
+app-live .live-tabs-group .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+  color: var(--md-sys-color-on-primary-container, #0c2d4d);
+}
+app-live .live-tabs-group .mat-mdc-tab .mdc-tab-indicator__content--underline {
+  display: none;
+}
+app-live .live-tabs-group .mat-mdc-tab .mat-ripple,
+app-live .live-tabs-group .mat-mdc-tab .mat-mdc-tab-ripple {
+  border-radius: 999px;
+}
+
 /* Material 3 Tonal Button implementation mapping */
 .mat-mdc-flat-button.mat-tonal-button {
   background-color: var(--md-sys-color-secondary-container, #e8def8) !important;

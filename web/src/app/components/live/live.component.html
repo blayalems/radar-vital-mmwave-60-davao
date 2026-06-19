@@ -105,12 +105,7 @@
     </div>
   </mat-card>
 
-  <mat-card class="live-mode-toolbar" role="region" aria-label="Live telemetry mode controls">
-    <div class="live-mode-copy">
-      <span class="eyebrow">Monitoring</span>
-      <strong>Live telemetry</strong>
-      <small>{{ state.zenMode() ? 'Vitals focus' : 'Radar diagnostics' }}</small>
-    </div>
+  <div class="live-mode-toolbar" role="region" aria-label="Live telemetry mode controls">
     <mat-button-toggle-group
       class="live-mode-segment"
       [value]="state.zenMode() ? 'simple' : 'advanced'"
@@ -125,7 +120,7 @@
         Advanced
       </mat-button-toggle>
     </mat-button-toggle-group>
-  </mat-card>
+  </div>
 
   <!-- SIX HIGH-FIDELITY LIVE TAB PAGES -->
   <div class="main-layout-split" [class.is-split]="splitScreenActive()">

@@ -13,10 +13,10 @@
   align-items: center;
   gap: 14px;
   padding: 16px 20px;
-  border-radius: 12px;
-  background: var(--md-sys-color-error-container, rgba(220, 38, 38, 0.08));
-  color: var(--md-sys-color-on-error-container, #881b1b);
-  border: 1px solid var(--md-sys-color-error, rgba(220, 38, 38, 0.2));
+  border-radius: var(--rv-r2, 14px);
+  background: var(--md-sys-color-warning-container, #ffe3b3);
+  color: var(--md-sys-color-on-warning-container, #2a1800);
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-warning, #8a5a00) 32%, transparent);
   transition: all 0.3s ease;
 }
 

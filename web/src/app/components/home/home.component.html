@@ -2,6 +2,10 @@
 <div class="home-container">
 
   <!-- CONNECTIONS / SANDBOX BANNER STATUS -->
+  <!-- In demo / auto-demo the global amber banner already communicates the
+       simulated-source state, so this note would be a redundant (and alarming)
+       duplicate. Show it only in genuine trainer-connected sessions. -->
+  @if (!state.demoMode() && !state.autoDemoActive()) {
   <div class="sandbox-note" [class.connected]="state.ctlStatus()?.ok && state.ctlStatus()?.mode !== 'sandbox'">
     <mat-icon class="status-icon">
       {{ state.ctlStatus()?.mode === 'sandbox' ? 'warning' : 'cloud_done' }}
@@ -16,6 +20,7 @@
       </span>
     </div>
   </div>
+  }
 
   @if (installPrompt.showBanner()) {
   <mat-card class="install-prompt-card premium-card" role="region" aria-labelledby="installPromptTitle">

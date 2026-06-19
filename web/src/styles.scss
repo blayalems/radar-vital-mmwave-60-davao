@@ -144,8 +144,13 @@ body[data-view='home'] app-home .sandbox-note.connected {
   color: var(--md-sys-color-on-primary-container) !important;
 }
 
-body[data-view='home'] app-home .mobile-ready-stack {
-  display: block !important;
+/* The compact readiness-confidence bar is a mobile-only affordance (the desktop
+   layout shows the full readiness ring + stat cards instead). Scope it to small
+   viewports so it no longer leaks onto tablet/desktop. */
+@media (max-width: 600px) {
+  body[data-view='home'] app-home .mobile-ready-stack {
+    display: block !important;
+  }
 }
 
 body[data-view='home'] app-home .home-summary-grid {

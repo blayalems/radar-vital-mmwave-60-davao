@@ -812,6 +812,18 @@ app-live .live-mode-segment .mat-pseudo-checkbox {
   display: none !important;
 }
 
+/* Compact the Simple/Advanced toggle to the mockup's slim segment so the whole
+   control stays inside the 56px topbar-control budget (smoke test) — Material's
+   default toggle height pushed it to ~58px. */
+app-live .live-mode-segment .mat-button-toggle-appearance-standard .mat-button-toggle-button {
+  height: 40px !important;
+  min-height: 40px !important;
+}
+app-live .live-mode-segment .mat-button-toggle-appearance-standard .mat-button-toggle-label-content {
+  line-height: 38px !important;
+  padding: 0 16px !important;
+}
+
 /* Live component internal Material overrides (replacing deprecated ::ng-deep) */
 app-live .section-header-row > .mat-mdc-card-header-text {
   display: none;

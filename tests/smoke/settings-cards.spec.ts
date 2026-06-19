@@ -52,7 +52,9 @@ test.describe('Settings support cards and help links', () => {
 
   test('inserts privacy, about, and issue cards in semantic settings order', async ({ page }) => {
     await gotoUnlocked(page, '/settings');
-    await expect(page.locator('h2.settings-title')).toHaveText('Settings');
+    // The screen title is provided by the topbar (the duplicate in-page
+    // <h2 class="settings-title"> was removed); assert it there.
+    await expect(page.locator('app-topbar .crumb-title')).toHaveText('Settings');
 
     const groupTitles = page.locator('.settings-grid .settings-group-card > mat-card-header mat-card-title');
     const titles = (await groupTitles.allTextContents()).map(title => title.trim());

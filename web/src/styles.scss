@@ -311,9 +311,12 @@ body[data-view='home'] app-home .home-stat-card {
 /* Routed phone content must not scroll actionable controls under sticky shell chrome. */
 @media (max-width: 760px) {
   .main-content-scroll {
-    padding-top: calc(88px + env(safe-area-inset-top, 0px)) !important;
+    /* The topbar is in-flow sticky chrome that already occupies its own height,
+       so content only needs a normal gap here — the previous 88px offset
+       double-counted the header and left a large blank band under the title. */
+    padding-top: calc(12px + env(safe-area-inset-top, 0px)) !important;
     padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px)) !important;
-    scroll-padding-top: calc(132px + env(safe-area-inset-top, 0px));
+    scroll-padding-top: calc(96px + env(safe-area-inset-top, 0px));
     scroll-padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
   }
 

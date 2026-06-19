@@ -70,7 +70,11 @@ def test_dashboard_pwa_contract():
     assert "this.state.demoMode() || this.state.autoDemoActive()" in telemetry
     assert "PersistenceService" in state
     assert "indexedDB" in text(ROOT / "web" / "src" / "app" / "services" / "persistence.service.ts")
-    assert "this.breakpointObserver.observe('(min-width: 1024px)')" in layout_ts
+    # M3 three-tier navigation: bottom nav <600px, collapsed icon rail
+    # 600–1023px, labelled rail >=1024px. The rail is shown from 600px and
+    # forced into its icon-only form across the tablet band.
+    assert "this.breakpointObserver.observe('(min-width: 600px)')" in layout_ts
+    assert "(min-width: 600px) and (max-width: 1023.98px)" in layout_ts
     assert "min-device-memory" not in html
     assert "fonts.googleapis" not in html
     assert "fonts.gstatic" not in html

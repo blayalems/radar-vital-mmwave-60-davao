@@ -775,6 +775,12 @@ app-live .live-tabs-group .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
 app-live .live-tabs-group .mat-mdc-tab .mdc-tab-indicator__content--underline {
   display: none;
 }
+/* Simple (zen) mode is a single focused Overview — the redesign shows no tab
+   strip there (advanced tabs stay for Advanced mode). setLiveMode() already
+   forces the Overview tab when entering Simple, so hiding the header is safe. */
+body.zen-mode app-live .live-tabs-group .mat-mdc-tab-header {
+  display: none;
+}
 app-live .live-tabs-group .mat-mdc-tab .mat-ripple,
 app-live .live-tabs-group .mat-mdc-tab .mat-mdc-tab-ripple {
   border-radius: 999px;

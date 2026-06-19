@@ -273,6 +273,26 @@
   grid-template-columns: repeat(2, 1fr) !important;
 }
 
+/* Simple (zen) mode: the HR/RR tiles become the redesign's big-number hero
+   cards — dramatise the reading and give the waveform more room. */
+:host-context(body.zen-mode) .kpi-metric-card.kpi-hr,
+:host-context(body.zen-mode) .kpi-metric-card.kpi-rr {
+  min-height: 248px;
+}
+:host-context(body.zen-mode) .kpi-metric-card.kpi-hr .kpi-card-value strong,
+:host-context(body.zen-mode) .kpi-metric-card.kpi-rr .kpi-card-value strong {
+  font-size: 4.4rem;
+  line-height: 0.92;
+  letter-spacing: -2px;
+}
+
+@media (max-width: 600px) {
+  :host-context(body.zen-mode) .kpi-metric-card.kpi-hr .kpi-card-value strong,
+  :host-context(body.zen-mode) .kpi-metric-card.kpi-rr .kpi-card-value strong {
+    font-size: 3.2rem;
+  }
+}
+
 .kpi-metric-card {
   display: flex;
   flex-direction: column;

@@ -197,33 +197,6 @@
   box-shadow: none !important;
 }
 
-.live-mode-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.live-mode-copy .eyebrow {
-  color: var(--md-sys-color-primary, #36618e);
-  font-size: 0.72rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0;
-}
-
-.live-mode-copy strong {
-  color: var(--md-sys-color-on-surface, #16212e);
-  font-size: 1rem;
-  font-weight: 800;
-  line-height: 1.1;
-}
-
-.live-mode-copy small {
-  color: var(--md-sys-color-on-surface-variant, #4d5e74);
-  font-size: 0.8rem;
-}
-
 .live-mode-segment {
   flex: 0 0 auto;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);

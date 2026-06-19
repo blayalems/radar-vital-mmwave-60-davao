@@ -134,6 +134,27 @@
   opacity: 0.72;
 }
 
+/* Connection auto-retry affordance (shown only when the trainer link is down). */
+:host .conn-retry-info {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+:host .conn-retry-countdown {
+  font-family: var(--rvt-mono-font, "JetBrains Mono", monospace);
+  color: var(--md-sys-color-error);
+  white-space: nowrap;
+}
+:host .conn-retry-btn {
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 32px;
+  border-radius: var(--rv-r-pill, 999px);
+}
+
 :host .topbar-actions {
   align-items: center;
   display: flex;

@@ -70,8 +70,10 @@ body[data-view="help"] #view-help > .help-page {
     width: auto !important;
     min-height: 84px !important;
     height: auto !important;
-    margin: 0 -12px 14px !important;
-    padding: 10px 12px 12px 70px !important;
+    /* Was `0 -12px` which bled the sticky topbar 12px past each edge and
+       triggered the horizontal-overflow smoke check on phones. */
+    margin: 0 0 14px !important;
+    padding: 10px 16px 12px !important;
     overflow: visible !important;
   }
 

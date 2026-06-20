@@ -155,6 +155,23 @@
   border-radius: var(--rv-r-pill, 999px);
 }
 
+/* The current operator is shown in the nav rail (and the overflow menu); keep a
+   programmatic/AT-only operator badge in the topbar for the operator contract
+   without duplicating it visually or diverging from the redesign mockup. */
+:host .operator-badge {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  pointer-events: none;
+}
+
 :host .topbar-actions {
   align-items: center;
   display: flex;

@@ -652,16 +652,16 @@
           <mat-card-subtitle>Version, local data, diagnostics, legal, report an issue</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <section class="settings-section" aria-labelledby="version-title">
+          <section class="settings-section update-info-card" aria-labelledby="version-title">
             <div class="settings-section-header">
               <span id="version-title" class="section-title">Update &amp; version info</span>
               <span class="section-subtitle">Dashboard build identity and release checks.</span>
             </div>
 
             <div class="about-data-grid">
-              <div class="data-stat">
+              <div class="data-stat settings-copy">
                 <span class="data-label">Product version</span>
-                <strong>{{ productVersion }}</strong>
+                <strong class="row-description">{{ productVersion }}</strong>
               </div>
               <div class="data-stat">
                 <span class="data-label">Schema version</span>

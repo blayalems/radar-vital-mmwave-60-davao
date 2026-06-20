@@ -133,7 +133,7 @@ test.describe('WS2-B polish', () => {
     await gotoRoute(page, '/live');
 
     await expect(page.getByRole('alert').filter({ hasText: /Live telemetry is stale/i })).toBeVisible();
-    await expect(page.getByText('Standby / Polling Data')).toBeVisible();
+    await expect(page.getByText(/Standby - polling stream/i)).toBeVisible();
     await expect(page.getByRole('status', { name: /Heart rate.*not available/i })).toBeVisible();
   });
 });

@@ -17,7 +17,7 @@ SW_UPDATE = ROOT / "web" / "src" / "app" / "services" / "sw-update.service.ts"
 STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
-FW = ROOT / "radar_vital_v16_3_0.ino"
+FW = ROOT / "radar_vital_v16_4_0.ino"
 SW = ROOT / "assets" / "sw.js"
 STYLES = ROOT / "web" / "src" / "styles.scss"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
@@ -83,7 +83,11 @@ def test_dashboard_pwa_contract():
 
 def test_service_worker_contract():
     sw = text(SW)
-    assert "rvt-shell-v12.0.5" in sw
+    # Cache version bumped v12.0.5 -> v12.0.6 (kept in the v12 lineage) so the
+    # activate handler purges stale pre-redesign shells and re-precaches the
+    # self-hosted icon/UI fonts — fixes icons rendering as ligature text on
+    # already-cached PWA clients.
+    assert "rvt-shell-v12.0.6" in sw
     assert "text/event-stream" in sw
     assert "SKIP_WAITING" in sw
     assert "SW_UPDATED" in sw
@@ -131,7 +135,7 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
         "rvt-subject-profiles-v12.0",
     ]:
         assert schema_id in trainer
-    assert "rvt-shell-v12.0.5" in sw
+    assert "rvt-shell-v12.0.6" in sw
     assert "rvt-shell-v16" not in sw
 
 

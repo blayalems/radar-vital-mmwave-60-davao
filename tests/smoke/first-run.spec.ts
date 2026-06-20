@@ -31,9 +31,9 @@ async function applyCommonRoutes(page: import('@playwright/test').Page) {
       body: JSON.stringify({
         ok: true,
         mode: 'live',
-        trainer_version: '16.3.0-test',
-        dashboard_version: '16.3.0-test',
-        firmware_expected: 'v16.3.0-test',
+        trainer_version: '16.4.0-test',
+        dashboard_version: '16.4.0-test',
+        firmware_expected: 'v16.4.0-test',
         active_session: null,
         feature_flags: {}
       })
@@ -43,14 +43,14 @@ async function applyCommonRoutes(page: import('@playwright/test').Page) {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: true, version: '16.3.0-test' })
+      body: JSON.stringify({ ok: true, version: '16.4.0-test' })
     })
   );
   await page.route('**/api/version', route =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ product_version: '16.3.0-test' })
+      body: JSON.stringify({ product_version: '16.4.0-test' })
     })
   );
   await page.route('**/api/auth/validate', route =>

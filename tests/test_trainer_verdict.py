@@ -42,7 +42,7 @@ def _fw_ok() -> dict:
         "contract_length": EXPECTED_RADAR_LOG_COLUMN_COUNT,
         "critical_columns_ok": True,
         "module_version_valid": True,
-        "version": "v16.3.0",
+        "version": "v16.4.0",
     }
 
 

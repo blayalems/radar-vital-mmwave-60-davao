@@ -15,7 +15,7 @@ import { GITHUB_REPO_URL } from './app-meta';
 // Test helpers
 // ---------------------------------------------------------------------------
 
-function buildMockApi(versionPayload: Record<string, unknown> = { product_version: '16.3.0' }) {
+function buildMockApi(versionPayload: Record<string, unknown> = { product_version: '16.4.0' }) {
   return {
     request: vi.fn().mockResolvedValue(versionPayload),
     currentApiBase: vi.fn(() => ''),
@@ -145,7 +145,7 @@ describe('IssueReportService', () => {
     localStorage.setItem(DIAGNOSTICS_OPTIN_KEY, '0');
     const service = configure();
     const report = await service.buildReport();
-    expect(report.product_version).toBe('16.3.0');
+    expect(report.product_version).toBe('16.4.0');
     expect(report.platform).toBe('PWA (browser)');
     // No diagnostics fields when opted out.
     expect(report.connection_mode).toBeUndefined();
@@ -259,7 +259,7 @@ describe('IssueReportService', () => {
     localStorage.setItem(DIAGNOSTICS_OPTIN_KEY, '1');
     const service = configure();
     const report: IssueReport = {
-      product_version: '16.3.0',
+      product_version: '16.4.0',
       platform: 'PWA (browser)',
       connection_mode: 'LAN paired (phone/PWA to trainer)',
       log_tail: [
@@ -292,9 +292,9 @@ describe('IssueReportService', () => {
 
   it('collects remote log tail from /api/trainer/log for non-exe platform', async () => {
     const remoteLines = Array.from({ length: 25 }, (_, i) => `remote ${i + 1}`);
-    const api = buildMockApi({ product_version: '16.3.0' });
+    const api = buildMockApi({ product_version: '16.4.0' });
     api.request
-      .mockResolvedValueOnce({ product_version: '16.3.0' }) // /api/version
+      .mockResolvedValueOnce({ product_version: '16.4.0' }) // /api/version
       .mockResolvedValueOnce({ lines: remoteLines });          // /api/trainer/log
     localStorage.setItem(DIAGNOSTICS_OPTIN_KEY, '1');
     const service = configure(api, buildMockState(), buildMockLifecycle('remote'));
@@ -321,7 +321,7 @@ describe('IssueReportService', () => {
     const report = await service.buildReport();
     const url = service.buildIssueUrl(report);
     const parsed = new URL(url);
-    expect(parsed.searchParams.get('product_version')).toBe('16.3.0');
+    expect(parsed.searchParams.get('product_version')).toBe('16.4.0');
     expect(parsed.searchParams.get('platform')).toBe('PWA (browser)');
   });
 
@@ -400,7 +400,7 @@ describe('IssueReportService', () => {
     };
 
     const report: IssueReport = {
-      product_version: '16.3.0',
+      product_version: '16.4.0',
       platform: 'PWA (browser)',
       connection_mode: 'LAN paired (phone/PWA to trainer)',
       ctl: { ok: true, mode: 'live', latency: 42, error: undefined },
@@ -426,7 +426,7 @@ describe('IssueReportService', () => {
     const service = configure();
 
     const report: IssueReport = {
-      product_version: '16.3.0',
+      product_version: '16.4.0',
       platform: 'PWA (browser)',
       connection_mode: 'LAN paired (phone/PWA to trainer)',
       ctl: { ok: true, mode: 'x'.repeat(5000), latency: 42, error: 'x'.repeat(5000) },
@@ -440,7 +440,7 @@ describe('IssueReportService', () => {
     const url = service.buildIssueUrl(report);
     expect(url.length).toBeLessThanOrEqual(7500);
     const params = new URL(url).searchParams;
-    expect(params.get('product_version')).toBe('16.3.0');
+    expect(params.get('product_version')).toBe('16.4.0');
     expect(params.get('platform')).toBe('PWA (browser)');
   });
 

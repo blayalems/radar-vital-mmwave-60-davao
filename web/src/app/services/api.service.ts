@@ -13,6 +13,7 @@ import {
   SessionSignoff,
   SubjectProfileRecord
 } from '../models/rvt.models';
+import { PRODUCT_VERSION } from './app-meta';
 import { StateService } from './state.service';
 import { API_BASE_KEY, SERVER_URL_KEY, TOKEN_KEY, OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
 
@@ -586,7 +587,7 @@ export class ApiService {
     const method = String(init?.method || 'GET').toUpperCase();
     if (url.pathname === '/api/status') return { ok: true, mode: 'sandbox', active_session: this.state.sessionActive() ? { session_id: this.state.currentSessionId() || 'sandbox_active', sandbox: true } : null };
     if (url.pathname === '/api/health') return { ok: true, version: 'sandbox' };
-    if (url.pathname === '/api/version') return { product_version: '16.3.0', trainer: 'sandbox', dashboard: 'sandbox', firmware_expected: 'sandbox' };
+    if (url.pathname === '/api/version') return { product_version: PRODUCT_VERSION, trainer: 'sandbox', dashboard: 'sandbox', firmware_expected: 'sandbox' };
     if (url.pathname === '/api/auth/validate') return this.sandboxValidateOperator();
     if (url.pathname === '/api/auth/login' && method === 'POST') {
       const login = this.sandboxLogin(init);

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rvt-trainer"
-version = "16.3.0"
+version = "16.4.0"
 description = "Radar Vital mmWave 60 GHz trainer — ThreadingHTTPServer, session management, ML-readiness audit, and REST/SSE API"
 requires-python = ">=3.11"
 dependencies = [

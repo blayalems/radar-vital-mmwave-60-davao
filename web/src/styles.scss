@@ -48,9 +48,7 @@ html[data-theme='hc'] .kpi-card-spark {
 
 /* Migrated v11/v12 visual contracts load after Material system tokens. */
 @import './styles/rvt-loader-critical.css';
-@import './styles/rvt-consolidated-css.css';
 @import './styles/rvt-v12-mobile-pwa-css.css';
-@import './styles/patches/legacy-patches.css';
 @import './styles/rvt-native-shell-final.css';
 @import './styles/print.css';
 /* Material 3 Expressive redesign — palette + token layer (must load last). */
@@ -97,10 +95,29 @@ mat-icon {
   -webkit-backdrop-filter: blur(12px) saturate(0.86);
 }
 
+.rvt-modal-blur-backdrop.cdk-overlay-backdrop-showing,
+.cdk-overlay-backdrop.cdk-overlay-backdrop-showing:not(.cdk-overlay-transparent-backdrop) {
+  background: color-mix(in srgb, var(--md-sys-color-surface, #0f1318) 58%, transparent);
+  backdrop-filter: blur(14px) saturate(0.86);
+  -webkit-backdrop-filter: blur(14px) saturate(0.86);
+}
+
+html[data-theme='hc'] .rvt-modal-blur-backdrop.cdk-overlay-backdrop-showing,
+html[data-theme='hc'] .cdk-overlay-backdrop.cdk-overlay-backdrop-showing:not(.cdk-overlay-transparent-backdrop) {
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
 .m3-dialog-panel .mat-mdc-dialog-surface {
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-extra-large, 28px);
   box-shadow: 0 24px 48px -8px color-mix(in srgb, var(--md-sys-color-shadow, #000) 36%, transparent);
+}
+
+.m3-dialog-panel :is(button, [href], input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--md-sys-color-primary, #36618e) 74%, white);
+  outline-offset: 3px;
 }
 
 .rvt-onboarding-panel .mat-mdc-dialog-surface {
@@ -127,8 +144,13 @@ body[data-view='home'] app-home .sandbox-note.connected {
   color: var(--md-sys-color-on-primary-container) !important;
 }
 
-body[data-view='home'] app-home .mobile-ready-stack {
-  display: block !important;
+/* The compact readiness-confidence bar is a mobile-only affordance (the desktop
+   layout shows the full readiness ring + stat cards instead). Scope it to small
+   viewports so it no longer leaks onto tablet/desktop. */
+@media (max-width: 600px) {
+  body[data-view='home'] app-home .mobile-ready-stack {
+    display: block !important;
+  }
 }
 
 body[data-view='home'] app-home .home-summary-grid {
@@ -203,7 +225,9 @@ body[data-view='home'] app-home .home-stat-card {
   }
 
   body[data-view] app-topbar .crumb-title {
-    font-size: clamp(1.55rem, 2.4vw, 2.25rem) !important;
+    /* Mockup title scale: ~24px desktop/tablet, ~20px mobile. The previous
+       clamp ballooned to 34px on wide screens, which read oversized. */
+    font-size: clamp(1.25rem, 1rem + 1vw, 1.5rem) !important;
     overflow: visible !important;
     text-overflow: clip !important;
     white-space: normal !important;
@@ -287,9 +311,12 @@ body[data-view='home'] app-home .home-stat-card {
 /* Routed phone content must not scroll actionable controls under sticky shell chrome. */
 @media (max-width: 760px) {
   .main-content-scroll {
-    padding-top: calc(88px + env(safe-area-inset-top, 0px)) !important;
+    /* The topbar is in-flow sticky chrome that already occupies its own height,
+       so content only needs a normal gap here — the previous 88px offset
+       double-counted the header and left a large blank band under the title. */
+    padding-top: calc(12px + env(safe-area-inset-top, 0px)) !important;
     padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px)) !important;
-    scroll-padding-top: calc(132px + env(safe-area-inset-top, 0px));
+    scroll-padding-top: calc(96px + env(safe-area-inset-top, 0px));
     scroll-padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
   }
 
@@ -689,43 +716,112 @@ h1, h2, h3, h4, h5, h6,
   width: auto !important;
 }
 
-/* Global button toggle overrides for topbar (replacing encapsulated ::ng-deep) */
-@media (min-width: 761px) {
-  body[data-view] app-topbar .tb-live-mode.seg {
-    border-radius: 24px !important;
-    height: 48px !important;
-    padding: 2px !important;
-  }
-
-  body[data-view] app-topbar .tb-live-mode .mat-button-toggle {
+/* ==========================================================================
+   DESKTOP RAIL DENSITY — match the Radar Vital Redesign mockup.
+   The default Material list item renders ~64px tall at 16px; the mockup's rail
+   items are compact (~42px, 13.5px label, 21px icon, pill). Pierce the MDC
+   list-item internals here because they sit outside component encapsulation.
+   ========================================================================== */
+@media (min-width: 1024px) {
+  .rail .r-item.mat-mdc-list-item {
+    --mdc-list-list-item-one-line-container-height: 42px;
+    --mdc-list-list-item-label-text-size: 13.5px;
+    min-height: 42px !important;
     height: 42px !important;
-    min-width: 50px !important;
-  }
-
-  body[data-view] app-topbar .tb-live-mode .mat-button-toggle-button {
-    align-items: center !important;
-    display: flex !important;
-    height: 42px !important;
-    padding: 0 !important;
-  }
-
-  body[data-view] app-topbar .tb-live-mode .mat-button-toggle-label-content {
-    align-items: center !important;
-    display: flex !important;
-    height: 42px !important;
-    justify-content: center !important;
-    line-height: 1 !important;
     padding: 0 14px !important;
+    gap: 12px;
   }
-
-  body[data-view] app-topbar .tb-live-mode .mat-pseudo-checkbox,
-  body[data-view] app-topbar .tb-density .mat-pseudo-checkbox {
-    display: none !important;
+  .rail .r-item.r-item.sub.mat-mdc-list-item {
+    --mdc-list-list-item-one-line-container-height: 38px;
+    min-height: 38px !important;
+    height: 38px !important;
   }
+  .rail .r-item .mdc-list-item__primary-text,
+  .rail .r-item .mat-mdc-list-item-unscoped-content,
+  .rail .r-item .r-label {
+    font-size: 13.5px !important;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  .rail .r-item.active .r-label,
+  .rail .r-item[aria-current='page'] .r-label {
+    font-weight: 700;
+  }
+  .rail .r-item .r-ic .material-symbols-rounded {
+    font-size: 21px !important;
+  }
+  /* Tighten the rail gutters and inter-item rhythm to the mockup (12px pad). */
+  .rail.mat-drawer {
+    width: 248px !important;
+    padding: 14px 12px !important;
+  }
+  .rail .nav-groups {
+    gap: 2px;
+  }
+  .rail .nav-heading {
+    font-size: 10.5px !important;
+    letter-spacing: 0.6px;
+    padding: 8px 12px 4px;
+  }
+}
 
-  body[data-view] app-topbar .tb-live-mode .material-symbols-rounded {
+/* ==========================================================================
+   DESKTOP CONTROL DENSITY — the mockup's tonal buttons are 12.5px / ~38px and
+   its duration/filter chips are small pills. Material defaults render them at
+   14–16px and ~44–48px, which reads chunky on desktop. Trim on pointer-class
+   widths only so mobile keeps comfortable touch targets.
+   ========================================================================== */
+@media (min-width: 1024px) {
+  .mat-mdc-unelevated-button.mat-tonal-button,
+  .mat-mdc-unelevated-button.mat-mdc-button-base.mat-tonal-button,
+  .mat-mdc-flat-button.mat-mdc-button-base {
+    font-size: 12.75px !important;
+    letter-spacing: 0.1px;
+    --mdc-filled-button-container-height: 40px;
+  }
+  /* Duration / filter / session chips — compact pills per the mockup. */
+  .duration-chip.mat-mdc-button-base,
+  .filter-chip.mat-mdc-button-base {
+    font-size: 12px !important;
+    min-height: 34px !important;
+    --mdc-filled-button-container-height: 34px;
+    padding: 0 13px !important;
+  }
+  /* The rail "Commands" action and operator chip read smaller too. */
+  .rail .rail-action.mat-tonal-button {
+    font-size: 12.5px !important;
+    --mdc-filled-button-container-height: 40px;
+  }
+  /* Topbar icon buttons: mockup uses ~40px circles with 20px glyphs. Keep a
+     44px hit target (a11y floor) but shrink the visual from Material's 48px. */
+  app-topbar .topbar-actions .ic-btn.mat-mdc-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+    padding: 10px !important;
+  }
+  app-topbar .topbar-actions .ic-btn.mat-mdc-icon-button .material-symbols-rounded,
+  app-topbar .topbar-actions .ic-btn.mat-mdc-icon-button mat-icon {
     font-size: 20px !important;
+    width: 20px;
+    height: 20px;
   }
+}
+
+/* Material toggle internals live outside component encapsulation. */
+app-live .live-mode-segment .mat-pseudo-checkbox {
+  display: none !important;
+}
+
+/* Compact the Simple/Advanced toggle to the mockup's slim segment so the whole
+   control stays inside the 56px topbar-control budget (smoke test) — Material's
+   default toggle height pushed it to ~58px. */
+app-live .live-mode-segment .mat-button-toggle-appearance-standard .mat-button-toggle-button {
+  height: 40px !important;
+  min-height: 40px !important;
+}
+app-live .live-mode-segment .mat-button-toggle-appearance-standard .mat-button-toggle-label-content {
+  line-height: 38px !important;
+  padding: 0 16px !important;
 }
 
 /* Live component internal Material overrides (replacing deprecated ::ng-deep) */
@@ -747,6 +843,55 @@ app-live .section-header-row > .mat-mdc-card-header-text {
   app-live .live-tabs-group .mat-mdc-tab-label-container {
     overflow: visible;
   }
+}
+
+/* Radar Vital Redesign: render the Live tab strip as pill chips (matching the
+   .dc.html `tabChips`) instead of the default Material underline tabs. Lives in
+   global styles because the MDC tab internals sit outside component
+   encapsulation; keeps all six tabs and their behaviour intact. */
+app-live .live-tabs-group .mat-mdc-tab-header {
+  border-bottom: none;
+  margin-bottom: 8px;
+}
+app-live .live-tabs-group .mat-mdc-tab-labels {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+app-live .live-tabs-group .mat-mdc-tab {
+  height: auto;
+  min-height: 0;
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--md-sys-color-outline-variant, #d3dfec);
+  background: var(--md-sys-color-surface-container-lowest, #fff);
+  opacity: 1;
+}
+app-live .live-tabs-group .mat-mdc-tab .mdc-tab__text-label {
+  color: var(--md-sys-color-on-surface-variant, #4d5e74);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+app-live .live-tabs-group .mat-mdc-tab.mdc-tab--active {
+  background: var(--md-sys-color-primary-container, #d3e4ff);
+  border-color: transparent;
+}
+app-live .live-tabs-group .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+  color: var(--md-sys-color-on-primary-container, #0c2d4d);
+}
+app-live .live-tabs-group .mat-mdc-tab .mdc-tab-indicator__content--underline {
+  display: none;
+}
+/* Simple (zen) mode is a single focused Overview — the redesign shows no tab
+   strip there (advanced tabs stay for Advanced mode). setLiveMode() already
+   forces the Overview tab when entering Simple, so hiding the header is safe. */
+body.zen-mode app-live .live-tabs-group .mat-mdc-tab-header {
+  display: none;
+}
+app-live .live-tabs-group .mat-mdc-tab .mat-ripple,
+app-live .live-tabs-group .mat-mdc-tab .mat-mdc-tab-ripple {
+  border-radius: 999px;
 }
 
 /* Material 3 Tonal Button implementation mapping */
@@ -789,12 +934,56 @@ html[data-sandbox="1"] body {
 }
 
 body #demoBanner {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   position: relative !important;
   left: auto !important;
   right: auto !important;
   top: auto !important;
   box-shadow: none !important;
   z-index: 1 !important;
+}
+
+body #demoBanner .demo-banner-text {
+  min-width: 0;
+}
+
+body #demoBanner .demo-banner-action {
+  align-items: center;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  border-radius: var(--rv-r-pill, 999px);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 800;
+  gap: 6px;
+  margin-left: auto;
+  min-height: 36px;
+  padding: 6px 14px;
+}
+
+body #demoBanner .demo-banner-action:hover {
+  background: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+body #demoBanner .demo-banner-action .material-symbols-rounded {
+  font-size: 18px;
+}
+
+@media (max-width: 760px) {
+  body #demoBanner {
+    align-items: flex-start;
+  }
+
+  body #demoBanner .demo-banner-action {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 body[data-rail-collapsed="1"] .app.rail-collapsed .rail .brand,

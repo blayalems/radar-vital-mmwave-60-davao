@@ -25,13 +25,51 @@ import { IssueReportService } from '../../services/issue-report.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { UpdateService } from '../../services/update.service';
 import { CONSENT_KEY } from '../../services/rvt-storage-keys';
-import { GITHUB_REPO_URL, TERMS_VERSION } from '../../services/app-meta';
+import { GITHUB_REPO_URL, PRODUCT_VERSION, SCHEMA_VERSION_LABEL, TERMS_VERSION } from '../../services/app-meta';
 import { BleScanDevice } from '../../models/rvt.models';
 import { AboutCardComponent } from '../about-card/about-card.component';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 import { ReportIssueCardComponent } from '../report-issue-card/report-issue-card.component';
 
-const PRODUCT_VERSION = '16.3.0';
+const DEFAULT_STORAGE_QUOTA_BYTES = 820 * 1024 * 1024;
+const LOCAL_DATA_DB_NAME = 'radar-vital-v12';
+
+type SettingsGroupId =
+  | 'connections'
+  | 'display'
+  | 'sound'
+  | 'alerts'
+  | 'telemetry'
+  | 'privacy'
+  | 'backup'
+  | 'system';
+
+const SETTINGS_GROUP_IDS: SettingsGroupId[] = [
+  'connections',
+  'display',
+  'sound',
+  'alerts',
+  'telemetry',
+  'privacy',
+  'backup',
+  'system'
+];
+
+const SETTINGS_GROUP_TERMS: Record<SettingsGroupId, string> = {
+  connections: 'connections sources source mode demo auto disconnect trainer python server sidecar lan pairing pin qr ble bluetooth reference scanner freeze stale',
+  display: 'display appearance palette color theme light dark night high contrast text scale font size density material you dynamic color source swatch',
+  sound: 'sound haptics audio alerts voice announcements volume test vibration haptic feedback',
+  alerts: 'alerts thresholds warning heart rate hr respiration rr low high bpm br min reset',
+  telemetry: 'telemetry rendering live waveform window buffer chart points performance',
+  privacy: 'privacy security lock idle auto lock terms consent telemetry diagnostics issue report terms privacy withdraw',
+  backup: 'backup reset import export preferences portability defaults restore',
+  system: 'system about data version schema update release diagnostics export cache storage legal license github report issue'
+};
+
+interface StorageUsageSummary {
+  usageBytes: number;
+  quotaBytes: number;
+}
 
 interface ConsentSummary {
   version: string;
@@ -74,7 +112,7 @@ export class SettingsComponent {
   private readonly router = inject(Router);
   protected readonly Math = Math;
   protected readonly productVersion = PRODUCT_VERSION;
-  protected readonly schemaVersion = 'v12.0';
+  protected readonly schemaVersion = SCHEMA_VERSION_LABEL;
   protected readonly termsVersion = TERMS_VERSION;
   protected readonly termsUrl = `${GITHUB_REPO_URL}/blob/main/TERMS.md`;
   protected readonly privacyUrl = `${GITHUB_REPO_URL}/blob/main/PRIVACY.md`;
@@ -90,6 +128,26 @@ export class SettingsComponent {
   private readonly dialogRef = inject(MatDialogRef<SettingsComponent>, { optional: true });
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
+  protected readonly settingsSearch = signal('');
+  protected readonly dataActionBusy = signal(false);
+  protected readonly storageUsage = signal<StorageUsageSummary>({
+    usageBytes: this.measureLocalStorageBytes(),
+    quotaBytes: DEFAULT_STORAGE_QUOTA_BYTES
+  });
+  protected readonly normalizedSettingsSearch = computed(() => this.settingsSearch().trim().toLowerCase());
+  protected readonly visibleSettingsCardCount = computed(() => {
+    const query = this.normalizedSettingsSearch();
+    return SETTINGS_GROUP_IDS.filter(id => !query || SETTINGS_GROUP_TERMS[id].includes(query)).length;
+  });
+  protected readonly storageUsagePercent = computed(() => {
+    const { usageBytes, quotaBytes } = this.storageUsage();
+    if (!quotaBytes) return 0;
+    return Math.max(0, Math.min(100, Math.round((usageBytes / quotaBytes) * 1000) / 10));
+  });
+  protected readonly storageUsageLabel = computed(() => {
+    const { usageBytes, quotaBytes } = this.storageUsage();
+    return `${this.formatBytes(usageBytes)} / ${this.formatBytes(quotaBytes)}`;
+  });
   protected readonly endpointInput = signal(this.serverLifecycle.serverAddress());
   protected readonly pinInput = signal('');
   protected readonly connectionBusy = signal(false);
@@ -125,6 +183,20 @@ export class SettingsComponent {
     { hex: '#ba1a1a', name: 'Red' },
     { hex: '#5d5f5f', name: 'Neutral' },
   ];
+
+  constructor() {
+    this.refreshStorageEstimate();
+  }
+
+  protected settingsCardMatches(id: SettingsGroupId): boolean {
+    const query = this.normalizedSettingsSearch();
+    return !query || SETTINGS_GROUP_TERMS[id].includes(query);
+  }
+
+  protected clearSettingsSearch(): void {
+    this.settingsSearch.set('');
+    this.state.triggerHaptic('tap');
+  }
 
   onSourceColorInput(event: Event): void {
     const hex = (event.target as HTMLInputElement).value;
@@ -249,9 +321,16 @@ export class SettingsComponent {
   }
 
   private async confirmServerRestart(title: string, message: string, confirmLabel: string): Promise<boolean> {
+    return this.confirmSettingsAction(title, message, confirmLabel);
+  }
+
+  private async confirmSettingsAction(title: string, message: string, confirmLabel: string): Promise<boolean> {
     return Boolean(await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
       data: { title, message, confirmLabel },
-      restoreFocus: true
+      restoreFocus: true,
+      panelClass: 'm3-dialog-panel',
+      backdropClass: 'rvt-modal-blur-backdrop',
+      ariaLabel: title
     }).afterClosed()));
   }
 
@@ -273,14 +352,11 @@ export class SettingsComponent {
   }
 
   async withdrawConsent(): Promise<void> {
-    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
-      data: {
-        title: 'Withdraw terms consent?',
-        message: 'Radar Vital will reload and show the consent gate again before the dashboard can be used.',
-        confirmLabel: 'Withdraw consent'
-      },
-      restoreFocus: true
-    }).afterClosed());
+    const confirmed = await this.confirmSettingsAction(
+      'Withdraw terms consent?',
+      'Radar Vital will reload and show the consent gate again before the dashboard can be used.',
+      'Withdraw consent'
+    );
     if (!confirmed) return;
     try {
       localStorage.removeItem(CONSENT_KEY);
@@ -397,6 +473,56 @@ export class SettingsComponent {
     URL.revokeObjectURL(href);
   }
 
+  async exportDiagnostics(): Promise<void> {
+    this.dataActionBusy.set(true);
+    try {
+      const report = await this.issueReport.buildReport();
+      this.downloadJson('radar-vital-diagnostics.json', {
+        exported_at: new Date().toISOString(),
+        diagnostics_enabled: this.issueReport.diagnosticsEnabled(),
+        storage: this.storageUsage(),
+        report
+      });
+      this.state.triggerHaptic('confirm');
+      this.snackBar.open('Diagnostics exported.', 'Dismiss', { duration: 4000 });
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Diagnostics export failed.', 'Dismiss', { duration: 5000 });
+      this.state.triggerHaptic('warn');
+    } finally {
+      this.dataActionBusy.set(false);
+    }
+  }
+
+  async clearLocalCache(): Promise<void> {
+    const confirmed = await this.confirmSettingsAction(
+      'Clear local cache?',
+      'Cached sessions, snapshots, notes, waveform buffers, and alert history stored in this browser will be cleared. Pairing, consent, and dashboard preferences stay unchanged.',
+      'Clear cache'
+    );
+    if (!confirmed) return;
+
+    this.dataActionBusy.set(true);
+    try {
+      await this.clearIndexedDbStores();
+      this.clearLegacyCacheKeys();
+      this.state.snaps.set([]);
+      this.state.snapNotes.set({});
+      this.state.alertPins.set([]);
+      this.state.alertHistory.set([]);
+      this.state.sessionNotes.set({});
+      this.state.sessionSignoffs.set({});
+      this.state.sessionItems.set([]);
+      this.refreshStorageEstimate();
+      this.state.triggerHaptic('destructiveAccept');
+      this.snackBar.open('Local cache cleared. Preferences and pairing are unchanged.', 'Dismiss', { duration: 5000 });
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Local cache could not be cleared.', 'Dismiss', { duration: 5000 });
+      this.state.triggerHaptic('warn');
+    } finally {
+      this.dataActionBusy.set(false);
+    }
+  }
+
   async importPreferences(event: Event): Promise<void> {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
@@ -461,14 +587,11 @@ export class SettingsComponent {
   }
 
   async resetAllDefaults() {
-    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
-      data: {
-        title: 'Reset dashboard defaults?',
-        message: 'Theme, alert, telemetry and source-mode preferences will be restored to defaults.',
-        confirmLabel: 'Reset defaults'
-      },
-      restoreFocus: true
-    }).afterClosed());
+    const confirmed = await this.confirmSettingsAction(
+      'Reset dashboard defaults?',
+      'Theme, alert, telemetry and source-mode preferences will be restored to defaults.',
+      'Reset defaults'
+    );
     if (confirmed) {
       this.state.theme.set('dark');
       this.state.palette.set('azure');
@@ -530,5 +653,105 @@ export class SettingsComponent {
     const num = Math.max(10, Math.min(600, Number(val) || 60));
     this.state.liveBufferSeconds.set(num);
     this.state.maxChartPoints.set(num * 60);
+  }
+
+  private refreshStorageEstimate(): void {
+    const fallbackUsage = this.measureLocalStorageBytes();
+    this.storageUsage.set({
+      usageBytes: fallbackUsage,
+      quotaBytes: DEFAULT_STORAGE_QUOTA_BYTES
+    });
+
+    if (typeof navigator === 'undefined' || !navigator.storage?.estimate) return;
+    void navigator.storage.estimate().then(estimate => {
+      this.storageUsage.set({
+        usageBytes: Math.max(fallbackUsage, Math.round(estimate.usage ?? 0)),
+        quotaBytes: Math.round(estimate.quota ?? DEFAULT_STORAGE_QUOTA_BYTES)
+      });
+    }).catch(() => {
+      this.storageUsage.set({
+        usageBytes: fallbackUsage,
+        quotaBytes: DEFAULT_STORAGE_QUOTA_BYTES
+      });
+    });
+  }
+
+  private measureLocalStorageBytes(): number {
+    try {
+      let total = 0;
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i) || '';
+        const value = localStorage.getItem(key) || '';
+        total += (key.length + value.length) * 2;
+      }
+      return total;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  private formatBytes(bytes: number): string {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex += 1;
+    }
+    const precision = value >= 10 || unitIndex === 0 ? 0 : 1;
+    return `${value.toFixed(precision)} ${units[unitIndex]}`;
+  }
+
+  private downloadJson(filename: string, data: unknown): void {
+    const href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(href);
+  }
+
+  private clearLegacyCacheKeys(): void {
+    const keys = [
+      'rvt-snaps',
+      'rvt-snap-notes',
+      'rvt-session-notes',
+      'rvt-alert-history',
+      'rvt-alert-pins',
+      'rvt-sandbox-sessions'
+    ];
+    try {
+      keys.forEach(key => localStorage.removeItem(key));
+    } catch (_) {
+      // Best effort only; IndexedDB is the primary cache store now.
+    }
+  }
+
+  private clearIndexedDbStores(): Promise<void> {
+    if (typeof indexedDB === 'undefined') return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(LOCAL_DATA_DB_NAME);
+      request.onerror = () => reject(request.error || new Error('Could not open local cache.'));
+      request.onsuccess = () => {
+        const db = request.result;
+        const stores = Array.from(db.objectStoreNames);
+        if (!stores.length) {
+          db.close();
+          resolve();
+          return;
+        }
+        const transaction = db.transaction(stores, 'readwrite');
+        stores.forEach(store => transaction.objectStore(store).clear());
+        transaction.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        transaction.onerror = () => {
+          db.close();
+          reject(transaction.error || new Error('Could not clear local cache.'));
+        };
+      };
+    });
   }
 }

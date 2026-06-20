@@ -183,6 +183,41 @@
   color: var(--md-sys-color-on-surface-variant) !important;
 }
 
+/* Redesign: a slim inline control row (the topbar already states the screen
+   title), not a tall titled card. The Simple/Advanced segment sits inline. */
+.live-mode-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0;
+  border: none;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.live-mode-segment {
+  flex: 0 0 auto;
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--md-sys-color-surface-container-low, #f4f8fd);
+  padding: 4px;
+}
+
+.live-mode-segment mat-button-toggle {
+  min-width: 118px;
+}
+
+.live-mode-segment mat-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cmd-btn {
     transition: none !important;
@@ -209,6 +244,26 @@
 
 :host-context(body.zen-mode) .kpi-grid {
   grid-template-columns: repeat(2, 1fr) !important;
+}
+
+/* Simple (zen) mode: the HR/RR tiles become the redesign's big-number hero
+   cards — dramatise the reading and give the waveform more room. */
+:host-context(body.zen-mode) .kpi-metric-card.kpi-hr,
+:host-context(body.zen-mode) .kpi-metric-card.kpi-rr {
+  min-height: 248px;
+}
+:host-context(body.zen-mode) .kpi-metric-card.kpi-hr .kpi-card-value strong,
+:host-context(body.zen-mode) .kpi-metric-card.kpi-rr .kpi-card-value strong {
+  font-size: 4.4rem;
+  line-height: 0.92;
+  letter-spacing: -2px;
+}
+
+@media (max-width: 600px) {
+  :host-context(body.zen-mode) .kpi-metric-card.kpi-hr .kpi-card-value strong,
+  :host-context(body.zen-mode) .kpi-metric-card.kpi-rr .kpi-card-value strong {
+    font-size: 3.2rem;
+  }
 }
 
 .kpi-metric-card {
@@ -350,6 +405,79 @@
 .kpi-card-footer {
   font-size: 0.75rem;
   color: var(--md-sys-color-on-surface-variant, #94a3b8);
+}
+
+.simple-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.simple-info-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: var(--rv-r1, 22px);
+  background: var(--md-sys-color-surface-container-lowest, #ffffff);
+}
+
+.simple-info-card mat-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: var(--rv-r2, 14px);
+  background: var(--md-sys-color-secondary-container, #e3edf8);
+  color: var(--md-sys-color-primary, #36618e);
+  font-size: 22px;
+}
+
+.simple-info-card div {
+  min-width: 0;
+}
+
+.simple-info-card span,
+.simple-info-card small {
+  display: block;
+  color: var(--md-sys-color-on-surface-variant, #4d5e74);
+}
+
+.simple-info-card span {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.simple-info-card strong {
+  display: block;
+  color: var(--md-sys-color-on-surface, #16212e);
+  font-family: var(--rvt-mono-font, "JetBrains Mono", ui-monospace, monospace);
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.simple-info-card small {
+  font-size: 0.72rem;
+}
+
+.simple-info-card[data-tone='ok'] mat-icon {
+  background: var(--md-sys-color-success-container, #c6efc9);
+  color: var(--md-sys-color-on-success-container, #256d3b);
+}
+
+.simple-info-card[data-tone='warn'] mat-icon {
+  background: var(--md-sys-color-warning-container, #ffe3b3);
+  color: var(--md-sys-color-on-warning-container, #8a5a00);
+}
+
+.simple-info-card[data-tone='muted'] mat-icon {
+  background: var(--md-sys-color-surface-container-high, #e3edf8);
+  color: var(--md-sys-color-on-surface-variant, #4d5e74);
 }
 
 /* The HR/RR "Ref oximeter" subline reads as a mono caption in the mockup. */
@@ -1472,6 +1600,17 @@
   height: 16px;
 }
 
+.standby-chip {
+  background: var(--md-sys-color-surface-container-high, #e3edf8);
+  color: var(--md-sys-color-on-surface-variant, #4d5e74);
+}
+
+.standby-chip.recording {
+  background: var(--md-sys-color-error-container, #ffdad6);
+  color: var(--md-sys-color-on-error-container, #ba1a1a);
+  border-color: transparent;
+}
+
 .phase-chip[data-phase='LOCKED'] {
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
@@ -1567,6 +1706,20 @@
   .signal-status-chips {
     width: 100%;
     order: 3;
+  }
+
+  .live-mode-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .live-mode-segment,
+  .live-mode-segment mat-button-toggle {
+    width: 100%;
+  }
+
+  .simple-info-grid {
+    grid-template-columns: 1fr;
   }
 }
 

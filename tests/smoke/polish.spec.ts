@@ -30,7 +30,7 @@ async function applyPolishRoutes(page: Page, options: { offline?: boolean } = {}
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: true, mode: 'live', active_session: null, trainer_version: '16.3.0', dashboard_version: '16.3.0' })
+        body: JSON.stringify({ ok: true, mode: 'live', active_session: null, trainer_version: '16.4.0', dashboard_version: '16.4.0' })
       });
       return;
     }

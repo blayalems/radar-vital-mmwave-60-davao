@@ -490,13 +490,25 @@ test.describe('Dashboard smoke', () => {
       })
     );
     expect(hasUnboxedGroups).toBe(true);
-    await expect(page.locator('.tb-live-mode .mat-pseudo-checkbox')).toHaveCount(0);
-    const liveModeBounds = await page.locator('.tb-live-mode').evaluate(element => {
+    await expect(page.locator('.tb-live-mode')).toHaveCount(0);
+    await expect(page.locator('.tb-density')).toHaveCount(0);
+
+    const liveMode = page.locator('.live-mode-segment');
+    await expect(liveMode).toBeVisible();
+    const hasVisiblePseudoCheckbox = await liveMode.locator('.mat-pseudo-checkbox').evaluateAll(elements =>
+      elements.some(element => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      })
+    );
+    expect(hasVisiblePseudoCheckbox).toBe(false);
+    const liveModeBounds = await liveMode.evaluate(element => {
       const rect = element.getBoundingClientRect();
       return { width: rect.width, height: rect.height };
     });
-    expect(liveModeBounds.height).toBeLessThanOrEqual(48);
-    expect(liveModeBounds.width).toBeLessThanOrEqual(125);
+    expect(liveModeBounds.height).toBeLessThanOrEqual(56);
+    expect(liveModeBounds.width).toBeGreaterThanOrEqual(220);
   });
 
   test('restores Material icons and the blurred command palette backdrop', async ({ page }) => {
@@ -895,7 +907,7 @@ test.describe('Dashboard smoke', () => {
     await mockDemoReportSession(page);
     await seedDemoMode(page);
     await gotoDashboardRoute(page, '/report');
-    await expect(page.getByText(/DEMO MODE - simulated vitals only/)).toBeVisible();
+    await expect(page.getByText(/DEMO MODE.*simulated vitals only/i)).toBeVisible();
     await page.getByLabel('Operator report notes').fill('Reviewed simulated trace only.');
     await page.getByRole('button', { name: /Save Report Notes/ }).click();
     await page.getByLabel('Operator name').fill('Field Operator');
@@ -967,7 +979,7 @@ test.describe('Dashboard smoke', () => {
     const picker = page.getByLabel('Compare against another session');
     await picker.click();
     // Demo mode seeds two sandbox sessions; pick the one that is not selected.
-    await page.getByRole('option').nth(1).click();
+    await page.locator('.cdk-overlay-pane mat-option').nth(1).click();
 
     await expect(page.locator('.compare-overlay-note')).toContainText('dashed line');
     const table = page.locator('.compare-delta-table');
@@ -977,7 +989,7 @@ test.describe('Dashboard smoke', () => {
 
     // Switching the selected session clears the stale overlay.
     await page.locator('.selector-card mat-select').first().click();
-    await page.getByRole('option').nth(1).click();
+    await page.locator('.cdk-overlay-pane mat-option').nth(1).click();
     await expect(table).toHaveCount(0);
   });
 
@@ -1102,7 +1114,7 @@ test.describe('Dashboard smoke', () => {
     active = false;
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await expect(page.getByText(/Standby \/ Polling Data/)).toBeVisible();
+    await expect(page.getByText(/Standby - polling stream/i)).toBeVisible();
   });
 
   test('stopping through the command palette clears the active-session navigation guard', async ({ page }) => {

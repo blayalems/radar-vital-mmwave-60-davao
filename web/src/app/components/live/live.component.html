@@ -44,19 +44,28 @@
         <div class="timer-meta">
           <strong>
             {{ state.lastPayload()?.meta?.status === 'running'
-              ? 'Telemetry Recording Active'
-              : 'Standby / Polling Data'
+              ? 'Recording telemetry'
+              : 'Standby - polling stream'
             }}
           </strong>
           <small>
-            Elapsed: {{ state.lastPayload()?.meta?.elapsed_s || 0 }}s /
-            Remaining: {{ state.lastPayload()?.meta?.remaining_s || 0 }}s
+            {{ state.lastPayload()?.meta?.status === 'running' ? 'Elapsed' : 'Preview' }}:
+            {{ state.lastPayload()?.meta?.elapsed_s || 0 }}s
+            @if (state.lastPayload()?.meta?.status === 'running') {
+              / Remaining: {{ state.lastPayload()?.meta?.remaining_s || 0 }}s
+            } @else {
+              / no active session
+            }
           </small>
         </div>
       </div>
 
       <!-- SIGNAL LOCK-STATE / MOTION / READINESS CHIPS -->
       <div class="signal-status-chips" role="status" aria-live="polite" aria-atomic="false">
+        <span class="status-chip standby-chip" [class.recording]="state.lastPayload()?.meta?.status === 'running'">
+          <mat-icon aria-hidden="true">{{ state.lastPayload()?.meta?.status === 'running' ? 'fiber_manual_record' : 'schedule' }}</mat-icon>
+          {{ state.lastPayload()?.meta?.status === 'running' ? 'Recording' : 'Standby' }}
+        </span>
         @if (sessionPhaseLabel(); as phaseLabel) {
           <span class="status-chip phase-chip" [attr.data-phase]="sessionPhaseName()" [class.stale-dim]="state.telemetryStale()">
             <mat-icon aria-hidden="true">{{ sessionPhaseIcon() }}</mat-icon>{{ phaseLabel }}
@@ -64,7 +73,7 @@
         }
         @if (motionActive()) {
           <span class="status-chip motion-chip" [class.stale-dim]="state.telemetryStale()">
-            <mat-icon aria-hidden="true">directions_run</mat-icon>Motion — readings hold briefly
+            <mat-icon aria-hidden="true">directions_run</mat-icon>Motion - holding
           </span>
         }
         @if (liveVerdictLabel(); as verdictLabel) {
@@ -76,31 +85,42 @@
 
       <div class="command-actions">
         <!-- PAUSE / RESUME BUTTON -->
-        <button mat-flat-button (click)="togglePause()" class="mat-tonal-button cmd-btn">
+        <button mat-flat-button (click)="togglePause()" class="mat-tonal-button cmd-btn" [attr.aria-label]="state.paused() ? 'Resume stream' : 'Pause stream'">
           <mat-icon>{{ state.paused() ? 'play_arrow' : 'pause' }}</mat-icon>
-          {{ state.paused() ? 'Resume Stream' : 'Pause Stream' }}
+          {{ state.paused() ? 'Resume' : 'Pause' }}
         </button>
 
         <!-- PIN SNAPSHOT -->
-        <button mat-flat-button (click)="captureSnapshot()" [disabled]="!state.lastPayload()" class="mat-tonal-button cmd-btn">
+        <button mat-flat-button (click)="captureSnapshot()" [disabled]="!state.lastPayload()" class="mat-tonal-button cmd-btn" aria-label="Pin Snapshot">
           <mat-icon>bookmark_add</mat-icon>
-          Pin Snapshot
-        </button>
-
-        <!-- SPLIT SCREEN TOGGLE -->
-        <button mat-flat-button (click)="splitScreenActive.set(!splitScreenActive()); state.triggerHaptic('tap'); requestCanvasDraw()" class="mat-tonal-button cmd-btn" [class.active-split]="splitScreenActive()">
-          <mat-icon>{{ splitScreenActive() ? 'desktop_access_disabled' : 'split_screen' }}</mat-icon>
-          {{ splitScreenActive() ? 'Disable Split' : 'Split View' }}
+          Snapshot
         </button>
 
         <!-- STOP RECORDING -->
-        <button mat-flat-button color="warn" (click)="stopSession()" [disabled]="state.ctlStopPending() || !canStopSession()" class="cmd-btn stop-btn">
+        <button mat-flat-button color="warn" (click)="stopSession()" [disabled]="state.ctlStopPending() || !canStopSession()" class="cmd-btn stop-btn" aria-label="Stop Session">
           <mat-icon>stop</mat-icon>
-          Stop Session
+          Stop
         </button>
       </div>
     </div>
   </mat-card>
+
+  <div class="live-mode-toolbar" role="region" aria-label="Live telemetry mode controls">
+    <mat-button-toggle-group
+      class="live-mode-segment"
+      [value]="state.zenMode() ? 'simple' : 'advanced'"
+      (change)="setLiveMode($event.value)"
+      aria-label="Live telemetry detail level">
+      <mat-button-toggle value="simple">
+        <mat-icon aria-hidden="true">visibility</mat-icon>
+        Simple
+      </mat-button-toggle>
+      <mat-button-toggle value="advanced">
+        <mat-icon aria-hidden="true">data_exploration</mat-icon>
+        Advanced
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+  </div>
 
   <!-- SIX HIGH-FIDELITY LIVE TAB PAGES -->
   <div class="main-layout-split" [class.is-split]="splitScreenActive()">
@@ -246,14 +266,43 @@
           }
         </div>
 
+        @if (state.zenMode()) {
+          <div class="simple-info-grid" role="list" aria-label="Live telemetry quick status">
+            <section class="simple-info-card" role="listitem" [attr.data-tone]="targetZoneTone()">
+              <mat-icon aria-hidden="true">radar</mat-icon>
+              <div>
+                <span>Target range</span>
+                <strong>{{ targetRangeDisplay() }}</strong>
+                <small>{{ targetZoneLabel() }}</small>
+              </div>
+            </section>
+            <section class="simple-info-card" role="listitem" [attr.data-tone]="signalQualityTone()">
+              <mat-icon aria-hidden="true">verified</mat-icon>
+              <div>
+                <span>Signal quality</span>
+                <strong>{{ signalQualityDisplay() }}</strong>
+                <small>{{ signalQualitySub() }}</small>
+              </div>
+            </section>
+            <section class="simple-info-card" role="listitem" [attr.data-tone]="motionActive() ? 'warn' : 'muted'">
+              <mat-icon aria-hidden="true">{{ motionActive() ? 'directions_run' : 'accessibility_new' }}</mat-icon>
+              <div>
+                <span>Motion</span>
+                <strong>{{ motionSummary() }}</strong>
+                <small>{{ motionSub() }}</small>
+              </div>
+            </section>
+          </div>
+        }
+
         <!-- SESSION NOTES WITH QUICK TAGS -->
         <mat-card class="session-notes-section-card">
           <mat-card-header class="section-header-row">
             <div class="section-title-group">
               <mat-icon class="header-avatar-ic">edit_note</mat-icon>
               <div>
-                <mat-card-title>Active Session Notes</mat-card-title>
-                <mat-card-subtitle>Operator observations logged directly to the report.</mat-card-subtitle>
+                <mat-card-title>Session notes</mat-card-title>
+                <mat-card-subtitle>Observations are saved into the report.</mat-card-subtitle>
               </div>
             </div>
             <button mat-flat-button type="button" (click)="exportSessionNotes()" aria-label="Export session notes as text" class="mat-tonal-button">
@@ -322,12 +371,10 @@
                   <tbody>
                     <tr><td>Person detected</td><td>{{ metricState('human') }}</td></tr>
                     <tr><td>Distance</td><td>{{ metricText('distance_cm', 1, ' cm') }}</td></tr>
-                    <tr><td>X position</td><td>{{ metricText('primary_x', 2, ' m') }}</td></tr>
-                    <tr><td>Y position</td><td>{{ metricText('primary_y', 2, ' m') }}</td></tr>
+                    <tr><td>X/Y position</td><td>{{ metricText('primary_x', 2, ' m') }} / {{ metricText('primary_y', 2, ' m') }}</td></tr>
                     <tr><td>Spatial source</td><td>{{ metricLabel('spatial_source') }}</td></tr>
-                    <tr><td>Spatial age</td><td>{{ metricText('spatial_age_ms', 0, ' ms') }}</td></tr>
                     <tr><td>Doppler speed</td><td>{{ metricText('primary_dop_speed_cms', 1, ' cm/s') }}</td></tr>
-                    <tr><td>Target info live</td><td>{{ metricState('target_info_ok') }}</td></tr>
+                    <tr><td>Point targets</td><td>{{ metricLabel('num_targets') }}</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -374,7 +421,7 @@
           <!-- PHYSIOLOGY & POLICY DIAGNOSTICS GRIDS -->
           <div class="diagnostics-double-column">
             <mat-card class="diagnostics-card">
-              <mat-card-header><mat-card-title>Physiological Integrity</mat-card-title></mat-card-header>
+              <mat-card-header><mat-card-title>Physiological integrity</mat-card-title></mat-card-header>
               <mat-card-content class="diagnostics-table-wrap">
                 <table class="diagnostics-table">
                   <tbody>
@@ -388,7 +435,7 @@
             </mat-card>
 
             <mat-card class="diagnostics-card">
-              <mat-card-header><mat-card-title>Publishing Policy</mat-card-title></mat-card-header>
+              <mat-card-header><mat-card-title>Publishing policy</mat-card-title></mat-card-header>
               <mat-card-content class="diagnostics-table-wrap">
                 <table class="diagnostics-table">
                   <tbody>

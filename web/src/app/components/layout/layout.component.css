@@ -7,9 +7,58 @@
 }
 
 :host #demoBanner {
+  align-items: center;
+  background: var(--md-sys-color-warning-container, #ffe3b3);
+  color: var(--md-sys-color-on-warning-container, #3a2600);
+  display: flex;
   flex: 0 0 auto;
+  gap: 8px;
   inset: auto !important;
+  justify-content: center;
+  padding: 5px 12px;
   position: relative !important;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+:host #demoBanner .material-symbols-rounded {
+  font-size: 15px;
+}
+
+.demo-banner-text {
+  min-width: 0;
+}
+
+.demo-banner-action {
+  align-items: center;
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 999px;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 10px;
+  font: inherit;
+}
+
+.demo-banner-action:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+@media (max-width: 600px) {
+  :host #demoBanner {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .demo-banner-action {
+    margin-left: 23px;
+  }
 }
 
 .skip-link {
@@ -65,9 +114,44 @@
   width: var(--rail-w-collapsed, 64px) !important;
 }
 
+/* Redesign brand lockup: two stacked lines — "RADAR VITAL" over
+   "TRAINER · <version>" — matching Radar Vital Redesign. */
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 14px;
+  background: var(--md-sys-color-primary-container, #d3e4ff);
+  color: var(--md-sys-color-on-primary-container, #0c2d4d);
+  display: grid;
+  place-items: center;
+}
+.brand-mark .material-symbols-rounded {
+  font-size: 22px;
+  line-height: 1;
+  font-variation-settings: 'FILL' 1;
+}
+.brand-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+.brand-label .bl-top {
+  font-size: 14.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+.brand-label .bl-bot {
+  font-size: 10.5px;
+  font-family: var(--rvt-mono-font, "JetBrains Mono", monospace);
+  letter-spacing: 0.3px;
+}
+
 .app.rail-collapsed .brand-label,
 .app.rail-collapsed .nav-heading,
 .app.rail-collapsed .op-meta,
+.app.rail-collapsed .r-shortcut,
 .app.rail-collapsed .r-label {
   display: none;
 }
@@ -75,6 +159,56 @@
 .app.rail-collapsed .r-item {
   font-size: 0;
   justify-content: center;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Icon-only (collapsed / tablet) rail: keep every control centered in the
+   narrow rail and drop secondary text affordances. The operator lock/switch
+   actions stay reachable from the topbar overflow menu, matching the mockup
+   which carries no lock/switch buttons in the rail. */
+.app.rail-collapsed .rail.mat-drawer {
+  --rail-w-collapsed: 76px;
+}
+.app.rail-collapsed .operator-actions,
+.app.rail-collapsed .rail-action .r-shortcut {
+  display: none !important;
+}
+.app.rail-collapsed .rail-foot {
+  align-items: center;
+  gap: 8px;
+}
+.app.rail-collapsed .operator {
+  justify-content: center;
+  padding: 6px 0;
+}
+.app.rail-collapsed .rail-action.mat-tonal-button {
+  min-width: 48px !important;
+  width: 48px;
+  padding: 0 !important;
+  justify-content: center;
+}
+.app.rail-collapsed .nav-groups {
+  align-items: center;
+}
+/* font-size:0 on the collapsed item hides the label but also zeroes the icon
+   glyph (Material Symbols size from font-size); restore an explicit size so the
+   nav/command/operator icons stay visible in the icon-only rail. */
+.app.rail-collapsed .r-item .r-ic .material-symbols-rounded,
+.app.rail-collapsed .rail-action .material-symbols-rounded,
+.app.rail-collapsed .r-item .material-symbols-rounded {
+  font-size: 22px !important;
+}
+.app.rail-collapsed .r-item {
+  /* Contain the absolutely-positioned MDC content (it sets inset:0); without a
+     positioned item it escaped to the rail and stacked every icon at the rail
+     centre, leaving the items blank. */
+  position: relative !important;
+  width: 48px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  --mdc-list-list-item-one-line-container-height: 44px;
+  margin: 2px auto;
 }
 
 /* ==========================================================================
@@ -197,6 +331,16 @@
     border-radius: 999px;
     min-height: 44px;
     justify-content: flex-start;
+  }
+
+  .rail .rail-action .r-shortcut {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 999px;
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 10.5px;
+    font-weight: 800;
+    margin-left: auto;
+    padding: 2px 7px;
   }
 
   .rail .rail-foot {
@@ -419,7 +563,8 @@
   display: none;
 }
 
-@media (max-width: 760px) {
+/* Compact (<600px): bottom navigation, mobile content padding. */
+@media (max-width: 599.98px) {
   .main-content-scroll {
     margin-bottom: 0;
     padding: 12px 12px calc(112px + env(safe-area-inset-bottom, 0px));
@@ -444,27 +589,12 @@
   }
 }
 
-@media (min-width: 761px) and (max-width: 1023px) {
-  .main-content-scroll {
-    margin-bottom: 0;
-    padding-bottom: 112px;
-  }
-
+/* Medium/tablet (600–1023px): collapsed icon rail, no bottom nav (per the
+   Radar Vital Redesign mockup, which keeps the rail rather than the bottom bar
+   at tablet). */
+@media (min-width: 600px) and (max-width: 1023.98px) {
   .bottom-nav {
-    background: var(--md-sys-color-surface-container);
-    border-top: 1px solid var(--md-sys-color-outline-variant);
-    bottom: 0;
-    display: flex !important;
-    height: 80px !important;
-    left: 0;
-    position: fixed !important;
-    right: 0;
-    transform: translateZ(0);
-    z-index: 900;
-  }
-
-  .scroll-to-top-fab {
-    bottom: 96px;
+    display: none !important;
   }
 }
 

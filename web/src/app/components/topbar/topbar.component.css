@@ -7,6 +7,8 @@
 
 :host .topbar {
   align-items: center !important;
+  background: var(--md-sys-color-surface-container) !important;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   box-sizing: border-box;
   display: flex !important;
   flex-wrap: nowrap !important;
@@ -15,35 +17,34 @@
   overflow: visible !important;
   padding: 12px 24px !important;
   width: 100% !important;
-  background: var(--md-sys-color-surface-container) !important;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   font-family: var(--rvt-ui-font);
 }
 
 :host .crumbs {
-  flex: 1 1 320px;
-  min-width: 0;
   display: flex;
+  flex: 1 1 320px;
   flex-direction: column;
-  justify-content: center;
   gap: 2px;
+  justify-content: center;
+  min-width: 0;
 }
 
 :host .crumb-eyebrow {
+  color: var(--md-sys-color-primary);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--md-sys-color-primary);
 }
 
 :host .crumb-title {
-  margin: 0 !important;
-  font-family: var(--rvt-ui-font);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
   color: var(--md-sys-color-on-surface);
+  font-family: var(--rvt-ui-font);
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.1;
+  margin: 0 !important;
   overflow: hidden !important;
   text-align: left !important;
   text-overflow: ellipsis !important;
@@ -51,203 +52,177 @@
 }
 
 :host .crumb-trail {
+  color: var(--md-sys-color-on-surface-variant);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: var(--md-sys-color-on-surface-variant);
   text-transform: capitalize;
 }
 
 :host .topbar-status {
-  flex: 0 1 auto;
+  display: flex;
+  flex: 0 0 auto;
   margin-left: auto !important;
 }
 
-:host .topbar-actions {
-  flex: 0 0 auto;
-}
-
-:host .seg {
+:host .mode-badge {
   align-items: center;
-  background: var(--md-sys-color-surface-container-high);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 24px;
-  display: inline-flex;
-  gap: 2px;
-  height: 48px;
-  padding: 2px;
-}
-
-:host .seg-btn {
-  border-radius: 22px;
-  height: 42px;
-  min-width: 50px;
-  width: 50px;
-}
-
-:host .seg-btn.active {
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
-}
-
-:host .seg-btn .material-symbols-rounded {
-  font-size: 20px;
-}
-
-:host #modeBadge.live {
-  background: var(--md-sys-color-tertiary-container, #ccfbf1) !important;
-  border-color: color-mix(in srgb, var(--md-sys-color-tertiary, #0f766e) 44%, transparent) !important;
-  color: var(--md-sys-color-on-tertiary-container, #064e3b) !important;
-}
-
-:host #modeBadge.live :is(.material-symbols-rounded, .status-txt, .status-sub) {
-  color: var(--md-sys-color-on-tertiary-container, #064e3b) !important;
-  opacity: 1 !important;
-}
-
-:host #modeBadge.live .status-dot {
-  background: var(--md-sys-color-tertiary, #0f766e) !important;
-}
-
-:host .server-status {
-  cursor: default;
-}
-
-:host .server-status.offline {
+  background: var(--md-sys-color-surface-container-lowest) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  color: var(--md-sys-color-on-surface);
   cursor: pointer;
+  display: inline-flex;
+  gap: 8px;
+  height: 40px;
+  max-width: 220px;
+  min-width: 0;
+  padding: 0 14px !important;
+  white-space: nowrap;
 }
 
-:host .server-dot {
-  width: 9px;
-  height: 9px;
+:host .mode-badge.demo {
+  background: var(--md-sys-color-warning-container, #ffe3b3) !important;
+  border-color: color-mix(in srgb, var(--rv-warn, #8a5a00) 28%, transparent) !important;
+  color: var(--md-sys-color-on-warning-container, #3a2600);
+}
+
+:host .mode-badge.live {
+  background: var(--md-sys-color-tertiary-container, #bfeee7) !important;
+  border-color: color-mix(in srgb, var(--md-sys-color-tertiary, #0f766e) 32%, transparent) !important;
+  color: var(--md-sys-color-on-tertiary-container, #003733);
+}
+
+:host .mode-badge.failed {
+  background: var(--md-sys-color-error-container, #ffdad6) !important;
+  border-color: color-mix(in srgb, var(--md-sys-color-error, #ba1a1a) 32%, transparent) !important;
+  color: var(--md-sys-color-on-error-container, #410002);
+}
+
+:host .mode-badge .status-dot {
+  background: currentColor;
   border-radius: 50%;
-  background: var(--md-sys-color-outline);
-  display: inline-block;
-  margin-right: 6px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 16%, transparent);
+  flex: 0 0 8px;
+  height: 8px;
+  width: 8px;
 }
 
-:host .server-status.running .server-dot {
-  background: var(--md-sys-color-tertiary, #0f766e);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--md-sys-color-tertiary, #0f766e) 18%, transparent);
+:host .mode-badge .material-symbols-rounded {
+  color: currentColor;
+  flex: 0 0 auto;
+  font-size: 19px;
 }
 
-:host .server-status.starting .server-dot {
-  background: var(--md-sys-color-secondary, #6750a4);
-  animation: server-status-pulse 1100ms ease-in-out infinite;
+:host .mode-badge .status-txt,
+:host .mode-badge .status-sub,
+:host .mode-badge .status-separator {
+  color: currentColor;
+  min-width: 0;
 }
 
-:host .server-status.offline .server-dot {
-  background: var(--md-sys-color-error, #ba1a1a);
+:host .mode-badge .status-txt {
+  font-size: 12.5px;
+  font-weight: 800;
 }
 
-@keyframes server-status-pulse {
-  0%, 100% { transform: scale(0.82); opacity: 0.65; }
-  50% { transform: scale(1); opacity: 1; }
+:host .mode-badge .status-sub,
+:host .mode-badge .status-separator {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.72;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  :host .server-status.starting .server-dot {
-    animation: none;
-  }
+/* Connection auto-retry affordance (shown only when the trainer link is down). */
+:host .conn-retry-info {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+:host .conn-retry-countdown {
+  font-family: var(--rvt-mono-font, "JetBrains Mono", monospace);
+  color: var(--md-sys-color-error);
+  white-space: nowrap;
+}
+:host .conn-retry-btn {
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 32px;
+  border-radius: var(--rv-r-pill, 999px);
 }
 
-@media (min-width: 761px) {
-  :host .topbar-status,
-  :host .topbar-actions {
-    background: transparent !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-  }
-
-  /* Deprecated ::ng-deep overrides for tb-live-mode button toggles are moved to global styles.scss as non-encapsulated overrides. */
+:host .topbar-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
 }
 
-.tb-more {
-  display: none;
+:host .ic-btn,
+:host .tb-more {
+  border-radius: 999px !important;
+  color: var(--md-sys-color-on-surface-variant);
+  height: 44px !important;
+  width: 44px !important;
 }
 
-/* Desktop/tablet: match the redesign mockup — the action cluster is exactly
-   [ status pill ] [ alerts ] [ theme ] [ overflow ⋮ ]. The detail/density
-   segments, pause and settings move into the overflow menu (which already
-   lists them), and the redundant server / connection / operator pills collapse
-   to the single mode pill ("Demo · simulated" / "Connected"). */
-@media (min-width: 768px) {
-  :host .topbar-actions > .tb-live-mode,
-  :host .topbar-actions > .tb-density,
-  :host .topbar-actions > .tb-pause,
-  :host .topbar-actions > .tb-settings {
-    display: none !important;
-  }
+:host .ic-btn:hover,
+:host .tb-more:hover {
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+}
 
-  :host .topbar-actions > .tb-more {
-    display: inline-flex !important;
-  }
-
-  :host .topbar-status .server-status,
-  :host .topbar-status .conn,
-  :host .topbar-status .operator-badge {
-    display: none !important;
-  }
+:host .ic-btn .material-symbols-rounded,
+:host .tb-more mat-icon {
+  font-size: 22px;
 }
 
 @media (max-width: 767px) {
   :host .topbar {
-    align-items: center !important;
-    background: var(--md-sys-color-surface-container);
-    border-bottom: 1px solid var(--md-sys-color-outline-variant);
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    gap: 8px;
+    gap: 8px !important;
     min-height: 64px;
-    margin: 0 !important;
-    padding: max(8px, env(safe-area-inset-top, 0px)) 12px 8px !important;
-    width: 100% !important;
+    padding: max(8px, env(safe-area-inset-top, 0px)) 10px 8px !important;
   }
 
   :host .crumbs {
-    flex: 1;
-    min-width: 0;
-    order: 0 !important;
+    flex: 1 1 auto;
   }
 
   :host .crumb-title {
-    font-size: clamp(1.45rem, 6.4vw, 1.75rem) !important;
-    line-height: 1.1 !important;
+    font-size: 1.35rem;
+    line-height: 1.12 !important;
     overflow: visible !important;
     text-overflow: clip !important;
     white-space: normal !important;
   }
 
+  :host .crumb-trail {
+    display: none;
+  }
+
   :host .topbar-status {
-    display: flex !important;
     flex: 0 0 auto !important;
     margin-left: 0 !important;
-    max-width: 44px !important;
-    min-width: 44px !important;
-    order: 1 !important;
   }
 
-  /* Single mode pill, consistent with the desktop bar. */
-  :host .topbar-status .status-pill:not(.mode-badge) {
-    display: none !important;
-  }
-
-  :host .topbar-status .mode-badge {
-    align-items: center !important;
-    display: inline-flex !important;
+  :host .mode-badge {
     height: 44px !important;
-    justify-content: center !important;
+    justify-content: center;
     max-width: 44px !important;
     min-width: 44px !important;
-    overflow: hidden !important;
-    padding-inline: 0 !important;
+    overflow: hidden;
+    padding: 0 !important;
     width: 44px !important;
   }
 
-  :host .topbar-status .mode-badge :is(.status-txt, .status-sub, .status-dot) {
+  :host .mode-badge .status-txt,
+  :host .mode-badge .status-sub,
+  :host .mode-badge .status-separator,
+  :host .mode-badge .status-dot {
     clip-path: inset(50%);
     height: 1px;
     overflow: hidden;
@@ -256,36 +231,24 @@
     width: 1px;
   }
 
-  :host .topbar-status .mode-badge .material-symbols-rounded {
-    margin: 0 !important;
-  }
-
   :host .topbar-actions {
-    align-items: center !important;
-    display: flex !important;
-    flex: 0 0 auto !important;
-    height: auto !important;
-    margin: 0 !important;
-    min-width: 48px !important;
-    order: 2 !important;
-    padding: 0 !important;
-    width: auto !important;
+    gap: 2px;
   }
 
-  :host .topbar-actions > .tb-live-mode,
-  :host .topbar-actions > .tb-density,
-  :host .topbar-actions > .tb-pause,
-  :host .topbar-actions > .tb-alerts,
-  :host .topbar-actions > .tb-settings,
-  :host .topbar-actions > .tb-theme,
-  :host .topbar-actions > .tb-export {
-    display: none !important;
+  :host .ic-btn,
+  :host .tb-more {
+    height: 42px !important;
+    width: 42px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  :host .crumb-title {
+    font-size: 1.15rem;
   }
 
-  :host .topbar-actions > .tb-more {
-    display: inline-flex !important;
-    height: 48px !important;
-    width: 48px !important;
+  :host .mode-badge {
+    display: none;
   }
 }
 
@@ -295,10 +258,9 @@
   color: #fff !important;
 }
 
-.conn-retry-countdown {
-  margin-right: 0.4rem;
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--md-sys-color-on-surface-variant);
-  white-space: nowrap;
+:host-context(html[data-theme='hc']) .mode-badge,
+:host-context(html[data-theme='hc']) .ic-btn,
+:host-context(html[data-theme='hc']) .tb-more {
+  border-color: #fff !important;
+  color: #fff !important;
 }

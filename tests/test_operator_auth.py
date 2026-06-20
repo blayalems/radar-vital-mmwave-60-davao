@@ -52,11 +52,11 @@ def temp_sessions_root():
 def test_pbkdf2_hashing_format():
     # Verify PIN hashing and matching works correctly
     salt = "d3f4b2a1a1f3e8c9"
-    pin = "1234"
+    pin = "123456"
     h = hash_pin(pin, salt)
     assert len(h) == 64  # sha256 output hex length is 64
     assert verify_pin(pin, salt, h)
-    assert not verify_pin("4321", salt, h)
+    assert not verify_pin("654321", salt, h)
 
 
 def test_bootstrapping_and_profile_creation(temp_sessions_root):
@@ -67,7 +67,7 @@ def test_bootstrapping_and_profile_creation(temp_sessions_root):
     assert len(db.get("profiles", {})) == 0
 
     # Create first profile (bootstrapping)
-    body = {"display_name": "Dr. Sarah Connor", "initials": "SC", "pin": "1234"}
+    body = {"display_name": "Dr. Sarah Connor", "initials": "SC", "pin": "123456"}
     status, payload = create_operator_profile(server, body)
     assert status == 200
     assert payload["ok"] is True
@@ -84,7 +84,7 @@ def test_bootstrapping_and_profile_creation(temp_sessions_root):
     assert profile["failed_attempts"] == 0
 
     # Subsequent profile creation is protected but functions correctly
-    body2 = {"display_name": "John Connor", "initials": "JC", "pin": "5678"}
+    body2 = {"display_name": "John Connor", "initials": "JC", "pin": "567890"}
     status2, payload2 = create_operator_profile(server, body2)
     assert status2 == 200
     assert payload2["ok"] is True
@@ -94,12 +94,12 @@ def test_login_success_and_brute_force_lockout(temp_sessions_root):
     server = MockServer(temp_sessions_root)
 
     # Create a profile
-    body = {"display_name": "Sarah Connor", "initials": "SC", "pin": "1234"}
+    body = {"display_name": "Sarah Connor", "initials": "SC", "pin": "123456"}
     status, payload = create_operator_profile(server, body)
     op_id = payload["operator"]["operator_id"]
 
     # Test login success (should return 200 and operator_session_token)
-    status_login, body_login = login_operator(server, op_id, "1234")
+    status_login, body_login = login_operator(server, op_id, "123456")
     assert status_login == 200
     token = body_login["token"]
     assert token in server.operator_sessions
@@ -121,7 +121,7 @@ def test_login_success_and_brute_force_lockout(temp_sessions_root):
     assert body_lock["error"]["retry_after_s"] == 30
 
     # While locked, even correct PIN returns 429 Lockout
-    status_locked, body_locked = login_operator(server, op_id, "1234")
+    status_locked, body_locked = login_operator(server, op_id, "123456")
     assert status_locked == 429
     assert body_locked["error"]["code"] == "LOCKOUT_ACTIVE"
 
@@ -213,7 +213,7 @@ def test_create_operator_profile_display_name_validation(temp_sessions_root):
     server = MockServer(temp_sessions_root)
     # Long display name (e.g. 65 chars)
     long_name = "a" * 65
-    body = {"display_name": long_name, "initials": "SC", "pin": "1234"}
+    body = {"display_name": long_name, "initials": "SC", "pin": "123456"}
     status, payload = create_operator_profile(server, body)
     assert status == 400
     assert payload["error"]["code"] == "VALIDATION_FAILED"
@@ -224,7 +224,7 @@ def test_lockout_enforced_even_when_save_fails(temp_sessions_root):
     server = MockServer(temp_sessions_root)
 
     # Create a profile with PIN 1234
-    body = {"display_name": "Test Operator", "initials": "TO", "pin": "1234"}
+    body = {"display_name": "Test Operator", "initials": "TO", "pin": "123456"}
     status, payload = create_operator_profile(server, body)
     assert status == 200
     op_id = payload["operator"]["operator_id"]

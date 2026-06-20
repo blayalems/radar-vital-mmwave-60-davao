@@ -138,7 +138,7 @@ export class IdleLockOverlayComponent {
       this.onboardingPin = '';
     } else if (key === 'backspace') {
       this.onboardingPin = this.onboardingPin.slice(0, -1);
-    } else if (this.onboardingPin.length < 4) {
+    } else if (this.onboardingPin.length < 6) {
       this.onboardingPin += key;
     }
   }
@@ -164,7 +164,7 @@ export class IdleLockOverlayComponent {
     return (
       this.displayName.trim().length >= 3 &&
       this.initials.trim().length === 2 &&
-      this.onboardingPin.length === 4
+      this.onboardingPin.length === 6
     );
   }
 
@@ -212,7 +212,7 @@ export class IdleLockOverlayComponent {
       this.resetNewPin = '';
     } else if (key === 'backspace') {
       this.resetNewPin = this.resetNewPin.slice(0, -1);
-    } else if (this.resetNewPin.length < 4) {
+    } else if (this.resetNewPin.length < 6) {
       this.resetNewPin += key;
     }
   }
@@ -223,7 +223,7 @@ export class IdleLockOverlayComponent {
       this.hostResetPin = '';
     } else if (key === 'backspace') {
       this.hostResetPin = this.hostResetPin.slice(0, -1);
-    } else if (this.hostResetPin.length < 4) {
+    } else if (this.hostResetPin.length < 6) {
       this.hostResetPin += key;
     }
   }
@@ -241,7 +241,7 @@ export class IdleLockOverlayComponent {
 
   async submitRecoveryReset(): Promise<void> {
     const op = this.resetOperator();
-    if (!op || this.resetNewPin.length !== 4) return;
+    if (!op || this.resetNewPin.length !== 6) return;
     const newPin = this.resetNewPin;
 
     const result = await this.auth.resetPin(
@@ -283,7 +283,7 @@ export class IdleLockOverlayComponent {
 
   async submitHostReset(): Promise<void> {
     const op = this.resetOperator();
-    if (!op || this.hostResetPin.length !== 4) return;
+    if (!op || this.hostResetPin.length !== 6) return;
     const newPin = this.hostResetPin;
 
     const result = await this.auth.hostReset(op.operator_id, newPin);

@@ -61,7 +61,7 @@ def server(sessions_root: str) -> _StubServer:
     return _StubServer(sessions_root)
 
 
-def _make_profile(server: _StubServer, pin: str = "1234", display_name: str = "Test Operator") -> dict:
+def _make_profile(server: _StubServer, pin: str = "123456", display_name: str = "Test Operator") -> dict:
     """Create a profile and return the full creation response body."""
     status, body = create_operator_profile(server, {
         "display_name": display_name,
@@ -133,11 +133,11 @@ def test_hash_fields_present_in_persisted_json(server: _StubServer, sessions_roo
 
 
 def test_reset_pin_happy_path(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
     code = body["recovery_code"]
 
-    status, resp = reset_pin_with_recovery(server, op_id, code, "5678")
+    status, resp = reset_pin_with_recovery(server, op_id, code, "567890")
     assert status == 200
     assert resp["ok"] is True
     # New recovery code is returned
@@ -146,16 +146,16 @@ def test_reset_pin_happy_path(server: _StubServer, sessions_root: str):
     assert new_code != code  # rotated
 
     # New PIN should work
-    s, r = login_operator(server, op_id, "5678")
+    s, r = login_operator(server, op_id, "567890")
     assert s == 200
 
     # Old PIN rejected
-    s2, _ = login_operator(server, op_id, "1234")
+    s2, _ = login_operator(server, op_id, "123456")
     assert s2 == 401
 
 
 def test_reset_pin_clears_pin_lockout(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
     code = body["recovery_code"]
 
@@ -164,30 +164,30 @@ def test_reset_pin_clears_pin_lockout(server: _StubServer, sessions_root: str):
         login_operator(server, op_id, "0000")
 
     # Verify locked
-    s, b = login_operator(server, op_id, "1234")
+    s, b = login_operator(server, op_id, "123456")
     assert s == 429
 
     # Reset clears lockout
-    status, resp = reset_pin_with_recovery(server, op_id, code, "9999")
+    status, resp = reset_pin_with_recovery(server, op_id, code, "999999")
     assert status == 200
 
     # Should now be able to log in
-    s2, _ = login_operator(server, op_id, "9999")
+    s2, _ = login_operator(server, op_id, "999999")
     assert s2 == 200
 
 
 def test_reset_pin_invalidates_sessions(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
     code = body["recovery_code"]
 
     # Create an active session
-    s, login_body = login_operator(server, op_id, "1234")
+    s, login_body = login_operator(server, op_id, "123456")
     token = login_body["token"]
     assert token in server.operator_sessions
 
     # Reset
-    reset_pin_with_recovery(server, op_id, code, "5678")
+    reset_pin_with_recovery(server, op_id, code, "567890")
 
     # Session should be invalidated
     assert token not in server.operator_sessions
@@ -199,11 +199,11 @@ def test_reset_pin_invalidates_sessions(server: _StubServer, sessions_root: str)
 
 
 def test_wrong_recovery_code_increments_separate_counter(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
 
     for i in range(_RECOVERY_FAILURE_LIMIT - 1):
-        s, b = reset_pin_with_recovery(server, op_id, "AAAA-BBBB-CCCC", "5678")
+        s, b = reset_pin_with_recovery(server, op_id, "AAAA-BBBB-CCCC", "567890")
         assert s == 401
         assert b["error"]["code"] == "UNAUTHORIZED"
 
@@ -214,28 +214,28 @@ def test_wrong_recovery_code_increments_separate_counter(server: _StubServer, se
 
 
 def test_wrong_recovery_code_triggers_lockout_at_limit(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
 
     for _ in range(_RECOVERY_FAILURE_LIMIT - 1):
-        reset_pin_with_recovery(server, op_id, "AAAA-BBBB-CCCC", "5678")
+        reset_pin_with_recovery(server, op_id, "AAAA-BBBB-CCCC", "567890")
 
-    s, b = reset_pin_with_recovery(server, op_id, "AAAA-BBBB-CCCC", "5678")
+    s, b = reset_pin_with_recovery(server, op_id, "AAAA-BBBB-CCCC", "567890")
     assert s == 429
     assert b["error"]["code"] == "LOCKOUT_ACTIVE"
     assert b["error"]["retry_after_s"] <= int(_RECOVERY_LOCKOUT_S)
 
 
 def test_recovery_lockout_blocks_correct_code(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
     code = body["recovery_code"]
 
     for _ in range(_RECOVERY_FAILURE_LIMIT):
-        reset_pin_with_recovery(server, op_id, "AAAA-BBBB-CCCC", "5678")
+        reset_pin_with_recovery(server, op_id, "AAAA-BBBB-CCCC", "567890")
 
     # Now even the correct code should be blocked
-    s, b = reset_pin_with_recovery(server, op_id, code, "5678")
+    s, b = reset_pin_with_recovery(server, op_id, code, "567890")
     assert s == 429
     assert b["error"]["code"] == "LOCKOUT_ACTIVE"
 
@@ -246,23 +246,23 @@ def test_recovery_lockout_blocks_correct_code(server: _StubServer, sessions_root
 
 
 def test_recovery_code_is_single_use(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
     original_code = body["recovery_code"]
 
     # First use succeeds and returns new code
-    s, resp = reset_pin_with_recovery(server, op_id, original_code, "5678")
+    s, resp = reset_pin_with_recovery(server, op_id, original_code, "567890")
     assert s == 200
     new_code = resp["recovery_code"]
     assert new_code != original_code
 
     # Original code is now invalid
-    s2, b2 = reset_pin_with_recovery(server, op_id, original_code, "9999")
+    s2, b2 = reset_pin_with_recovery(server, op_id, original_code, "999999")
     assert s2 == 401
     assert b2["error"]["code"] == "UNAUTHORIZED"
 
     # New code works
-    s3, r3 = reset_pin_with_recovery(server, op_id, new_code, "9999")
+    s3, r3 = reset_pin_with_recovery(server, op_id, new_code, "999999")
     assert s3 == 200
 
 
@@ -272,39 +272,39 @@ def test_recovery_code_is_single_use(server: _StubServer, sessions_root: str):
 
 
 def test_host_reset_succeeds(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
 
-    s, resp = host_reset_pin(server, op_id, "9999")
+    s, resp = host_reset_pin(server, op_id, "999999")
     assert s == 200
     assert resp["ok"] is True
     assert "recovery_code" in resp
 
     # New PIN works
-    s2, _ = login_operator(server, op_id, "9999")
+    s2, _ = login_operator(server, op_id, "999999")
     assert s2 == 200
 
     # Old PIN rejected
-    s3, _ = login_operator(server, op_id, "1234")
+    s3, _ = login_operator(server, op_id, "123456")
     assert s3 == 401
 
 
 def test_host_reset_mints_new_recovery_code(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
     old_code = body["recovery_code"]
 
-    s, resp = host_reset_pin(server, op_id, "5678")
+    s, resp = host_reset_pin(server, op_id, "567890")
     assert s == 200
     new_code = resp["recovery_code"]
     assert new_code != old_code
 
 
 def test_host_reset_new_recovery_code_persisted_as_hash_only(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
 
-    s, resp = host_reset_pin(server, op_id, "5678")
+    s, resp = host_reset_pin(server, op_id, "567890")
     new_code = resp["recovery_code"]
 
     raw = (Path(sessions_root) / "operator_profiles.json").read_text(encoding="utf-8")
@@ -312,22 +312,22 @@ def test_host_reset_new_recovery_code_persisted_as_hash_only(server: _StubServer
 
 
 def test_host_reset_clears_lockouts(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
 
     # Trigger PIN lockout
     for _ in range(5):
         login_operator(server, op_id, "0000")
 
-    s, resp = host_reset_pin(server, op_id, "2222")
+    s, resp = host_reset_pin(server, op_id, "222222")
     assert s == 200
 
-    s2, _ = login_operator(server, op_id, "2222")
+    s2, _ = login_operator(server, op_id, "222222")
     assert s2 == 200
 
 
 def test_host_reset_invalid_pin_rejected(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
 
     s, resp = host_reset_pin(server, op_id, "abc")
@@ -336,7 +336,7 @@ def test_host_reset_invalid_pin_rejected(server: _StubServer, sessions_root: str
 
 
 def test_host_reset_unknown_operator_rejected(server: _StubServer, sessions_root: str):
-    s, resp = host_reset_pin(server, "op_nonexistent", "1234")
+    s, resp = host_reset_pin(server, "op_nonexistent", "123456")
     assert s == 401
 
 
@@ -373,7 +373,7 @@ def test_monolith_host_reset_loopback_check(sessions_root: str):
 
     # Create a profile first (direct call)
     server_stub = _StubServer(sessions_root)
-    body = _make_profile(server_stub, pin="1234")
+    body = _make_profile(server_stub, pin="123456")
     op_id = body["operator"]["operator_id"]
 
     # Spin up the actual HTTP server
@@ -385,7 +385,7 @@ def test_monolith_host_reset_loopback_check(sessions_root: str):
         base = f"http://127.0.0.1:{srv.httpd.server_port}"
 
         # Loopback call — should succeed (127.0.0.1 is loopback)
-        req_data = _json.dumps({"operator_id": op_id, "new_pin": "5678"}).encode()
+        req_data = _json.dumps({"operator_id": op_id, "new_pin": "567890"}).encode()
         req = urllib.request.Request(
             f"{base}/api/auth/host-reset",
             data=req_data,
@@ -404,7 +404,7 @@ def test_monolith_host_reset_rejects_non_loopback_before_reset(sessions_root: st
     """Handler seam: a network peer gets explicit 403 LOOPBACK_ONLY."""
     from rvt_trainer.monolith import _ControlHandler
 
-    body = json.dumps({"operator_id": "op_any", "new_pin": "5678"}).encode("utf-8")
+    body = json.dumps({"operator_id": "op_any", "new_pin": "567890"}).encode("utf-8")
     headers = Message()
     headers["Content-Type"] = "application/json"
     headers["Content-Length"] = str(len(body))
@@ -445,7 +445,7 @@ def test_monolith_host_reset_rejects_non_loopback_before_reset(sessions_root: st
 
 
 def test_legacy_profile_gets_guidance_error(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
 
     # Strip recovery fields to simulate a legacy profile
@@ -456,7 +456,7 @@ def test_legacy_profile_gets_guidance_error(server: _StubServer, sessions_root: 
     profile.pop("recovery_iterations", None)
     save_operator_profiles(sessions_root, db)
 
-    s, b = reset_pin_with_recovery(server, op_id, "AAAA-BBBB-CCCC", "5678")
+    s, b = reset_pin_with_recovery(server, op_id, "AAAA-BBBB-CCCC", "567890")
     assert s == 400
     assert b["error"]["code"] == "NO_RECOVERY_CODE"
     assert "host-reset" in b["error"]["message"].lower() or "/api/auth/host-reset" in b["error"]["message"]
@@ -468,7 +468,7 @@ def test_legacy_profile_gets_guidance_error(server: _StubServer, sessions_root: 
 
 
 def test_reset_pin_rejects_non_digit_pin(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
     code = body["recovery_code"]
 
@@ -478,7 +478,7 @@ def test_reset_pin_rejects_non_digit_pin(server: _StubServer, sessions_root: str
 
 
 def test_reset_pin_rejects_wrong_length_pin(server: _StubServer, sessions_root: str):
-    body = _make_profile(server, pin="1234")
+    body = _make_profile(server, pin="123456")
     op_id = body["operator"]["operator_id"]
     code = body["recovery_code"]
 

@@ -99,7 +99,7 @@ def test_read_body_rejects_malformed_json(server):
 
 
 def test_read_body_rejects_wrong_content_type(server):
-    payload = b'{"operator_id": "op", "pin": "1234"}'
+    payload = b'{"operator_id": "op", "pin": "123456"}'
     status, data = server.raw(
         "POST", "/api/auth/login", body=payload,
         headers={"Content-Type": "text/plain", "Content-Length": str(len(payload))},
@@ -313,7 +313,7 @@ def test_create_profile_rejects_bidi_display_name(tmp_path):
     sessions.mkdir()
     server = _MockServer(str(sessions), bind_mode="local")
     status, payload = create_operator_profile(
-        server, {"display_name": "Ann‮evil", "initials": "AE", "pin": "1234"}
+        server, {"display_name": "Ann‮evil", "initials": "AE", "pin": "123456"}
     )
     assert status == 400
     assert payload["error"]["code"] == "VALIDATION_FAILED"

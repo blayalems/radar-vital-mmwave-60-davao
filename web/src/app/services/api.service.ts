@@ -467,8 +467,8 @@ export class ApiService {
     if (!/^[A-Z]{2,5}$/.test(initials)) {
       return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'initials must be 2 to 5 uppercase letters' } };
     }
-    if (!/^\d{4}$/.test(pin)) {
-      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'pin must be exactly 4 digits' } };
+    if (!/^\d{6}$/.test(pin)) {
+      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'pin must be exactly 6 digits' } };
     }
     const profiles = this.sandboxReadOperatorProfiles();
     const operator: SandboxOperatorProfile = {

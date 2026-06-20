@@ -9,6 +9,8 @@
     <span class="pin-dot" [class.filled]="pin.length >= 2"></span>
     <span class="pin-dot" [class.filled]="pin.length >= 3"></span>
     <span class="pin-dot" [class.filled]="pin.length >= 4"></span>
+    <span class="pin-dot" [class.filled]="pin.length >= 5"></span>
+    <span class="pin-dot" [class.filled]="pin.length >= 6"></span>
   </div>
 
   <div class="error-text" *ngIf="error || lockoutSeconds > 0">

@@ -9,16 +9,22 @@ import type { Page } from '@playwright/test';
  */
 export const TERMS_VERSION = '2026-06-12.1';
 
+// Fixed acceptance time so the Settings "Accepted" label (rendered via
+// toLocaleString) is byte-stable across runs. A live `new Date()` here made
+// the settings visual baseline non-deterministic — the capture and verify
+// runs printed different clock times, so the snapshot never reproduced.
+export const CONSENT_ACCEPTED_AT = '2026-06-12T08:00:00.000Z';
+
 export async function seedFirstRunComplete(page: Page): Promise<void> {
-  await page.addInitScript(version => {
+  await page.addInitScript(({ version, acceptedAt }) => {
     try {
       localStorage.setItem(
         'rvt-consent-record',
-        JSON.stringify({ version, accepted_at: new Date().toISOString() })
+        JSON.stringify({ version, accepted_at: acceptedAt })
       );
       localStorage.setItem('rvt-tutorial-done', '1');
     } catch (_) {
       /* storage unavailable in this context — consent gate will handle it */
     }
-  }, TERMS_VERSION);
+  }, { version: TERMS_VERSION, acceptedAt: CONSENT_ACCEPTED_AT });
 }

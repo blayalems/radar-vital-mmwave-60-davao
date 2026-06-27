@@ -28,6 +28,13 @@
       <span class="status-separator" aria-hidden="true">·</span>
       <span class="status-sub">{{ statusSub() }}</span>
     </mat-chip>
+
+    <!-- Current operator -->
+    <mat-chip class="status-pill operator-badge" id="homeOperatorBadge" title="Current operator">
+      <span class="material-symbols-rounded">person</span>
+      <span class="status-txt">{{ state.setup().operator_label || 'Operator A' }}</span>
+      <span class="status-sub">{{ state.setup().station_label || 'Lab · Station 3' }}</span>
+    </mat-chip>
   </mat-chip-set>
 
   @if (state.ctlStatus()?.ok === false) {

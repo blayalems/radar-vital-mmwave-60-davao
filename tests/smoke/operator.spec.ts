@@ -114,11 +114,13 @@ test.describe('Operator profile and lock system', () => {
     await page.getByPlaceholder('e.g. Dr. Sarah Connor').fill('Dr. Sarah Connor');
     await page.getByPlaceholder('e.g. SC').fill('SC');
 
-    // Click PIN: 1, 2, 3, 4
+    // Click PIN: 1, 2, 3, 4, 5, 6
     await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^1$/ }).dispatchEvent('click');
     await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^2$/ }).dispatchEvent('click');
     await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^3$/ }).dispatchEvent('click');
     await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^4$/ }).dispatchEvent('click');
+    await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^5$/ }).dispatchEvent('click');
+    await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^6$/ }).dispatchEvent('click');
 
     // Create profile
     await page.getByRole('button', { name: 'Create Profile' }).dispatchEvent('click');
@@ -136,7 +138,7 @@ test.describe('Operator profile and lock system', () => {
     await page.getByRole('button', { name: 'Add operator' }).dispatchEvent('click');
     await page.getByLabel('Display name').fill('John Connor');
     await page.getByLabel('Initials').fill('JC');
-    await page.getByLabel('4-digit PIN').fill('5678');
+    await page.getByLabel('6-digit PIN').fill('567890');
     await page.getByRole('button', { name: 'Create and switch' }).dispatchEvent('click');
     await expect(page.locator('app-switch-operator-dialog')).not.toBeVisible();
     await expect(page.locator('.operator-badge .status-txt')).toHaveText('John Connor');
@@ -150,14 +152,14 @@ test.describe('Operator profile and lock system', () => {
     await expect(page.locator('.pin-entry-screen')).toBeVisible();
 
     // 4. Unlock with John's PIN.
-    await submitPinAndWait(page, '5678');
+    await submitPinAndWait(page, '567890');
     await expect(page.locator('section.idle-lock-overlay')).not.toBeVisible();
 
     // 5. Switch back to Sarah while unlocked.
     await clickConsoleAction(page, 'Switch operator');
     await expect(page.locator('app-switch-operator-dialog')).toBeVisible();
     await page.locator('app-switch-operator-dialog .profile-row', { hasText: 'Dr. Sarah Connor' }).dispatchEvent('click');
-    await submitPinAndWait(page, '1234');
+    await submitPinAndWait(page, '123456');
     await expect(page.locator('app-switch-operator-dialog')).not.toBeVisible();
     await expect(page.locator('.operator-badge .status-txt')).toHaveText('Dr. Sarah Connor');
 
@@ -169,23 +171,23 @@ test.describe('Operator profile and lock system', () => {
 
     // Enter wrong PIN 5 times to trigger lockout
     // 1st wrong attempt
-    await expect((await submitPinAndWait(page, '1111')).status()).toBe(401);
+    await expect((await submitPinAndWait(page, '111111')).status()).toBe(401);
     await expect(page.locator('.error-text')).toContainText('Invalid operator ID or PIN');
 
     // 2nd wrong attempt
-    await expect((await submitPinAndWait(page, '1111')).status()).toBe(401);
+    await expect((await submitPinAndWait(page, '111111')).status()).toBe(401);
     await expect(page.locator('.error-text')).toContainText('Invalid operator ID or PIN');
 
     // 3rd wrong attempt
-    await expect((await submitPinAndWait(page, '1111')).status()).toBe(401);
+    await expect((await submitPinAndWait(page, '111111')).status()).toBe(401);
     await expect(page.locator('.error-text')).toContainText('Invalid operator ID or PIN');
 
     // 4th wrong attempt
-    await expect((await submitPinAndWait(page, '1111')).status()).toBe(401);
+    await expect((await submitPinAndWait(page, '111111')).status()).toBe(401);
     await expect(page.locator('.error-text')).toContainText('Invalid operator ID or PIN');
 
     // 5th wrong attempt -> lockout
-    await expect((await submitPinAndWait(page, '1111')).status()).toBe(429);
+    await expect((await submitPinAndWait(page, '111111')).status()).toBe(429);
     await expect(page.locator('.error-text')).toContainText('Too many failed attempts');
   });
 });

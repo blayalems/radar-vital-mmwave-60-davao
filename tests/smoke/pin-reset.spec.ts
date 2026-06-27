@@ -76,7 +76,7 @@ test.describe('PIN recovery code flow', () => {
 
     await page.getByPlaceholder('e.g. Dr. Sarah Connor').fill('Reset Test User');
     await page.getByPlaceholder('e.g. SC').fill('RT');
-    await pressOnboardingPin(page, '1234');
+    await pressOnboardingPin(page, '123456');
 
     // Intercept profile creation response to capture recovery code
     const createResponse = page.waitForResponse(resp =>
@@ -130,7 +130,7 @@ test.describe('PIN recovery code flow', () => {
 
     // Enter new PIN
     await expect(page.locator('.reset-flow .pin-section')).toBeVisible();
-    await pressResetPin(page, '5678');
+    await pressResetPin(page, '567890');
 
     // Submit
     const resetResponse = page.waitForResponse(resp =>
@@ -167,7 +167,7 @@ test.describe('PIN recovery code flow', () => {
     await page.locator('button.forgot-pin-link', { hasText: /Forgot PIN\?/i }).dispatchEvent('click');
     await page.locator('.reset-flow input[placeholder*="XXXX"]').fill(originalRecoveryCode);
     await page.getByRole('button', { name: 'Next' }).click();
-    await pressResetPin(page, '9999');
+    await pressResetPin(page, '999999');
 
     const badResetResp = page.waitForResponse(resp =>
       resp.url().includes('/api/auth/reset-pin') && resp.request().method() === 'POST'

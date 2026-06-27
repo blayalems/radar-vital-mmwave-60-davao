@@ -74,7 +74,7 @@ export class SwitchOperatorDialogComponent implements OnInit {
   canCreateProfile(): boolean {
     return this.displayName.trim().length >= 3
       && /^[A-Za-z]{2,5}$/.test(this.initials.trim())
-      && /^\d{4}$/.test(this.pin.trim());
+      && /^\d{6}$/.test(this.pin.trim());
   }
 
   async createProfile(): Promise<void> {

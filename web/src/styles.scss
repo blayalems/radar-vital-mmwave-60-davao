@@ -1023,3 +1023,44 @@ body[data-rail-collapsed="1"] .app.rail-collapsed .rail .brand-ring.r2,
 body[data-rail-collapsed="1"] .rail .brand-ring.r2 {
   inset: 10px !important;
 }
+
+/* =============================================================================
+   PHONE HORIZONTAL-OVERFLOW GUARDS (<=599.98px)
+   The dashboard smoke suite asserts no element extends past the viewport by
+   more than 2px. Material card headers, action clusters and segmented toggles
+   can bleed a few px on narrow phones after the redesign; keep them boxed and
+   allow them to wrap rather than force horizontal document scroll.
+   ========================================================================== */
+@media (max-width: 599.98px) {
+  .mat-mdc-card-header {
+    max-width: 100%;
+    box-sizing: border-box;
+    flex-wrap: wrap;
+  }
+  .header-actions {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .mat-button-toggle-group.mat-button-toggle-group-appearance-standard {
+    max-width: 100%;
+  }
+  app-live .live-mode-toolbar,
+  app-live .live-mode-segment {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+}
+
+/* ==========================================================================
+   TABLET HORIZONTAL-OVERFLOW GUARDS (600–1023.98px)
+   In the tablet band the collapsed rail narrows the content column; Material
+   card headers can bleed a few px past the viewport (the dashboard smoke
+   suite allows ≤2px). Box them to their container without forcing the title
+   row to wrap, so the tablet layout is unchanged apart from the clamp.
+   ========================================================================== */
+@media (min-width: 600px) and (max-width: 1023.98px) {
+  .mat-mdc-card-header {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}

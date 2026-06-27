@@ -65,7 +65,7 @@
         <input matInput [value]="initials" (input)="initials = inputValue($event)" autocomplete="off">
       </mat-form-field>
       <mat-form-field appearance="outline">
-        <mat-label>4-digit PIN</mat-label>
+        <mat-label>6-digit PIN</mat-label>
         <input matInput [value]="pin" (input)="pin = inputValue($event)" type="password" inputmode="numeric" autocomplete="new-password">
       </mat-form-field>
       @if (auth.loginError()) {

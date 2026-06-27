@@ -123,7 +123,7 @@ def sessions_root():
     shutil.rmtree(tmpdir)
 
 
-def _create_and_login(server: _MockServer, pin: str = "1234"):
+def _create_and_login(server: _MockServer, pin: str = "123456"):
     """Create an operator profile, log in, return (operator_id, session_token, recovery_code)."""
     status, body = create_operator_profile(server, {
         "display_name": "Test Operator",
@@ -160,7 +160,7 @@ def test_bootstrap_sse_token_has_no_operator(sessions_root):
 
 def test_invalidate_drops_only_matching_operator_sse_tokens(sessions_root):
     server = _MockServer(sessions_root)
-    op_a, tok_a, _ = _create_and_login(server, pin="1234")
+    op_a, tok_a, _ = _create_and_login(server, pin="123456")
 
     sse_a = _mint_sse_token(server, tok_a)
     # A bootstrap/foreign token bound to a different operator id must survive.
@@ -182,7 +182,7 @@ def test_reset_pin_with_recovery_drops_operator_sse_tokens(sessions_root):
     sse_tok = _mint_sse_token(server, session_token)
     assert sse_tok in server.sse_tokens
 
-    status, body = reset_pin_with_recovery(server, operator_id, recovery_code, "5678")
+    status, body = reset_pin_with_recovery(server, operator_id, recovery_code, "567890")
     assert status == 200, body
     # Both the operator session and the bound SSE token are gone.
     assert session_token not in server.operator_sessions
@@ -195,7 +195,7 @@ def test_host_reset_drops_operator_sse_tokens(sessions_root):
     sse_tok = _mint_sse_token(server, session_token)
     assert sse_tok in server.sse_tokens
 
-    status, body = host_reset_pin(server, operator_id, "5678")
+    status, body = host_reset_pin(server, operator_id, "567890")
     assert status == 200, body
     assert session_token not in server.operator_sessions
     assert sse_tok not in server.sse_tokens
@@ -235,9 +235,9 @@ def test_logout_revokes_only_presented_session_not_other_sessions(sessions_root)
     SSE token is removed, but tokenB REMAINS active.
     """
     server = _MockServer(sessions_root)
-    operator_id, token_a, _ = _create_and_login(server, pin="1234")
+    operator_id, token_a, _ = _create_and_login(server, pin="123456")
     # Second active session for the same operator (e.g. another tab/device).
-    status, login_b = login_operator(server, operator_id, "1234")
+    status, login_b = login_operator(server, operator_id, "123456")
     assert status == 200, login_b
     token_b = login_b["token"]
     assert token_a != token_b

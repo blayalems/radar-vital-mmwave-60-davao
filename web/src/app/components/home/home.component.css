@@ -400,6 +400,20 @@
   padding-left: 50px;
 }
 
+/* On phones the title group (50px icon lead) plus the action button/chips can
+   exceed the card width by a few px and trip the horizontal-overflow smoke
+   check; let the header wrap so the action drops below the title instead. */
+@media (max-width: 599.98px) {
+  .preflight-header-row,
+  .sessions-header-row {
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-inline: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}
+
 .preflight-header-row > div:first-child::before,
 .sessions-header-row > div:first-child::before {
   content: "checklist";

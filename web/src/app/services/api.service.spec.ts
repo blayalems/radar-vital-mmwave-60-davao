@@ -133,7 +133,7 @@ describe('ApiService', () => {
     const created = await service.request<any>('/api/operator-profiles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display_name: 'Lemuel Biaya', initials: 'LB', pin: '1234' })
+      body: JSON.stringify({ display_name: 'Lemuel Biaya', initials: 'LB', pin: '123456' })
     });
     expect(created.ok).toBe(true);
     expect(created.operator.display_name).toBe('Lemuel Biaya');
@@ -141,7 +141,7 @@ describe('ApiService', () => {
     const login = await service.request<any>('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ operator_id: created.operator.operator_id, pin: '1234' })
+      body: JSON.stringify({ operator_id: created.operator.operator_id, pin: '123456' })
     });
     expect(login.token).toMatch(/^sandbox_op_token_/);
     sessionStorage.setItem(OPERATOR_TOKEN_KEY, login.token);

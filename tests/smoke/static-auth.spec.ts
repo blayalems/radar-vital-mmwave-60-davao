@@ -67,7 +67,7 @@ async function createSandboxOperator(page: Page): Promise<void> {
 
   await overlay.getByLabel('Display Name').fill('Lemuel Biaya');
   await overlay.getByLabel('Initials').fill('LB');
-  for (const digit of ['1', '2', '3', '4']) {
+  for (const digit of ['1', '2', '3', '4', '5', '6']) {
     await overlay.locator('.onboarding-flow .keyboard-grid button', { hasText: new RegExp(`^${digit}$`) }).click();
   }
   await overlay.getByRole('button', { name: /Create Profile/ }).click();

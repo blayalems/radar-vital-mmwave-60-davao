@@ -401,8 +401,8 @@ def create_operator_profile(server, body: dict) -> Tuple[int, dict]:
         return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "display_name must not exceed 64 characters"}}
     if not re.fullmatch(r"[A-Z]{2,5}", initials):
         return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "initials must be 2 to 5 uppercase letters"}}
-    if not re.fullmatch(r"\d{4}", pin):
-        return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "pin must be exactly 4 digits"}}
+    if not re.fullmatch(r"\d{6}", pin):
+        return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "pin must be exactly 6 digits"}}
 
     with _OPERATOR_LOCK:
         db = load_operator_profiles(server.sessions_root)
@@ -523,8 +523,8 @@ def reset_pin_with_recovery(server, operator_id: str, recovery_code: str, new_pi
     with _OPERATOR_LOCK:
         now = time.time()
 
-        if not re.fullmatch(r"\d{4}", str(new_pin or "")):
-            return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "new_pin must be exactly 4 digits"}}
+        if not re.fullmatch(r"\d{6}", str(new_pin or "")):
+            return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "new_pin must be exactly 6 digits"}}
 
         db = load_operator_profiles(server.sessions_root)
         profiles = db.get("profiles", {})
@@ -635,8 +635,8 @@ def host_reset_pin(server, operator_id: str, new_pin: str) -> Tuple[int, dict]:
     invalidates existing sessions, appends audit log.
     """
     with _OPERATOR_LOCK:
-        if not re.fullmatch(r"\d{4}", str(new_pin or "")):
-            return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "new_pin must be exactly 4 digits"}}
+        if not re.fullmatch(r"\d{6}", str(new_pin or "")):
+            return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "new_pin must be exactly 6 digits"}}
 
         db = load_operator_profiles(server.sessions_root)
         profiles = db.get("profiles", {})

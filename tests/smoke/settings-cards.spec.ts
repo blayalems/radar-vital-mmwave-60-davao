@@ -5,7 +5,7 @@ async function seedUnlockedOperator(page: Page): Promise<void> {
   await seedFirstRunComplete(page);
   await page.addInitScript(() => {
     const token = 'mock-settings-token';
-    const operator = { operator_id: 'op_settings', display_name: 'Settings Tester', initials: 'ST', pin: '1234' };
+    const operator = { operator_id: 'op_settings', display_name: 'Settings Tester', initials: 'ST', pin: '123456' };
     const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
 
     sessionStorage.setItem('rvt-operator-token', token);

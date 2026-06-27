@@ -34,9 +34,9 @@ export class PinKeyboardComponent {
       this.pin = '';
     } else if (key === 'backspace') {
       this.pin = this.pin.slice(0, -1);
-    } else if (this.pin.length < 4) {
+    } else if (this.pin.length < 6) {
       this.pin += key;
-      if (this.pin.length === 4) {
+      if (this.pin.length === 6) {
         this.submitPin.emit(this.pin);
       }
     }

@@ -18,7 +18,7 @@ async function waitForUnlockedShell(page: Page): Promise<void> {
     if (await overlay.getByRole('heading', { name: /Create Operator/ }).isVisible().catch(() => false)) {
       await overlay.getByLabel('Display Name').fill('Operator A');
       await overlay.getByLabel('Initials').fill('OA');
-      for (const digit of ['1', '2', '3', '4']) {
+      for (const digit of ['1', '2', '3', '4', '5', '6']) {
         await overlay.getByRole('button', { name: digit }).click();
       }
       await overlay.getByRole('button', { name: /Create Profile/ }).click();
@@ -27,7 +27,7 @@ async function waitForUnlockedShell(page: Page): Promise<void> {
         await overlay.getByRole('button', { name: /Operator A/ }).first().click();
       }
       if (await overlay.getByRole('heading', { name: /Enter PIN/ }).isVisible().catch(() => false)) {
-        for (const digit of ['1', '2', '3', '4']) {
+        for (const digit of ['1', '2', '3', '4', '5', '6']) {
           await overlay.getByRole('button', { name: digit }).click();
         }
       }
@@ -467,6 +467,13 @@ test.describe('Dashboard smoke', () => {
         return contained && visibleIcons && hiddenLabels && clippedOverflow &&
           mainRect.left <= railRect.right + 1;
       })).toBe(true);
+    } else if (viewportWidth >= 600) {
+      // Tablet band (600–1023px, e.g. iPad): the rail rides in its collapsed
+      // icon form and the bottom nav stays hidden. (Bottom nav is reserved for
+      // the compact <600 breakpoint.)
+      await expect(page.locator('.rail')).toBeVisible();
+      await expect(page.locator('.bottom-nav')).toBeHidden();
+      await expectNoHorizontalOverflow(page);
     } else {
       await expect(page.locator('.bottom-nav')).toBeVisible();
       await expectNoHorizontalOverflow(page);

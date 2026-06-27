@@ -28,12 +28,14 @@
         </mat-form-field>
 
         <div class="pin-section">
-          <p class="section-label">Choose a 4-Digit PIN</p>
+          <p class="section-label">Choose a 6-Digit PIN</p>
           <div class="pin-display">
             <span class="pin-dot" [class.filled]="onboardingPin.length >= 1"></span>
             <span class="pin-dot" [class.filled]="onboardingPin.length >= 2"></span>
             <span class="pin-dot" [class.filled]="onboardingPin.length >= 3"></span>
             <span class="pin-dot" [class.filled]="onboardingPin.length >= 4"></span>
+            <span class="pin-dot" [class.filled]="onboardingPin.length >= 5"></span>
+            <span class="pin-dot" [class.filled]="onboardingPin.length >= 6"></span>
         </div>
 
         @if (auth.loginError()) {
@@ -156,7 +158,7 @@
           </div>
           <p class="eyebrow">PIN recovery</p>
           <h2 id="idleLockTitle">New PIN</h2>
-          <p class="lock-copy">Choose a new 4-digit PIN for <strong>{{ resetOperator()?.display_name }}</strong>.</p>
+          <p class="lock-copy">Choose a new 6-digit PIN for <strong>{{ resetOperator()?.display_name }}</strong>.</p>
         </div>
         <div class="pin-section">
           <div class="pin-display">
@@ -164,6 +166,8 @@
             <span class="pin-dot" [class.filled]="resetNewPin.length >= 2"></span>
             <span class="pin-dot" [class.filled]="resetNewPin.length >= 3"></span>
             <span class="pin-dot" [class.filled]="resetNewPin.length >= 4"></span>
+            <span class="pin-dot" [class.filled]="resetNewPin.length >= 5"></span>
+            <span class="pin-dot" [class.filled]="resetNewPin.length >= 6"></span>
           </div>
           @if (resetError()) {
           <div class="error-text">{{ resetError() }}</div>
@@ -189,7 +193,7 @@
           <button mat-button type="button" (click)="cancelReset()" [disabled]="auth.loading()">Cancel</button>
           <button mat-flat-button type="button"
             (click)="submitRecoveryReset()"
-            [disabled]="resetNewPin.length !== 4 || auth.loading()">
+            [disabled]="resetNewPin.length !== 6 || auth.loading()">
             @if (auth.loading()) {
             <span class="spinner-container"><mat-spinner diameter="16"></mat-spinner></span>
             }
@@ -220,6 +224,8 @@
             <span class="pin-dot" [class.filled]="hostResetPin.length >= 2"></span>
             <span class="pin-dot" [class.filled]="hostResetPin.length >= 3"></span>
             <span class="pin-dot" [class.filled]="hostResetPin.length >= 4"></span>
+            <span class="pin-dot" [class.filled]="hostResetPin.length >= 5"></span>
+            <span class="pin-dot" [class.filled]="hostResetPin.length >= 6"></span>
           </div>
           @if (resetError()) {
           <div class="error-text">{{ resetError() }}</div>
@@ -245,7 +251,7 @@
           <button mat-button type="button" (click)="cancelReset()" [disabled]="auth.loading()">Cancel</button>
           <button mat-flat-button type="button"
             (click)="submitHostReset()"
-            [disabled]="hostResetPin.length !== 4 || auth.loading()">
+            [disabled]="hostResetPin.length !== 6 || auth.loading()">
             @if (auth.loading()) {
             <span class="spinner-container"><mat-spinner diameter="16"></mat-spinner></span>
             }

@@ -5,7 +5,7 @@ import { seedFirstRunComplete, TERMS_VERSION } from './helpers/first-run';
 
 const SETTINGS = '/settings';
 const DIAGNOSTICS_KEY = 'rvt-diagnostics-optin';
-const REPORT_PIN = '2468';
+const REPORT_PIN = '246802';
 const REPORT_OPERATOR = {
   display_name: 'Report Issue User',
   initials: 'RI'

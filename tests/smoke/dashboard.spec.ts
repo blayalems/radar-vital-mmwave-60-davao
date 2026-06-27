@@ -467,6 +467,13 @@ test.describe('Dashboard smoke', () => {
         return contained && visibleIcons && hiddenLabels && clippedOverflow &&
           mainRect.left <= railRect.right + 1;
       })).toBe(true);
+    } else if (viewportWidth >= 600) {
+      // Tablet band (600–1023px, e.g. iPad): the rail rides in its collapsed
+      // icon form and the bottom nav stays hidden. (Bottom nav is reserved for
+      // the compact <600 breakpoint.)
+      await expect(page.locator('.rail')).toBeVisible();
+      await expect(page.locator('.bottom-nav')).toBeHidden();
+      await expectNoHorizontalOverflow(page);
     } else {
       await expect(page.locator('.bottom-nav')).toBeVisible();
       await expectNoHorizontalOverflow(page);

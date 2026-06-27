@@ -18,7 +18,7 @@ async function waitForUnlockedShell(page: Page): Promise<void> {
     if (await overlay.getByRole('heading', { name: /Create Operator/ }).isVisible().catch(() => false)) {
       await overlay.getByLabel('Display Name').fill('Operator A');
       await overlay.getByLabel('Initials').fill('OA');
-      for (const digit of ['1', '2', '3', '4']) {
+      for (const digit of ['1', '2', '3', '4', '5', '6']) {
         await overlay.getByRole('button', { name: digit }).click();
       }
       await overlay.getByRole('button', { name: /Create Profile/ }).click();
@@ -27,7 +27,7 @@ async function waitForUnlockedShell(page: Page): Promise<void> {
         await overlay.getByRole('button', { name: /Operator A/ }).first().click();
       }
       if (await overlay.getByRole('heading', { name: /Enter PIN/ }).isVisible().catch(() => false)) {
-        for (const digit of ['1', '2', '3', '4']) {
+        for (const digit of ['1', '2', '3', '4', '5', '6']) {
           await overlay.getByRole('button', { name: digit }).click();
         }
       }

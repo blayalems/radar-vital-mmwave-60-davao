@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-27 — Design-Exact Reskin Token Layer (Radar Vital Redesign prototype)
+
+- **Design-exact token layer**: Added `web/src/styles/rvt-design-exact.css` (imported last in `styles.scss`) restating the "Radar Vital Redesign" prototype's exact variable system for every theme + exploration and mapping it onto the Material (`--md-sys-color-*`) and legacy (`--rv-*`) tokens, so all screens + dialogs render the prototype's exact palette/type/shape. Light/dark azure already matched; bloom/mint reaffirmed; **night re-themed to the prototype's red-light low-glare palette** (`bg:#0A0405`, `pri:#FF6B57`), with `--rv-muted/--rv-dim` lifted to `#E59079` so low-emphasis copy clears WCAG AA on the darkest night surfaces.
+- **Scope note**: High-contrast (`hc`) intentionally **not** flipped to the prototype's white scheme — the app ships an engineered dark high-contrast theme with locked a11y baselines and hardcoded rules; flipping polarity is deferred to avoid a broken mixed state. Component markup was not rewritten (it was already built from this design); the reskin is delivered at the token layer.
+- **Verification**: `npm run build:web` + `npm run build:check` round-trip clean (monolith regenerated); `npm run test:contrast` and `npm run test:source-integrity` pass; `npm --prefix web run test:ci` 157/157. Playwright visual baselines for the night theme will need regeneration (intentional night re-theme) — not run in this environment.
+
 ### 2026-06-18 - PR-65 Legacy CSS Cleanup + Smoke Alignment
 
 - **Legacy cleanup/tests**: Removed the detached Angular-source `rvt-consolidated-css.css` and `patches/legacy-patches.css` imports/files, replaced stale topbar live-mode toggle overrides with the current Live segment override, fixed report session-chip button semantics so they no longer collide with Material option roles, and aligned smoke tests with the v16.4 topbar/banner/Live/Report/Settings surfaces.

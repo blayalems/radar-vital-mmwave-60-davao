@@ -66,20 +66,25 @@
           <mat-icon aria-hidden="true">{{ state.lastPayload()?.meta?.status === 'running' ? 'fiber_manual_record' : 'schedule' }}</mat-icon>
           {{ state.lastPayload()?.meta?.status === 'running' ? 'Recording' : 'Standby' }}
         </span>
-        @if (sessionPhaseLabel(); as phaseLabel) {
-          <span class="status-chip phase-chip" [attr.data-phase]="sessionPhaseName()" [class.stale-dim]="state.telemetryStale()">
-            <mat-icon aria-hidden="true">{{ sessionPhaseIcon() }}</mat-icon>{{ phaseLabel }}
-          </span>
-        }
-        @if (motionActive()) {
-          <span class="status-chip motion-chip" [class.stale-dim]="state.telemetryStale()">
-            <mat-icon aria-hidden="true">directions_run</mat-icon>Motion - holding
-          </span>
-        }
-        @if (liveVerdictLabel(); as verdictLabel) {
-          <span class="status-chip verdict-chip" [attr.data-verdict]="liveVerdict()" [class.stale-dim]="state.telemetryStale()">
-            <mat-icon aria-hidden="true">fact_check</mat-icon>{{ verdictLabel }}
-          </span>
+        <!-- Phase / motion / readiness chips are operational detail shown only
+             while a recording is live; standby keeps a single status chip to
+             match the redesign prototype. -->
+        @if (state.lastPayload()?.meta?.status === 'running') {
+          @if (sessionPhaseLabel(); as phaseLabel) {
+            <span class="status-chip phase-chip" [attr.data-phase]="sessionPhaseName()" [class.stale-dim]="state.telemetryStale()">
+              <mat-icon aria-hidden="true">{{ sessionPhaseIcon() }}</mat-icon>{{ phaseLabel }}
+            </span>
+          }
+          @if (motionActive()) {
+            <span class="status-chip motion-chip" [class.stale-dim]="state.telemetryStale()">
+              <mat-icon aria-hidden="true">directions_run</mat-icon>Motion - holding
+            </span>
+          }
+          @if (liveVerdictLabel(); as verdictLabel) {
+            <span class="status-chip verdict-chip" [attr.data-verdict]="liveVerdict()" [class.stale-dim]="state.telemetryStale()">
+              <mat-icon aria-hidden="true">fact_check</mat-icon>{{ verdictLabel }}
+            </span>
+          }
         }
       </div>
 

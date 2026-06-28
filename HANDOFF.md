@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Per-screen 1:1 pass: Live Simple default, home form labels, settings search
+
+- **Live defaults to Simple view**: The redesign prototype lands the Live screen in Simple (2 large vital cards + info row); the app defaulted to Advanced. `zenMode` initial signal flipped to `true` and the persisted-state loader now defaults Simple when no stored `rvt-zen-mode` preference exists.
+- **Live status bar single chip in standby**: The phase / motion / readiness chips (Warming up, Readiness: READY) now render only while a recording is actually live; standby shows a single status chip matching the mockup.
+- **Home setup form labels**: Dropped the "how long to record" inline hint; converted Subject profile / Subject label / Operator label / Research station from floating Material labels to the form's label-above pattern; en i18n labels switched to sentence case (`Recording duration`, `Radar port`, `BLE oximeter`).
+- **Settings search is a full-width pill**: `settings-search-field` widened to 100% and rounded to a 999px pill via `::ng-deep` on the notched-outline pieces (Material renders them in its own encapsulation context); placeholder updated to the prototype copy.
+- **Verification**: `ng build` clean; render-harness confirms azure-light/1440 Live (Simple default + single chip), Home (sentence-case label-above fields), Settings (pill search) now match `/mockup.html`.
+
 ### 2026-06-28 — Per-screen 1:1 pass: nav / chip / eyebrow / breadcrumb / verdict fixes
 
 - **Sidebar cleaned**: Removed "Workflow" section heading and "Live views" sub-navigation from layout rail — mockup has a flat single-level nav.

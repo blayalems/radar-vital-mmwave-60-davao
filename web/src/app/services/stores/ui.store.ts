@@ -16,7 +16,7 @@ export class UiStore {
   palette = signal<PaletteId>('azure');
   density = signal<DensityId>('comfortable');
   fontScale = signal<number>(1);
-  zenMode = signal<boolean>(false);
+  zenMode = signal<boolean>(true);
 
   demoMode = signal<boolean>(false);
   autoDemoOnDisconnect = signal<boolean>(false);

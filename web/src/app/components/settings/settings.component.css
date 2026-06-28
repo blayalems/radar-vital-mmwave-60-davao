@@ -49,7 +49,26 @@
 }
 
 .settings-search-field {
-  width: min(100%, 620px);
+  width: 100%;
+}
+
+/* Pill-shaped search to match the redesign prototype. Material renders the
+   notched-outline pieces in its own encapsulation context, so pierce it. */
+:host ::ng-deep .settings-search-field .mat-mdc-text-field-wrapper {
+  border-radius: 999px;
+}
+
+:host ::ng-deep .settings-search-field .mdc-notched-outline__leading {
+  border-radius: 999px 0 0 999px;
+  width: 28px;
+}
+
+:host ::ng-deep .settings-search-field .mdc-notched-outline__trailing {
+  border-radius: 0 999px 999px 0;
+}
+
+:host ::ng-deep .settings-search-field .mat-mdc-form-field-infix {
+  padding-left: 4px;
 }
 
 .settings-card {

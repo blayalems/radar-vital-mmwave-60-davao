@@ -319,7 +319,10 @@ export class StateService {
         localStorage.removeItem('rvt-hx-mode');
       }
 
-      this.zenMode.set(localStorage.getItem('rvt-zen-mode') === '1');
+      // Live screen defaults to the Simple (zen) view to match the redesign
+      // prototype; only an explicit stored preference flips it to Advanced.
+      const zenStored = localStorage.getItem('rvt-zen-mode');
+      this.zenMode.set(zenStored === null ? true : zenStored === '1');
       this.voiceAlertsEnabled.set(localStorage.getItem('rvt-voice-alerts') === '1');
 
       const liveBuf = Number(localStorage.getItem('rvt-live-buffer-seconds'));

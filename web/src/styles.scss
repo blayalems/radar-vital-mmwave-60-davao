@@ -1068,3 +1068,25 @@ body[data-rail-collapsed="1"] .rail .brand-ring.r2 {
     box-sizing: border-box;
   }
 }
+
+/* ==========================================================================
+   MATERIAL CARD TITLE CONTRAST FIX
+   Custom card titles render at full ink, but Angular Material's
+   `mat-card-title`/`mat-card-subtitle` were resolving to a washed-out default
+   color token (most visible on the Live → Audit cards). Pin them to the
+   themed on-surface / on-surface-variant inks so section headers are legible
+   across all four themes.
+   ========================================================================== */
+:root {
+  --mat-card-title-text-color: var(--md-sys-color-on-surface);
+  --mat-card-subtitle-text-color: var(--md-sys-color-on-surface-variant);
+}
+.mat-mdc-card-title,
+.mat-mdc-card-title .mdc-card__title {
+  color: var(--md-sys-color-on-surface);
+  opacity: 1;
+}
+.mat-mdc-card-subtitle {
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 1;
+}

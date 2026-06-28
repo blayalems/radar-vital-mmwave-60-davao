@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Material card-title contrast fix
+
+- **Faded section headers fixed**: Angular Material `mat-card-title`/`mat-card-subtitle` were resolving to a washed-out default colour token (most visible on Live → Audit cards: "Live Validation", "Analysis Audit", "Firmware Field Diagnostics"). Custom card titles were already full-ink. Pinned the Material card-title/subtitle colour tokens (and a defensive `color`/`opacity` rule) to the themed on-surface / on-surface-variant inks in `styles.scss`. First fix in the per-screen production parity pass against `/mockup.html`. Build round-trip clean.
+
 ### 2026-06-28 — Bundled 1:1 working mockup page (`/mockup.html`)
 
 - **Verbatim working prototype**: Added `web/src/../public/mockup.html` (served at `/mockup.html` locally and on Pages) — the "Radar Vital Redesign" interactive prototype made fully self-contained by inlining React + ReactDOM 18.3.1 UMD (the design export otherwise lazy-loaded them from unpkg, so it failed offline / behind the CSP). Fonts were already inlined. Boots with **zero network**; provides the exact 1:1 mockup with its theme (light/dark/night/hc), exploration (Azure/Bloom/Mint) and device-frame switchers. Simulated data only — it is a reference/demo page, not wired to the trainer.

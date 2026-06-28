@@ -83,7 +83,7 @@ export class TopbarComponent {
     this.state.demoMode() || this.state.autoDemoActive() || this.state.ctlStatus()?.mode === 'sandbox'
   );
   protected readonly statusIcon = computed(() => {
-    if (this.isDemoStatus()) return 'wifi_tethering_off';
+    if (this.isDemoStatus()) return '';
     if (this.state.ctlStatus()?.ok === false) return 'cloud_off';
     if (this.state.paused()) return 'pause_circle';
     return 'sensors';
@@ -228,7 +228,7 @@ export class TopbarComponent {
       case 'home': return 'Session readiness';
       case 'live': return 'Live telemetry';
       case 'report': return 'Session report';
-      case 'help': return 'Playbook';
+      case 'help': return 'Operator playbook';
       case 'settings': return 'Settings';
       default: return 'Radar Vital Console';
     }
@@ -240,8 +240,8 @@ export class TopbarComponent {
       case 'home': return 'Workflow';
       case 'live': return 'Monitoring';
       case 'report': return 'Review';
-      case 'help': return 'Playbook';
-      case 'settings': return 'Configuration';
+      case 'help': return 'Reference';
+      case 'settings': return 'Console';
       default: return 'Workflow';
     }
   }

@@ -17,11 +17,7 @@
 }
 
 .settings-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-  padding: 0.25rem 0 1rem;
+  display: none;
 }
 
 .settings-title {

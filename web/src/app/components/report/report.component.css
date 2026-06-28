@@ -145,22 +145,22 @@
 
 .verdict-hero-card[data-verdict="ready"],
 .verdict-hero-card[data-verdict="pass"] {
-  background: var(--md-sys-color-success-container) !important;
-  color: var(--md-sys-color-on-success-container);
+  background: var(--okc, var(--md-sys-color-success-container)) !important;
+  color: var(--ok, var(--md-sys-color-on-success-container));
   border-color: transparent;
 }
 
 .verdict-hero-card[data-verdict="conditional"],
 .verdict-hero-card[data-verdict="warn"] {
-  background: var(--md-sys-color-warning-container) !important;
-  color: var(--md-sys-color-on-warning-container);
+  background: var(--wrnc, var(--md-sys-color-warning-container)) !important;
+  color: var(--wrn, var(--md-sys-color-on-warning-container));
   border-color: transparent;
 }
 
 .verdict-hero-card[data-verdict="unready"],
 .verdict-hero-card[data-verdict="fail"] {
-  background: var(--md-sys-color-error-container) !important;
-  color: var(--md-sys-color-on-error-container);
+  background: var(--errc, var(--md-sys-color-error-container)) !important;
+  color: var(--err, var(--md-sys-color-on-error-container));
   border-color: transparent;
 }
 

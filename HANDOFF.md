@@ -5,6 +5,17 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Per-screen 1:1 pass: nav / chip / eyebrow / breadcrumb / verdict fixes
+
+- **Sidebar cleaned**: Removed "Workflow" section heading and "Live views" sub-navigation from layout rail — mockup has a flat single-level nav.
+- **Breadcrumb trail hidden**: The `crumb-trail` div below the page title (showing raw route name) is now hidden; mockup shows only eyebrow + title.
+- **Eyebrow strings corrected**: Help: `Playbook → Reference`; Help title: `Playbook → Operator playbook`; Settings: `Configuration → Console`.
+- **Settings description banner hidden**: The dismissable intro block was not in the mockup; hidden via CSS (`settings-header { display: none }`).
+- **Home stat card labels**: Removed `text-transform: uppercase` so labels render as sentence case matching mockup.
+- **Demo status chip redesigned to match mockup exactly**: Neutral surface background (not amber), no material icon in demo mode (mockup chip has only the status dot), pulsing amber dot, `.status-dot.demo` overrides dot color to `var(--wrn)`.
+- **Report verdict card colors**: `--ok / --wrn / --err` semantic tokens used for text (previously mapped to wrong neutral on-container values).
+- **Verification**: `npm run build:web` clean; Playwright render-harness confirms all 5 views in azure-light/dark; sidebar headings gone; Demo chip shows neutral pill with amber dot.
+
 ### 2026-06-28 — Per-screen 1:1 pass: shell fixes (rail collapse pill, topbar status chip, font loading)
 
 - **Font @font-face inlined into styles.scss**: Material Symbols Rounded and all UI fonts (Figtree, Inter, JetBrains Mono) now declared via `@font-face` in the bundled CSS at absolute `/fonts/` paths, so icons render in headless Playwright and in the production PWA without relying on the separate `rvt-fonts.css` file being loaded out-of-band. Fixes icon display in all Playwright renders.

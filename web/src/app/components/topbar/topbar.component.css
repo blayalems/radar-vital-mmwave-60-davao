@@ -83,9 +83,13 @@
 }
 
 :host .mode-badge.demo {
-  background: var(--md-sys-color-warning-container, #ffe3b3) !important;
-  border-color: color-mix(in srgb, var(--rv-warn, #8a5a00) 28%, transparent) !important;
-  color: var(--md-sys-color-on-warning-container, #3a2600);
+  background: var(--md-sys-color-surface-container-lowest) !important;
+  border-color: var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface);
+}
+
+:host .mode-badge.demo .status-dot {
+  background: var(--wrn, var(--rv-warn, #b36800));
 }
 
 :host .mode-badge.live {
@@ -101,18 +105,27 @@
 }
 
 :host .mode-badge .status-dot {
+  animation: rvt-dot-pulse 2s ease-in-out infinite;
   background: currentColor;
   border-radius: 50%;
-  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 16%, transparent);
   flex: 0 0 8px;
   height: 8px;
   width: 8px;
+}
+
+@keyframes rvt-dot-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 40%, transparent); }
+  50% { opacity: 0.8; box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 12%, transparent); }
 }
 
 :host .mode-badge .material-symbols-rounded {
   color: currentColor;
   flex: 0 0 auto;
   font-size: 19px;
+}
+
+:host .mode-badge .material-symbols-rounded:empty {
+  display: none;
 }
 
 :host .mode-badge .status-txt,

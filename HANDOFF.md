@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Bundled 1:1 working mockup page (`/mockup.html`)
+
+- **Verbatim working prototype**: Added `web/src/../public/mockup.html` (served at `/mockup.html` locally and on Pages) — the "Radar Vital Redesign" interactive prototype made fully self-contained by inlining React + ReactDOM 18.3.1 UMD (the design export otherwise lazy-loaded them from unpkg, so it failed offline / behind the CSP). Fonts were already inlined. Boots with **zero network**; provides the exact 1:1 mockup with its theme (light/dark/night/hc), exploration (Azure/Bloom/Mint) and device-frame switchers. Simulated data only — it is a reference/demo page, not wired to the trainer.
+- **Why**: The token-layer reskin (below) left component-level inconsistencies in the Angular app (e.g. faded card-section headers). This page gives a guaranteed pixel-accurate reference of the intended design while the Angular components are reconciled.
+- **Verification**: Rendered headlessly in Chromium — Home/Live/Report all draw correctly with no boot errors (only a harmless `file://` self-fetch CORS log that does not occur over http). `npm --prefix web run build` + `npm run build:check` round-trip clean (static asset, not referenced by index, so the monolith is unchanged).
+
 ### 2026-06-27 — Design-Exact Reskin Token Layer (Radar Vital Redesign prototype)
 
 - **Design-exact token layer**: Added `web/src/styles/rvt-design-exact.css` (imported last in `styles.scss`) restating the "Radar Vital Redesign" prototype's exact variable system for every theme + exploration and mapping it onto the Material (`--md-sys-color-*`) and legacy (`--rv-*`) tokens, so all screens + dialogs render the prototype's exact palette/type/shape. Light/dark azure already matched; bloom/mint reaffirmed; **night re-themed to the prototype's red-light low-glare palette** (`bg:#0A0405`, `pri:#FF6B57`), with `--rv-muted/--rv-dim` lifted to `#E59079` so low-emphasis copy clears WCAG AA on the darkest night surfaces.

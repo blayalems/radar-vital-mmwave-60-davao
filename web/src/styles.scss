@@ -53,6 +53,10 @@ html[data-theme='hc'] .kpi-card-spark {
 @import './styles/print.css';
 /* Material 3 Expressive redesign — palette + token layer (must load last). */
 @import './styles/rvt-redesign-tokens.css';
+/* Design-exact reskin — restates the "Radar Vital Redesign" prototype's exact
+   palette for every theme + exploration and maps it onto the Material and
+   --rv-* tokens. Loads LAST so the prototype values win across all screens. */
+@import './styles/rvt-design-exact.css';
 
 :root {
   @include mat.theme-overrides((

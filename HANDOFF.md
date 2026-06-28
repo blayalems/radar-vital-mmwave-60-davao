@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Merge `main` (PR #67 token layer) into the per-screen pass
+
+- **Resolved merge conflicts**: `main` landed PR #67 (the design-exact token layer) which overlapped this branch. `HANDOFF.md` reconciled (kept both logs, newest-on-top); `web/src/styles.scss` auto-merged cleanly (verified the demo-banner `margin-left:auto` removal survived). The `radar_vital_live_dashboard_v12_for_v16_0.html` monolith conflict was resolved by **regenerating** it from the merged source (`npm run build:web`) rather than hand-merging the inlined bundle.
+- **Verification**: `build:web` + `build:check` round-trip clean; `test:source-integrity` (17 critical files) and `test:contrast` (WCAG AA on every surface) pass; render-harness confirms Live (Simple default, centered banner, outlined controls), Settings (Display-left column order + pill search) and dark Home (label-above form) all render correctly on the merged build. PR #68 is now `mergeable: clean`.
+
 ### 2026-06-28 — Per-screen 1:1 pass: settings column order, report header, theme sweep
 
 - **Settings columns reordered to match the prototype**: the prototype leads with appearance/display on the left and source/pairing on the right; the app authored them reversed. Added `display-card` / `connections-card` classes and CSS `order` (-2 / -1) so the first grid row is Display (left) + Connections (right) without moving the markup — search filtering and the remaining cards are unaffected.

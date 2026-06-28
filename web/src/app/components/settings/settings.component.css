@@ -52,6 +52,17 @@
   width: 100%;
 }
 
+/* The prototype leads the grid with appearance/display on the left and
+   source/pairing on the right; the app authored them in the reverse order,
+   so reorder the first two cards without moving the markup. */
+.settings-grid .display-card {
+  order: -2;
+}
+
+.settings-grid .connections-card {
+  order: -1;
+}
+
 /* Pill-shaped search to match the redesign prototype. Material renders the
    notched-outline pieces in its own encapsulation context, so pierce it. */
 :host ::ng-deep .settings-search-field .mat-mdc-text-field-wrapper {

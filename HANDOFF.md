@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Per-screen 1:1 pass: settings column order, report header, theme sweep
+
+- **Settings columns reordered to match the prototype**: the prototype leads with appearance/display on the left and source/pairing on the right; the app authored them reversed. Added `display-card` / `connections-card` classes and CSS `order` (-2 / -1) so the first grid row is Display (left) + Connections (right) without moving the markup — search filtering and the remaining cards are unaffected.
+- **Report header**: `Session Quality` → `Session quality` with the prototype's shorter subtitle.
+- **Cross-theme/size verification**: the Live Simple-default + centered-banner + outlined-control changes were rendered across azure/bloom/mint × light/dark/night/hc and at 390px mobile. All combinations match the prototype; the banner stacks to a full-width Exit button on ≤760px (existing mobile rule), HC shows crisp white outlined controls.
+
 ### 2026-06-28 — Per-screen 1:1 pass: demo banner centering + Live outlined controls
 
 - **Demo banner centers as a group**: `styles.scss` set `margin-left: auto` on `.demo-banner-action`, pushing the button flush-right (overriding the component's `justify-content: center`). Removed it so the warning icon + text + Exit button cluster centered, matching the prototype; banner copy shortened to `DEMO MODE — simulated vitals only.` (the Exit button conveys the action; the pairing hint stays on the demo chip tooltip). Verified via DOM probe — the auto-margin resolved to 774px of dead space before the fix.

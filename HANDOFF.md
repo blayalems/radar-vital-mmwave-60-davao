@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Revert two Live behaviour changes that broke smoke contract
+
+- **Reverted Live Simple-default and standby chip-gating**: CI `test` (Playwright smoke) failed 21 specs. Root cause was this branch's two Live *behaviour* changes: (1) defaulting Live to Simple/zen hid the 4-KPI grid, the Waves/Snaps tabs and the Target Tracking card that smoke specs assert; (2) gating the phase/motion/readiness chips to `status === 'running'` hid the `.phase-chip`/`.verdict-chip` that the "surfaces … readiness chips in demo mode" spec requires in standby. Both encode real product contracts, so `zenMode` is back to a `false` default (Advanced) and the status chips render again as before. The **styling** Live improvements (light/outlined command buttons) are kept — they don't affect the smoke contract.
+- **Kept**: centered demo banner, settings Display-left column order + pill search, sentence-case label-above Home form, `Session quality` report header — none touch smoke assertions (verified: banner specs only match `simulated vitals only`, which the shortened copy still contains).
+- **Verification**: `build:web` round-trip clean; DOM probe on the rebuilt monolith confirms Live default `zen-mode=false`, `.kpi-card-spark` count = 4, `.phase-chip` = "Warming up", `.verdict-chip` = "Readiness: READY", Waves/Snaps tabs present — matching every previously-failing assertion.
+
 ### 2026-06-28 — Merge `main` (PR #67 token layer) into the per-screen pass
 
 - **Resolved merge conflicts**: `main` landed PR #67 (the design-exact token layer) which overlapped this branch. `HANDOFF.md` reconciled (kept both logs, newest-on-top); `web/src/styles.scss` auto-merged cleanly (verified the demo-banner `margin-left:auto` removal survived). The `radar_vital_live_dashboard_v12_for_v16_0.html` monolith conflict was resolved by **regenerating** it from the merged source (`npm run build:web`) rather than hand-merging the inlined bundle.

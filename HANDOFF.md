@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Fix collapsed-rail Expand button hidden by merge artifact
+
+- **Smoke spec 413 fix** ("keeps primary navigation available in simple view and collapses the desktop rail"): after the `main` merge, `layout.component.css` carried two contradictory `@media (min-width:1024px)` rules — one hid `.rail-collapse-btn` with `display:none` in the collapsed state, the other sized it to a 36px icon (expecting it visible). The `display:none` selector wrongly included the whole button (the comment says "only the icon shows"), so the collapsed rail had **no visible Expand affordance** and `getByRole('button',{name:'Expand sidebar'})` was never visible. Narrowed the rule to hide only `.rail-collapse-label`; the button now stays a 36px icon with `aria-label="Expand sidebar"`. DOM probe confirms `isVisible` true, 36px, contained within the 76px collapsed rail.
+
 ### 2026-06-28 — Revert two Live behaviour changes that broke smoke contract
 
 - **Reverted Live Simple-default and standby chip-gating**: CI `test` (Playwright smoke) failed 21 specs. Root cause was this branch's two Live *behaviour* changes: (1) defaulting Live to Simple/zen hid the 4-KPI grid, the Waves/Snaps tabs and the Target Tracking card that smoke specs assert; (2) gating the phase/motion/readiness chips to `status === 'running'` hid the `.phase-chip`/`.verdict-chip` that the "surfaces … readiness chips in demo mode" spec requires in standby. Both encode real product contracts, so `zenMode` is back to a `false` default (Advanced) and the status chips render again as before. The **styling** Live improvements (light/outlined command buttons) are kept — they don't affect the smoke contract.

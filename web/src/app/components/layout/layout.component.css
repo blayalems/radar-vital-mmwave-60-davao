@@ -244,9 +244,10 @@
     flex: 1 1 auto;
   }
 
-  /* Hide collapse label in collapsed state — only the icon shows */
-  .app.rail-collapsed .rail .rail-collapse-label,
-  .app.rail-collapsed .rail .rail-collapse-btn {
+  /* Hide collapse label in collapsed state — only the icon shows.
+     The button itself MUST stay visible (sized to a 36px icon below) so the
+     "Expand sidebar" affordance remains reachable when the rail is collapsed. */
+  .app.rail-collapsed .rail .rail-collapse-label {
     display: none !important;
   }
 

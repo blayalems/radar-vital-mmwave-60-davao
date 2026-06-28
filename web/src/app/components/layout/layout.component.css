@@ -225,12 +225,57 @@
 
   .rail .brand {
     border-radius: var(--rv-r2);
-    padding: 10px 12px;
-    margin-bottom: 4px;
+    padding: 10px 12px 8px;
+    margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .rail .brand:hover {
+    background: transparent;
+  }
+
+  .rail .brand > .brand-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  /* Hide collapse label in collapsed state — only the icon shows */
+  .app.rail-collapsed .rail .rail-collapse-label,
+  .app.rail-collapsed .rail .rail-collapse-btn {
+    display: none !important;
+  }
+
+  /* Collapse/Expand pill — full-width outlined button below the brand */
+  .rail .rail-collapse-btn {
+    width: 100%;
+    border: 1px solid var(--md-sys-color-outline-variant);
+    border-radius: 999px;
+    color: var(--md-sys-color-on-surface-variant);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+    letter-spacing: 0;
+    margin-top: 2px;
+  }
+
+  .rail .rail-collapse-btn:hover {
     background: var(--md-sys-color-surface-container-high);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .rail .rail-collapse-btn .material-symbols-rounded {
+    font-size: 18px;
   }
 
   .rail .bl-top {

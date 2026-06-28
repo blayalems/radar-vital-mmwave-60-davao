@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Per-screen 1:1 pass: shell fixes (rail collapse pill, topbar status chip, font loading)
+
+- **Font @font-face inlined into styles.scss**: Material Symbols Rounded and all UI fonts (Figtree, Inter, JetBrains Mono) now declared via `@font-face` in the bundled CSS at absolute `/fonts/` paths, so icons render in headless Playwright and in the production PWA without relying on the separate `rvt-fonts.css` file being loaded out-of-band. Fixes icon display in all Playwright renders.
+- **Rail collapse button redesigned to labeled pill**: `< Collapse` / `> Expand` full-width outlined pill replaces the bare icon-button. Layout component updated: `brand-row` flex wrapper holds brand-mark + brand-label, the pill button sits below. Matches the mockup's "Collapse" pill exactly.
+- **Topbar status chip visible at desktop**: The global `@media (min-width: 761px) and (max-width: 1499px)` rule that hid the topbar status chips was narrowed to `max-width: 1023px`, so the "Demo · simulated" chip is now visible on ≥1024px desktops matching the mockup design. Mobile (≤767px) still collapses to icon-only.
+- **Verification**: `npm run build:web` + `npm run build:check` clean; render-harness confirms icons, Collapse pill, and status chip all render correctly on light/dark/night at 1440px, 390px.
+
 ### 2026-06-28 — Material card-title contrast fix
 
 - **Faded section headers fixed**: Angular Material `mat-card-title`/`mat-card-subtitle` were resolving to a washed-out default colour token (most visible on Live → Audit cards: "Live Validation", "Analysis Audit", "Firmware Field Diagnostics"). Custom card titles were already full-ink. Pinned the Material card-title/subtitle colour tokens (and a defensive `color`/`opacity` rule) to the themed on-surface / on-surface-variant inks in `styles.scss`. First fix in the per-screen production parity pass against `/mockup.html`. Build round-trip clean.

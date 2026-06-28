@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Per-screen 1:1 pass: demo banner centering + Live outlined controls
+
+- **Demo banner centers as a group**: `styles.scss` set `margin-left: auto` on `.demo-banner-action`, pushing the button flush-right (overriding the component's `justify-content: center`). Removed it so the warning icon + text + Exit button cluster centered, matching the prototype; banner copy shortened to `DEMO MODE — simulated vitals only.` (the Exit button conveys the action; the pairing hint stays on the demo chip tooltip). Verified via DOM probe — the auto-margin resolved to 774px of dead space before the fix.
+- **Live command-strip buttons are light/outlined**: Pause / Snapshot were filled-tonal lavender (`mat-tonal-button`); restyled `.cmd-btn` to surface-lowest background + outline-variant border + on-surface text to match the prototype's white controls. Stop keeps its error/disabled treatment (greyed in standby, exactly like the mockup).
+- **Verification**: `ng build` clean; render-harness azure-light/1440 confirms centered banner on every screen and outlined Live controls.
+
 ### 2026-06-28 — Per-screen 1:1 pass: Live Simple default, home form labels, settings search
 
 - **Live defaults to Simple view**: The redesign prototype lands the Live screen in Simple (2 large vital cards + info row); the app defaulted to Advanced. `zenMode` initial signal flipped to `true` and the persisted-state loader now defaults Simple when no stored `rvt-zen-mode` preference exists.

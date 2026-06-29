@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Live screen now matches the prototype exactly (Simple default)
+
+- **Live lands in the Simple (zen) view** to match the prototype: `zenMode` initial signal = true and the persisted-state loader defaults Simple when no `rvt-zen-mode` preference exists. (This is the design the user confirmed via side-by-side mockup; the earlier revert-to-Advanced is superseded.)
+- **Status strip matches the prototype**: solid status **dot** instead of the radar tile icon (`.timer-icon` → `.timer-dot`); em-dash "Standby — polling stream"; subtitle "No active session · live preview"; the phase / motion / readiness chips are now Advanced-only so Simple/standby shows a single "Standby" chip and the Pause/Snapshot/Stop controls sit on one row.
+- **Session notes** placeholder is "Write observations here…" (was "Operator observations").
+- **Topbar Pause icon removed** — pause/resume stays in the Live command strip and the overflow menu; the prototype topbar shows only alerts, theme and the overflow menu.
+- **Smoke specs updated for the new default** (rather than reverting the design): added an `enterLiveAdvanced()` helper (clicks the Advanced segment, waits for the Waves tab) and call it in the 5 diagnostics specs that exercise the tab strip / 4-KPI grid / lock-state chips (375, 401, 1175, 1192, 1221). Notes locator switched from `getByLabel('Operator observations')` to the label-independent `textarea.notes-textarea`. DOM probe confirms Simple default = 2 sparks / 1 chip and the helper flips to Advanced = 4 sparks + Waves tab + phase/verdict chips.
+
 ### 2026-06-28 — Fix missing icons on GitHub Pages (absolute font URLs on a sub-path)
 
 - **Regression**: Material Symbols icons (and JetBrains Mono) were missing on the deployed Pages PWA. Root cause: `styles.scss` declared the self-hosted fonts with **absolute** `url('/fonts/…woff2')`. The app is served from a project sub-path on Pages (`/radar-vital-mmwave-60-davao/`), so an absolute `/fonts/…` resolves to the domain root and 404s. The bundled absolute `@font-face` for `Material Symbols Rounded` overrode the relative runtime definition, so the icon glyphs failed even though the relative font was cached.

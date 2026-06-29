@@ -47,6 +47,17 @@ async function seedDemoMode(page: Page): Promise<void> {
   });
 }
 
+// The Live screen lands in the Simple (zen) view to match the redesign
+// prototype. Switch to Advanced to reveal the tab strip, the full 4-KPI grid
+// and the lock-state/readiness chips that the diagnostics specs exercise.
+async function enterLiveAdvanced(page: Page): Promise<void> {
+  const advanced = page.locator('.live-mode-segment mat-button-toggle').filter({ hasText: 'Advanced' });
+  if (await advanced.isVisible({ timeout: 8000 }).catch(() => false)) {
+    await advanced.click();
+    await expect(page.getByRole('tab', { name: 'Waves' })).toBeVisible({ timeout: 10000 });
+  }
+}
+
 async function mockDemoReportSession(page: Page): Promise<void> {
   const session = {
     session_id: 'session-demo-report',
@@ -366,7 +377,7 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('.kpi-hr canvas')).toHaveAttribute('role', 'img');
     await expect(page.locator('app-live [role="alert"]')).toHaveCount(1);
 
-    const notes = page.getByLabel('Operator observations');
+    const notes = page.locator('textarea.notes-textarea');
     await notes.focus();
     await page.keyboard.press('Control+K');
     await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -376,13 +387,14 @@ test.describe('Dashboard smoke', () => {
     await seedDemoMode(page);
     await gotoDashboardRoute(page, '/live');
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+    await enterLiveAdvanced(page);
 
     await page.keyboard.press('?');
     await expect(page.getByRole('dialog')).toContainText('Tag motion, cough, speaking or baseline');
     await page.keyboard.press('Escape');
 
     await page.keyboard.press('m');
-    await expect(page.getByLabel('Operator observations')).toHaveValue(/\[\d{2}:\d{2}:\d{2}\] Motion/);
+    await expect(page.locator('textarea.notes-textarea')).toHaveValue(/\[\d{2}:\d{2}:\d{2}\] Motion/);
     await page.keyboard.press('p');
     await page.keyboard.press('Alt+5');
     await expect(page.locator('.snap-card')).toHaveCount(1);
@@ -402,6 +414,7 @@ test.describe('Dashboard smoke', () => {
     await seedDemoMode(page);
     await gotoDashboardRoute(page, '/live');
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+    await enterLiveAdvanced(page);
 
     const graphHeights = await page.locator('.kpi-card-spark').evaluateAll(elements =>
       elements.map(element => element.getBoundingClientRect().height)
@@ -1183,6 +1196,7 @@ test.describe('Dashboard smoke', () => {
 
     await expect(page.locator('#demoBanner')).toBeVisible();
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+    await enterLiveAdvanced(page);
     await page.getByRole('button', { name: /Pin Snapshot/ }).first().click();
     await page.getByRole('tab', { name: 'Snaps' }).click();
     await expect(page.getByText('Pinned Telemetry Snapshots')).toBeVisible();
@@ -1198,6 +1212,7 @@ test.describe('Dashboard smoke', () => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await waitForUnlockedShell(page);
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+    await enterLiveAdvanced(page);
 
     // Phase chip renders one of the firmware lock-state labels.
     const phaseChip = page.locator('.signal-status-chips .phase-chip');
@@ -1227,6 +1242,7 @@ test.describe('Dashboard smoke', () => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await waitForUnlockedShell(page);
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
+    await enterLiveAdvanced(page);
     const demoHeaderContained = await page.evaluate(() => {
       const banner = document.querySelector('#demoBanner')?.getBoundingClientRect();
       const topbar = document.querySelector('.topbar')?.getBoundingClientRect();
@@ -1244,7 +1260,7 @@ test.describe('Dashboard smoke', () => {
       expect(tabsContained).toBe(true);
     }
 
-    const notes = page.getByLabel('Operator observations');
+    const notes = page.locator('textarea.notes-textarea');
     const expectVisibleCardsContained = async () => {
       await page.waitForTimeout(550);
       const overflowCards = await page.evaluate(() => {

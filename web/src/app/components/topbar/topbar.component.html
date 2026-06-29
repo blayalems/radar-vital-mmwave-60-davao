@@ -44,13 +44,8 @@
   }
 
   <div class="topbar-actions" role="group" aria-label="Console actions">
-    <!-- Pause / resume polling -->
-    <button mat-icon-button class="ic-btn icon-btn tb-pause" [class.active]="state.paused()" (click)="togglePause()" type="button"
-      [attr.title]="(state.paused() ? 'topbar.resumePolling' : 'topbar.pausePolling') | translate:i18n.locale():i18n.revision()"
-      [attr.aria-label]="(state.paused() ? 'topbar.resumePolling' : 'topbar.pausePolling') | translate:i18n.locale():i18n.revision()"
-      [attr.aria-pressed]="state.paused()">
-      <span class="material-symbols-rounded">{{ state.paused() ? 'play_arrow' : 'pause' }}</span>
-    </button>
+    <!-- Pause/resume lives in the Live command strip and the overflow menu;
+         the prototype topbar shows only alerts, theme and the overflow menu. -->
     <button mat-icon-button class="ic-btn icon-btn tb-alerts" (click)="openAlerts()" type="button" title="Alerts" aria-label="Alerts"
       [matBadge]="state.alertHistory().length" [matBadgeHidden]="state.alertHistory().length === 0" matBadgeColor="warn">
       <span class="material-symbols-rounded">notifications</span>

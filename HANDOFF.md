@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-29 — Fix: refresh sends existing operator to first-run onboarding instead of PIN login
+
+- **Bug**: After completing first-run setup (consent on file, demo operator profile created), reloading the page could show the first-run "Create Operator" onboarding instead of the PIN unlock/login screen. Root cause: `AuthService.loadProfiles()` set `bootstrapping = (list.length === 0)`, and the idle-lock overlay shows onboarding whenever `bootstrapping` is true. In demo/sandbox mode the profile list comes from `demo:rvt-operator-profiles`, whose read is schema-strict (drops records missing fields such as `pin`); any empty/transient read flipped a returning user into onboarding.
+- **Fix**: `loadProfiles()` now only enters onboarding when there is genuinely no operator on file: `bootstrapping = list.length === 0 && !hasPersistedProfile()`. Added `AuthService.hasPersistedProfile()` — a lenient read of `demo:rvt-operator-profiles` that treats any record with an `operator_id` as an existing user. Promoted the demo profiles key to a shared `SANDBOX_OPERATOR_PROFILES_KEY` constant in `rvt-storage-keys.ts` (now consumed by both `api.service.ts` and `auth.service.ts`) to prevent key drift. Genuine first-run (no persisted profile) still shows onboarding; demo mode unaffected.
+- **Files**: `web/src/app/services/auth.service.ts`, `web/src/app/services/rvt-storage-keys.ts`, `web/src/app/services/api.service.ts`.
+- **Verification**: `ng build --configuration production` clean; `ng test --watch=false` 157/157 pass. Playwright (production build, seeded existing demo profile + consent + tutorial-done, no operator token): refresh shows the "Enter PIN" unlock screen for the existing operator — not onboarding; a profile record missing `pin` now also routes to login (Select Operator) instead of onboarding; a genuinely empty install still shows first-run "Create Operator".
+
 ### 2026-06-27 — Design-Exact Reskin Token Layer (Radar Vital Redesign prototype)
 
 - **Design-exact token layer**: Added `web/src/styles/rvt-design-exact.css` (imported last in `styles.scss`) restating the "Radar Vital Redesign" prototype's exact variable system for every theme + exploration and mapping it onto the Material (`--md-sys-color-*`) and legacy (`--rv-*`) tokens, so all screens + dialogs render the prototype's exact palette/type/shape. Light/dark azure already matched; bloom/mint reaffirmed; **night re-themed to the prototype's red-light low-glare palette** (`bg:#0A0405`, `pri:#FF6B57`), with `--rv-muted/--rv-dim` lifted to `#E59079` so low-emphasis copy clears WCAG AA on the darkest night surfaces.

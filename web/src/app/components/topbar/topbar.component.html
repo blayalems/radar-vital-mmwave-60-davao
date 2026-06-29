@@ -2,10 +2,7 @@
   <div class="crumbs">
     <span class="crumb-eyebrow">{{ getBreadcrumbEyebrow() }}</span>
     <h1 class="crumb-title">{{ getBreadcrumbTitle() }}</h1>
-    <div class="crumb-trail" aria-label="Breadcrumb navigation">
-      <span>{{ state.currentView() }}</span>
-      @if (state.currentView() === 'live') { <span> / {{ state.activeTab() }}</span> }
-    </div>
+    <div class="crumb-trail" aria-label="Breadcrumb navigation" aria-hidden="true" style="display:none"></div>
   </div>
 
   <mat-chip-set class="topbar-status" aria-label="Monitoring status">

@@ -159,6 +159,11 @@
   height: 40px !important;
   border-radius: 999px !important;
   font-weight: 600 !important;
+  /* Light outlined controls to match the redesign prototype (not the
+     filled-tonal lavender). Stop keeps its error/disabled styling below. */
+  background: var(--md-sys-color-surface-container-lowest, #fff) !important;
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1) !important;
+  color: var(--md-sys-color-on-surface) !important;
   transition: transform .25s cubic-bezier(0.2, 0, 0, 1),
               background-color .25s cubic-bezier(0.2, 0, 0, 1) !important;
 }

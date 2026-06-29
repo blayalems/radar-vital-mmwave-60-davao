@@ -146,7 +146,7 @@
       <mat-card-content class="setup-card-content">
         <!-- DURATION CHOICE CHIPS -->
         <div class="setup-field span-full">
-          <label class="field-label" id="recDurationLabel">{{ 'home.recordingDuration' | translate:i18n.locale():i18n.revision() }} <span class="label-hint">how long to record</span></label>
+          <label class="field-label" id="recDurationLabel">{{ 'home.recordingDuration' | translate:i18n.locale():i18n.revision() }}</label>
           <div class="duration-chips" role="group" aria-labelledby="recDurationLabel">
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 30" [attr.aria-pressed]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 60" [attr.aria-pressed]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
@@ -233,9 +233,9 @@
         }
 
         <div class="setup-field">
+          <label class="field-label" id="subjectProfileLabel">Subject profile</label>
           <mat-form-field appearance="outline" class="form-field-full">
-            <mat-label>Subject Profile</mat-label>
-            <mat-select [ngModel]="state.setup().subject_profile_id" (ngModelChange)="updateSetup('subject_profile_id', $event); state.activeSubjectProfileId.set($event)">
+            <mat-select [ngModel]="state.setup().subject_profile_id" (ngModelChange)="updateSetup('subject_profile_id', $event); state.activeSubjectProfileId.set($event)" aria-labelledby="subjectProfileLabel">
               @for (profile of subjectProfiles | keyvalue; track profile.key) {
               <mat-option [value]="profile.key">{{ profile.value.label }}</mat-option>
               }
@@ -245,25 +245,25 @@
 
         <!-- SUBJECT LABELS -->
         <div class="setup-field">
+          <label class="field-label" id="subjectLabelLabel">Subject label</label>
           <mat-form-field appearance="outline" class="form-field-full">
-            <mat-label>Subject Label (Optional)</mat-label>
-            <input matInput [ngModel]="state.setup().subject_label" (ngModelChange)="updateSetup('subject_label', $event)" placeholder="P-014">
+            <input matInput [ngModel]="state.setup().subject_label" (ngModelChange)="updateSetup('subject_label', $event)" placeholder="P-014" aria-labelledby="subjectLabelLabel">
           </mat-form-field>
         </div>
 
         <!-- OPERATOR LABELS -->
         <div class="setup-field">
+          <label class="field-label" id="operatorLabelLabel">Operator label</label>
           <mat-form-field appearance="outline" class="form-field-full">
-            <mat-label>Operator Label</mat-label>
-            <input matInput [ngModel]="state.setup().operator_label" (ngModelChange)="updateSetup('operator_label', $event)" placeholder="Operator A">
+            <input matInput [ngModel]="state.setup().operator_label" (ngModelChange)="updateSetup('operator_label', $event)" placeholder="Operator A" aria-labelledby="operatorLabelLabel">
           </mat-form-field>
         </div>
 
         <!-- STATION LABELS -->
         <div class="setup-field span-full">
+          <label class="field-label" id="stationLabelLabel">Research station</label>
           <mat-form-field appearance="outline" class="form-field-full">
-            <mat-label>Research Station</mat-label>
-            <input matInput [ngModel]="state.setup().station_label" (ngModelChange)="updateSetup('station_label', $event)" placeholder="Lab / Station 3">
+            <input matInput [ngModel]="state.setup().station_label" (ngModelChange)="updateSetup('station_label', $event)" placeholder="Lab / Station 3" aria-labelledby="stationLabelLabel">
           </mat-form-field>
         </div>
 

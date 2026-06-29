@@ -17,7 +17,7 @@
       matInput
       [ngModel]="settingsSearch()"
       (ngModelChange)="settingsSearch.set($event)"
-      placeholder="Search display, pairing, thresholds, privacy..."
+      placeholder="Search settings — e.g. PIN, theme, threshold, server…"
       aria-label="Search settings"
     >
     @if (settingsSearch()) {
@@ -29,7 +29,7 @@
 
   <div class="settings-grid">
     @if (settingsCardMatches('connections')) {
-      <mat-card class="settings-card settings-group-card premium-card">
+      <mat-card class="settings-card settings-group-card premium-card connections-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">sensors</mat-icon>
           <mat-card-title>Connections &amp; sources</mat-card-title>
@@ -242,7 +242,7 @@
     }
 
     @if (settingsCardMatches('display')) {
-      <mat-card class="settings-card settings-group-card premium-card">
+      <mat-card class="settings-card settings-group-card premium-card display-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">palette</mat-icon>
           <mat-card-title>Display</mat-card-title>

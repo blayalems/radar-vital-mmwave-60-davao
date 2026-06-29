@@ -3,7 +3,7 @@
 <!-- DEMO BANNER -->
 <div id="demoBanner" role="alert" aria-live="assertive" [hidden]="!state.demoMode() && !state.autoDemoActive()">
   <span class="material-symbols-rounded" aria-hidden="true">warning</span>
-  <span class="demo-banner-text">DEMO MODE — simulated vitals only. Pair the trainer in Settings for live data.</span>
+  <span class="demo-banner-text">DEMO MODE — simulated vitals only.</span>
   <button type="button" class="demo-banner-action" (click)="exitDemoMode()">
     <span class="material-symbols-rounded" aria-hidden="true">sensors</span>
     <span>Exit demo &amp; reconnect</span>
@@ -23,27 +23,28 @@
   <!-- NAVIGATION RAIL (DESKTOP) -->
   <mat-sidenav class="rail" mode="side" [opened]="showRail()" [disableClose]="true" aria-label="Primary">
     <div class="brand" title="Radar Vital Trainer">
-      <div class="brand-mark" aria-hidden="true">
-        <span class="material-symbols-rounded">radar</span>
-      </div>
-      <div class="brand-label">
-        <span class="bl-top">RADAR VITAL</span>
-        <span class="bl-bot">TRAINER · {{ appVersion }}</span>
-      </div>
-      <button mat-icon-button class="rail-collapse-btn" type="button" (click)="toggleRailCollapse()"
+      <div class="brand-row">
+        <div class="brand-mark" aria-hidden="true">
+          <span class="material-symbols-rounded">radar</span>
+        </div>
+        <div class="brand-label">
+          <span class="bl-top">RADAR VITAL</span>
+          <span class="bl-bot">TRAINER · {{ appVersion }}</span>
+        </div>
+      </div><!-- /.brand-row -->
+      <button mat-button class="rail-collapse-btn" type="button" (click)="toggleRailCollapse()"
         [attr.aria-label]="railCollapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
         [attr.title]="railCollapsed() ? 'Expand sidebar' : 'Collapse sidebar'"
         [attr.aria-expanded]="!railCollapsed()" id="railCollapseBtn">
         <span class="material-symbols-rounded" aria-hidden="true">
           {{ railCollapsed() ? 'chevron_right' : 'chevron_left' }}
         </span>
+        <span class="rail-collapse-label">{{ railCollapsed() ? 'Expand' : 'Collapse' }}</span>
       </button>
     </div>
 
     <nav mat-nav-list class="nav-groups" aria-label="Views">
       <div class="nav-group" id="workflowGroup">
-        <div class="nav-heading">Workflow</div>
-        
         <a mat-list-item class="r-item" routerLink="/home" routerLinkActive="active" aria-label="Home">
           <span class="r-ic"><span class="material-symbols-rounded">home</span></span><span class="r-label">Home</span>
         </a>
@@ -61,37 +62,6 @@
         </a>
       </div>
 
-      <!-- Live views dynamic sub-navigation if we are in live monitoring -->
-      @if (state.currentView() === 'live') {
-      <div class="nav-group" id="liveTabsGroup">
-        <div class="nav-heading">Live views</div>
-        <!-- In Angular we can emit to state.activeTab or handle inside LiveComponent -->
-        <button mat-list-item class="r-item sub" aria-label="Overview tab" [class.active]="state.activeTab() === 'tab-overview'" 
-          (click)="state.activeTab.set('tab-overview'); state.triggerHaptic('tap')">
-          <span class="r-ic"><span class="material-symbols-rounded">dashboard</span></span><span class="r-label">Overview</span>
-        </button>
-        <button mat-list-item class="r-item sub" aria-label="Waves tab" [class.active]="state.activeTab() === 'tab-waves'" 
-          (click)="state.activeTab.set('tab-waves'); state.triggerHaptic('tap')">
-          <span class="r-ic"><span class="material-symbols-rounded">show_chart</span></span><span class="r-label">Waves</span>
-        </button>
-        <button mat-list-item class="r-item sub" aria-label="Heart rate funnel tab" [class.active]="state.activeTab() === 'tab-hr'" 
-          (click)="state.activeTab.set('tab-hr'); state.triggerHaptic('tap')">
-          <span class="r-ic"><span class="material-symbols-rounded">ecg_heart</span></span><span class="r-label">HR funnel</span>
-        </button>
-        <button mat-list-item class="r-item sub" aria-label="Respiration funnel tab" [class.active]="state.activeTab() === 'tab-rr'" 
-          (click)="state.activeTab.set('tab-rr'); state.triggerHaptic('tap')">
-          <span class="r-ic"><span class="material-symbols-rounded">pulmonology</span></span><span class="r-label">RR funnel</span>
-        </button>
-        <button mat-list-item class="r-item sub" aria-label="Snapshots tab" [class.active]="state.activeTab() === 'tab-snaps'" 
-          (click)="state.activeTab.set('tab-snaps'); state.triggerHaptic('tap')">
-          <span class="r-ic"><span class="material-symbols-rounded">bookmark</span></span><span class="r-label">Snapshots</span>
-        </button>
-        <button mat-list-item class="r-item sub" aria-label="Audit tab" [class.active]="state.activeTab() === 'tab-audit'" 
-          (click)="state.activeTab.set('tab-audit'); state.triggerHaptic('tap')">
-          <span class="r-ic"><span class="material-symbols-rounded">fact_check</span></span><span class="r-label">Audit</span>
-        </button>
-      </div>
-      }
     </nav>
 
     <div class="rail-foot">

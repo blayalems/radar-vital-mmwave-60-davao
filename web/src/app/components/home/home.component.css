@@ -234,8 +234,7 @@
 .home-stat-title {
   font-size: 0.8rem;
   color: var(--md-sys-color-on-surface-variant, #64748b);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.1px;
 }
 
 .home-stat-line {

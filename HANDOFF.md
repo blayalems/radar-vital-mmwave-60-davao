@@ -5,6 +5,69 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Fix collapsed-rail Expand button hidden by merge artifact
+
+- **Smoke spec 413 fix** ("keeps primary navigation available in simple view and collapses the desktop rail"): after the `main` merge, `layout.component.css` carried two contradictory `@media (min-width:1024px)` rules — one hid `.rail-collapse-btn` with `display:none` in the collapsed state, the other sized it to a 36px icon (expecting it visible). The `display:none` selector wrongly included the whole button (the comment says "only the icon shows"), so the collapsed rail had **no visible Expand affordance** and `getByRole('button',{name:'Expand sidebar'})` was never visible. Narrowed the rule to hide only `.rail-collapse-label`; the button now stays a 36px icon with `aria-label="Expand sidebar"`. DOM probe confirms `isVisible` true, 36px, contained within the 76px collapsed rail.
+
+### 2026-06-28 — Revert two Live behaviour changes that broke smoke contract
+
+- **Reverted Live Simple-default and standby chip-gating**: CI `test` (Playwright smoke) failed 21 specs. Root cause was this branch's two Live *behaviour* changes: (1) defaulting Live to Simple/zen hid the 4-KPI grid, the Waves/Snaps tabs and the Target Tracking card that smoke specs assert; (2) gating the phase/motion/readiness chips to `status === 'running'` hid the `.phase-chip`/`.verdict-chip` that the "surfaces … readiness chips in demo mode" spec requires in standby. Both encode real product contracts, so `zenMode` is back to a `false` default (Advanced) and the status chips render again as before. The **styling** Live improvements (light/outlined command buttons) are kept — they don't affect the smoke contract.
+- **Kept**: centered demo banner, settings Display-left column order + pill search, sentence-case label-above Home form, `Session quality` report header — none touch smoke assertions (verified: banner specs only match `simulated vitals only`, which the shortened copy still contains).
+- **Verification**: `build:web` round-trip clean; DOM probe on the rebuilt monolith confirms Live default `zen-mode=false`, `.kpi-card-spark` count = 4, `.phase-chip` = "Warming up", `.verdict-chip` = "Readiness: READY", Waves/Snaps tabs present — matching every previously-failing assertion.
+
+### 2026-06-28 — Merge `main` (PR #67 token layer) into the per-screen pass
+
+- **Resolved merge conflicts**: `main` landed PR #67 (the design-exact token layer) which overlapped this branch. `HANDOFF.md` reconciled (kept both logs, newest-on-top); `web/src/styles.scss` auto-merged cleanly (verified the demo-banner `margin-left:auto` removal survived). The `radar_vital_live_dashboard_v12_for_v16_0.html` monolith conflict was resolved by **regenerating** it from the merged source (`npm run build:web`) rather than hand-merging the inlined bundle.
+- **Verification**: `build:web` + `build:check` round-trip clean; `test:source-integrity` (17 critical files) and `test:contrast` (WCAG AA on every surface) pass; render-harness confirms Live (Simple default, centered banner, outlined controls), Settings (Display-left column order + pill search) and dark Home (label-above form) all render correctly on the merged build. PR #68 is now `mergeable: clean`.
+
+### 2026-06-28 — Per-screen 1:1 pass: settings column order, report header, theme sweep
+
+- **Settings columns reordered to match the prototype**: the prototype leads with appearance/display on the left and source/pairing on the right; the app authored them reversed. Added `display-card` / `connections-card` classes and CSS `order` (-2 / -1) so the first grid row is Display (left) + Connections (right) without moving the markup — search filtering and the remaining cards are unaffected.
+- **Report header**: `Session Quality` → `Session quality` with the prototype's shorter subtitle.
+- **Cross-theme/size verification**: the Live Simple-default + centered-banner + outlined-control changes were rendered across azure/bloom/mint × light/dark/night/hc and at 390px mobile. All combinations match the prototype; the banner stacks to a full-width Exit button on ≤760px (existing mobile rule), HC shows crisp white outlined controls.
+
+### 2026-06-28 — Per-screen 1:1 pass: demo banner centering + Live outlined controls
+
+- **Demo banner centers as a group**: `styles.scss` set `margin-left: auto` on `.demo-banner-action`, pushing the button flush-right (overriding the component's `justify-content: center`). Removed it so the warning icon + text + Exit button cluster centered, matching the prototype; banner copy shortened to `DEMO MODE — simulated vitals only.` (the Exit button conveys the action; the pairing hint stays on the demo chip tooltip). Verified via DOM probe — the auto-margin resolved to 774px of dead space before the fix.
+- **Live command-strip buttons are light/outlined**: Pause / Snapshot were filled-tonal lavender (`mat-tonal-button`); restyled `.cmd-btn` to surface-lowest background + outline-variant border + on-surface text to match the prototype's white controls. Stop keeps its error/disabled treatment (greyed in standby, exactly like the mockup).
+- **Verification**: `ng build` clean; render-harness azure-light/1440 confirms centered banner on every screen and outlined Live controls.
+
+### 2026-06-28 — Per-screen 1:1 pass: Live Simple default, home form labels, settings search
+
+- **Live defaults to Simple view**: The redesign prototype lands the Live screen in Simple (2 large vital cards + info row); the app defaulted to Advanced. `zenMode` initial signal flipped to `true` and the persisted-state loader now defaults Simple when no stored `rvt-zen-mode` preference exists.
+- **Live status bar single chip in standby**: The phase / motion / readiness chips (Warming up, Readiness: READY) now render only while a recording is actually live; standby shows a single status chip matching the mockup.
+- **Home setup form labels**: Dropped the "how long to record" inline hint; converted Subject profile / Subject label / Operator label / Research station from floating Material labels to the form's label-above pattern; en i18n labels switched to sentence case (`Recording duration`, `Radar port`, `BLE oximeter`).
+- **Settings search is a full-width pill**: `settings-search-field` widened to 100% and rounded to a 999px pill via `::ng-deep` on the notched-outline pieces (Material renders them in its own encapsulation context); placeholder updated to the prototype copy.
+- **Verification**: `ng build` clean; render-harness confirms azure-light/1440 Live (Simple default + single chip), Home (sentence-case label-above fields), Settings (pill search) now match `/mockup.html`.
+
+### 2026-06-28 — Per-screen 1:1 pass: nav / chip / eyebrow / breadcrumb / verdict fixes
+
+- **Sidebar cleaned**: Removed "Workflow" section heading and "Live views" sub-navigation from layout rail — mockup has a flat single-level nav.
+- **Breadcrumb trail hidden**: The `crumb-trail` div below the page title (showing raw route name) is now hidden; mockup shows only eyebrow + title.
+- **Eyebrow strings corrected**: Help: `Playbook → Reference`; Help title: `Playbook → Operator playbook`; Settings: `Configuration → Console`.
+- **Settings description banner hidden**: The dismissable intro block was not in the mockup; hidden via CSS (`settings-header { display: none }`).
+- **Home stat card labels**: Removed `text-transform: uppercase` so labels render as sentence case matching mockup.
+- **Demo status chip redesigned to match mockup exactly**: Neutral surface background (not amber), no material icon in demo mode (mockup chip has only the status dot), pulsing amber dot, `.status-dot.demo` overrides dot color to `var(--wrn)`.
+- **Report verdict card colors**: `--ok / --wrn / --err` semantic tokens used for text (previously mapped to wrong neutral on-container values).
+- **Verification**: `npm run build:web` clean; Playwright render-harness confirms all 5 views in azure-light/dark; sidebar headings gone; Demo chip shows neutral pill with amber dot.
+
+### 2026-06-28 — Per-screen 1:1 pass: shell fixes (rail collapse pill, topbar status chip, font loading)
+
+- **Font @font-face inlined into styles.scss**: Material Symbols Rounded and all UI fonts (Figtree, Inter, JetBrains Mono) now declared via `@font-face` in the bundled CSS at absolute `/fonts/` paths, so icons render in headless Playwright and in the production PWA without relying on the separate `rvt-fonts.css` file being loaded out-of-band. Fixes icon display in all Playwright renders.
+- **Rail collapse button redesigned to labeled pill**: `< Collapse` / `> Expand` full-width outlined pill replaces the bare icon-button. Layout component updated: `brand-row` flex wrapper holds brand-mark + brand-label, the pill button sits below. Matches the mockup's "Collapse" pill exactly.
+- **Topbar status chip visible at desktop**: The global `@media (min-width: 761px) and (max-width: 1499px)` rule that hid the topbar status chips was narrowed to `max-width: 1023px`, so the "Demo · simulated" chip is now visible on ≥1024px desktops matching the mockup design. Mobile (≤767px) still collapses to icon-only.
+- **Verification**: `npm run build:web` + `npm run build:check` clean; render-harness confirms icons, Collapse pill, and status chip all render correctly on light/dark/night at 1440px, 390px.
+
+### 2026-06-28 — Material card-title contrast fix
+
+- **Faded section headers fixed**: Angular Material `mat-card-title`/`mat-card-subtitle` were resolving to a washed-out default colour token (most visible on Live → Audit cards: "Live Validation", "Analysis Audit", "Firmware Field Diagnostics"). Custom card titles were already full-ink. Pinned the Material card-title/subtitle colour tokens (and a defensive `color`/`opacity` rule) to the themed on-surface / on-surface-variant inks in `styles.scss`. First fix in the per-screen production parity pass against `/mockup.html`. Build round-trip clean.
+
+### 2026-06-28 — Bundled 1:1 working mockup page (`/mockup.html`)
+
+- **Verbatim working prototype**: Added `web/src/../public/mockup.html` (served at `/mockup.html` locally and on Pages) — the "Radar Vital Redesign" interactive prototype made fully self-contained by inlining React + ReactDOM 18.3.1 UMD (the design export otherwise lazy-loaded them from unpkg, so it failed offline / behind the CSP). Fonts were already inlined. Boots with **zero network**; provides the exact 1:1 mockup with its theme (light/dark/night/hc), exploration (Azure/Bloom/Mint) and device-frame switchers. Simulated data only — it is a reference/demo page, not wired to the trainer.
+- **Why**: The token-layer reskin (below) left component-level inconsistencies in the Angular app (e.g. faded card-section headers). This page gives a guaranteed pixel-accurate reference of the intended design while the Angular components are reconciled.
+- **Verification**: Rendered headlessly in Chromium — Home/Live/Report all draw correctly with no boot errors (only a harmless `file://` self-fetch CORS log that does not occur over http). `npm --prefix web run build` + `npm run build:check` round-trip clean (static asset, not referenced by index, so the monolith is unchanged).
+
 ### 2026-06-27 — Design-Exact Reskin Token Layer (Radar Vital Redesign prototype)
 
 - **Design-exact token layer**: Added `web/src/styles/rvt-design-exact.css` (imported last in `styles.scss`) restating the "Radar Vital Redesign" prototype's exact variable system for every theme + exploration and mapping it onto the Material (`--md-sys-color-*`) and legacy (`--rv-*`) tokens, so all screens + dialogs render the prototype's exact palette/type/shape. Light/dark azure already matched; bloom/mint reaffirmed; **night re-themed to the prototype's red-light low-glare palette** (`bg:#0A0405`, `pri:#FF6B57`), with `--rv-muted/--rv-dim` lifted to `#E59079` so low-emphasis copy clears WCAG AA on the darkest night surfaces.

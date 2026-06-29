@@ -5,6 +5,21 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-29 — Dialog / Modal Parity Pass (Radar Vital Redesign prototype)
+
+- **Scope**: Only dialog/modal component files + their CSS were touched (no `styles.scss`, layout, topbar, or main screen components). Aligned dialog surfaces, eyebrow/title typography, M3 buttons, expressive radii (`--rv-r1`/`--rv-r2`) and outline-variant borders to the prototype across all 4 themes (light/dark/night/hc) and 3 palettes (azure/bloom/mint).
+- **Command palette**: bold 800 title; hint chips → outlined pills; command rows flattened (transparent border, hover fill + outline-variant); `kbd` chips re-tokened to `surface-container-low` + outline-variant, 7px radius, mono.
+- **Operator handoff**: hero now uses `primary-container`/`on-primary-container` with an uppercase eyebrow + mono session id and a `surface-container-lowest` source pill; vitals/alerts/notes converted from top-divider blocks into bordered `surface-container-low` cards at `--rv-r2`; mono `dd` values.
+- **Switch operator**: profile list converted from one flush bordered container into standalone rounded `--rv-r2` cards with filled-`primary` avatars and hover affordance.
+- **Confirm dialog**: added prototype chrome (outline-variant border, `--rv-r1` radius, soft shadow) via a `.mat-mdc-dialog-surface:has(app-confirm-dialog)` rule (it is opened from many call sites without the `m3-dialog-panel` class); bold title + muted message.
+- **KPI zoom dialog**: same `:has(.kpi-zoom-root)` surface-chrome fix (opened from Live without `m3-dialog-panel`); hero/canvas/threshold cards re-tokened to `--rv-r2` + outline-variant; bold title; mono hero value. Selectors namespaced under `.kpi-zoom-root` with `ViewEncapsulation.None`.
+- **Keyboard shortcuts**: `kbd` re-styled to prototype (surface-container-low, outline-variant, 7px, mono, weight 700); key column 132px; title/desc moved to `--rvt-ui-font`, primary-colored icon.
+- **Recovery code dialog**: fixed a real cross-theme bug — it referenced undefined `--mat-sys-*` tokens (fell back to hardcoded M3 purple/grey), now uses `--md-sys-color-*`/`--rv-*` so it themes correctly.
+- **PIN keypad**: keys given visible outline-variant borders + hover state + mono digits (previously a near-invisible 15% outline).
+- **Alerts**: bold title; filter group wrapped in a rounded pill outline; empty-state icon colored primary.
+- **Settings dialog**: chrome already supplied by `m3-dialog-panel`; screen content left untouched per scope.
+- **Verification**: `ng build --configuration production` clean; Playwright screenshots of every target dialog across light/dark/night/hc + azure/bloom/mint confirm correct surface/border/radius tokens (`/home/claude/repo/scratchpad/agentB-*`). Parity report at `/home/claude/repo/scratchpad/agentB-modal-parity.md`.
+
 ### 2026-06-27 — Design-Exact Reskin Token Layer (Radar Vital Redesign prototype)
 
 - **Design-exact token layer**: Added `web/src/styles/rvt-design-exact.css` (imported last in `styles.scss`) restating the "Radar Vital Redesign" prototype's exact variable system for every theme + exploration and mapping it onto the Material (`--md-sys-color-*`) and legacy (`--rv-*`) tokens, so all screens + dialogs render the prototype's exact palette/type/shape. Light/dark azure already matched; bloom/mint reaffirmed; **night re-themed to the prototype's red-light low-glare palette** (`bg:#0A0405`, `pri:#FF6B57`), with `--rv-muted/--rv-dim` lifted to `#E59079` so low-emphasis copy clears WCAG AA on the darkest night surfaces.

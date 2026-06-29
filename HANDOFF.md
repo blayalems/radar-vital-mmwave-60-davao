@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-28 — Fix missing icons on GitHub Pages (absolute font URLs on a sub-path)
+
+- **Regression**: Material Symbols icons (and JetBrains Mono) were missing on the deployed Pages PWA. Root cause: `styles.scss` declared the self-hosted fonts with **absolute** `url('/fonts/…woff2')`. The app is served from a project sub-path on Pages (`/radar-vital-mmwave-60-davao/`), so an absolute `/fonts/…` resolves to the domain root and 404s. The bundled absolute `@font-face` for `Material Symbols Rounded` overrode the relative runtime definition, so the icon glyphs failed even though the relative font was cached.
+- **Fix**: Removed the duplicate `@font-face` block from the Angular-bundled `styles.scss`. Fonts now come solely from the runtime stylesheet `fonts/rvt-font-definitions.css` (loaded via the relative `<link href="./fonts/rvt-fonts.css">` that build-angular injects), which already uses path-relative `url("./<file>.woff2")` — subpath-safe AND correct at the domain root (EXE/APK/local trainer). The service worker precache was already relative (`./fonts/…`).
+- **Verification**: Faithful Pages-subpath Playwright probe (404s anything outside the repo base): before fix `document.fonts.check('Material Symbols Rounded')` = false with `/fonts/*.woff2` 404s; after fix = true with all fonts loading from `/radar-vital-mmwave-60-davao/fonts/*`. Root-serve probe (EXE/APK/local) still loads all fonts, zero 404s — no regression.
+
 ### 2026-06-28 — Fix collapsed-rail Expand button hidden by merge artifact
 
 - **Smoke spec 413 fix** ("keeps primary navigation available in simple view and collapses the desktop rail"): after the `main` merge, `layout.component.css` carried two contradictory `@media (min-width:1024px)` rules — one hid `.rail-collapse-btn` with `display:none` in the collapsed state, the other sized it to a 36px icon (expecting it visible). The `display:none` selector wrongly included the whole button (the comment says "only the icon shows"), so the collapsed rail had **no visible Expand affordance** and `getByRole('button',{name:'Expand sidebar'})` was never visible. Narrowed the rule to hide only `.rail-collapse-label`; the button now stays a 36px icon with `aria-label="Expand sidebar"`. DOM probe confirms `isVisible` true, 36px, contained within the 76px collapsed rail.

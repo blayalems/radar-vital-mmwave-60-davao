@@ -73,17 +73,23 @@
   height: 56px;
   width: 56px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--md-sys-color-outline) 15%, transparent);
+  border: 1px solid var(--md-sys-color-outline-variant);
   background: var(--md-sys-color-surface-container-low);
   color: var(--md-sys-color-on-surface);
+  font-family: var(--fm, ui-monospace, monospace);
   font-size: 1.35rem;
-  font-weight: 500;
+  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   min-width: unset;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.keyboard-grid button:hover:not([disabled]) {
+  background: var(--md-sys-color-secondary-container);
+  border-color: var(--md-sys-color-outline);
 }
 
 .keyboard-grid button:active {

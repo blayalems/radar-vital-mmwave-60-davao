@@ -1,13 +1,22 @@
+h2[mat-dialog-title] {
+  font-family: var(--rvt-ui-font, 'Inter', sans-serif);
+  font-weight: 800;
+  color: var(--md-sys-color-on-surface);
+}
+
 .alerts-content {
   width: min(520px, calc(100vw - 48px));
   min-height: 180px;
 }
 
+/* Prototype: rounded segmented filter that reads as pills on the surface. */
 .alerts-filter {
   display: flex;
   margin: 0 0 16px;
   overflow-x: auto;
   width: 100%;
+  border-radius: 999px;
+  border: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .alerts-filter mat-button-toggle {
@@ -20,6 +29,10 @@
 
 .alert-row mat-icon.critical {
   color: var(--md-sys-color-error, #ba1a1a);
+}
+
+.alerts-empty mat-icon {
+  color: var(--md-sys-color-primary);
 }
 
 .alerts-empty {

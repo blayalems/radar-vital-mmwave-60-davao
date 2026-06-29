@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-29 — Fix: refresh sends existing operator to first-run onboarding instead of PIN login
+
+- **Bug**: After completing first-run setup (consent on file, demo operator profile created), reloading the page could show the first-run "Create Operator" onboarding instead of the PIN unlock/login screen. Root cause: `AuthService.loadProfiles()` set `bootstrapping = (list.length === 0)`, and the idle-lock overlay shows onboarding whenever `bootstrapping` is true. In demo/sandbox mode the profile list comes from `demo:rvt-operator-profiles`, whose read is schema-strict (drops records missing fields such as `pin`); any empty/transient read flipped a returning user into onboarding.
+- **Fix**: `loadProfiles()` now only enters onboarding when there is genuinely no operator on file: `bootstrapping = list.length === 0 && !hasPersistedProfile()`. Added `AuthService.hasPersistedProfile()` — a lenient read of `demo:rvt-operator-profiles` that treats any record with an `operator_id` as an existing user. Promoted the demo profiles key to a shared `SANDBOX_OPERATOR_PROFILES_KEY` constant in `rvt-storage-keys.ts` (now consumed by both `api.service.ts` and `auth.service.ts`) to prevent key drift. Genuine first-run (no persisted profile) still shows onboarding; demo mode unaffected.
+- **Files**: `web/src/app/services/auth.service.ts`, `web/src/app/services/rvt-storage-keys.ts`, `web/src/app/services/api.service.ts`.
+- **Verification**: `ng build --configuration production` clean; `ng test --watch=false` 157/157 pass. Playwright (production build, seeded existing demo profile + consent + tutorial-done, no operator token): refresh shows the "Enter PIN" unlock screen for the existing operator — not onboarding; a genuinely empty install still shows first-run "Create Operator".
+
 ### 2026-06-28 — Live screen now matches the prototype exactly (Simple default)
 
 - **Live lands in the Simple (zen) view** to match the prototype: `zenMode` initial signal = true and the persisted-state loader defaults Simple when no `rvt-zen-mode` preference exists. (This is the design the user confirmed via side-by-side mockup; the earlier revert-to-Advanced is superseded.)

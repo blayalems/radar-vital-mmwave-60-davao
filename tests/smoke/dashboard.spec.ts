@@ -896,31 +896,17 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('.native-ble-result')).toContainText(/trainer telemetry remains the session source/i);
   });
 
-  test('exchanges a one-time pairing PIN without exposing a raw token input', async ({ page }) => {
-    await page.addInitScript(() => {
-      const originalFetch = window.fetch.bind(window);
-      window.fetch = (input, init) => {
-        const target = typeof input === 'string'
-          ? input
-          : input instanceof Request
-            ? input.url
-            : String(input);
-        if (target.includes('/api/auth/exchange')) {
-          return Promise.resolve(new Response(JSON.stringify({ token: 'paired-session-token' }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' }
-          }));
-        }
-        return originalFetch(input, init);
-      };
-    });
+  test('issues a single-use LAN pairing PIN display with QR action', async ({ page }) => {
     await gotoDashboardRoute(page, '/settings');
-    await page.getByLabel('Six-digit LAN pairing PIN').fill('482931');
-    await page.getByRole('button', { name: /Pair with PIN/ }).click();
-    await expect(page.locator('simple-snack-bar').last()).toContainText(/paired/i);
-    const token = await page.evaluate(() => sessionStorage.getItem('rvt-pair-token'));
-    expect(token).toBe('paired-session-token');
-    await expect(page.getByLabel(/Pairing token/)).toHaveCount(0);
+    // The prototype shows a generated single-use PIN across six digit boxes
+    // (held in memory only — never a raw token input).
+    const boxes = page.locator('.lan-pin-box');
+    await expect(boxes).toHaveCount(6);
+    const pin = (await boxes.allInnerTexts()).join('');
+    expect(pin).toMatch(/^\d{6}$/);
+    await expect(page.getByText(/expires in \d{2}:\d{2}/)).toBeVisible();
+    await page.getByRole('button', { name: 'Show QR' }).click();
+    await expect(page.locator('simple-snack-bar').last()).toContainText(/pairing PIN/i);
   });
 
   test('persists demo report review and structured sign-off through Material controls', async ({ page }) => {

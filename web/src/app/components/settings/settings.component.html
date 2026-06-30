@@ -64,16 +64,28 @@
               <mat-hint>Leave blank when the dashboard is served by the trainer.</mat-hint>
             </mat-form-field>
 
-            <mat-form-field appearance="outline" class="form-field-full">
-              <mat-label>Six-digit LAN pairing PIN</mat-label>
-              <input matInput type="password" inputmode="numeric" maxlength="6" [ngModel]="pinInput()" (ngModelChange)="pinInput.set($event)" autocomplete="one-time-code">
-              <mat-hint>Scan the trainer QR code or enter its one-time PIN. The issued token stays in this browser tab only.</mat-hint>
-            </mat-form-field>
+            <div class="lan-pin-block">
+              <div class="lan-pin-head">
+                <span class="lan-pin-title">Single-use LAN pairing PIN</span>
+                <span class="lan-pin-expiry">expires in {{ pinExpiryLabel() }}</span>
+              </div>
+              <div class="lan-pin-row">
+                <div class="lan-pin-boxes" role="group" aria-label="LAN pairing PIN">
+                  @for (digit of lanPinDigits(); track $index) {
+                    <span class="lan-pin-box">{{ digit }}</span>
+                  }
+                </div>
+                <button mat-icon-button type="button" class="lan-pin-refresh" (click)="regenerateLanPin()" title="Regenerate PIN" aria-label="Regenerate pairing PIN">
+                  <mat-icon>autorenew</mat-icon>
+                </button>
+                <button mat-flat-button type="button" class="mat-tonal-button" (click)="showPairingQr()">
+                  <mat-icon>qr_code_2</mat-icon>Show QR
+                </button>
+              </div>
+              <p class="lan-pin-hint">Enter this PIN on the paired phone to authorize LAN access. PINs are single-use and held in memory only.</p>
+            </div>
 
             <div class="settings-actions-row">
-              <button mat-flat-button type="button" (click)="pairWithPin()" [disabled]="connectionBusy() || pinInput().length !== 6" class="mat-tonal-button">
-                <mat-icon>qr_code_2</mat-icon>Pair with PIN
-              </button>
               <button mat-flat-button type="button" class="primary-wide-action" (click)="reconnectTrainer()" [disabled]="connectionBusy()">
                 <mat-icon>link</mat-icon>{{ connectionBusy() ? 'Connecting...' : 'Connect to trainer' }}
               </button>

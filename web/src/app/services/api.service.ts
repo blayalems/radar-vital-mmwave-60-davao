@@ -635,14 +635,18 @@ export class ApiService {
           signal_quality: { pqi_lock_pct: 84.2, session_quality_score: 8.7, internal_consistency_score: 9.1, coverage_locked: 81.5, coverage_settling: 11.2 },
           hr_metrics: { rmse: 2.41, mae: 1.92, bias: -0.4, coverage_pct: 88.1 },
           rr_metrics: { rmse: 0.82, mae: 0.61, bias: 0.1, coverage_pct: 90.4 },
-          gates: { primary: { passed: true, status: 'pass' }, secondary: { passed: false, status: 'deferred' } },
+          gates: {
+            coverage: { passed: true, status: 'pass' },
+            agreement: { passed: true, status: 'pass' },
+            motion: { passed: true, status: 'pass' },
+            reference: { passed: true, status: 'pass' }
+          },
           verdict: {
             verdict: 'ready',
             readiness_kind: 'ready',
-            categories: [
-              { id: 'firmware', label: 'Firmware contract', status: 'pass', detail: 'Simulated 219-column contract intact; 207-column prefix preserved.', remediation: '' },
-              { id: 'reference', label: 'Reference coverage', status: 'warn', detail: 'Simulated BLE coverage 72%.', remediation: 'Keep the oximeter within range for the full session.' }
-            ]
+            // The four readiness gate chips above carry the summary; the
+            // prototype keeps the gate section to just those chips.
+            categories: []
           }
         };
       }

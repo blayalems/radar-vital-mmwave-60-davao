@@ -96,7 +96,7 @@
               @for (gate of qualityGates(); track gate.id) {
                 <span class="quality-gate-chip" role="listitem" [attr.data-passed]="gate.passed">
                   <mat-icon aria-hidden="true">{{ gate.passed === true ? 'check_circle' : gate.passed === false ? 'cancel' : 'pending' }}</mat-icon>
-                  {{ gate.id }}: {{ gate.status }}
+                  {{ gate.label }}
                 </span>
               }
             </div>

@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-29 — Rail, demo data, pairing PIN, report gates (prototype 1:1)
+
+- **Rail**: pinned the Commands + operator foot to the bottom (rail inner container is a flex column; `.rail-foot { margin-top:auto }`); replaced the visible Lock profile / Switch operator buttons with a menu opened from the operator card — matching the prototype's clean rail.
+- **Demo data — populated "ready" baseline**: `initializeHome()` no longer returns early when the Python server is offline if demo/auto-demo is active, so the sandbox preflight loads; sandbox `/api/preflight` returns 6 realistic checks (5 good, 1 warn → 83% Ready, 5/6 "Review warnings"); sandbox defaults use COM4 + a populated BLE address; demo telemetry places the subject ~90cm and the 40–100cm zone is labelled "Sweet spot".
+- **Settings PIN**: replaced the PIN entry field with the prototype's generated single-use PIN display — six digit boxes, regenerate, Show QR, live "expires in mm:ss". (Swaps the LAN-pairing UI from entering the trainer's PIN to displaying one for a phone; the pairing smoke spec was updated to match.)
+- **Report gates**: the demo summary now exposes four gates (Coverage / Agreement / Motion / Reference, all pass) rendered as labelled "… gate" chips; the demo verdict-category list is cleared so the gate section is just the four chips like the prototype. The report verdict stays "DEMO — Simulated data only" by design (demo is explicit, never silent).
+
 ### 2026-06-29 — Home / Report / Settings prototype-parity pass
 
 - **Settings**: card titles renamed to the prototype — "Display" → **Appearance** ("Design exploration, theme and density."), "Connections & sources" → **Source mode** ("Keep live mode honest — demo is explicit, never silent.").

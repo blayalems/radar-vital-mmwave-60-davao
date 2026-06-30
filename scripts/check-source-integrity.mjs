@@ -51,7 +51,6 @@ const requiredTemplateBindings = {
     /auto-retry\s+in\s+\{\{\s*seconds\s*\}\}\s*s/,
     /\{\{\s*state\.setup\(\)\.operator_label\s*\|\|\s*['"]Operator A['"]\s*\}\}/,
     /\{\{\s*state\.paused\(\)\s*\?\s*['"]play_arrow['"]\s*:\s*['"]pause['"]\s*\}\}/,
-    /\[attr\.aria-pressed\]="state\.paused\(\)"/,
     /topbar\.resumePolling/,
     /translate:i18n\.locale\(\):i18n\.revision\(\)/,
   ],

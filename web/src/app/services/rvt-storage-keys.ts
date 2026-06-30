@@ -11,4 +11,5 @@ export const OPERATOR_TOKEN_KEY = 'rvt-operator-token';
 export const CONSENT_KEY = 'rvt-consent-record';
 export const TUTORIAL_DONE_KEY = 'rvt-tutorial-done';
 export const DIAGNOSTICS_OPTIN_KEY = 'rvt-diagnostics-optin';
+export const SANDBOX_OPERATOR_PROFILES_KEY = 'demo:rvt-operator-profiles';
 

@@ -3,7 +3,7 @@ import { ApiService } from './api.service';
 import { StateService } from './state.service';
 import { FirstRunService } from './first-run.service';
 import { ControlStatus, OperatorProfile, OperatorProfilesResponse, LoginResponse } from '../models/rvt.models';
-import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
+import { OPERATOR_TOKEN_KEY, SANDBOX_OPERATOR_PROFILES_KEY } from './rvt-storage-keys';
 
 @Injectable({
   providedIn: 'root'
@@ -103,14 +103,40 @@ export class AuthService {
       const res = await this.api.request<OperatorProfilesResponse>('/api/operator-profiles');
       const list = res?.profiles || [];
       this.profiles.set(list);
-      this.bootstrapping.set(list.length === 0);
+      // Only fall into first-run onboarding when there is genuinely no operator
+      // profile on file. A persisted profile (e.g. a demo operator created during
+      // first-run setup) means this is an existing user, so on refresh we must
+      // keep them on the login/unlock screen — never the create-operator flow —
+      // even if a transient or schema-strict read returns an empty list.
+      this.bootstrapping.set(list.length === 0 && !this.hasPersistedProfile());
     } catch (err) {
       console.error('Failed to load operator profiles', err);
       if (this.state.ctlStatus()?.mode === 'sandbox') {
-        this.bootstrapping.set(this.profiles().length === 0);
+        this.bootstrapping.set(this.profiles().length === 0 && !this.hasPersistedProfile());
       }
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  /**
+   * Lenient check for an existing operator profile persisted on this install.
+   * Used to keep returning users on the login/unlock screen instead of bouncing
+   * them back into first-run onboarding when a fetch (or a strict sandbox read)
+   * returns an empty list. In demo/sandbox mode the persisted source of truth is
+   * the `demo:rvt-operator-profiles` localStorage record.
+   */
+  private hasPersistedProfile(): boolean {
+    try {
+      const raw = localStorage.getItem(SANDBOX_OPERATOR_PROFILES_KEY);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw) as { profiles?: Array<{ operator_id?: unknown }> };
+      const profiles = Array.isArray(parsed?.profiles) ? parsed.profiles : [];
+      return profiles.some(
+        profile => typeof profile?.operator_id === 'string' && profile.operator_id.length > 0
+      );
+    } catch (_) {
+      return false;
     }
   }
 

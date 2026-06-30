@@ -40,21 +40,19 @@
   <mat-card class="command-strip-card">
     <div class="command-strip-inner">
       <div class="session-timer-group">
-        <mat-icon class="timer-icon animate-pulse">sensors</mat-icon>
+        <span class="timer-dot animate-pulse" aria-hidden="true"></span>
         <div class="timer-meta">
           <strong>
             {{ state.lastPayload()?.meta?.status === 'running'
               ? 'Recording telemetry'
-              : 'Standby - polling stream'
+              : 'Standby — polling stream'
             }}
           </strong>
           <small>
-            {{ state.lastPayload()?.meta?.status === 'running' ? 'Elapsed' : 'Preview' }}:
-            {{ state.lastPayload()?.meta?.elapsed_s || 0 }}s
             @if (state.lastPayload()?.meta?.status === 'running') {
-              / Remaining: {{ state.lastPayload()?.meta?.remaining_s || 0 }}s
+              Elapsed: {{ state.lastPayload()?.meta?.elapsed_s || 0 }}s / Remaining: {{ state.lastPayload()?.meta?.remaining_s || 0 }}s
             } @else {
-              / no active session
+              No active session · live preview
             }
           </small>
         </div>
@@ -66,20 +64,24 @@
           <mat-icon aria-hidden="true">{{ state.lastPayload()?.meta?.status === 'running' ? 'fiber_manual_record' : 'schedule' }}</mat-icon>
           {{ state.lastPayload()?.meta?.status === 'running' ? 'Recording' : 'Standby' }}
         </span>
-        @if (sessionPhaseLabel(); as phaseLabel) {
-          <span class="status-chip phase-chip" [attr.data-phase]="sessionPhaseName()" [class.stale-dim]="state.telemetryStale()">
-            <mat-icon aria-hidden="true">{{ sessionPhaseIcon() }}</mat-icon>{{ phaseLabel }}
-          </span>
-        }
-        @if (motionActive()) {
-          <span class="status-chip motion-chip" [class.stale-dim]="state.telemetryStale()">
-            <mat-icon aria-hidden="true">directions_run</mat-icon>Motion - holding
-          </span>
-        }
-        @if (liveVerdictLabel(); as verdictLabel) {
-          <span class="status-chip verdict-chip" [attr.data-verdict]="liveVerdict()" [class.stale-dim]="state.telemetryStale()">
-            <mat-icon aria-hidden="true">fact_check</mat-icon>{{ verdictLabel }}
-          </span>
+        <!-- Phase / motion / readiness chips are Advanced-mode detail; the
+             Simple (zen) view shows a single status chip like the prototype. -->
+        @if (!state.zenMode()) {
+          @if (sessionPhaseLabel(); as phaseLabel) {
+            <span class="status-chip phase-chip" [attr.data-phase]="sessionPhaseName()" [class.stale-dim]="state.telemetryStale()">
+              <mat-icon aria-hidden="true">{{ sessionPhaseIcon() }}</mat-icon>{{ phaseLabel }}
+            </span>
+          }
+          @if (motionActive()) {
+            <span class="status-chip motion-chip" [class.stale-dim]="state.telemetryStale()">
+              <mat-icon aria-hidden="true">directions_run</mat-icon>Motion - holding
+            </span>
+          }
+          @if (liveVerdictLabel(); as verdictLabel) {
+            <span class="status-chip verdict-chip" [attr.data-verdict]="liveVerdict()" [class.stale-dim]="state.telemetryStale()">
+              <mat-icon aria-hidden="true">fact_check</mat-icon>{{ verdictLabel }}
+            </span>
+          }
         }
       </div>
 
@@ -312,8 +314,8 @@
 
           <mat-card-content class="notes-content-area">
             <mat-form-field appearance="outline" class="form-field-full">
-              <mat-label>Operator observations</mat-label>
-              <textarea matInput class="notes-textarea" [ngModel]="sessionNotesInput" (ngModelChange)="saveSessionNotes($event)" placeholder="Write your session notes here..."></textarea>
+              <mat-label>Write observations here…</mat-label>
+              <textarea matInput class="notes-textarea" [ngModel]="sessionNotesInput" (ngModelChange)="saveSessionNotes($event)" aria-label="Session notes"></textarea>
             </mat-form-field>
 
             <div class="quick-tags-toolbar">

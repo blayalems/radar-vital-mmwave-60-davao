@@ -1,13 +1,15 @@
 .recovery-dialog-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 1.1rem;
+  gap: 10px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--md-sys-color-on-surface);
 }
 
 .recovery-icon {
   font-size: 1.4rem;
-  color: var(--mat-sys-primary, #6750a4);
+  color: var(--md-sys-color-primary, #36618e);
 }
 
 .recovery-dialog-content {
@@ -17,23 +19,24 @@
 .recovery-intro {
   margin: 0 0 16px 0;
   font-size: 0.9rem;
-  color: var(--mat-sys-on-surface-variant, #49454f);
+  color: var(--md-sys-color-on-surface-variant, #4d5e74);
 }
 
 .recovery-code-block {
-  background: var(--mat-sys-surface-variant, #e7e0ec);
-  border-radius: 8px;
+  background: var(--md-sys-color-surface-container-low, #f4f8fd);
+  border: 1px solid var(--md-sys-color-outline-variant, #d3dfec);
+  border-radius: var(--rv-r2, 14px);
   padding: 20px 24px;
   text-align: center;
   margin-bottom: 12px;
 }
 
 .recovery-code-text {
-  font-family: 'Roboto Mono', 'Courier New', monospace;
+  font-family: var(--fm, 'Roboto Mono', 'Courier New', monospace);
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--mat-sys-on-surface, #1c1b1f);
+  color: var(--md-sys-color-on-surface, #16212e);
   user-select: all;
 }
 
@@ -49,9 +52,9 @@
 
 .recovery-warning {
   font-size: 0.8rem;
-  color: var(--mat-sys-on-surface-variant, #49454f);
+  color: var(--md-sys-color-on-surface-variant, #4d5e74);
   margin: 0;
-  border-left: 3px solid var(--mat-sys-outline, #79747e);
+  border-left: 3px solid var(--md-sys-color-outline, #73839a);
   padding-left: 10px;
 }
 

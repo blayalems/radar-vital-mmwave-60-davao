@@ -15,7 +15,7 @@ import {
 } from '../models/rvt.models';
 import { PRODUCT_VERSION } from './app-meta';
 import { StateService } from './state.service';
-import { API_BASE_KEY, SERVER_URL_KEY, TOKEN_KEY, OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
+import { API_BASE_KEY, SERVER_URL_KEY, TOKEN_KEY, OPERATOR_TOKEN_KEY, SANDBOX_OPERATOR_PROFILES_KEY } from './rvt-storage-keys';
 
 interface NativeHttpPlugin {
   request(options: {
@@ -43,7 +43,6 @@ interface SandboxOperatorProfile extends OperatorProfile {
   locked_until?: number;
 }
 
-const SANDBOX_OPERATOR_PROFILES_KEY = 'demo:rvt-operator-profiles';
 const SANDBOX_OPERATOR_SESSIONS_KEY = 'demo:rvt-operator-sessions';
 const SANDBOX_OPERATOR_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 

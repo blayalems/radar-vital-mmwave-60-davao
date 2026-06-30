@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-29 — Home / Report / Settings prototype-parity pass
+
+- **Settings**: card titles renamed to the prototype — "Display" → **Appearance** ("Design exploration, theme and density."), "Connections & sources" → **Source mode** ("Keep live mode honest — demo is explicit, never silent.").
+- **Report**: session selector reduced to the prototype's bare **"Session" label + chips** (dropped the card wrapper, the icon/description block and the "All sessions" dropdown); removed the analytics icon from the **Session quality** header; removed the per-tile **sub-labels** under each quality stat value.
+- **Home**: Live-radar-scope **Range/HR/RR metrics are now plain** (no card box, left-aligned) like the prototype; "Trend (last 60s)" → "Trend — last 60 s".
+
 ### 2026-06-29 — Help screen header now matches the prototype (compact status bar)
 
 - **Removed the gradient hero** ("Operator Playbook & Field Dictionary" banner) from the Help screen — the prototype leads with a compact status bar: three status chips (source / firmware / "Consent on file") on the left and the "Advanced detail" toggle on the right. `help-header-card` is now a plain `surface-container` bar (no gradient / accent line / title group).

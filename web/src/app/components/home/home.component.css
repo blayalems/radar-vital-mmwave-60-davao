@@ -734,16 +734,17 @@
   grid-template-columns: repeat(3, 1fr);
   width: 100%;
   gap: 8px;
-  text-align: center;
+  text-align: left;
 }
 
+/* Plain stacked metrics (prototype shows no card box around Range/HR/RR). */
 .scope-metric {
   display: flex;
   flex-direction: column;
-  padding: 10px 8px;
-  background: var(--md-sys-color-surface-container-low, #f1f5f9);
-  border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
-  border-radius: var(--rv-r2, 14px);
+  gap: 2px;
+  padding: 4px 0;
+  background: transparent;
+  border: none;
 }
 
 .scope-metric span {

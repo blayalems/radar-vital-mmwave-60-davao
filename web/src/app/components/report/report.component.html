@@ -1,50 +1,28 @@
 <!-- TELEMETRY REVIEW & REPORT PANEL -->
 <div class="report-container">
 
-  <!-- SESSION SELECTOR CARD -->
-  <mat-card class="selector-card">
-    <div class="selector-row">
-      <div class="selector-label-group">
-        <mat-icon>assignment</mat-icon>
-        <div>
-          <strong>Session report</strong>
-          <small>Review recorded verdicts, quality gates, and reference agreement.</small>
-        </div>
-      </div>
-
-      <div class="selector-controls">
-        @if (sessions.length > 0) {
-          <div class="session-chip-row" aria-label="Recent report sessions">
-            @for (s of sessions.slice(0, 4); track s.session_id) {
-              <button
-                type="button"
-                class="session-chip"
-                [class.selected]="s.session_id === selectedSessionId"
-                [attr.aria-pressed]="s.session_id === selectedSessionId"
-                [disabled]="sessionsLoading"
-                (click)="selectSessionChip(s.session_id)">
-                {{ sessionChipLabel(s) }}
-              </button>
-            }
-          </div>
+  <!-- SESSION SELECTOR — bare "Session" label + chips, matching the prototype -->
+  <div class="session-selector-bar">
+    <span class="session-selector-label">Session</span>
+    @if (sessions.length > 0) {
+      <div class="session-chip-row" aria-label="Recent report sessions">
+        @for (s of sessions.slice(0, 4); track s.session_id) {
+          <button
+            type="button"
+            class="session-chip"
+            [class.selected]="s.session_id === selectedSessionId"
+            [attr.aria-pressed]="s.session_id === selectedSessionId"
+            [disabled]="sessionsLoading"
+            (click)="selectSessionChip(s.session_id)">
+            {{ sessionChipLabel(s) }}
+          </button>
         }
-
-        <mat-form-field appearance="outline" class="session-dropdown-field">
-          <mat-label>All sessions</mat-label>
-          <mat-select [(ngModel)]="selectedSessionId" (selectionChange)="onSessionChange()" [disabled]="sessionsLoading || sessions.length === 0">
-          @for (s of sessions; track s.session_id) {
-          <mat-option [value]="s.session_id">
-              {{ sessionChipLabel(s) }}
-            </mat-option>
-          }
-          </mat-select>
-        </mat-form-field>
       </div>
-    </div>
+    }
     @if (sessionsLoading) {
       <mat-progress-bar mode="indeterminate" aria-label="Loading report sessions"></mat-progress-bar>
     }
-  </mat-card>
+  </div>
 
   <!-- REPORT BODY CONTENT -->
   @if (selectedSession) {
@@ -72,7 +50,6 @@
     @if (hasQualityData()) {
       <mat-card class="quality-card">
         <mat-card-header>
-          <mat-icon mat-card-avatar class="header-avatar-ic">analytics</mat-icon>
           <mat-card-title>Session quality</mat-card-title>
           <mat-card-subtitle>Signal quality and readiness gates from the recorded analysis.</mat-card-subtitle>
         </mat-card-header>
@@ -82,7 +59,6 @@
               <div class="quality-stat">
                 <span class="quality-stat-label">{{ stat.label }}</span>
                 <strong>{{ stat.value }}</strong>
-                <small>{{ stat.sub }}</small>
               </div>
             }
           </div>

@@ -19,13 +19,6 @@
         <input matInput [value]="searchQuery()" (input)="updateSearch($event)" aria-label="Search the playbook">
       </mat-form-field>
     </div>
-    <nav class="topic-links" aria-label="Playbook topics">
-      @for (topic of topicLinks; track topic.id) {
-        <button mat-flat-button type="button" [class.active]="selectedTopic() === topic.id" (click)="openTopic(topic.id)">
-          <mat-icon>{{ topic.icon }}</mat-icon>{{ topic.label }}
-        </button>
-      }
-    </nav>
     <mat-chip-set class="category-chips" aria-label="Help categories">
       @for (category of categories; track category.id) {
         <button mat-flat-button type="button" [class.active]="activeCategory() === category.id" (click)="setCategory(category.id)" class="mat-tonal-button">
@@ -33,6 +26,25 @@
         </button>
       }
     </mat-chip-set>
+  </mat-card>
+
+  <!-- Quick support actions — full-width card with a two-column action grid,
+       matching the prototype (was a right-hand sidebar). -->
+  <mat-card class="recovery-card recovery-card--full">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="header-avatar-ic">support_agent</mat-icon>
+      <mat-card-title>Quick support actions</mat-card-title>
+      <mat-card-subtitle>One tap to the most common recovery paths.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content class="recovery-actions-grid">
+      <button mat-flat-button type="button" (click)="openPreflight()"><mat-icon>fact_check</mat-icon>Run preflight</button>
+      <button mat-flat-button type="button" (click)="reconnect()" class="mat-tonal-button"><mat-icon>sync</mat-icon>Reconnect trainer</button>
+      <button mat-flat-button type="button" routerLink="/settings" class="mat-tonal-button"><mat-icon>settings</mat-icon>Source settings</button>
+      <button mat-flat-button type="button" routerLink="/report" class="mat-tonal-button"><mat-icon>assignment</mat-icon>Open reports</button>
+      <button mat-flat-button type="button" (click)="openShortcuts()" class="mat-tonal-button"><mat-icon>keyboard</mat-icon>Keyboard shortcuts</button>
+      <button mat-flat-button type="button" (click)="replayTutorial()" class="mat-tonal-button"><mat-icon>school</mat-icon>Replay tutorial</button>
+      <button mat-flat-button type="button" (click)="copySupportSummary()" class="mat-tonal-button"><mat-icon>content_copy</mat-icon>Copy support summary</button>
+    </mat-card-content>
   </mat-card>
 
   <div class="help-layout">
@@ -87,23 +99,6 @@
     </section>
 
     <aside class="support-column">
-      <mat-card class="recovery-card">
-        <mat-card-header>
-          <mat-icon mat-card-avatar class="header-avatar-ic">support_agent</mat-icon>
-          <mat-card-title>Quick Support Actions</mat-card-title>
-        </mat-card-header>
-        <mat-card-content class="recovery-actions-list">
-          <p>Verify source mode and preflight before relying on live readings.</p>
-          <button mat-flat-button type="button" (click)="openPreflight()"><mat-icon>fact_check</mat-icon>Run preflight</button>
-          <button mat-flat-button type="button" (click)="reconnect()" class="mat-tonal-button"><mat-icon>sync</mat-icon>Reconnect trainer</button>
-          <button mat-flat-button type="button" routerLink="/settings" class="mat-tonal-button"><mat-icon>settings</mat-icon>Source settings</button>
-          <button mat-flat-button type="button" routerLink="/report" class="mat-tonal-button"><mat-icon>assignment</mat-icon>Open reports</button>
-          <button mat-flat-button type="button" (click)="openShortcuts()" class="mat-tonal-button"><mat-icon>keyboard</mat-icon>Keyboard shortcuts</button>
-          <button mat-flat-button type="button" (click)="replayTutorial()" class="mat-tonal-button"><mat-icon>school</mat-icon>Replay tutorial</button>
-          <button mat-flat-button type="button" (click)="copySupportSummary()" class="mat-tonal-button"><mat-icon>content_copy</mat-icon>Copy support summary</button>
-        </mat-card-content>
-      </mat-card>
-
       <mat-card class="legal-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="header-avatar-ic">gavel</mat-icon>

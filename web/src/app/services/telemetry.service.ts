@@ -347,7 +347,7 @@ export class TelemetryService {
     }
 
     const x = 0.35 + 0.18 * Math.sin(t / 14);
-    const y = 1.85 + 0.22 * Math.cos(t / 16);
+    const y = 0.80 + 0.10 * Math.cos(t / 16);
     const distCm = Math.hypot(x, y) * 100;
     const payload = {
       meta: {

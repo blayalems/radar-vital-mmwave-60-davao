@@ -675,8 +675,15 @@ export class ApiService {
         };
       }
     }
-    if (url.pathname === '/api/defaults') return { sandbox: true, radar_port: 'COM10', ble_address: '', ble_profile: 'ailink_oximeter' };
-    if (url.pathname === '/api/preflight') return { ok: true, checks: [{ name: 'Sandbox trainer', ok: true, message: 'Demo mode is available.' }] };
+    if (url.pathname === '/api/defaults') return { sandbox: true, radar_port: 'COM4', ble_address: '10:22:33:9E:8F:63', ble_profile: 'ailink_oximeter' };
+    if (url.pathname === '/api/preflight') return { ok: true, checks: [
+      { id: 'trainer', label: 'Trainer link', status: 'good', description: 'Demo trainer reachable — simulated control plane.' },
+      { id: 'radar', label: 'Radar serial', status: 'good', description: 'COM4 — XIAO ESP32-S3 detected.' },
+      { id: 'firmware', label: 'Firmware contract', status: 'good', description: 'Simulated 219-column contract intact.' },
+      { id: 'ble', label: 'BLE reference', status: 'good', description: 'AiLink oximeter paired (simulated).' },
+      { id: 'placement', label: 'Subject placement', status: 'good', description: 'Subject within the radar sweet spot.' },
+      { id: 'coverage', label: 'Reference coverage', status: 'warn', description: 'Simulated BLE coverage 72% — review before trusting agreement.', remediation: 'Keep the oximeter within range for the full session.' }
+    ] };
     if (url.pathname === '/api/ble/scan') return { ok: true, devices: [] };
     return { ok: true, sandbox: true };
   }

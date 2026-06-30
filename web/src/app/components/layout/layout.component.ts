@@ -14,6 +14,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatNavigationBar, MatNavigationTab } from '@app/navigation-bar';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatMenuModule } from '@angular/material/menu';
 
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
@@ -40,6 +41,7 @@ import { PRODUCT_VERSION_SHORT } from '../../services/app-meta';
     MatDialogModule,
     MatIconModule,
     MatListModule,
+    MatMenuModule,
     MatSidenavModule,
     MatToolbarModule,
     MatProgressSpinnerModule,

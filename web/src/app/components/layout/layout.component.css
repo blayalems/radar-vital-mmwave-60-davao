@@ -555,12 +555,25 @@
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--rv-r2);
   color: var(--md-sys-color-on-surface);
+  cursor: pointer;
   display: flex;
+  font: inherit;
   gap: 12px;
   margin-top: 8px;
   padding: 10px 12px;
   text-align: left;
   width: 100%;
+}
+
+.rail .operator:hover {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+/* Pin the rail foot (Commands + operator) to the bottom, matching the
+   prototype where the workflow nav sits at the top and the operator card
+   anchors the base of the rail. */
+.rail .rail-foot {
+  margin-top: auto;
 }
 
 .rail .op-avatar {

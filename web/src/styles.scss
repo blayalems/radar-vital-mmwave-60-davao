@@ -787,6 +787,13 @@ h1, h2, h3, h4, h5, h6,
     width: 248px !important;
     padding: 14px 12px !important;
   }
+  /* Make the rail a flex column so the foot (Commands + operator) can pin to
+     the bottom like the prototype. */
+  .rail .mat-drawer-inner-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
   .rail .nav-groups {
     gap: 2px;
   }

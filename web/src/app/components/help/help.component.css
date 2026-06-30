@@ -19,25 +19,15 @@
 }
 
 /* ---- Playbook header card -------------------------------------------------- */
+/* Compact status bar (prototype has no gradient hero — just the status
+   chips on the left and the Advanced-detail toggle on the right). */
 .help-header-card {
   border-radius: var(--rv-r1) !important;
   border: 1px solid var(--md-sys-color-outline-variant);
   box-shadow: none !important;
-  padding: 18px 20px;
-  background:
-    radial-gradient(circle at 96% -20%,
-      color-mix(in srgb, var(--md-sys-color-tertiary-container) 70%, transparent), transparent 42%),
-    linear-gradient(120deg, var(--md-sys-color-surface-container), var(--md-sys-color-surface-container-low)) !important;
-  overflow: hidden;
+  padding: 10px 16px;
+  background: var(--md-sys-color-surface-container) !important;
   position: relative;
-}
-
-.help-header-card::before {
-  background: linear-gradient(90deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
-  content: '';
-  height: 3px;
-  inset: 0 0 auto;
-  position: absolute;
 }
 
 .help-header-inner {

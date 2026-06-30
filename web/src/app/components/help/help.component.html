@@ -1,20 +1,12 @@
 <div class="help-container">
   <mat-card class="help-header-card">
     <div class="help-header-inner">
-      <div class="help-title-group">
-        <mat-icon class="help-main-icon">menu_book</mat-icon>
-        <div>
-          <strong>Operator Playbook & Field Dictionary</strong>
-          <small>Complete offline guide for workflow, signal truthfulness, telemetry terms and hardware recovery.</small>
-        </div>
-      </div>
-      <div class="header-controls">
-        <mat-chip-set aria-label="Support status">
-          <mat-chip>{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo source' : (state.ctlStatus()?.ok ? 'Trainer API source' : 'Embedded guide') }}</mat-chip>
-          <mat-chip>{{ schemaVersion() || 'Offline-ready' }}</mat-chip>
-        </mat-chip-set>
-        <mat-slide-toggle [checked]="advancedMode()" (change)="setAdvancedMode($event.checked)">Advanced detail</mat-slide-toggle>
-      </div>
+      <mat-chip-set class="header-controls" aria-label="Support status">
+        <mat-chip>{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo source' : (state.ctlStatus()?.ok ? 'Trainer API source' : 'Embedded guide') }}</mat-chip>
+        <mat-chip>{{ schemaVersion() || 'Offline-ready' }}</mat-chip>
+        <mat-chip>Consent on file</mat-chip>
+      </mat-chip-set>
+      <mat-slide-toggle [checked]="advancedMode()" (change)="setAdvancedMode($event.checked)">Advanced detail</mat-slide-toggle>
     </div>
     @if (loading()) { <mat-progress-bar class="schema-progress" mode="indeterminate" aria-label="Loading trainer field dictionary"></mat-progress-bar> }
   </mat-card>
@@ -22,11 +14,10 @@
   <mat-card class="help-search-card">
     <div class="search-toolbar-inner">
       <mat-form-field appearance="outline" class="search-field">
-        <mat-label>Search help, telemetry fields, errors or shortcuts</mat-label>
+        <mat-label>Search the playbook — e.g. stale, BLE, preflight…</mat-label>
         <mat-icon matPrefix>search</mat-icon>
-        <input matInput [value]="searchQuery()" (input)="updateSearch($event)" placeholder="e.g. stale, BLE coverage, contract mismatch">
+        <input matInput [value]="searchQuery()" (input)="updateSearch($event)" aria-label="Search the playbook">
       </mat-form-field>
-      <span class="shortcut-tip"><kbd>Ctrl K</kbd> commands | <kbd>Alt 1-6</kbd> live tabs</span>
     </div>
     <nav class="topic-links" aria-label="Playbook topics">
       @for (topic of topicLinks; track topic.id) {

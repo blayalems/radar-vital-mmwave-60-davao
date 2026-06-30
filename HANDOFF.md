@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-29 — Help screen header now matches the prototype (compact status bar)
+
+- **Removed the gradient hero** ("Operator Playbook & Field Dictionary" banner) from the Help screen — the prototype leads with a compact status bar: three status chips (source / firmware / "Consent on file") on the left and the "Advanced detail" toggle on the right. `help-header-card` is now a plain `surface-container` bar (no gradient / accent line / title group).
+- **Search** uses the prototype copy ("Search the playbook — e.g. stale, BLE, preflight…") and drops the `Ctrl K / Alt 1-6` shortcut hint; the field already had pill styling.
+- Remaining Help deltas (the second category-chip row, and the Quick-Support sidebar vs the prototype's full-width action card) are functional filter/support UI and were left intact pending a decision on restructuring them.
+
 ### 2026-06-29 — Fix: refresh sends existing operator to first-run onboarding instead of PIN login
 
 - **Bug**: After completing first-run setup (consent on file, demo operator profile created), reloading the page could show the first-run "Create Operator" onboarding instead of the PIN unlock/login screen. Root cause: `AuthService.loadProfiles()` set `bootstrapping = (list.length === 0)`, and the idle-lock overlay shows onboarding whenever `bootstrapping` is true. In demo/sandbox mode the profile list comes from `demo:rvt-operator-profiles`, whose read is schema-strict (drops records missing fields such as `pin`); any empty/transient read flipped a returning user into onboarding.

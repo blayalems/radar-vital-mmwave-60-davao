@@ -1,20 +1,12 @@
 <div class="help-container">
   <mat-card class="help-header-card">
     <div class="help-header-inner">
-      <div class="help-title-group">
-        <mat-icon class="help-main-icon">menu_book</mat-icon>
-        <div>
-          <strong>Operator Playbook & Field Dictionary</strong>
-          <small>Complete offline guide for workflow, signal truthfulness, telemetry terms and hardware recovery.</small>
-        </div>
-      </div>
-      <div class="header-controls">
-        <mat-chip-set aria-label="Support status">
-          <mat-chip>{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo source' : (state.ctlStatus()?.ok ? 'Trainer API source' : 'Embedded guide') }}</mat-chip>
-          <mat-chip>{{ schemaVersion() || 'Offline-ready' }}</mat-chip>
-        </mat-chip-set>
-        <mat-slide-toggle [checked]="advancedMode()" (change)="setAdvancedMode($event.checked)">Advanced detail</mat-slide-toggle>
-      </div>
+      <mat-chip-set class="header-controls" aria-label="Support status">
+        <mat-chip>{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo source' : (state.ctlStatus()?.ok ? 'Trainer API source' : 'Embedded guide') }}</mat-chip>
+        <mat-chip>{{ schemaVersion() || 'Offline-ready' }}</mat-chip>
+        <mat-chip>Consent on file</mat-chip>
+      </mat-chip-set>
+      <mat-slide-toggle [checked]="advancedMode()" (change)="setAdvancedMode($event.checked)">Advanced detail</mat-slide-toggle>
     </div>
     @if (loading()) { <mat-progress-bar class="schema-progress" mode="indeterminate" aria-label="Loading trainer field dictionary"></mat-progress-bar> }
   </mat-card>
@@ -22,19 +14,11 @@
   <mat-card class="help-search-card">
     <div class="search-toolbar-inner">
       <mat-form-field appearance="outline" class="search-field">
-        <mat-label>Search help, telemetry fields, errors or shortcuts</mat-label>
+        <mat-label>Search the playbook — e.g. stale, BLE, preflight…</mat-label>
         <mat-icon matPrefix>search</mat-icon>
-        <input matInput [value]="searchQuery()" (input)="updateSearch($event)" placeholder="e.g. stale, BLE coverage, contract mismatch">
+        <input matInput [value]="searchQuery()" (input)="updateSearch($event)" aria-label="Search the playbook">
       </mat-form-field>
-      <span class="shortcut-tip"><kbd>Ctrl K</kbd> commands | <kbd>Alt 1-6</kbd> live tabs</span>
     </div>
-    <nav class="topic-links" aria-label="Playbook topics">
-      @for (topic of topicLinks; track topic.id) {
-        <button mat-flat-button type="button" [class.active]="selectedTopic() === topic.id" (click)="openTopic(topic.id)">
-          <mat-icon>{{ topic.icon }}</mat-icon>{{ topic.label }}
-        </button>
-      }
-    </nav>
     <mat-chip-set class="category-chips" aria-label="Help categories">
       @for (category of categories; track category.id) {
         <button mat-flat-button type="button" [class.active]="activeCategory() === category.id" (click)="setCategory(category.id)" class="mat-tonal-button">
@@ -42,6 +26,25 @@
         </button>
       }
     </mat-chip-set>
+  </mat-card>
+
+  <!-- Quick support actions — full-width card with a two-column action grid,
+       matching the prototype (was a right-hand sidebar). -->
+  <mat-card class="recovery-card recovery-card--full">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="header-avatar-ic">support_agent</mat-icon>
+      <mat-card-title>Quick support actions</mat-card-title>
+      <mat-card-subtitle>One tap to the most common recovery paths.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content class="recovery-actions-grid">
+      <button mat-flat-button type="button" (click)="openPreflight()"><mat-icon>fact_check</mat-icon>Run preflight</button>
+      <button mat-flat-button type="button" (click)="reconnect()" class="mat-tonal-button"><mat-icon>sync</mat-icon>Reconnect trainer</button>
+      <button mat-flat-button type="button" routerLink="/settings" class="mat-tonal-button"><mat-icon>settings</mat-icon>Source settings</button>
+      <button mat-flat-button type="button" routerLink="/report" class="mat-tonal-button"><mat-icon>assignment</mat-icon>Open reports</button>
+      <button mat-flat-button type="button" (click)="openShortcuts()" class="mat-tonal-button"><mat-icon>keyboard</mat-icon>Keyboard shortcuts</button>
+      <button mat-flat-button type="button" (click)="replayTutorial()" class="mat-tonal-button"><mat-icon>school</mat-icon>Replay tutorial</button>
+      <button mat-flat-button type="button" (click)="copySupportSummary()" class="mat-tonal-button"><mat-icon>content_copy</mat-icon>Copy support summary</button>
+    </mat-card-content>
   </mat-card>
 
   <div class="help-layout">
@@ -96,23 +99,6 @@
     </section>
 
     <aside class="support-column">
-      <mat-card class="recovery-card">
-        <mat-card-header>
-          <mat-icon mat-card-avatar class="header-avatar-ic">support_agent</mat-icon>
-          <mat-card-title>Quick Support Actions</mat-card-title>
-        </mat-card-header>
-        <mat-card-content class="recovery-actions-list">
-          <p>Verify source mode and preflight before relying on live readings.</p>
-          <button mat-flat-button type="button" (click)="openPreflight()"><mat-icon>fact_check</mat-icon>Run preflight</button>
-          <button mat-flat-button type="button" (click)="reconnect()" class="mat-tonal-button"><mat-icon>sync</mat-icon>Reconnect trainer</button>
-          <button mat-flat-button type="button" routerLink="/settings" class="mat-tonal-button"><mat-icon>settings</mat-icon>Source settings</button>
-          <button mat-flat-button type="button" routerLink="/report" class="mat-tonal-button"><mat-icon>assignment</mat-icon>Open reports</button>
-          <button mat-flat-button type="button" (click)="openShortcuts()" class="mat-tonal-button"><mat-icon>keyboard</mat-icon>Keyboard shortcuts</button>
-          <button mat-flat-button type="button" (click)="replayTutorial()" class="mat-tonal-button"><mat-icon>school</mat-icon>Replay tutorial</button>
-          <button mat-flat-button type="button" (click)="copySupportSummary()" class="mat-tonal-button"><mat-icon>content_copy</mat-icon>Copy support summary</button>
-        </mat-card-content>
-      </mat-card>
-
       <mat-card class="legal-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="header-avatar-ic">gavel</mat-icon>

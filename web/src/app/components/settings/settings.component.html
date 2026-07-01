@@ -32,8 +32,8 @@
       <mat-card class="settings-card settings-group-card premium-card connections-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">sensors</mat-icon>
-          <mat-card-title>Connections &amp; sources</mat-card-title>
-          <mat-card-subtitle>Trainer, pairing, Python server, BLE reference</mat-card-subtitle>
+          <mat-card-title>Source mode</mat-card-title>
+          <mat-card-subtitle>Keep live mode honest — demo is explicit, never silent.</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <section class="settings-section" aria-labelledby="source-mode-title">
@@ -64,16 +64,28 @@
               <mat-hint>Leave blank when the dashboard is served by the trainer.</mat-hint>
             </mat-form-field>
 
-            <mat-form-field appearance="outline" class="form-field-full">
-              <mat-label>Six-digit LAN pairing PIN</mat-label>
-              <input matInput type="password" inputmode="numeric" maxlength="6" [ngModel]="pinInput()" (ngModelChange)="pinInput.set($event)" autocomplete="one-time-code">
-              <mat-hint>Scan the trainer QR code or enter its one-time PIN. The issued token stays in this browser tab only.</mat-hint>
-            </mat-form-field>
+            <div class="lan-pin-block">
+              <div class="lan-pin-head">
+                <span class="lan-pin-title">Single-use LAN pairing PIN</span>
+                <span class="lan-pin-expiry">expires in {{ pinExpiryLabel() }}</span>
+              </div>
+              <div class="lan-pin-row">
+                <div class="lan-pin-boxes" role="group" aria-label="LAN pairing PIN">
+                  @for (digit of lanPinDigits(); track $index) {
+                    <span class="lan-pin-box">{{ digit }}</span>
+                  }
+                </div>
+                <button mat-icon-button type="button" class="lan-pin-refresh" (click)="regenerateLanPin()" title="Regenerate PIN" aria-label="Regenerate pairing PIN">
+                  <mat-icon>autorenew</mat-icon>
+                </button>
+                <button mat-flat-button type="button" class="mat-tonal-button" (click)="showPairingQr()">
+                  <mat-icon>qr_code_2</mat-icon>Show QR
+                </button>
+              </div>
+              <p class="lan-pin-hint">Enter this PIN on the paired phone to authorize LAN access. PINs are single-use and held in memory only.</p>
+            </div>
 
             <div class="settings-actions-row">
-              <button mat-flat-button type="button" (click)="pairWithPin()" [disabled]="connectionBusy() || pinInput().length !== 6" class="mat-tonal-button">
-                <mat-icon>qr_code_2</mat-icon>Pair with PIN
-              </button>
               <button mat-flat-button type="button" class="primary-wide-action" (click)="reconnectTrainer()" [disabled]="connectionBusy()">
                 <mat-icon>link</mat-icon>{{ connectionBusy() ? 'Connecting...' : 'Connect to trainer' }}
               </button>
@@ -245,8 +257,8 @@
       <mat-card class="settings-card settings-group-card premium-card display-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">palette</mat-icon>
-          <mat-card-title>Display</mat-card-title>
-          <mat-card-subtitle>Theme, palette, dynamic color, text size, density</mat-card-subtitle>
+          <mat-card-title>Appearance</mat-card-title>
+          <mat-card-subtitle>Design exploration, theme and density.</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <section class="settings-section" aria-labelledby="appearance-title">

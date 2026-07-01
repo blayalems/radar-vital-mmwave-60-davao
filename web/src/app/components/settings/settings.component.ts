@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -151,6 +151,17 @@ export class SettingsComponent {
   protected readonly endpointInput = signal(this.serverLifecycle.serverAddress());
   protected readonly pinInput = signal('');
   protected readonly connectionBusy = signal(false);
+
+  // Single-use LAN pairing PIN the dashboard issues for a phone to enter
+  // (matches the prototype's generated-PIN display). Held in memory only.
+  private readonly destroyRef = inject(DestroyRef);
+  protected readonly lanPin = signal(SettingsComponent.makeLanPin());
+  protected readonly lanPinDigits = computed(() => this.lanPin().split(''));
+  protected readonly pinExpirySeconds = signal(597);
+  protected readonly pinExpiryLabel = computed(() => {
+    const s = Math.max(0, this.pinExpirySeconds());
+    return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  });
   protected readonly bleScanBusy = signal(false);
   protected readonly bleScanDevices = signal<BleScanDevice[]>([]);
   protected readonly bleScanMessage = signal('No scan run yet.');
@@ -186,6 +197,28 @@ export class SettingsComponent {
 
   constructor() {
     this.refreshStorageEstimate();
+    const timer = typeof window !== 'undefined'
+      ? window.setInterval(() => {
+          this.pinExpirySeconds.update(s => (s > 0 ? s - 1 : 0));
+          if (this.pinExpirySeconds() === 0) this.regenerateLanPin();
+        }, 1000)
+      : null;
+    this.destroyRef.onDestroy(() => { if (timer !== null) window.clearInterval(timer); });
+  }
+
+  private static makeLanPin(): string {
+    return String(Math.floor(100000 + Math.random() * 900000));
+  }
+
+  protected regenerateLanPin(): void {
+    this.lanPin.set(SettingsComponent.makeLanPin());
+    this.pinExpirySeconds.set(597);
+    this.state.triggerHaptic('tap');
+  }
+
+  protected showPairingQr(): void {
+    this.snackBar.open(`LAN pairing PIN ${this.lanPin()} — enter it on the paired phone.`, 'Dismiss', { duration: 5000 });
+    this.state.triggerHaptic('tap');
   }
 
   protected settingsCardMatches(id: SettingsGroupId): boolean {

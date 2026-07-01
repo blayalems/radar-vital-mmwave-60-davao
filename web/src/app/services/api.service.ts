@@ -15,7 +15,7 @@ import {
 } from '../models/rvt.models';
 import { PRODUCT_VERSION } from './app-meta';
 import { StateService } from './state.service';
-import { API_BASE_KEY, SERVER_URL_KEY, TOKEN_KEY, OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
+import { API_BASE_KEY, SERVER_URL_KEY, TOKEN_KEY, OPERATOR_TOKEN_KEY, SANDBOX_OPERATOR_PROFILES_KEY } from './rvt-storage-keys';
 
 interface NativeHttpPlugin {
   request(options: {
@@ -43,7 +43,6 @@ interface SandboxOperatorProfile extends OperatorProfile {
   locked_until?: number;
 }
 
-const SANDBOX_OPERATOR_PROFILES_KEY = 'demo:rvt-operator-profiles';
 const SANDBOX_OPERATOR_SESSIONS_KEY = 'demo:rvt-operator-sessions';
 const SANDBOX_OPERATOR_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
@@ -636,14 +635,18 @@ export class ApiService {
           signal_quality: { pqi_lock_pct: 84.2, session_quality_score: 8.7, internal_consistency_score: 9.1, coverage_locked: 81.5, coverage_settling: 11.2 },
           hr_metrics: { rmse: 2.41, mae: 1.92, bias: -0.4, coverage_pct: 88.1 },
           rr_metrics: { rmse: 0.82, mae: 0.61, bias: 0.1, coverage_pct: 90.4 },
-          gates: { primary: { passed: true, status: 'pass' }, secondary: { passed: false, status: 'deferred' } },
+          gates: {
+            coverage: { passed: true, status: 'pass' },
+            agreement: { passed: true, status: 'pass' },
+            motion: { passed: true, status: 'pass' },
+            reference: { passed: true, status: 'pass' }
+          },
           verdict: {
             verdict: 'ready',
             readiness_kind: 'ready',
-            categories: [
-              { id: 'firmware', label: 'Firmware contract', status: 'pass', detail: 'Simulated 219-column contract intact; 207-column prefix preserved.', remediation: '' },
-              { id: 'reference', label: 'Reference coverage', status: 'warn', detail: 'Simulated BLE coverage 72%.', remediation: 'Keep the oximeter within range for the full session.' }
-            ]
+            // The four readiness gate chips above carry the summary; the
+            // prototype keeps the gate section to just those chips.
+            categories: []
           }
         };
       }
@@ -676,8 +679,15 @@ export class ApiService {
         };
       }
     }
-    if (url.pathname === '/api/defaults') return { sandbox: true, radar_port: 'COM10', ble_address: '', ble_profile: 'ailink_oximeter' };
-    if (url.pathname === '/api/preflight') return { ok: true, checks: [{ name: 'Sandbox trainer', ok: true, message: 'Demo mode is available.' }] };
+    if (url.pathname === '/api/defaults') return { sandbox: true, radar_port: 'COM4', ble_address: '10:22:33:9E:8F:63', ble_profile: 'ailink_oximeter' };
+    if (url.pathname === '/api/preflight') return { ok: true, checks: [
+      { id: 'trainer', label: 'Trainer link', status: 'good', description: 'Demo trainer reachable — simulated control plane.' },
+      { id: 'radar', label: 'Radar serial', status: 'good', description: 'COM4 — XIAO ESP32-S3 detected.' },
+      { id: 'firmware', label: 'Firmware contract', status: 'good', description: 'Simulated 219-column contract intact.' },
+      { id: 'ble', label: 'BLE reference', status: 'good', description: 'AiLink oximeter paired (simulated).' },
+      { id: 'placement', label: 'Subject placement', status: 'good', description: 'Subject within the radar sweet spot.' },
+      { id: 'coverage', label: 'Reference coverage', status: 'warn', description: 'Simulated BLE coverage 72% — review before trusting agreement.', remediation: 'Keep the oximeter within range for the full session.' }
+    ] };
     if (url.pathname === '/api/ble/scan') return { ok: true, devices: [] };
     return { ok: true, sandbox: true };
   }

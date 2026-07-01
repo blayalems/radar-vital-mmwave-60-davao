@@ -69,23 +69,17 @@
         <span class="r-ic"><span class="material-symbols-rounded">search</span></span><span class="r-label">Commands</span><span class="r-shortcut">Ctrl K</span>
       </button>
       
-      <div class="operator" title="Current operator">
+      <button type="button" class="operator" [matMenuTriggerFor]="operatorMenu" aria-label="Operator profile actions" title="Operator profile">
         <div class="op-avatar">{{ state.setup().operator_label ? state.setup().operator_label.substring(0, 2).toUpperCase() : 'OP' }}</div>
         <div class="op-meta">
           <div class="op-name">{{ state.setup().operator_label || 'Operator A' }}</div>
           <div class="op-role">{{ state.setup().station_label || 'Lab · Station 3' }}</div>
         </div>
-      </div>
-      <div class="operator-actions" role="group" aria-label="Operator profile actions">
-        <button mat-button type="button" class="operator-action" (click)="lockProfile()">
-          <mat-icon>lock</mat-icon>
-          <span>Lock profile</span>
-        </button>
-        <button mat-button type="button" class="operator-action" (click)="switchOperator()">
-          <mat-icon>swap_horiz</mat-icon>
-          <span>Switch operator</span>
-        </button>
-      </div>
+      </button>
+      <mat-menu #operatorMenu="matMenu">
+        <button mat-menu-item type="button" (click)="lockProfile()"><mat-icon>lock</mat-icon><span>Lock profile</span></button>
+        <button mat-menu-item type="button" (click)="switchOperator()"><mat-icon>swap_horiz</mat-icon><span>Switch operator</span></button>
+      </mat-menu>
     </div>
   </mat-sidenav>
 

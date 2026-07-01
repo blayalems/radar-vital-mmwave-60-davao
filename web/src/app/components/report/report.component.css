@@ -84,6 +84,20 @@
   min-width: 0;
 }
 
+/* Bare session selector — a "Session" label followed by the chips, no card. */
+.session-selector-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.session-selector-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
 .session-chip-row {
   display: flex;
   flex: 1 1 360px;
@@ -91,6 +105,11 @@
   flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
+}
+
+.session-selector-bar .session-chip-row {
+  justify-content: flex-start;
+  flex: 0 1 auto;
 }
 
 .session-chip {

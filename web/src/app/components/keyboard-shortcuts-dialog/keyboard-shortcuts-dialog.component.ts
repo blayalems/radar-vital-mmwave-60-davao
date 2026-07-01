@@ -36,7 +36,11 @@ import { MatIconModule } from '@angular/material/icon';
       gap: 12px;
       margin: 0;
       padding: 16px 24px;
-      font-family: 'Inter', 'Roboto', sans-serif;
+      font-family: var(--rvt-ui-font, 'Inter', 'Roboto', sans-serif);
+      font-weight: 800;
+    }
+    .shortcuts-title mat-icon {
+      color: var(--md-sys-color-primary);
     }
     .shortcuts-content {
       max-height: min(70vh, 660px);
@@ -54,28 +58,28 @@ import { MatIconModule } from '@angular/material/icon';
       display: inline-flex;
       gap: 4px;
       font-weight: bold;
-      width: 140px;
+      width: 132px;
       flex-shrink: 0;
     }
     .shortcut-desc {
       display: inline-flex;
       flex-direction: column;
-      font-family: 'Inter', 'Roboto', sans-serif;
-      color: var(--md-sys-color-on-surface-variant, #64748b);
+      font-family: var(--rvt-ui-font, 'Inter', 'Roboto', sans-serif);
+      color: var(--md-sys-color-on-surface, #16212e);
     }
     .shortcut-desc small {
       font-size: 11px;
       opacity: .8;
     }
     kbd {
-      background-color: var(--md-sys-color-surface-container-high, #f1f5f9);
-      border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
-      border-radius: 4px;
-      padding: 2px 6px;
-      font-family: monospace;
-      font-size: 13px;
-      color: var(--md-sys-color-on-surface, #0f172a);
-      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+      background-color: var(--md-sys-color-surface-container-low, #f4f8fd);
+      border: 1px solid var(--md-sys-color-outline-variant, #d3dfec);
+      border-radius: 7px;
+      padding: 3px 9px;
+      font-family: var(--fm, ui-monospace, monospace);
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--md-sys-color-on-surface, #16212e);
     }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush

@@ -1259,3 +1259,61 @@ mat-button-toggle {
   border-color: #fff !important;
   background: #000 !important;
 }
+
+/* Single-use LAN pairing PIN — generated digit boxes matching the prototype. */
+.lan-pin-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lan-pin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lan-pin-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface);
+}
+.lan-pin-expiry {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-family: var(--rvt-mono-font, "JetBrains Mono", monospace);
+}
+.lan-pin-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.lan-pin-boxes {
+  display: flex;
+  gap: 8px;
+}
+.lan-pin-box {
+  width: 44px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--rv-r2, 12px);
+  background: var(--md-sys-color-surface-container-lowest);
+  font-family: var(--rvt-mono-font, "JetBrains Mono", monospace);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface);
+}
+.lan-pin-refresh {
+  color: var(--md-sys-color-on-surface-variant);
+}
+.lan-pin-hint {
+  font-size: 0.78rem;
+  color: var(--md-sys-color-on-surface-variant);
+  margin: 0;
+}

@@ -113,10 +113,13 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   private async initializeHome(): Promise<void> {
     await this.serverLifecycle.bootstrap();
     if (this.serverLifecycle.status() === 'offline' || this.serverLifecycle.status() === 'error') {
+      // In demo/sandbox mode the Python server is intentionally absent; still
+      // load the sandbox preflight, sessions and defaults so the readiness
+      // surfaces populate. Only bail out when a live trainer is expected.
       if (!this.state.demoMode() && !this.state.autoDemoActive()) {
         this.snackBar.open('Python server is offline. Use Settings > Python Server to start, pair, or retry.', 'Dismiss', { duration: 7000 });
+        return;
       }
-      return;
     }
     this.refreshDefaults();
     this.loadSubjectProfiles();
@@ -417,7 +420,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       return { id: 'close', label: 'Too close', hint: 'Move back to 40–100 cm for the cleanest signal.' };
     }
     if (distance <= 100) {
-      return { id: 'optimal', label: 'Optimal', hint: 'Hold this position for the session.' };
+      return { id: 'optimal', label: 'Sweet spot', hint: 'Hold this position for the session.' };
     }
     if (distance <= 140) {
       return { id: 'good', label: 'Good', hint: 'Slightly closer (40–100 cm) may improve heart-rate quality.' };

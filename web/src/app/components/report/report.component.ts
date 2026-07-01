@@ -279,7 +279,7 @@ export class ReportComponent implements OnInit, AfterViewInit {
     return this.summaryObject('rr_metrics');
   }
 
-  qualityGates(): Array<{ id: string; passed: boolean | null; status: string }> {
+  qualityGates(): Array<{ id: string; label: string; passed: boolean | null; status: string }> {
     const gates = this.summaryObject('gates');
     if (!gates) return [];
     return Object.entries(gates)
@@ -287,7 +287,8 @@ export class ReportComponent implements OnInit, AfterViewInit {
       .map(([id, value]) => {
         const gate = value as Record<string, unknown>;
         const passed = typeof gate['passed'] === 'boolean' ? gate['passed'] as boolean : null;
-        return { id, passed, status: String(gate['status'] ?? (passed === null ? 'n/a' : passed ? 'pass' : 'fail')) };
+        const label = `${id.charAt(0).toUpperCase()}${id.slice(1)} gate`;
+        return { id, label, passed, status: String(gate['status'] ?? (passed === null ? 'n/a' : passed ? 'pass' : 'fail')) };
       });
   }
 

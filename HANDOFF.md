@@ -5,6 +5,46 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-06-29 — Rail, demo data, pairing PIN, report gates (prototype 1:1)
+
+- **Rail**: pinned the Commands + operator foot to the bottom (rail inner container is a flex column; `.rail-foot { margin-top:auto }`); replaced the visible Lock profile / Switch operator buttons with a menu opened from the operator card — matching the prototype's clean rail.
+- **Demo data — populated "ready" baseline**: `initializeHome()` no longer returns early when the Python server is offline if demo/auto-demo is active, so the sandbox preflight loads; sandbox `/api/preflight` returns 6 realistic checks (5 good, 1 warn → 83% Ready, 5/6 "Review warnings"); sandbox defaults use COM4 + a populated BLE address; demo telemetry places the subject ~90cm and the 40–100cm zone is labelled "Sweet spot".
+- **Settings PIN**: replaced the PIN entry field with the prototype's generated single-use PIN display — six digit boxes, regenerate, Show QR, live "expires in mm:ss". (Swaps the LAN-pairing UI from entering the trainer's PIN to displaying one for a phone; the pairing smoke spec was updated to match.)
+- **Report gates**: the demo summary now exposes four gates (Coverage / Agreement / Motion / Reference, all pass) rendered as labelled "… gate" chips; the demo verdict-category list is cleared so the gate section is just the four chips like the prototype. The report verdict stays "DEMO — Simulated data only" by design (demo is explicit, never silent).
+
+### 2026-06-29 — Home / Report / Settings prototype-parity pass
+
+- **Settings**: card titles renamed to the prototype — "Display" → **Appearance** ("Design exploration, theme and density."), "Connections & sources" → **Source mode** ("Keep live mode honest — demo is explicit, never silent.").
+- **Report**: session selector reduced to the prototype's bare **"Session" label + chips** (dropped the card wrapper, the icon/description block and the "All sessions" dropdown); removed the analytics icon from the **Session quality** header; removed the per-tile **sub-labels** under each quality stat value.
+- **Home**: Live-radar-scope **Range/HR/RR metrics are now plain** (no card box, left-aligned) like the prototype; "Trend (last 60s)" → "Trend — last 60 s".
+
+### 2026-06-29 — Help screen header now matches the prototype (compact status bar)
+
+- **Removed the gradient hero** ("Operator Playbook & Field Dictionary" banner) from the Help screen — the prototype leads with a compact status bar: three status chips (source / firmware / "Consent on file") on the left and the "Advanced detail" toggle on the right. `help-header-card` is now a plain `surface-container` bar (no gradient / accent line / title group).
+- **Search** uses the prototype copy ("Search the playbook — e.g. stale, BLE, preflight…") and drops the `Ctrl K / Alt 1-6` shortcut hint; the field already had pill styling.
+- Remaining Help deltas (the second category-chip row, and the Quick-Support sidebar vs the prototype's full-width action card) are functional filter/support UI and were left intact pending a decision on restructuring them.
+
+### 2026-06-29 — Fix: refresh sends existing operator to first-run onboarding instead of PIN login
+
+- **Bug**: After completing first-run setup (consent on file, demo operator profile created), reloading the page could show the first-run "Create Operator" onboarding instead of the PIN unlock/login screen. Root cause: `AuthService.loadProfiles()` set `bootstrapping = (list.length === 0)`, and the idle-lock overlay shows onboarding whenever `bootstrapping` is true. In demo/sandbox mode the profile list comes from `demo:rvt-operator-profiles`, whose read is schema-strict (drops records missing fields such as `pin`); any empty/transient read flipped a returning user into onboarding.
+- **Fix**: `loadProfiles()` now only enters onboarding when there is genuinely no operator on file: `bootstrapping = list.length === 0 && !hasPersistedProfile()`. Added `AuthService.hasPersistedProfile()` — a lenient read of `demo:rvt-operator-profiles` that treats any record with an `operator_id` as an existing user. Promoted the demo profiles key to a shared `SANDBOX_OPERATOR_PROFILES_KEY` constant in `rvt-storage-keys.ts` (now consumed by both `api.service.ts` and `auth.service.ts`) to prevent key drift. Genuine first-run (no persisted profile) still shows onboarding; demo mode unaffected.
+- **Files**: `web/src/app/services/auth.service.ts`, `web/src/app/services/rvt-storage-keys.ts`, `web/src/app/services/api.service.ts`.
+- **Verification**: `ng build --configuration production` clean; `ng test --watch=false` 157/157 pass. Playwright (production build, seeded existing demo profile + consent + tutorial-done, no operator token): refresh shows the "Enter PIN" unlock screen for the existing operator — not onboarding; a genuinely empty install still shows first-run "Create Operator".
+
+### 2026-06-28 — Live screen now matches the prototype exactly (Simple default)
+
+- **Live lands in the Simple (zen) view** to match the prototype: `zenMode` initial signal = true and the persisted-state loader defaults Simple when no `rvt-zen-mode` preference exists. (This is the design the user confirmed via side-by-side mockup; the earlier revert-to-Advanced is superseded.)
+- **Status strip matches the prototype**: solid status **dot** instead of the radar tile icon (`.timer-icon` → `.timer-dot`); em-dash "Standby — polling stream"; subtitle "No active session · live preview"; the phase / motion / readiness chips are now Advanced-only so Simple/standby shows a single "Standby" chip and the Pause/Snapshot/Stop controls sit on one row.
+- **Session notes** placeholder is "Write observations here…" (was "Operator observations").
+- **Topbar Pause icon removed** — pause/resume stays in the Live command strip and the overflow menu; the prototype topbar shows only alerts, theme and the overflow menu.
+- **Smoke specs updated for the new default** (rather than reverting the design): added an `enterLiveAdvanced()` helper (clicks the Advanced segment, waits for the Waves tab) and call it in the 5 diagnostics specs that exercise the tab strip / 4-KPI grid / lock-state chips (375, 401, 1175, 1192, 1221). Notes locator switched from `getByLabel('Operator observations')` to the label-independent `textarea.notes-textarea`. DOM probe confirms Simple default = 2 sparks / 1 chip and the helper flips to Advanced = 4 sparks + Waves tab + phase/verdict chips.
+
+### 2026-06-28 — Fix missing icons on GitHub Pages (absolute font URLs on a sub-path)
+
+- **Regression**: Material Symbols icons (and JetBrains Mono) were missing on the deployed Pages PWA. Root cause: `styles.scss` declared the self-hosted fonts with **absolute** `url('/fonts/…woff2')`. The app is served from a project sub-path on Pages (`/radar-vital-mmwave-60-davao/`), so an absolute `/fonts/…` resolves to the domain root and 404s. The bundled absolute `@font-face` for `Material Symbols Rounded` overrode the relative runtime definition, so the icon glyphs failed even though the relative font was cached.
+- **Fix**: Removed the duplicate `@font-face` block from the Angular-bundled `styles.scss`. Fonts now come solely from the runtime stylesheet `fonts/rvt-font-definitions.css` (loaded via the relative `<link href="./fonts/rvt-fonts.css">` that build-angular injects), which already uses path-relative `url("./<file>.woff2")` — subpath-safe AND correct at the domain root (EXE/APK/local trainer). The service worker precache was already relative (`./fonts/…`).
+- **Verification**: Faithful Pages-subpath Playwright probe (404s anything outside the repo base): before fix `document.fonts.check('Material Symbols Rounded')` = false with `/fonts/*.woff2` 404s; after fix = true with all fonts loading from `/radar-vital-mmwave-60-davao/fonts/*`. Root-serve probe (EXE/APK/local) still loads all fonts, zero 404s — no regression.
+
 ### 2026-06-28 — Fix collapsed-rail Expand button hidden by merge artifact
 
 - **Smoke spec 413 fix** ("keeps primary navigation available in simple view and collapses the desktop rail"): after the `main` merge, `layout.component.css` carried two contradictory `@media (min-width:1024px)` rules — one hid `.rail-collapse-btn` with `display:none` in the collapsed state, the other sized it to a 36px icon (expecting it visible). The `display:none` selector wrongly included the whole button (the comment says "only the icon shows"), so the collapsed rail had **no visible Expand affordance** and `getByRole('button',{name:'Expand sidebar'})` was never visible. Narrowed the rule to hide only `.rail-collapse-label`; the button now stays a 36px icon with `aria-label="Expand sidebar"`. DOM probe confirms `isVisible` true, 36px, contained within the 76px collapsed rail.
@@ -67,6 +107,21 @@
 - **Verbatim working prototype**: Added `web/src/../public/mockup.html` (served at `/mockup.html` locally and on Pages) — the "Radar Vital Redesign" interactive prototype made fully self-contained by inlining React + ReactDOM 18.3.1 UMD (the design export otherwise lazy-loaded them from unpkg, so it failed offline / behind the CSP). Fonts were already inlined. Boots with **zero network**; provides the exact 1:1 mockup with its theme (light/dark/night/hc), exploration (Azure/Bloom/Mint) and device-frame switchers. Simulated data only — it is a reference/demo page, not wired to the trainer.
 - **Why**: The token-layer reskin (below) left component-level inconsistencies in the Angular app (e.g. faded card-section headers). This page gives a guaranteed pixel-accurate reference of the intended design while the Angular components are reconciled.
 - **Verification**: Rendered headlessly in Chromium — Home/Live/Report all draw correctly with no boot errors (only a harmless `file://` self-fetch CORS log that does not occur over http). `npm --prefix web run build` + `npm run build:check` round-trip clean (static asset, not referenced by index, so the monolith is unchanged).
+
+### 2026-06-29 — Dialog / Modal Parity Pass (Radar Vital Redesign prototype)
+
+- **Scope**: Only dialog/modal component files + their CSS were touched (no `styles.scss`, layout, topbar, or main screen components). Aligned dialog surfaces, eyebrow/title typography, M3 buttons, expressive radii (`--rv-r1`/`--rv-r2`) and outline-variant borders to the prototype across all 4 themes (light/dark/night/hc) and 3 palettes (azure/bloom/mint).
+- **Command palette**: bold 800 title; hint chips → outlined pills; command rows flattened (transparent border, hover fill + outline-variant); `kbd` chips re-tokened to `surface-container-low` + outline-variant, 7px radius, mono.
+- **Operator handoff**: hero now uses `primary-container`/`on-primary-container` with an uppercase eyebrow + mono session id and a `surface-container-lowest` source pill; vitals/alerts/notes converted from top-divider blocks into bordered `surface-container-low` cards at `--rv-r2`; mono `dd` values.
+- **Switch operator**: profile list converted from one flush bordered container into standalone rounded `--rv-r2` cards with filled-`primary` avatars and hover affordance.
+- **Confirm dialog**: added prototype chrome (outline-variant border, `--rv-r1` radius, soft shadow) via a `.mat-mdc-dialog-surface:has(app-confirm-dialog)` rule (it is opened from many call sites without the `m3-dialog-panel` class); bold title + muted message.
+- **KPI zoom dialog**: same `:has(.kpi-zoom-root)` surface-chrome fix (opened from Live without `m3-dialog-panel`); hero/canvas/threshold cards re-tokened to `--rv-r2` + outline-variant; bold title; mono hero value. Selectors namespaced under `.kpi-zoom-root` with `ViewEncapsulation.None`.
+- **Keyboard shortcuts**: `kbd` re-styled to prototype (surface-container-low, outline-variant, 7px, mono, weight 700); key column 132px; title/desc moved to `--rvt-ui-font`, primary-colored icon.
+- **Recovery code dialog**: fixed a real cross-theme bug — it referenced undefined `--mat-sys-*` tokens (fell back to hardcoded M3 purple/grey), now uses `--md-sys-color-*`/`--rv-*` so it themes correctly.
+- **PIN keypad**: keys given visible outline-variant borders + hover state + mono digits (previously a near-invisible 15% outline).
+- **Alerts**: bold title; filter group wrapped in a rounded pill outline; empty-state icon colored primary.
+- **Settings dialog**: chrome already supplied by `m3-dialog-panel`; screen content left untouched per scope.
+- **Verification**: `ng build --configuration production` clean; Playwright screenshots of every target dialog across light/dark/night/hc + azure/bloom/mint confirm correct surface/border/radius tokens (`/home/claude/repo/scratchpad/agentB-*`). Parity report at `/home/claude/repo/scratchpad/agentB-modal-parity.md`.
 
 ### 2026-06-27 — Design-Exact Reskin Token Layer (Radar Vital Redesign prototype)
 

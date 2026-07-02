@@ -13,7 +13,8 @@ export class UiStore {
   alertsOpen = signal<boolean>(false);
   
   theme = signal<ThemeId>('light');
-  palette = signal<PaletteId>('classic');
+  // Azure Expressive is the v17 prototype's default exploration.
+  palette = signal<PaletteId>('azure');
   density = signal<DensityId>('comfortable');
   fontScale = signal<number>(1);
   zenMode = signal<boolean>(true);

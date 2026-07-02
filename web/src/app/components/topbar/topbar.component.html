@@ -9,9 +9,9 @@
     <mat-chip
       class="status-pill mode-badge"
       [class.demo]="isDemoStatus()"
-      [class.live]="state.ctlStatus()?.mode === 'live' && state.ctlStatus()?.ok"
+      [class.live]="!isDemoStatus() && state.ctlStatus()?.mode === 'live' && state.ctlStatus()?.ok"
       [class.failed]="state.ctlStatus()?.ok === false"
-      id="modeBadge"
+      id="statusPill"
       role="button"
       tabindex="0"
       [attr.aria-label]="statusAriaLabel()"
@@ -20,7 +20,7 @@
       (keydown.enter)="openSettings()"
       (keydown.space)="openSettings()">
       <span class="status-dot dot"></span>
-      <span class="material-symbols-rounded" id="modeBadgeIcon">{{ statusIcon() }}</span>
+      <span class="material-symbols-rounded" id="statusPillIcon">{{ statusIcon() }}</span>
       <span class="status-txt">{{ statusLabel() }}</span>
       <span class="status-separator" aria-hidden="true">·</span>
       <span class="status-sub">{{ statusSub() }}</span>

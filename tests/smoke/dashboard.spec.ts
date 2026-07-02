@@ -557,7 +557,7 @@ test.describe('Dashboard smoke', () => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: /Home/ }).first().click();
     await leaveActiveSessionIfPrompted(page);
-    await expect(page.getByText('Session Setup').first()).toBeVisible();
+    await expect(page.getByText('Session setup').first()).toBeVisible();
     await expect(page.locator('.setup-config-card')).toBeVisible();
     await expect(page.locator('.radar-scope-card')).toBeVisible();
     await expect(page.locator('.preflight-card-stack')).toBeVisible();

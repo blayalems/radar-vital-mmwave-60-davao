@@ -55,7 +55,17 @@ html,
 body,
 app-root {
   min-height: 100%;
-  background: var(--md-sys-color-surface);
+  /* v17: the page canvas is the exploration background token (azure light
+     = #EAF1F9); cards and the rail sit on lighter surfaces above it. */
+  background: var(--rv-bg, var(--md-sys-color-surface));
+}
+
+/* The Material sidenav shell must not repaint the page canvas with the
+   surface tone — the v17 prototype keeps the content area on --bg while
+   the rail alone uses the surface tone. */
+mat-sidenav-container.mat-sidenav-container,
+mat-sidenav-content.mat-sidenav-content {
+  background: var(--rv-bg, var(--md-sys-color-background));
 }
 
 html[data-theme='hc'],
@@ -84,10 +94,9 @@ html[data-theme='hc'] .kpi-card-spark {
 @import './styles/patches/legacy-patches.css';
 @import './styles/rvt-native-shell-final.css';
 @import './styles/print.css';
-/* Opt-in exploration palettes (Settings → Appearance). The default "Classic"
-   look is the prototype palette above — no `data-palette` attribute is set for
-   it, so these higher-specificity overlays only match when an operator picks
-   Azure Expressive / Pixel Bloom / Clinical Mint explicitly. */
+/* Exploration palettes (Settings → Appearance). v17 always sets a
+   `data-palette` attribute — Azure Expressive is the default exploration,
+   with Pixel Bloom / Clinical Mint as the opt-in alternates. */
 @import './styles/rvt-redesign-tokens.css';
 
 :root {
@@ -1127,4 +1136,320 @@ body[data-rail-collapsed="1"] .rail .brand-ring.r2 {
 .mat-mdc-card-subtitle {
   color: var(--md-sys-color-on-surface-variant);
   opacity: 1;
+}
+
+/* =============================================================================
+   V17 PROTOTYPE PARITY LAYER
+   -----------------------------------------------------------------------------
+   The "Radar Vital Redesign (standalone)" v17 prototype renders every card as
+   a FLAT white surface: `background: var(--card); border: 1px solid
+   var(--out); border-radius: var(--r1, 22px); box-shadow: none` (glow is off
+   by default). Several legacy v11/v12 skin blocks in the consolidated
+   stylesheet re-add heavy drop shadows, tinted borders and a card wrapper
+   around the topbar actions with `!important`, so this layer re-asserts the
+   v17 chrome with higher-specificity selectors. Keep every rule here traceable
+   to a value in the v17 standalone HTML.
+   ========================================================================== */
+
+/* ---- v17 flat cards: white surface, outline-variant border, --rv-r1 radius */
+html[data-palette] body .mat-mdc-card {
+  background: var(--md-sys-color-surface-container-lowest, #fff) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  border-radius: var(--rv-r1, 22px) !important;
+  box-shadow: none !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* ---- v17 topbar: actions are standalone 40px outlined circles on the page
+   canvas — not grouped inside a floating card. */
+html[data-palette] body app-topbar .topbar-actions {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  gap: 8px !important;
+}
+html[data-palette] body app-topbar .topbar-actions .ic-btn,
+html[data-palette] body app-topbar .topbar-actions .tb-more {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  background: var(--md-sys-color-surface-container-lowest, #fff) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+  box-shadow: none !important;
+}
+html[data-palette] body app-topbar .topbar-actions .ic-btn .material-symbols-rounded,
+html[data-palette] body app-topbar .topbar-actions .tb-more mat-icon {
+  font-size: 20px !important;
+  color: inherit !important;
+}
+
+/* ---- v17 eyebrow: muted uppercase, never the primary/brand blue. */
+html[data-palette] body app-topbar .crumb-eyebrow {
+  color: var(--md-sys-color-on-surface-variant) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.14em !important;
+}
+
+/* ---- v17 status pill: neutral card pill; only the dot carries state color. */
+html[data-palette] body app-topbar #statusPill {
+  background: var(--md-sys-color-surface-container-lowest, #fff) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  color: var(--md-sys-color-on-surface) !important;
+  height: 40px !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+}
+
+/* ---- v17: the status chip-set is a bare flex group — the pill itself is the
+   only visible surface. */
+html[data-palette] body app-topbar .topbar-status,
+html[data-palette] body app-topbar .topbar-status .mdc-evolution-chip-set__chips {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* ---- v17 home stat cards: white flat cards; quiet sentence-case titles;
+   tinted 50px icon chips; muted subs (legacy skin forces uppercase titles,
+   success-green subs and tinted card gradients at body[data-view] strength).*/
+body[data-view='home'] app-home .home-stat-card,
+html[data-palette] body[data-view='home'] app-home .home-stat-card {
+  background: var(--md-sys-color-surface-container-lowest, #fff) !important;
+  background-image: none !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  border-radius: var(--rv-r1, 22px) !important;
+  box-shadow: none !important;
+  gap: 14px !important;
+  min-height: 0 !important;
+  padding: 18px !important;
+}
+html[data-palette] body[data-view='home'] app-home .home-stat-title {
+  color: var(--md-sys-color-on-surface-variant) !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+html[data-palette] body[data-view='home'] app-home .home-stat-line {
+  color: var(--md-sys-color-on-surface) !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.4px !important;
+}
+html[data-palette] body[data-view='home'] app-home .home-stat-line strong {
+  letter-spacing: -0.4px !important;
+}
+html[data-palette] body[data-view='home'] app-home .home-stat-verdict.ready strong {
+  color: var(--md-sys-color-success, #256d3b) !important;
+}
+html[data-palette] body[data-view='home'] app-home .home-stat-sub {
+  color: var(--md-sys-color-on-surface-variant) !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+html[data-palette] body[data-view='home'] app-home .home-stat-ic {
+  border-radius: 16px !important;
+  width: 50px !important;
+  height: 50px !important;
+  flex: 0 0 50px !important;
+}
+
+/* ---- v17 chips (duration/filter/tab): active state is tonal primary-container,
+   not a filled primary pill. */
+html[data-palette] body app-home .duration-chip.active {
+  background: var(--md-sys-color-primary-container, #d3e4ff) !important;
+  border-color: transparent !important;
+  color: var(--md-sys-color-on-primary-container, #0c2d4d) !important;
+  font-weight: 800 !important;
+}
+html[data-palette] body app-home .duration-chip {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 14px;
+  background: var(--md-sys-color-surface-container-lowest, #fff);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ---- v17 field labels: sentence case, no uppercase tracking. */
+html[data-palette] body app-home .field-label {
+  color: var(--md-sys-color-on-surface-variant) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+/* ---- v17 inputs: 42px filled fields on --srf with a 1px outline and 12px
+   radius (`inp` spec in the standalone prototype). Material's notched
+   outline is hidden and the wrapper carries the border instead. */
+html[data-palette] body .mat-mdc-form-field.mat-form-field-appearance-outline .mat-mdc-text-field-wrapper {
+  background: var(--md-sys-color-surface, #f4f8fd) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  border-radius: 12px !important;
+  transition: border-color 0.2s;
+}
+html[data-palette] body .mat-mdc-form-field.mat-form-field-appearance-outline.mat-focused .mat-mdc-text-field-wrapper {
+  border-color: var(--md-sys-color-primary) !important;
+}
+html[data-palette] body .mat-mdc-form-field.mat-form-field-appearance-outline .mdc-notched-outline__leading,
+html[data-palette] body .mat-mdc-form-field.mat-form-field-appearance-outline .mdc-notched-outline__notch,
+html[data-palette] body .mat-mdc-form-field.mat-form-field-appearance-outline .mdc-notched-outline__trailing {
+  border: none !important;
+}
+html[data-palette] body app-home .mat-mdc-form-field.mat-form-field-appearance-outline .mat-mdc-text-field-wrapper {
+  height: 42px;
+}
+html[data-palette] body app-home .mat-mdc-form-field.mat-form-field-appearance-outline .mat-mdc-form-field-infix {
+  min-height: 40px;
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+  font-size: 13px;
+}
+html[data-palette] body app-home .mat-mdc-form-field .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+/* ---- v17 section-card headers: 38px rounded-12 icon chip on --card2 with a
+   20px primary icon; 14.5px/700 title; 12px muted subtitle. */
+html[data-palette] body .mat-mdc-card .mat-mdc-card-header {
+  align-items: center;
+  gap: 12px;
+  padding: 0 0 14px;
+}
+html[data-palette] body .mat-mdc-card [mat-card-avatar] {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 12px !important;
+  background: var(--md-sys-color-surface-container-high, #e3edf8) !important;
+  color: var(--md-sys-color-primary) !important;
+  display: grid !important;
+  place-items: center !important;
+  font-size: 20px !important;
+  margin: 0 !important;
+}
+html[data-palette] body .mat-mdc-card .mat-mdc-card-title {
+  font-size: 14.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.3 !important;
+}
+html[data-palette] body .mat-mdc-card .mat-mdc-card-subtitle {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  padding: 0 !important;
+}
+
+/* ---- v17 inputs render one flat field: kill the inner filled-input pill and
+   focus overlay the legacy skin paints inside the wrapper. */
+html[data-palette] body .mat-mdc-form-field .mat-mdc-form-field-focus-overlay {
+  background: transparent !important;
+}
+html[data-palette] body .mat-mdc-form-field input.mat-mdc-input-element,
+html[data-palette] body .mat-mdc-form-field .mat-mdc-select {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  color: var(--md-sys-color-on-surface) !important;
+}
+
+/* ---- v17 demo banner: slim warn strip inside the main column; the exit
+   action is a transparent outlined pill in the banner's own ink. */
+html[data-palette] body #demoBanner {
+  display: flex;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap;
+  background: var(--md-sys-color-warning-container, #ffe3b3) !important;
+  color: var(--rv-warn, #8a5a00) !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2px !important;
+  padding: 5px 12px !important;
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  min-height: 0 !important;
+}
+html[data-palette] body #demoBanner > .material-symbols-rounded {
+  font-size: 15px !important;
+  color: inherit !important;
+}
+html[data-palette] body #demoBanner .demo-banner-action {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  margin: 0 !important;
+  border: 1px solid currentColor !important;
+  background: transparent !important;
+  color: inherit !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  border-radius: 999px !important;
+  padding: 2px 11px !important;
+  min-height: 0 !important;
+  height: auto !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+html[data-palette] body #demoBanner .demo-banner-action .material-symbols-rounded {
+  font-size: 14px !important;
+  color: inherit !important;
+}
+
+/* ---- v17 Simple/Advanced segment: the active segment is a filled primary
+   pill (segBtn spec); the group sits in a card-surface pill container. */
+html[data-palette] body app-live .live-mode-segment {
+  background: var(--md-sys-color-surface-container-lowest, #fff) !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  border-radius: 999px !important;
+  padding: 4px !important;
+  box-shadow: none !important;
+}
+html[data-palette] body app-live .live-mode-segment mat-button-toggle {
+  border: none !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+html[data-palette] body app-live .live-mode-segment mat-button-toggle.mat-button-toggle-checked {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+}
+html[data-palette] body app-live .live-mode-segment mat-button-toggle.mat-button-toggle-checked mat-icon {
+  color: var(--md-sys-color-on-primary) !important;
+}
+
+/* ---- v17 hero vital cards: flat tinted surfaces, no accent side stripe. */
+html[data-palette] body app-live .zen-vital-card,
+html[data-palette] body app-live .hero-card {
+  border-left: none !important;
+  border: none !important;
+  border-radius: var(--rv-r1, 22px) !important;
+  box-shadow: none !important;
+}
+
+/* ---- v17 snapshot FAB: primary-filled rounded square. */
+html[data-palette] body app-live .quick-pin-fab-container button,
+html[data-palette] body app-live .quick-pin-fab-container .mat-mdc-fab {
+  background: var(--md-sys-color-primary) !important;
+  color: var(--md-sys-color-on-primary) !important;
+  box-shadow: 0 12px 28px -12px rgba(8, 14, 24, 0.4) !important;
 }

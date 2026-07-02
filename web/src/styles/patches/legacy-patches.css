@@ -1433,7 +1433,9 @@
 
 /* BEGIN styles/rvt-v11-uiux-consistency-bugfixes.css */
   :root {
-    --uiux-page-bg: #f8f9fc;
+    /* v17: page background follows the active exploration palette
+       (azure light = #EAF1F9) instead of the legacy near-white. */
+    --uiux-page-bg: var(--rv-bg, #f8f9fc);
     --uiux-card-border: rgba(15, 23, 42, .10);
     --uiux-dark-card-border: rgba(255, 255, 255, .13);
     --uiux-header-title: clamp(24px, 1.8vw, 28px);
@@ -5535,20 +5537,22 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
     background-color: color-mix(in oklab, var(--surface-1) 88%, #120606) !important;
   }
 
+  /* v17: the demo status pill stays a neutral card-surface pill; only the
+     pulsing dot goes amber (see topbar.component.css). */
   .mode-badge.demo,
   #modeBadge[data-mode="demo"],
   body.demo-mode #modeBadge,
   body[data-demo="1"] #modeBadge {
-    background: var(--color-demo-badge-bg) !important;
-    border-color: var(--color-demo-badge-border) !important;
-    color: var(--color-demo-badge-text) !important;
+    background: var(--md-sys-color-surface-container-lowest, #fff) !important;
+    border-color: var(--md-sys-color-outline-variant) !important;
+    color: var(--md-sys-color-on-surface) !important;
   }
 
   .mode-badge.demo .material-symbols-rounded,
   #modeBadge[data-mode="demo"] .material-symbols-rounded,
   body.demo-mode #modeBadge .material-symbols-rounded,
   body[data-demo="1"] #modeBadge .material-symbols-rounded {
-    color: var(--color-demo-badge-text) !important;
+    color: var(--md-sys-color-on-surface) !important;
   }
 
   .fw.good,

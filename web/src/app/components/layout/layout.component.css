@@ -94,6 +94,13 @@
   top: 0 !important;
   bottom: 0 !important;
   transition: none !important;
+  /* v17 desktop rail is 248px wide (84px collapsed). */
+  width: var(--rail-w, 248px) !important;
+  min-width: var(--rail-w, 248px) !important;
+  max-width: var(--rail-w, 248px) !important;
+}
+.app:not(.rail-collapsed) .rail.mat-drawer {
+  --rail-w: 248px;
 }
 
 .main-wrapper {
@@ -103,7 +110,8 @@
   min-width: 0;
   height: 100%;
   position: relative;
-  background: var(--md-sys-color-surface);
+  /* v17: content sits on the exploration background, not the surface tone. */
+  background: var(--rv-bg, var(--md-sys-color-background));
 }
 
 .app.rail-collapsed .rail.mat-drawer {
@@ -168,7 +176,8 @@
    actions stay reachable from the topbar overflow menu, matching the mockup
    which carries no lock/switch buttons in the rail. */
 .app.rail-collapsed .rail.mat-drawer {
-  --rail-w-collapsed: 76px;
+  --rail-w-collapsed: 84px;
+  --rail-w: 84px;
 }
 .app.rail-collapsed .operator-actions,
 .app.rail-collapsed .rail-action .r-shortcut {
@@ -876,11 +885,66 @@
    as a second flex child, which squeezed the brand label down to one glyph.
    Wrap the row so the pill drops below the brand exactly like the prototype.
    ========================================================================== */
+/* v17 brand lockup: mark + two-line label in a row, the Collapse pill on its
+   own line below. Legacy sheets force `display:grid` / fixed heights with
+   !important, so this block re-asserts the v17 structure at higher
+   specificity. */
 .rail .brand {
-  flex-wrap: wrap !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  grid-template-columns: none !important;
+  align-items: stretch !important;
+  height: auto !important;
+  min-height: 0 !important;
+  gap: 10px !important;
+  margin: 0 0 6px !important;
+  padding: 10px 12px 8px !important;
+  overflow: visible !important;
+}
+.rail .brand .brand-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: 100% !important;
+}
+.rail .brand .brand-mark {
+  width: 40px !important;
+  height: 40px !important;
+  flex: 0 0 40px !important;
+  border-radius: 14px !important;
+  background: var(--md-sys-color-primary-container, #d3e4ff) !important;
+  color: var(--md-sys-color-on-primary-container, #0c2d4d) !important;
+  box-shadow: none !important;
+  display: grid !important;
+  place-items: center !important;
+}
+.rail .brand .brand-label {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
   overflow: visible !important;
 }
 .rail .brand .brand-label .bl-top,
 .rail .brand .brand-label .bl-bot {
   white-space: nowrap;
+}
+/* v17 collapse pill: full-width 32px outlined pill under the brand row. */
+.rail .brand .rail-collapse-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: stretch !important;
+  width: 100% !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  background: var(--md-sys-color-surface-container-lowest, #fff) !important;
+  color: var(--md-sys-color-on-surface-variant) !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  padding: 0 !important;
 }

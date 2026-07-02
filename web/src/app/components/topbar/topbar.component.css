@@ -7,8 +7,10 @@
 
 :host .topbar {
   align-items: center !important;
-  background: var(--md-sys-color-surface-container) !important;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  /* v17: the topbar sits directly on the page canvas — no separate surface
+     tone or divider. */
+  background: var(--rv-bg, var(--md-sys-color-background)) !important;
+  border-bottom: none;
   box-sizing: border-box;
   display: flex !important;
   flex-wrap: nowrap !important;
@@ -30,7 +32,8 @@
 }
 
 :host .crumb-eyebrow {
-  color: var(--md-sys-color-primary);
+  /* v17 eyebrow is muted, not primary-tinted. */
+  color: var(--md-sys-color-on-surface-variant);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -40,7 +43,8 @@
 :host .crumb-title {
   color: var(--md-sys-color-on-surface);
   font-family: var(--rvt-ui-font);
-  font-size: 1.6rem;
+  /* v17 desktop --fstitle is 24px. */
+  font-size: 24px;
   font-weight: 800;
   letter-spacing: 0;
   line-height: 1.1;

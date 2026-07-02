@@ -249,17 +249,35 @@
   grid-template-columns: repeat(2, 1fr) !important;
 }
 
-/* Simple (zen) mode: the HR/RR tiles become the redesign's big-number hero
-   cards — dramatise the reading and give the waveform more room. */
+/* Simple (zen) mode: the HR/RR tiles are the v17 big-number hero cards —
+   88px numerals, 96px waveform, 22px top padding. */
 :host-context(body.zen-mode) .kpi-metric-card.kpi-hr,
 :host-context(body.zen-mode) .kpi-metric-card.kpi-rr {
-  min-height: 248px;
+  min-height: 0;
+  padding-top: 22px;
 }
 :host-context(body.zen-mode) .kpi-metric-card.kpi-hr .kpi-card-value strong,
 :host-context(body.zen-mode) .kpi-metric-card.kpi-rr .kpi-card-value strong {
-  font-size: 4.4rem;
-  line-height: 0.92;
-  letter-spacing: -2px;
+  font-size: 88px;
+  line-height: 0.95;
+  letter-spacing: -3px;
+}
+:host-context(body.zen-mode) .kpi-metric-card.kpi-hr .kpi-card-value small,
+:host-context(body.zen-mode) .kpi-metric-card.kpi-rr .kpi-card-value small {
+  font-size: 16px;
+  font-weight: 700;
+}
+:host-context(body.zen-mode) .kpi-metric-card.kpi-hr .kpi-card-spark,
+:host-context(body.zen-mode) .kpi-metric-card.kpi-rr .kpi-card-spark {
+  flex-basis: 96px;
+  height: 96px;
+  min-height: 96px;
+  margin-top: 8px;
+}
+:host-context(body.zen-mode) .kpi-metric-card.kpi-hr .kpi-card-footer,
+:host-context(body.zen-mode) .kpi-metric-card.kpi-rr .kpi-card-footer {
+  font-size: 11.5px;
+  margin-top: 8px;
 }
 
 @media (max-width: 600px) {
@@ -272,8 +290,8 @@
 .kpi-metric-card {
   display: flex;
   flex-direction: column;
-  min-height: 214px;
-  padding: 16px;
+  min-height: 0;
+  padding: 18px;
   border-radius: var(--rv-r1, 22px);
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   background: var(--md-sys-color-surface-container-lowest, #ffffff);
@@ -288,20 +306,20 @@
 /* HR / RR KPI tiles tinted with vital container colours. */
 .kpi-metric-card.kpi-hr {
   background: var(--rv-hrc);
-  border-color: color-mix(in srgb, var(--rv-hr) 26%, transparent);
+  border-color: transparent;
 }
 
 .kpi-metric-card.kpi-rr {
   background: var(--rv-rrc);
-  border-color: color-mix(in srgb, var(--rv-rr) 26%, transparent);
+  border-color: transparent;
 }
 
-.kpi-metric-card.kpi-hr .kpi-card-header,
+/* v17: only the vital icon and confidence pill carry the accent color; the
+   title stays in the regular ink. */
 .kpi-metric-card.kpi-hr .kpi-card-header mat-icon {
   color: var(--rv-hr);
 }
 
-.kpi-metric-card.kpi-rr .kpi-card-header,
 .kpi-metric-card.kpi-rr .kpi-card-header mat-icon {
   color: var(--rv-rr);
 }
@@ -327,13 +345,23 @@
   height: 20px;
 }
 
-/* HR/RR hero tiles carry an expressive bolder/upper label like the mockup. */
-.kpi-metric-card.kpi-hr .kpi-card-header > span,
-.kpi-metric-card.kpi-rr .kpi-card-header > span {
-  font-size: 0.8rem;
+/* v17 advanced KPI titles: 12px/700 muted, sentence case. */
+.kpi-card-header > span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* v17 Simple hero labels: 13px/800 uppercase in the regular ink. */
+:host-context(body.zen-mode) .kpi-metric-card.kpi-hr .kpi-card-header > span,
+:host-context(body.zen-mode) .kpi-metric-card.kpi-rr .kpi-card-header > span {
+  font-size: 13px;
   font-weight: 800;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.3px;
   text-transform: uppercase;
+  color: var(--md-sys-color-on-surface);
 }
 
 /* Filled, vital-tinted symbol on the HR/RR hero tiles. */
@@ -360,13 +388,13 @@
 }
 
 .kpi-card-value strong {
-  font-family: var(--rvt-mono-font, "JetBrains Mono", ui-monospace, monospace);
-  font-size: 2.2rem;
+  font-family: var(--rvt-ui-font, 'Inter', sans-serif);
+  font-size: 34px;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -1px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: var(--md-sys-color-on-surface, #0f172a);
+  color: var(--md-sys-color-on-surface, #16212e);
 }
 
 .kpi-card-value small {
@@ -375,28 +403,20 @@
   color: var(--md-sys-color-on-surface-variant, #64748b);
 }
 
-/* HR/RR are the hero vitals — push their numerals larger than the aux KPIs. */
-.kpi-metric-card.kpi-hr .kpi-card-value strong,
-.kpi-metric-card.kpi-rr .kpi-card-value strong {
-  font-size: 2.7rem;
-}
+/* Advanced HR/RR share the 34px scale; Simple mode heroes grow to the v17
+   --fsbig (88px desktop) further below. */
 
+/* v17 sparks draw directly on the card surface — no inset box. Advanced
+   cards use a 42px strip; Simple heroes use 96px (set below). */
 .kpi-card-spark {
   width: 100%;
-  flex: 0 0 clamp(72px, 7vw, 88px);
-  height: clamp(72px, 7vw, 88px);
-  min-height: 72px;
-  margin: 6px 0 10px;
-  background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 60%, transparent);
-  border-radius: var(--rv-r2, 14px);
+  flex: 0 0 42px;
+  height: 42px;
+  min-height: 42px;
+  margin: 4px 0 6px;
+  background: transparent;
+  border-radius: 0;
   overflow: hidden;
-}
-
-/* On the vital hero tiles, keep the spark inset transparent so the card's
-   HR/RR tint shows through (mockup waves sit directly on the tinted surface). */
-.kpi-metric-card.kpi-hr .kpi-card-spark,
-.kpi-metric-card.kpi-rr .kpi-card-spark {
-  background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 28%, transparent);
 }
 
 .sparkline-canvas {
@@ -406,8 +426,10 @@
 }
 
 .kpi-card-footer {
-  font-size: 0.75rem;
-  color: var(--md-sys-color-on-surface-variant, #94a3b8);
+  font-family: var(--rvt-mono-font, 'JetBrains Mono', monospace);
+  font-size: 10.5px;
+  margin-top: 6px;
+  color: var(--md-sys-color-on-surface-variant, #4d5e74);
 }
 
 .simple-info-grid {
@@ -984,21 +1006,10 @@
     var(--md-sys-color-surface-container, #ffffff) !important;
 }
 
+/* v17 hero/KPI cards are plain tinted surfaces — no accent side stripe. */
 .kpi-hr::before,
 .kpi-rr::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 4px;
-  border-radius: var(--rv-r1, 22px) 0 0 var(--rv-r1, 22px);
-}
-
-.kpi-hr::before {
-  background: var(--rv-hr);
-}
-
-.kpi-rr::before {
-  background: var(--rv-rr);
+  content: none;
 }
 
 .section-header-row,
@@ -1498,6 +1509,13 @@
   gap: 20px;
   width: 100%;
   align-items: stretch;
+}
+
+/* When Pane B is closed the primary pane owns the full row — without this the
+   flex item shrinks to fit and leaves a dead strip on the right. */
+.main-layout-split .primary-pane {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .main-layout-split.is-split {

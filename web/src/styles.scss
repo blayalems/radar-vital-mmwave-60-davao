@@ -1453,3 +1453,135 @@ html[data-palette] body app-live .quick-pin-fab-container .mat-mdc-fab {
   color: var(--md-sys-color-on-primary) !important;
   box-shadow: 0 12px 28px -12px rgba(8, 14, 24, 0.4) !important;
 }
+
+/* ---- v17 Live tab strip: compact chip pills (auto width, tonal active)
+   instead of full-width Material tabs. */
+html[data-palette] body app-live .live-tabs-group .mat-mdc-tab-header {
+  border-bottom: none !important;
+  margin-bottom: 4px;
+}
+html[data-palette] body app-live .live-tabs-group .mat-mdc-tab-labels {
+  gap: 8px;
+  justify-content: flex-start;
+}
+html[data-palette] body app-live .live-tabs-group .mat-mdc-tab {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  height: 34px !important;
+  padding: 0 13px !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  background: var(--md-sys-color-surface-container-lowest, #fff) !important;
+  opacity: 1 !important;
+}
+html[data-palette] body app-live .live-tabs-group .mat-mdc-tab .mdc-tab__text-label {
+  color: var(--md-sys-color-on-surface-variant) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+html[data-palette] body app-live .live-tabs-group .mat-mdc-tab.mdc-tab--active {
+  background: var(--md-sys-color-primary-container, #d3e4ff) !important;
+  border-color: transparent !important;
+}
+html[data-palette] body app-live .live-tabs-group .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+  color: var(--md-sys-color-on-primary-container, #0c2d4d) !important;
+  font-weight: 800 !important;
+}
+html[data-palette] body app-live .live-tabs-group .mdc-tab-indicator,
+html[data-palette] body app-live .live-tabs-group .mat-mdc-tab-ripple,
+html[data-palette] body app-live .live-tabs-group .mdc-tab__ripple {
+  display: none !important;
+}
+
+/* ---- v17 KPI cards: sentence-case 12.5px titles, no uppercase tracking. */
+html[data-palette] body app-live .kpi-card .kpi-title,
+html[data-palette] body app-live .kpi-label {
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+}
+
+/* ---- v17 field/button internals: center the control text inside the 42px
+   fields and keep icon+label on one row inside Material buttons (legacy skin
+   rules block-ify the MDC label, which stacked icons above text). */
+html[data-palette] body .mat-mdc-form-field .mat-mdc-form-field-infix {
+  display: flex;
+  align-items: center;
+}
+html[data-palette] body .mat-mdc-select-trigger {
+  height: 100%;
+  align-items: center;
+}
+html[data-palette] body .mat-mdc-select-value {
+  line-height: normal;
+  font-size: 13px;
+}
+html[data-palette] body .mdc-button .mdc-button__label,
+html[data-palette] body .mat-mdc-unelevated-button .mdc-button__label {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px;
+  white-space: nowrap;
+}
+html[data-palette] body .mdc-button > mat-icon,
+html[data-palette] body .mat-mdc-unelevated-button > mat-icon {
+  margin: 0 !important;
+  vertical-align: middle;
+}
+html[data-palette] body app-home .start-session-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 52px !important;
+  border-radius: 999px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+html[data-palette] body .mat-mdc-checkbox .mdc-form-field label {
+  font-size: 13px;
+  color: var(--md-sys-color-on-surface);
+}
+
+/* The Material chip primitives inside the status pill must not paint their
+   own pill (legacy skin gives the inner action cell a second white surface,
+   which reads as a pill-within-a-pill). */
+html[data-palette] body app-topbar #statusPill .mdc-evolution-chip__cell,
+html[data-palette] body app-topbar #statusPill .mdc-evolution-chip__action,
+html[data-palette] body app-topbar #statusPill .mat-mdc-chip-action,
+html[data-palette] body app-topbar #statusPill .mat-mdc-chip-action-label {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+html[data-palette] body app-topbar #statusPill::before,
+html[data-palette] body app-topbar #statusPill::after {
+  display: none !important;
+}
+html[data-palette] body app-topbar #statusPill .mat-mdc-chip-focus-overlay {
+  display: none !important;
+}
+html[data-palette] body app-topbar #statusPill .status-dot {
+  display: inline-block !important;
+  width: 8px !important;
+  height: 8px !important;
+  min-width: 8px !important;
+  flex: 0 0 8px !important;
+  border-radius: 50% !important;
+  margin-right: 2px;
+}
+
+/* ---- The legacy sheet forces every <canvas> to a fixed 230px height, which
+   truncates the v17 sparklines/waves inside their sized wrappers. Angular
+   canvases always live in an explicitly sized container — fill it instead. */
+html[data-palette] body app-home canvas,
+html[data-palette] body app-live canvas,
+html[data-palette] body app-report canvas,
+html[data-palette] body overview-sparkline canvas,
+html[data-palette] body wave-canvas canvas,
+html[data-palette] body trend-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}

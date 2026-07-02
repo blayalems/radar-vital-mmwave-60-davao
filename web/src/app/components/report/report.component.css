@@ -636,9 +636,10 @@
   height: 16px;
 }
 
+/* v17 passing gates are success-green pills (okc / ok). */
 .quality-gate-chip[data-passed='true'] {
-  background: var(--md-sys-color-tertiary-container);
-  color: var(--md-sys-color-on-tertiary-container);
+  background: var(--md-sys-color-success-container, #c6efc9);
+  color: var(--md-sys-color-success, #256d3b);
   border-color: transparent;
 }
 

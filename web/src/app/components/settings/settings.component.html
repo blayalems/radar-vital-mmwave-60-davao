@@ -10,7 +10,6 @@
   </div>
 
   <mat-form-field appearance="outline" class="settings-search-field">
-    <mat-label>Search settings</mat-label>
     <mat-icon matPrefix>search</mat-icon>
     <input
       matInput
@@ -32,12 +31,12 @@
       <mat-card class="settings-card premium-card connection-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">sensors</mat-icon>
-          <mat-card-title>Source Mode</mat-card-title>
+          <mat-card-title>Source mode</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="settings-row">
             <div class="settings-copy">
-              <span class="row-title">Demo Mode</span>
+              <span class="row-title">Demo mode</span>
               <span class="row-description">Use generated sample telemetry instead of the trainer JSON feed. Intended for UI demos only.</span>
             </div>
             <mat-slide-toggle [checked]="state.demoMode()" (change)="setDemoMode($event.checked)"></mat-slide-toggle>
@@ -96,7 +95,7 @@
       <mat-card class="settings-card premium-card python-server-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">terminal</mat-icon>
-          <mat-card-title>Python Server</mat-card-title>
+          <mat-card-title>Python server</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="settings-row block-row">
@@ -219,7 +218,7 @@
       <mat-card class="settings-card premium-card ble-scanner-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">bluetooth_searching</mat-icon>
-          <mat-card-title>BLE Reference Scanner</mat-card-title>
+          <mat-card-title>BLE reference scanner</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <p class="settings-help-text">
@@ -260,7 +259,7 @@
       <mat-card class="settings-card premium-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">wifi_off</mat-icon>
-          <mat-card-title>Disconnect Behavior</mat-card-title>
+          <mat-card-title>Disconnect behavior</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="settings-row">
@@ -276,7 +275,7 @@
 
     <!-- Appearance -->
     @if (settingsCardMatches('display')) {
-      <mat-card class="settings-card premium-card">
+      <mat-card class="settings-card premium-card appearance-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">palette</mat-icon>
           <mat-card-title>Appearance</mat-card-title>
@@ -351,7 +350,7 @@
       <mat-card class="settings-card premium-card dynamic-color-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar card-avatar-dynamic">palette</mat-icon>
-          <mat-card-title>Material You</mat-card-title>
+          <mat-card-title>Material You dynamic color</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="settings-row">
@@ -395,7 +394,7 @@
       <mat-card class="settings-card premium-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">lock</mat-icon>
-          <mat-card-title>Privacy Screen Lock</mat-card-title>
+          <mat-card-title>Privacy & idle lock</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="settings-row block-row">
@@ -470,7 +469,7 @@
       <mat-card class="settings-card premium-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">vibration</mat-icon>
-          <mat-card-title>Haptic Feedback</mat-card-title>
+          <mat-card-title>Haptic feedback</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="settings-row block-row">
@@ -492,7 +491,7 @@
       <mat-card class="settings-card premium-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">import_export</mat-icon>
-          <mat-card-title>Preferences Portability</mat-card-title>
+          <mat-card-title>Preferences portability</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <p class="settings-help-text">Export or restore presentation and alert preferences. Pairing tokens and session data are excluded.</p>
@@ -510,7 +509,7 @@
       <mat-card class="settings-card premium-card thresholds-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">warning</mat-icon>
-          <mat-card-title>KPI Alert Thresholds</mat-card-title>
+          <mat-card-title>Alert thresholds</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="thresholds-grid">
@@ -585,7 +584,7 @@
       <mat-card class="settings-card premium-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">volume_up</mat-icon>
-          <mat-card-title>Audio Alerts</mat-card-title>
+          <mat-card-title>Audio alerts</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="settings-row">
@@ -627,7 +626,7 @@
       <mat-card class="settings-card premium-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">insights</mat-icon>
-          <mat-card-title>Live Rendering</mat-card-title>
+          <mat-card-title>Live rendering</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="settings-row">
@@ -647,7 +646,7 @@
       <mat-card class="settings-card premium-card update-info-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">system_update</mat-icon>
-          <mat-card-title>Update & Version Info</mat-card-title>
+          <mat-card-title>Updates & version info</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="settings-row">
@@ -756,7 +755,7 @@
       <mat-card class="settings-card premium-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">storage</mat-icon>
-          <mat-card-title>Data & Diagnostics</mat-card-title>
+          <mat-card-title>Data & diagnostics</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="data-meter-card">
@@ -787,7 +786,7 @@
       <mat-card class="settings-card premium-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">info</mat-icon>
-          <mat-card-title>About & Legal</mat-card-title>
+          <mat-card-title>About & legal</mat-card-title>
         </mat-card-header>
         <mat-card-content class="embedded-system-section">
           <app-about-card id="about-legal" class="settings-mounted-card embedded-mounted-card" [version]="productVersion"></app-about-card>

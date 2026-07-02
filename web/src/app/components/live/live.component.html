@@ -148,15 +148,15 @@
                    (pointerup)="onKpiDragEnd($event)"
                    aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Heart rate (click to zoom, drag to reorder)', 'reported_hr', 'beats per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
                 <div class="kpi-card-header">
-                  <span>Heart Rate</span>
+                  <span>Heart rate</span>
+                  @if (hrConfidencePct() !== null) {
+                    <span class="kpi-conf-badge"
+                          [attr.title]="'Heart-rate confidence' + (hrConfidenceSource() ? ' — source: ' + hrConfidenceSource() : '')"
+                          [attr.aria-label]="'Heart-rate confidence ' + hrConfidencePct() + ' percent' + (hrConfidenceSource() ? ', source ' + hrConfidenceSource() : '')">
+                      {{ hrConfidencePct() }}%
+                    </span>
+                  }
                   <div class="kpi-header-icons">
-                    @if (hrConfidencePct() !== null) {
-                      <span class="kpi-conf-badge"
-                            [attr.title]="'Heart-rate confidence' + (hrConfidenceSource() ? ' — source: ' + hrConfidenceSource() : '')"
-                            [attr.aria-label]="'Heart-rate confidence ' + hrConfidencePct() + ' percent' + (hrConfidenceSource() ? ', source ' + hrConfidenceSource() : '')">
-                        {{ hrConfidencePct() }}%
-                      </span>
-                    }
                     <mat-icon class="drag-icon">drag_indicator</mat-icon>
                     <mat-icon class="kpi-vital-icon">ecg_heart</mat-icon>
                   </div>
@@ -169,7 +169,7 @@
                   }
                 </div>
                 <div class="kpi-card-spark">
-                  <overview-sparkline [data]="state.spark().hr" color="rgba(0, 164, 150, 0.8)" [ariaLabel]="chartLabel('Heart rate recent trend', 'reported_hr', 'beats per minute')"></overview-sparkline>
+                  <overview-sparkline [data]="state.spark().hr" color="var(--rv-hr, #b62e63)" [ariaLabel]="chartLabel('Heart rate recent trend', 'reported_hr', 'beats per minute')"></overview-sparkline>
                 </div>
                 <div class="kpi-card-footer">
                   Ref oximeter: {{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : 'no reference' }}
@@ -189,6 +189,13 @@
                    aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Respiration (click to zoom, drag to reorder)', 'reported_rr', 'breaths per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
                 <div class="kpi-card-header">
                   <span>Respiration</span>
+                  @if (rrConfidencePct() !== null) {
+                    <span class="kpi-conf-badge"
+                          [attr.title]="'Respiration confidence' + (rrConfidenceSource() ? ' — source: ' + rrConfidenceSource() : '')"
+                          [attr.aria-label]="'Respiration confidence ' + rrConfidencePct() + ' percent' + (rrConfidenceSource() ? ', source ' + rrConfidenceSource() : '')">
+                      {{ rrConfidencePct() }}%
+                    </span>
+                  }
                   <div class="kpi-header-icons">
                     <mat-icon class="drag-icon">drag_indicator</mat-icon>
                     <mat-icon class="kpi-vital-icon">air</mat-icon>
@@ -202,7 +209,7 @@
                   }
                 </div>
                 <div class="kpi-card-spark">
-                  <overview-sparkline [data]="state.spark().rr" color="rgba(97, 105, 198, 0.8)" [ariaLabel]="chartLabel('Respiration recent trend', 'reported_rr', 'breaths per minute')"></overview-sparkline>
+                  <overview-sparkline [data]="state.spark().rr" color="var(--rv-rr, #0e7c72)" [ariaLabel]="chartLabel('Respiration recent trend', 'reported_rr', 'breaths per minute')"></overview-sparkline>
                 </div>
                 <div class="kpi-card-footer">
                   Ref oximeter: {{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : 'no reference' }}
@@ -221,7 +228,7 @@
                    (pointerup)="onKpiDragEnd($event)"
                    aria-live="polite" aria-atomic="true" [attr.aria-label]="frameRateLabel() + ' Click to zoom, drag to reorder.'">
                 <div class="kpi-card-header">
-                  <span>Frame Rate</span>
+                  <span>Frame rate</span>
                   <div class="kpi-header-icons">
                     <mat-icon class="drag-icon">drag_indicator</mat-icon>
                     <mat-icon>speed</mat-icon>
@@ -232,9 +239,9 @@
                   <small>Hz</small>
                 </div>
                 <div class="kpi-card-spark">
-                  <overview-sparkline [data]="state.spark().fps" color="rgba(100, 116, 139, 0.8)" [ariaLabel]="frameRateLabel() + ' Recent trend chart.'"></overview-sparkline>
+                  <overview-sparkline [data]="state.spark().fps" color="var(--md-sys-color-primary, #36618e)" [ariaLabel]="frameRateLabel() + ' Recent trend chart.'"></overview-sparkline>
                 </div>
-                <div class="kpi-card-footer">DSP Loop Speed</div>
+                <div class="kpi-card-footer">DSP loop speed</div>
               </div>
             }
 
@@ -249,7 +256,7 @@
                    (pointerup)="onKpiDragEnd($event)"
                    aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Target range (click to zoom, drag to reorder)', 'distance_cm', 'centimetres')">
                 <div class="kpi-card-header">
-                  <span>Target Range</span>
+                  <span>Target range</span>
                   <div class="kpi-header-icons">
                     <mat-icon class="drag-icon">drag_indicator</mat-icon>
                     <mat-icon>radar</mat-icon>
@@ -260,7 +267,7 @@
                   <small>cm</small>
                 </div>
                 <div class="kpi-card-spark">
-                  <overview-sparkline [data]="state.spark().dist" color="rgba(14, 165, 233, 0.8)" [ariaLabel]="chartLabel('Target range recent trend', 'distance_cm', 'centimetres')"></overview-sparkline>
+                  <overview-sparkline [data]="state.spark().dist" color="var(--md-sys-color-primary, #36618e)" [ariaLabel]="chartLabel('Target range recent trend', 'distance_cm', 'centimetres')"></overview-sparkline>
                 </div>
                 <div class="kpi-card-footer">Placement distance</div>
               </div>
@@ -649,7 +656,7 @@
     </mat-tab>
 
     <!-- 3. HEART RATE TAB -->
-    <mat-tab label="HR">
+    <mat-tab label="HR funnel">
       <div class="tab-content-grid">
         <mat-card class="trend-large-card">
           <mat-card-header class="trend-header-row">
@@ -781,7 +788,7 @@
     </mat-tab>
 
     <!-- 4. RESPIRATORY RATE TAB -->
-    <mat-tab label="RR">
+    <mat-tab label="RR funnel">
       <div class="tab-content-grid">
         <mat-card class="trend-large-card">
           <mat-card-header class="trend-header-row">

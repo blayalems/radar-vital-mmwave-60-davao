@@ -75,28 +75,49 @@ export class OverviewSparklineComponent implements AfterViewInit, OnDestroy {
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
 
-    const points = this.data();
+    // v17 drawSpark: last-60 window, 2px rounded stroke in the vital accent,
+    // then the same path closed to the baseline with a 12% area fill.
+    const points = this.data().slice(-60);
     if (points.length < 2) return;
 
-    const minV = Math.min(...points);
-    const maxV = Math.max(...points);
-    const diff = Math.max(1, maxV - minV);
+    let minV = Math.min(...points);
+    let maxV = Math.max(...points);
+    if (maxV - minV < 1) {
+      maxV += 1;
+      minV -= 1;
+    }
 
-    ctx.strokeStyle = this.color();
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-
+    const color = this.resolveColor(this.color());
     const count = points.length;
+    ctx.beginPath();
     points.forEach((val, idx) => {
       const x = (idx / (count - 1)) * w;
-      const y = h - 2 - ((val - minV) / diff) * (h - 4);
-
+      const y = h - 4 - ((val - minV) / (maxV - minV)) * (h - 8);
       if (idx === 0) {
         ctx.moveTo(x, y);
       } else {
         ctx.lineTo(x, y);
       }
     });
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.stroke();
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  /** Canvas cannot consume `var(--…)` directly — resolve it against :root. */
+  private resolveColor(raw: string): string {
+    const match = /^var\((--[\w-]+)(?:,\s*(.+))?\)$/.exec(raw.trim());
+    if (!match) return raw;
+    const resolved = getComputedStyle(document.documentElement).getPropertyValue(match[1]).trim();
+    return resolved || match[2] || '#36618e';
   }
 }

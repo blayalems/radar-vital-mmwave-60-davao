@@ -16,12 +16,10 @@
   padding-bottom: 5rem;
 }
 
+/* v17: the screen title lives in the topbar; the prototype settings page has
+   no in-page header, so this duplicate banner stays hidden. */
 .settings-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-  padding: 0.25rem 0 1rem;
+  display: none;
 }
 
 .settings-title {
@@ -44,17 +42,26 @@
   color: var(--md-sys-color-on-surface, #e2e2e6);
 }
 
+/* v17 settings: two-column card grid (desktop), Appearance leading. */
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 1rem;
+  gap: 16px;
   align-items: start;
 }
 
+/* The v17 prototype leads with Appearance (left) then Source mode (right). */
+.settings-grid .appearance-card {
+  order: -2;
+}
+.settings-grid .connection-card {
+  order: -1;
+}
+
 .settings-card {
-  background: var(--md-sys-color-surface-container) !important;
+  background: var(--md-sys-color-surface-container-lowest, #fff) !important;
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: 8px !important;
+  border-radius: var(--rv-r1, 22px) !important;
   transition: border-color 280ms cubic-bezier(0.16, 1, 0.3, 1), background-color 280ms cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
 }
@@ -847,7 +854,8 @@ mat-button-toggle {
 /* Pill-shaped search to match the redesign prototype. Material renders the
    notched-outline pieces in its own encapsulation context, so pierce it. */
 :host ::ng-deep .settings-search-field .mat-mdc-text-field-wrapper {
-  border-radius: 999px;
+  border-radius: 999px !important;
+  background: var(--md-sys-color-surface-container-lowest, #fff) !important;
 }
 
 :host ::ng-deep .settings-search-field .mdc-notched-outline__leading {

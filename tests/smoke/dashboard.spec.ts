@@ -1286,7 +1286,7 @@ test.describe('Dashboard smoke', () => {
     await page.getByRole('button', { name: /Download breathing waveform image/ }).dispatchEvent('click');
     expect((await waveDownload).suggestedFilename()).toMatch(/^breathing_waveform_\d+\.png$/);
 
-    await page.getByRole('tab', { name: 'HR' }).click();
+    await page.getByRole('tab', { name: 'HR funnel' }).click();
     await expect(page.getByText('HR Funnel Telemetry')).toBeVisible();
     await expect(page.getByText('HR Stage Values')).toBeVisible();
     await expectVisibleCardsContained();
@@ -1295,7 +1295,7 @@ test.describe('Dashboard smoke', () => {
     await page.getByRole('button', { name: /Reset heart rate chart window/ }).dispatchEvent('click');
     await expect(page.getByText('Viewing 120 seconds')).toBeVisible();
 
-    await page.getByRole('tab', { name: 'RR' }).click();
+    await page.getByRole('tab', { name: 'RR funnel' }).click();
     await expect(page.getByText('RR Funnel Telemetry')).toBeVisible();
     await expect(page.getByText('RR Recovery Diagnostics')).toBeVisible();
     await expect(page.getByText('No RR-specific warnings')).toBeVisible();

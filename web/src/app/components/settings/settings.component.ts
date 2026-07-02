@@ -627,11 +627,11 @@ export class SettingsComponent {
       'Reset defaults'
     );
     if (confirmed) {
-      this.state.theme.set('dark');
+      this.state.theme.set('light');
       this.state.palette.set('classic');
       this.state.density.set('comfortable');
       this.state.fontScale.set(1);
-      this.state.zenMode.set(false);
+      this.state.zenMode.set(true);
       this.state.voiceAlertsEnabled.set(false);
       this.state.audioAlertsEnabled.set(false);
       this.state.audioVolume.set(0.7);

@@ -213,7 +213,7 @@
 #endif
 
 #if !defined(ARDUINO_XIAO_ESP32C6)
-#error "radar_vital_v16_3_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
+#error "radar_vital_v16_4_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
 #endif
 
 #ifdef ESP32
@@ -1280,6 +1280,18 @@ const float HR_PQI_WEAK_REJECT = 0.12f;
 const float HR_PQI_SOFT_REJECT = 0.20f;
 const float HR_RAW_DISAGREE_HARD_BPM = 10.0f;
 const float HR_RAW_DISAGREE_SOFT_BPM = 18.0f;
+// v16.4 audit A4(a): the raw-vs-phase agreement check is metadata, not a hard
+// publish gate. The disagreement subreason/suspect columns keep logging either
+// way; set to true to restore the legacy hard gate for an A/B session.
+#define HR_RAW_DISAGREE_HARD_GATE false
+// v16.4 audit A4(b): hard ceiling on how old a published vital's backing update
+// may be. Anything older is blanked (INVALID) instead of held.
+const unsigned long PUBLISH_HELD_MAX_AGE_MS = 15000UL;
+// v16.4 audit A2(b): fast re-promote window - if publish readiness conditions
+// return within this window of a demotion, one phase-backed update re-arms
+// publishing instead of re-accumulating the full count. Session resets zero the
+// update counts, so a fresh session can never take this shortcut.
+const unsigned long PUBLISH_REJOIN_MS = 10000UL;
 const unsigned long HR_FREEZE_NO_FRESH_MIN_MS = 45000UL;
 const unsigned long HR_FREEZE_TRUST_AGE_MIN_MS = 10000UL;
 const unsigned long HR_FREEZE_FORCE_MIN_MS = 60000UL;
@@ -2302,6 +2314,14 @@ static float hrPhaseMinusAnchorBpmLogged = NAN;
 static float hrRawMinusPhaseBpmLogged = NAN;
 static unsigned long hrRawAgeMsLogged = RAW_HR_AGE_SENTINEL_MS;
 static uint8_t hrRawDisagreeSubreasonLogged = 0; // HR_RAW_DISAGREE_NONE
+// v16.4 audit additions: publish tiers (0=INVALID,1=HELD,2=LIVE), demotion
+// timestamps for the A2(b) fast re-promote, and the UART RX high-water mark.
+static uint8_t hrPublishTierLogged = 0;
+static uint8_t rrPublishTierLogged = 0;
+static unsigned long lastHrPublishReadyDropMs = 0UL;
+static unsigned long lastRrPublishReadyDropMs = 0UL;
+static bool rrPublishReadyPrevCycle = false;
+static unsigned int diagUartRxHighWater = 0;
 static bool rrCandidatePresentLogged = false;
 static uint8_t rrCandidateSourceLogged = 0; // RR_SOURCE_NONE
 static uint8_t lastAcceptedRRSource = 0; // RR_SOURCE_NONE
@@ -2974,7 +2994,18 @@ static void v13_pollSpatialFrames(unsigned long now) {
 
   if (!fwVersionCheckedThisBoot) {
     FirmwareInfo fwTmp;
-    if (mmWave.getFirmwareInfo(fwTmp)) {
+    if (!mmWave.getFirmwareInfo(fwTmp)) {
+      // v16.4 audit A9: the module handshake previously failed silently
+      // (module_valid=False in every session). The read stays passive - the
+      // Seeed library only surfaces the version once the module happens to
+      // emit it - but the failure is now announced once per boot so a session
+      // with an unidentified module is visible in the serial log.
+      static bool fwVersionUnreadWarned = false;
+      if (!fwVersionUnreadWarned && millis() > 30000UL) {
+        fwVersionUnreadWarned = true;
+        Serial.println("[FW_VER] WARN: module firmware version still unread after 30 s; module_fw_valid stays 0");
+      }
+    } else {
       moduleVersion = fwTmp;
       moduleVersionValid = true;
       fwVersionCheckedThisBoot = true;
@@ -3192,6 +3223,9 @@ void resetVitals() {
   hrPhaseBackedUpdateCount = 0; rrPhaseBackedUpdateCount = 0;
   nearFieldReflectorSuspect = false; agcFloorSuspect = false;
   phaseBackedPublishReady = false; hrAnchorDriftSuspect = false;
+  // v16.4 audit A2(b): a hard reset must also forget the fast-rejoin window so
+  // a fresh lock always re-earns PHASE_BACKED_PUBLISH_MIN_COUNT updates.
+  lastHrPublishReadyDropMs = 0UL; lastRrPublishReadyDropMs = 0UL; rrPublishReadyPrevCycle = false;
   phaseGapFillCount = 0; clutterRewarmCount = 0;
   skipDspRunLen = 0; agcFloorRunLen = 0; bufferZeroInjectedThisFrame = false;
   hrTrustAgeMsLogged = 0; rrTrustAgeMsLogged = 0;
@@ -3526,6 +3560,9 @@ static void forceClearAllVitalState() {
   hrPhaseBackedUpdateCount = 0; rrPhaseBackedUpdateCount = 0;
   nearFieldReflectorSuspect = false; agcFloorSuspect = false;
   phaseBackedPublishReady = false; hrAnchorDriftSuspect = false;
+  // v16.4 audit A2(b): a hard reset must also forget the fast-rejoin window so
+  // a fresh lock always re-earns PHASE_BACKED_PUBLISH_MIN_COUNT updates.
+  lastHrPublishReadyDropMs = 0UL; lastRrPublishReadyDropMs = 0UL; rrPublishReadyPrevCycle = false;
   phaseGapFillCount = 0; clutterRewarmCount = 0;
   skipDspRunLen = 0; agcFloorRunLen = 0; bufferZeroInjectedThisFrame = false;
   hrTrustAgeMsLogged = 0; rrTrustAgeMsLogged = 0;
@@ -3621,6 +3658,9 @@ static void handlePersonDetected(unsigned long now) {
   hrPhaseBackedUpdateCount = 0; rrPhaseBackedUpdateCount = 0;
   nearFieldReflectorSuspect = false; agcFloorSuspect = false;
   phaseBackedPublishReady = false; hrAnchorDriftSuspect = false;
+  // v16.4 audit A2(b): a hard reset must also forget the fast-rejoin window so
+  // a fresh lock always re-earns PHASE_BACKED_PUBLISH_MIN_COUNT updates.
+  lastHrPublishReadyDropMs = 0UL; lastRrPublishReadyDropMs = 0UL; rrPublishReadyPrevCycle = false;
   phaseGapFillCount = 0; clutterRewarmCount = 0;
   skipDspRunLen = 0; agcFloorRunLen = 0; bufferZeroInjectedThisFrame = false;
   hrTrustAgeMsLogged = 0; rrTrustAgeMsLogged = 0;
@@ -4413,6 +4453,15 @@ void loop() {
     diagLoopCount++;
     if (loopDt > diagLoopMaxMs) diagLoopMaxMs = loopDt;
     if (loopDt > 4000UL) diagWdtNearMissCount++;
+    // v16.4 audit A3(a): UART ingest pressure. High-water mark of the driver RX
+    // ring since the last CSV row; the overflow counter increments when the
+    // ring is within 64 bytes of full (bytes are about to be, or already were,
+    // dropped by the driver - the closest observable proxy without ISR hooks).
+    {
+      int rxAvail = mmWaveSerial.available();
+      if (rxAvail > 0 && (unsigned int)rxAvail > diagUartRxHighWater) diagUartRxHighWater = (unsigned int)rxAvail;
+      if (rxAvail >= (int)(MMWAVE_RX_BUFFER_SIZE - 64)) diagRadarUartOverflowCount++;
+    }
     if (safeElapsedMs(now, diagLoopWindowStartMs) >= 1000UL) {
       diagLoopMeanMsLogged = diagLoopCount ? ((float)diagLoopSumMs / (float)diagLoopCount) : 0.0f;
       diagLoopMaxMsLogged = diagLoopMaxMs;
@@ -6437,6 +6486,7 @@ void loop() {
   rrTrustAgeMsLogged = (lastTrustedRRMs > 0) ? safeElapsedMs(now, lastTrustedRRMs) : 999999UL;
   bool rrPostMotionHold = (lastMotionDetectedMs > 0) && (safeElapsedMs(now, lastMotionDetectedMs) < RR_POST_MOTION_HOLDOFF_MS);
   bool rrPhaseBackedPublishReady = false;
+  bool hrPublishReadyPrevCycleLocal = phaseBackedPublishReady;
   if (inMotion || rrPostMotionHold) {
     hrPhaseBackedUpdateCount = min(hrPhaseBackedUpdateCount, 1U);
     rrPhaseBackedUpdateCount = min(rrPhaseBackedUpdateCount, 1U);
@@ -6447,7 +6497,24 @@ void loop() {
                               (hrPhaseBackedUpdateCount >= PHASE_BACKED_PUBLISH_MIN_COUNT);
     rrPhaseBackedPublishReady = trustedRrFreshNow &&
                                 (rrPhaseBackedUpdateCount >= PHASE_BACKED_PUBLISH_MIN_COUNT);
+    // v16.4 audit A2(b): fast re-promote after a short gap. A mid-session
+    // validity blip demotes readiness and clamps the update counts to 1; when
+    // trust returns within PUBLISH_REJOIN_MS, that single retained update is
+    // accepted instead of demanding PHASE_BACKED_PUBLISH_MIN_COUNT again.
+    if (!phaseBackedPublishReady && (hrState >= 2) && trustedHrFreshNow &&
+        (hrPhaseBackedUpdateCount >= 1U) && (lastHrPublishReadyDropMs > 0UL) &&
+        (safeElapsedMs(now, lastHrPublishReadyDropMs) <= PUBLISH_REJOIN_MS)) {
+      phaseBackedPublishReady = true;
+    }
+    if (!rrPhaseBackedPublishReady && trustedRrFreshNow &&
+        (rrPhaseBackedUpdateCount >= 1U) && (lastRrPublishReadyDropMs > 0UL) &&
+        (safeElapsedMs(now, lastRrPublishReadyDropMs) <= PUBLISH_REJOIN_MS)) {
+      rrPhaseBackedPublishReady = true;
+    }
   }
+  if (hrPublishReadyPrevCycleLocal && !phaseBackedPublishReady) lastHrPublishReadyDropMs = now;
+  if (rrPublishReadyPrevCycle && !rrPhaseBackedPublishReady) lastRrPublishReadyDropMs = now;
+  rrPublishReadyPrevCycle = rrPhaseBackedPublishReady;
   hrAnchorDriftSuspect = (hrState >= 2) &&
                          trustedHrFreshNow &&
                          (pqiHeart < 0.50f) &&
@@ -6514,7 +6581,7 @@ void loop() {
   hrBypassGateOk = (hrGateReason == HR_GATE_OK);
   bool hrBypassCandOk = (candidateHR > 0.0f && isfinite(candidateHR) &&
                          candidateHRConf >= HR_LOG_CAND_CONF_BYPASS_MIN);
-  bool hrBypassRawOk  = (!hrRawAvailableNow || hrRawAgreementGood);
+  bool hrBypassRawOk  = (!HR_RAW_DISAGREE_HARD_GATE) || (!hrRawAvailableNow || hrRawAgreementGood);
 
   bool hrHighConfidencePqiBypass = hrBypassPqiOk && hrBypassConfOk &&
                                    hrBypassGateOk && hrBypassCandOk &&
@@ -6550,15 +6617,17 @@ void loop() {
                         (candidateHRConf >= HR_LOG_CAND_CONF_BYPASS_MIN) &&
                         !hrHarmonicAmbiguous && hrTrustedPublishNear &&
                         !hrPublishGraceBlocked &&
-                        hrPublishRawOk;
+                        (!HR_RAW_DISAGREE_HARD_GATE || hrPublishRawOk);
   hrGraceEligible = hrTrustedPublishFresh;
   hrGraceActive   = hrPublishGrace;
   float hrLogPqiMinForLog = EXP_ENABLE_THRESHOLD_RETUNE ? EXP_HR_LOG_PQI_MIN : HR_LOG_PQI_MIN;
   float rrPqiLogThresholdForLog = EXP_ENABLE_THRESHOLD_RETUNE ? EXP_RR_PQI_LOG_THRESHOLD : RR_PQI_LOG_THRESHOLD;
+  // v16.4 audit A4(a): raw agreement is metadata unless the hard gate is
+  // compiled back in - the subreason/suspect columns keep recording it.
   bool loggedHRQualityGate = ((pqiHeart >= hrLogPqiMinForLog) || hrHighConfidencePqiBypass || hrPublishGrace) &&
                              (hrConfidence >= 0.10f) &&
                              !hrHarmonicAmbiguous &&
-                             hrPublishRawOk;
+                             (!HR_RAW_DISAGREE_HARD_GATE || hrPublishRawOk);
 
   bool rrEstimatorAgreeNow = rawRRValid && isfinite(rawRREffective) &&
                              candidateRR > 0.0f && isfinite(candidateRR) &&
@@ -6679,10 +6748,23 @@ void loop() {
                            hrTrustAgeMsLogged >= HR_FREEZE_TRUST_AGE_MIN_MS) &&
                           hrFreezeRiskEvidence &&
                           (hrValueFrozenConfirmedLogged || hrNoFreshUpdateDurationMsLogged >= HR_FREEZE_FORCE_MIN_MS);
+  // v16.4 audit A4(b): a published value may never ride a backing update older
+  // than PUBLISH_HELD_MAX_AGE_MS - beyond that it blanks instead of holding.
+  bool hrHeldTooOld = (lastHRUpdateMs == 0UL) || (hrAgeMs > PUBLISH_HELD_MAX_AGE_MS);
+  bool rrHeldTooOld = (lastRRUpdateMs == 0UL) || (safeElapsedMs(now, lastRRUpdateMs) > PUBLISH_HELD_MAX_AGE_MS);
   bool loggedHRValid = allowLoggedHRVitals &&
                        ((phaseBackedPublishReady && hrFreshForLog) || hrRescuePublishAllowed) &&
-                       loggedHRQualityGate && !hrFreezeSuspectLogged;
-  bool loggedRRValid = allowLoggedRRVitals && rrPhaseBackedPublishReady && rrFreshNow && loggedRRQualityGate && rrSourceLogOk;
+                       loggedHRQualityGate && !hrFreezeSuspectLogged && !hrHeldTooOld;
+  bool loggedRRValid = allowLoggedRRVitals && rrPhaseBackedPublishReady && rrFreshNow && loggedRRQualityGate && rrSourceLogOk && !rrHeldTooOld;
+  // v16.4 audit A4(b): freshness tier for every published value.
+  // 2 = LIVE (fresh estimator update this grace window), 1 = HELD (published
+  // from a latched/anchor source), 0 = INVALID (blanked).
+  if (!loggedHRValid) hrPublishTierLogged = 0;
+  else if (hrUpdatedThisCycle || hrAgeMs <= LOG_VITAL_GRACE_MS) hrPublishTierLogged = 2;
+  else hrPublishTierLogged = 1;
+  if (!loggedRRValid) rrPublishTierLogged = 0;
+  else if (rrSourceCandidateNowOk) rrPublishTierLogged = 2;
+  else rrPublishTierLogged = 1;
   loggedRrValidCurrentLogged = loggedRRValid && rrSourceCandidateNowOk;
   loggedRrValidLatchedLogged = loggedRRValid && (!rrSourceCandidateNowOk) && rrSourceLatchedOk;
   if (loggedRRValid) rrPublishSourceClassLogged = rrSourceCandidateNowOk ? RR_PUBLISH_SOURCE_CURRENT : RR_PUBLISH_SOURCE_LATCHED;
@@ -7003,7 +7085,10 @@ void loop() {
                     // Stage B activates 200, Stage C activates 201-204, Stage E/v12 activates 205-207.
                     // v15.1 activates 208-219 field diagnostics.
                     "presence_fsm_debug,pqi_heart_v15,pqi_breath_v15,phase_buffer_valid_pct,pqi_v15_pair_coverage_min,correction_shadow_delta_bpm,correction_source,correction_params_hash,"
-                    "loop_dt_mean_ms,loop_dt_max_ms,heap_free_kb,heap_min_free_kb,radar_uart_overflow_count,radar_crc_err_count,i2c_recover_count,lcd_reinit_count,wdt_near_miss_count,cmd_rx_count,cmd_err_count,fw_uptime_s");
+                    "loop_dt_mean_ms,loop_dt_max_ms,heap_free_kb,heap_min_free_kb,radar_uart_overflow_count,radar_crc_err_count,i2c_recover_count,lcd_reinit_count,wdt_near_miss_count,cmd_rx_count,cmd_err_count,"
+                    // v16.4 audit additions (schema v15.2): uart_rx_high_water,
+                    // hr_publish_tier, rr_publish_tier; fw_uptime_s still closes the row.
+                    "uart_rx_high_water,hr_publish_tier,rr_publish_tier,fw_uptime_s");
       logHeaderPrinted=true;
     }
 
@@ -7103,9 +7188,10 @@ void loop() {
       }
 
       // CSV column count widened for v15.1 diagnostics (final-schema-first).
-      // 199 v14.1 columns + 8 v15 columns + 12 v15.1 diagnostics = 219.
+      // 199 v14.1 columns + 8 v15 columns + 12 v15.1 diagnostics = 219
+      // + 3 v15.2 audit columns (uart_rx_high_water, hr/rr_publish_tier) = 222.
       // Update this comment whenever columns are added or removed.
-      #define CSV_COLUMN_COUNT 219
+      #define CSV_COLUMN_COUNT 222
 #define CSVU(v) do { Serial.print((unsigned long)(v)); Serial.print(','); _csvColCount++; } while (0)
 #define CSVI(v) do { Serial.print((int)(v)); Serial.print(','); _csvColCount++; } while (0)
 #define CSVF(v,p) do { float __csv_v = (float)(v); Serial.print(isfinite(__csv_v) ? __csv_v : -1.0f, (p)); Serial.print(','); _csvColCount++; } while (0)
@@ -7348,7 +7434,11 @@ CSVU(diagLcdReinitCount);               // col 215: lcd_reinit_count
 CSVU(diagWdtNearMissCount);             // col 216: wdt_near_miss_count
 CSVU(diagCmdRxCount);                   // col 217: cmd_rx_count (reserved until command channel lands)
 CSVU(diagCmdErrCount);                  // col 218: cmd_err_count (reserved until command channel lands)
-Serial.println((unsigned long)(now / 1000UL)); _csvColCount++;  // col 219: fw_uptime_s
+CSVU(diagUartRxHighWater);              // col 219: uart_rx_high_water (RX ring high-water since last row)
+diagUartRxHighWater = 0;
+CSVI((int)hrPublishTierLogged);         // col 220: hr_publish_tier (0=INVALID,1=HELD,2=LIVE)
+CSVI((int)rrPublishTierLogged);         // col 221: rr_publish_tier (0=INVALID,1=HELD,2=LIVE)
+Serial.println((unsigned long)(now / 1000UL)); _csvColCount++;  // col 222: fw_uptime_s
       if (sessionStats.active && !_csvFirstEmitDone) {
         _csvFirstEmitDone = true;
         if (_csvColCount != CSV_COLUMN_COUNT) {

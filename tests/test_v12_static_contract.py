@@ -327,9 +327,9 @@ def test_frozen_serial_protocol_contract():
     )
     columns = ast.literal_eval(columns_assignment.value)
 
-    assert len(columns) == 219
+    assert len(columns) == 222
     assert columns[206] == "correction_params_hash"
-    assert columns[-12:] == [
+    assert columns[-15:] == [
         "loop_dt_mean_ms",
         "loop_dt_max_ms",
         "heap_free_kb",
@@ -342,10 +342,14 @@ def test_frozen_serial_protocol_contract():
         "cmd_rx_count",
         "cmd_err_count",
         "fw_uptime_s",
+        "uart_rx_high_water",
+        "hr_publish_tier",
+        "rr_publish_tier",
     ]
-    assert "EXPECTED_RADAR_LOG_COLUMN_COUNT = 219" in trainer
+    assert "EXPECTED_RADAR_LOG_COLUMN_COUNT = 222" in trainer
+    assert "LEGACY_V15_1_COLUMN_COUNT = 219" in trainer
     assert "LEGACY_V15_COLUMN_COUNT = 207" in trainer
-    assert "#define CSV_COLUMN_COUNT 219" in ino
+    assert "#define CSV_COLUMN_COUNT 222" in ino
     assert re.search(r"\bSerial\.begin\(115200\)", ino)
 
 
@@ -406,7 +410,7 @@ def test_firmware_pr59_power_thermal_guards_present():
     assert "[THERMAL] chip_temp_c=" in ino
     assert "LCD_DIM_LUX_ON = 8.0f" in ino
     assert "LCD_DIM_LUX_OFF = 15.0f" in ino
-    assert "#define CSV_COLUMN_COUNT 219" in ino
+    assert "#define CSV_COLUMN_COUNT 222" in ino
 
 
 def test_packaging_scaffolds_exist():
@@ -442,10 +446,10 @@ def test_207_column_row_parses_without_warning():
     kind, row, detail = _parse_radar_data_line(line, RADAR_LOG_COLUMNS)
     assert kind == "data"
     assert row is not None
-    assert len(row) == 219
+    assert len(row) == 222
     assert detail == ""
     assert row[0] == "1000"
-    # Verify that the added columns (indices 207 to 218) are padded with empty strings
-    for i in range(207, 219):
+    # Verify that the added columns (indices 207 to 221) are padded with empty strings
+    for i in range(207, 222):
         assert row[i] == ""
 

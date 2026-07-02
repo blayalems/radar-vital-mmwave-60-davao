@@ -420,7 +420,8 @@ test.describe('Dashboard smoke', () => {
       elements.map(element => element.getBoundingClientRect().height)
     );
     expect(graphHeights).toHaveLength(4);
-    expect(Math.min(...graphHeights)).toBeGreaterThanOrEqual(72);
+    // v17 advanced KPI cards use a 42px spark strip (prototype drawSpark spec).
+    expect(Math.min(...graphHeights)).toBeGreaterThanOrEqual(40);
   });
 
   test('keeps primary navigation available in simple view and collapses the desktop rail', async ({ page }) => {
@@ -557,7 +558,7 @@ test.describe('Dashboard smoke', () => {
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: /Home/ }).first().click();
     await leaveActiveSessionIfPrompted(page);
-    await expect(page.getByText('Session Setup').first()).toBeVisible();
+    await expect(page.getByText('Session setup').first()).toBeVisible();
     await expect(page.locator('.setup-config-card')).toBeVisible();
     await expect(page.locator('.radar-scope-card')).toBeVisible();
     await expect(page.locator('.preflight-card-stack')).toBeVisible();
@@ -1120,7 +1121,7 @@ test.describe('Dashboard smoke', () => {
     active = false;
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await expect(page.getByText(/Standby - polling stream/i)).toBeVisible();
+    await expect(page.getByText(/Standby — polling stream/i)).toBeVisible();
   });
 
   test('stopping through the command palette clears the active-session navigation guard', async ({ page }) => {
@@ -1286,7 +1287,7 @@ test.describe('Dashboard smoke', () => {
     await page.getByRole('button', { name: /Download breathing waveform image/ }).dispatchEvent('click');
     expect((await waveDownload).suggestedFilename()).toMatch(/^breathing_waveform_\d+\.png$/);
 
-    await page.getByRole('tab', { name: 'HR' }).click();
+    await page.getByRole('tab', { name: 'HR funnel' }).click();
     await expect(page.getByText('HR Funnel Telemetry')).toBeVisible();
     await expect(page.getByText('HR Stage Values')).toBeVisible();
     await expectVisibleCardsContained();
@@ -1295,7 +1296,7 @@ test.describe('Dashboard smoke', () => {
     await page.getByRole('button', { name: /Reset heart rate chart window/ }).dispatchEvent('click');
     await expect(page.getByText('Viewing 120 seconds')).toBeVisible();
 
-    await page.getByRole('tab', { name: 'RR' }).click();
+    await page.getByRole('tab', { name: 'RR funnel' }).click();
     await expect(page.getByText('RR Funnel Telemetry')).toBeVisible();
     await expect(page.getByText('RR Recovery Diagnostics')).toBeVisible();
     await expect(page.getByText('No RR-specific warnings')).toBeVisible();

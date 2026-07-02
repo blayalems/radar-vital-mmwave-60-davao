@@ -117,14 +117,14 @@ export class HelpComponent implements OnInit {
     { id: 'firmware_truthfulness', label: 'Firmware', icon: 'verified_user' }
   ];
 
-  // Single topic row mirroring the prototype (All topics / Workflow /
-  // Truthfulness / Telemetry / Shortcuts). Entries in other categories still
-  // surface under "All topics"; these are the headline filters.
   protected readonly categories: Array<{ id: HelpCategory | 'all'; label: string; icon: string }> = [
-    { id: 'all', label: 'All topics', icon: 'menu_book' },
+    { id: 'all', label: 'All', icon: 'menu_book' },
     { id: 'workflow', label: 'Workflow', icon: 'route' },
+    { id: 'vitals', label: 'Vitals', icon: 'ecg_heart' },
+    { id: 'quality', label: 'Quality', icon: 'verified' },
     { id: 'truthfulness', label: 'Truthfulness', icon: 'fact_check' },
-    { id: 'reference', label: 'Telemetry', icon: 'sensors' },
+    { id: 'reference', label: 'Reference', icon: 'bluetooth' },
+    { id: 'troubleshooting', label: 'Recovery', icon: 'build' },
     { id: 'shortcuts', label: 'Shortcuts', icon: 'keyboard' }
   ];
 

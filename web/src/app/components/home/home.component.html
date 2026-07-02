@@ -47,7 +47,7 @@
   <div class="mobile-ready-stack">
     <div class="mobile-confidence-card">
       <div class="mobile-confidence-head">
-        <span>Session readiness confidence</span>
+        <span>Session Readiness Confidence</span>
         <strong><span>{{ getReadinessPercentage() }}</span><em>%</em></strong>
       </div>
       <div class="ready-progress-track">
@@ -60,16 +60,15 @@
     <!-- OVERALL READINESS SCORE -->
     <mat-card class="home-stat-card home-stat-readiness">
       <div class="home-stat-ic home-stat-ring">
-        <div class="home-ring" [attr.data-pct]="getReadinessPercentage()" [style.--pct]="getReadinessPercentage()">
+        <div class="home-ring" [attr.data-pct]="getReadinessPercentage()">
           <strong>{{ getReadinessPercentage() }}</strong>
           <small>%</small>
         </div>
       </div>
       <div class="home-stat-copy">
         <div class="home-stat-title">Overall readiness</div>
-        <div class="home-stat-line">
-          <strong>{{ getReadinessPercentage() }}%</strong>
-          <span>{{ getReadinessPercentage() >= 80 ? 'Ready' : 'Incomplete' }}</span>
+        <div class="home-stat-line home-stat-verdict" [class.ready]="getReadinessPercentage() >= 80">
+          <strong>{{ getReadinessPercentage() >= 80 ? 'Ready' : 'Incomplete' }}</strong>
         </div>
         <div class="home-stat-sub">{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo checks only' : (getReadinessPercentage() >= 80 ? 'Preflight complete' : 'Checks pending') }}</div>
       </div>
@@ -83,7 +82,7 @@
       <div class="home-stat-copy">
         <div class="home-stat-title">Checks passed</div>
         <div class="home-stat-line">
-          <strong>{{ getChecksPassedCount() }}/{{ preflightChecks.length }}</strong>
+          <strong>{{ getChecksPassedCount() }} / {{ preflightChecks.length }}</strong>
         </div>
         <div class="home-stat-sub">
           {{ getChecksPassedCount() === preflightChecks.length ? 'All checks good' : 'Review warnings' }}
@@ -115,7 +114,7 @@
         <div class="home-stat-line">
           <strong>{{ state.ctlStatus()?.mode === 'sandbox' ? 'Demo' : (state.ctlStatus()?.ok ? 'Connected' : 'Unknown') }}</strong>
         </div>
-        <div class="home-stat-sub">{{ state.telemetryStale() ? 'Awaiting live telemetry' : 'Payload recently received' }}</div>
+        <div class="home-stat-sub">{{ state.ctlStatus()?.mode === 'sandbox' ? 'Simulated checks only' : (state.telemetryStale() ? 'Awaiting live telemetry' : 'Payload recently received') }}</div>
       </div>
     </mat-card>
   </div>
@@ -140,7 +139,7 @@
       <mat-card-header>
         <mat-icon mat-card-avatar class="header-avatar-ic">tune</mat-icon>
         <mat-card-title>Session setup</mat-card-title>
-        <mat-card-subtitle>Configure your telemetry session parameters.</mat-card-subtitle>
+        <mat-card-subtitle>Configure the telemetry recording parameters.</mat-card-subtitle>
       </mat-card-header>
 
       <mat-card-content class="setup-card-content">
@@ -185,7 +184,7 @@
             </mat-form-field>
             <button mat-flat-button (click)="scanBleDevices()" [disabled]="isScanningBle" class="mat-tonal-button icon-action-btn pair-sensor-btn" aria-label="Pair BLE oximeter">
               <mat-icon>{{ isScanningBle ? 'sync' : 'bluetooth' }}</mat-icon>
-              <span>Pair</span>
+              <span>Pair sensor</span>
             </button>
           </div>
           @if (bleDevices.length > 0) {
@@ -260,17 +259,17 @@
         </div>
 
         <!-- STATION LABELS -->
-        <div class="setup-field span-full">
+        <div class="setup-field">
           <label class="field-label" id="stationLabelLabel">Research station</label>
           <mat-form-field appearance="outline" class="form-field-full">
-            <input matInput [ngModel]="state.setup().station_label" (ngModelChange)="updateSetup('station_label', $event)" placeholder="Lab / Station 3" aria-labelledby="stationLabelLabel">
+            <input matInput [ngModel]="state.setup().station_label" (ngModelChange)="updateSetup('station_label', $event)" placeholder="Lab · Station 3" aria-labelledby="stationLabelLabel">
           </mat-form-field>
         </div>
 
         <!-- COUNTDOWN CHECKBOX -->
         <div class="setup-checkbox span-full">
           <mat-checkbox [ngModel]="state.setup().skip_countdown" (ngModelChange)="updateSetup('skip_countdown', $event)">
-            Skip 3-second stillness countdown calibration
+            Skip the 3-second stillness countdown
           </mat-checkbox>
         </div>
       </mat-card-content>
@@ -351,11 +350,12 @@
   <!-- QUICKCHECK / PREFLIGHT CHECKLIST CARDS -->
   <mat-card class="preflight-card-stack">
     <mat-card-header class="preflight-header-row">
+      <mat-icon mat-card-avatar class="header-avatar-ic">fact_check</mat-icon>
       <div>
         <mat-card-title>Hardware preflight</mat-card-title>
         <mat-card-subtitle>Serial, BLE, schema, storage and clock checks.</mat-card-subtitle>
       </div>
-      <button mat-flat-button color="primary" (click)="runPreflight()" [disabled]="isPreflightRunning" class="mat-tonal-button">
+      <button mat-flat-button color="primary" (click)="runPreflight()" [disabled]="isPreflightRunning" class="mat-tonal-button preflight-rerun-btn">
         <mat-icon>{{ isPreflightRunning ? 'sync' : 'fact_check' }}</mat-icon>
         Re-run all
       </button>
@@ -398,7 +398,7 @@
   <mat-card class="sessions-history-card">
     <mat-card-header class="sessions-header-row">
       <div>
-        <mat-card-title>Session history</mat-card-title>
+        <mat-card-title>Telemetry Session History Log</mat-card-title>
         <mat-card-subtitle>Review quality verdict outcomes, sensor profiles, and historical charts.</mat-card-subtitle>
       </div>
       <div class="sessions-filter-chips">

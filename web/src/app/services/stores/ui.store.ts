@@ -12,7 +12,8 @@ export class UiStore {
   commandPaletteOpen = signal<boolean>(false);
   alertsOpen = signal<boolean>(false);
   
-  theme = signal<ThemeId>('dark');
+  theme = signal<ThemeId>('light');
+  // Azure Expressive is the v17 prototype's default exploration.
   palette = signal<PaletteId>('azure');
   density = signal<DensityId>('comfortable');
   fontScale = signal<number>(1);

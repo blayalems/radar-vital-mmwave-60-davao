@@ -1094,6 +1094,13 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   });
   protected readonly hrConfidenceSource = computed(() =>
     String(this.state.lastPayload()?.radar?.hr_confidence_source_name ?? ''));
+  // v17 shows a matching confidence pill on the Respiration hero card.
+  protected readonly rrConfidencePct = computed<number | null>(() => {
+    const value = Number(this.state.lastPayload()?.radar?.['rr_confidence']);
+    return Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value * 100))) : null;
+  });
+  protected readonly rrConfidenceSource = computed(() =>
+    String((this.state.lastPayload()?.radar as Record<string, unknown> | undefined)?.['rr_confidence_source_name'] ?? ''));
   protected readonly hrHolding = computed(() => {
     const value = this.state.lastPayload()?.radar?.logged_hr_valid;
     return value !== undefined && value !== null && Number(value) === 0;

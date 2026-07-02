@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, ElementRef, ViewChild, AfterViewInit, OnDestroy, effect, ViewEncapsulation } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, ElementRef, ViewChild, AfterViewInit, OnDestroy, effect } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -16,12 +16,12 @@ export interface KpiZoomDialogData {
   standalone: true,
   imports: [MatButtonModule, MatDialogModule, MatIconModule],
   template: `
-    <h2 mat-dialog-title class="kpi-zoom-root dialog-title-row">
+    <h2 mat-dialog-title class="dialog-title-row">
       <mat-icon [style.color]="data.color" class="dialog-title-icon">{{ getIcon() }}</mat-icon>
       <span>{{ data.title }} Detailed Trend</span>
     </h2>
-
-    <mat-dialog-content class="kpi-zoom-root zoom-dialog-content">
+    
+    <mat-dialog-content class="zoom-dialog-content">
       <div class="zoom-metric-hero">
         <div class="hero-value-group">
           <span class="hero-value">{{ getCurrentValue() }}</span>
@@ -62,30 +62,21 @@ export interface KpiZoomDialogData {
     </mat-dialog-actions>
   `,
   styles: [`
-    /* Match the prototype's dialog chrome even when opened without the
-       'm3-dialog-panel' class (this dialog is launched from the Live screen). */
-    .mat-mdc-dialog-surface:has(.kpi-zoom-root) {
-      border: 1px solid var(--md-sys-color-outline-variant);
-      border-radius: var(--rv-r1, 22px);
-      box-shadow: 0 24px 48px -8px color-mix(in srgb, var(--md-sys-color-shadow, #000) 36%, transparent);
-    }
-    .kpi-zoom-root.dialog-title-row {
+    .dialog-title-row {
       display: flex;
       align-items: center;
       gap: 12px;
       margin: 0;
       padding: 16px 24px;
-      font-family: var(--rvt-ui-font, 'Inter', sans-serif);
       font-size: 20px;
-      font-weight: 800;
-      color: var(--md-sys-color-on-surface);
+      font-weight: 500;
     }
-    .kpi-zoom-root .dialog-title-icon {
+    .dialog-title-icon {
       font-size: 28px;
       width: 28px;
       height: 28px;
     }
-    .kpi-zoom-root.zoom-dialog-content {
+    .zoom-dialog-content {
       display: flex;
       flex-direction: column;
       gap: 20px;
@@ -94,81 +85,78 @@ export interface KpiZoomDialogData {
       width: calc(90vw - 32px);
       padding: 8px 24px 20px 24px;
     }
-    .kpi-zoom-root .zoom-metric-hero {
+    .zoom-metric-hero {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
       padding: 16px;
-      background: var(--md-sys-color-surface-container-low, #f4f8fd);
-      border: 1px solid var(--md-sys-color-outline-variant, #d3dfec);
-      border-radius: var(--rv-r2, 14px);
+      background: var(--md-sys-color-surface-container-high, #f1f5f9);
+      border-radius: 12px;
     }
-    .kpi-zoom-root .hero-value-group {
+    .hero-value-group {
       display: flex;
       align-items: baseline;
       gap: 4px;
     }
-    .kpi-zoom-root .hero-value {
-      font-family: var(--fm, ui-monospace, monospace);
+    .hero-value {
       font-size: 36px;
       font-weight: 700;
       color: var(--md-sys-color-on-surface, #0f172a);
     }
-    .kpi-zoom-root .hero-unit {
+    .hero-unit {
       font-size: 14px;
       color: var(--md-sys-color-on-surface-variant, #64748b);
       font-weight: 500;
     }
-    .kpi-zoom-root .hero-meta-group {
+    .hero-meta-group {
       display: flex;
       flex-direction: column;
       align-items: flex-end;
       font-size: 12px;
     }
-    .kpi-zoom-root .meta-label {
+    .meta-label {
       color: var(--md-sys-color-on-surface-variant, #64748b);
     }
-    .kpi-zoom-root .meta-value {
+    .meta-value {
       font-weight: 600;
       color: var(--md-sys-color-primary, #00a496);
     }
-    .kpi-zoom-root .zoom-canvas-container {
+    .zoom-canvas-container {
       width: 100%;
       height: 180px;
       background: var(--md-sys-color-surface-container, #ffffff);
-      border: 1px solid var(--md-sys-color-outline-variant, #d3dfec);
-      border-radius: var(--rv-r2, 14px);
+      border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+      border-radius: 12px;
       overflow: hidden;
       box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
     }
-    .kpi-zoom-root .zoom-chart-canvas {
+    .zoom-chart-canvas {
       width: 100%;
       height: 100%;
       display: block;
     }
-    .kpi-zoom-root .thresholds-info-box {
+    .thresholds-info-box {
       display: flex;
       align-items: center;
       gap: 12px;
       padding: 12px 16px;
       background: var(--md-sys-color-secondary-container, #e2e8f0);
       color: var(--md-sys-color-on-secondary-container, #334155);
-      border-radius: var(--rv-r2, 14px);
+      border-radius: 8px;
       font-size: 13px;
     }
-    .kpi-zoom-root .info-icon {
+    .info-icon {
       color: var(--md-sys-color-secondary, #6169c6);
     }
-    .kpi-zoom-root .info-text {
+    .info-text {
       display: flex;
       flex-direction: column;
       gap: 2px;
     }
-    .kpi-zoom-root .threshold-vals {
+    .threshold-vals {
       opacity: 0.9;
     }
   `],
-  encapsulation: ViewEncapsulation.None,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class KpiZoomDialogComponent implements AfterViewInit, OnDestroy {

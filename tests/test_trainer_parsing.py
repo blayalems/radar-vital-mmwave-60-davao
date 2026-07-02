@@ -153,10 +153,14 @@ class TestRowGet:
 # ---------------------------------------------------------------------------
 
 class TestDetectCsvSchemaVersion:
-    def test_current_column_count_returns_v15_1(self):
-        # 219-column current contract (PR57 field diagnostics) maps to v15.1;
-        # the legacy 207-column prefix maps to v15.0.
+    def test_current_column_count_returns_v15_2(self):
+        # 222-column current contract (audit columns) maps to v15.2; the
+        # 219-column v15.1 and legacy 207-column prefixes stay recognisable.
         cols = ["col"] * EXPECTED_RADAR_LOG_COLUMN_COUNT
+        assert _detect_csv_schema_version(cols) == "v15.2"
+
+    def test_v15_1_column_count_returns_v15_1(self):
+        cols = ["col"] * 219
         assert _detect_csv_schema_version(cols) == "v15.1"
 
     def test_legacy_v15_column_count_returns_v15_0(self):

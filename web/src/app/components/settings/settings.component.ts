@@ -26,7 +26,7 @@ import { ServerLifecycleService } from '../../services/server-lifecycle.service'
 import { UpdateService } from '../../services/update.service';
 import { CONSENT_KEY } from '../../services/rvt-storage-keys';
 import { GITHUB_REPO_URL, PRODUCT_VERSION, SCHEMA_VERSION_LABEL, TERMS_VERSION } from '../../services/app-meta';
-import { BleScanDevice } from '../../models/rvt.models';
+import { BleScanDevice, PaletteId } from '../../models/rvt.models';
 import { AboutCardComponent } from '../about-card/about-card.component';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 import { ReportIssueCardComponent } from '../report-issue-card/report-issue-card.component';
@@ -168,7 +168,7 @@ export class SettingsComponent {
 
   // Material 3 Expressive exploration palettes.
   protected readonly paletteOptions: {
-    id: 'azure' | 'bloom' | 'mint';
+    id: PaletteId;
     name: string;
     desc: string;
     dots: string[];
@@ -178,7 +178,7 @@ export class SettingsComponent {
     { id: 'mint', name: 'Clinical Mint', desc: 'Calm green, tighter radii, focused density.', dots: ['#1e6b52', '#b12f5d', '#21698c', '#dfeee5'] },
   ];
 
-  selectPalette(id: 'azure' | 'bloom' | 'mint'): void {
+  selectPalette(id: PaletteId): void {
     this.state.palette.set(id);
     this.state.triggerHaptic('tap');
   }
@@ -565,7 +565,9 @@ export class SettingsComponent {
         this.state.theme.set(raw['theme'] as 'light' | 'dark' | 'night' | 'hc');
       }
       if (['azure', 'bloom', 'mint'].includes(String(raw['palette']))) {
-        this.state.palette.set(raw['palette'] as 'azure' | 'bloom' | 'mint');
+        this.state.palette.set(raw['palette'] as PaletteId);
+      } else if (String(raw['palette']) === 'classic') {
+        this.state.palette.set('azure');
       }
       if (['comfortable', 'compact'].includes(String(raw['density']))) {
         this.state.density.set(raw['density'] as 'comfortable' | 'compact');
@@ -626,11 +628,11 @@ export class SettingsComponent {
       'Reset defaults'
     );
     if (confirmed) {
-      this.state.theme.set('dark');
+      this.state.theme.set('light');
       this.state.palette.set('azure');
       this.state.density.set('comfortable');
       this.state.fontScale.set(1);
-      this.state.zenMode.set(false);
+      this.state.zenMode.set(true);
       this.state.voiceAlertsEnabled.set(false);
       this.state.audioAlertsEnabled.set(false);
       this.state.audioVolume.set(0.7);

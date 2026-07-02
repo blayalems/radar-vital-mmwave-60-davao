@@ -299,7 +299,11 @@ export class StateService {
       }
 
       const paletteVal = localStorage.getItem('rvt-palette');
-      if (paletteVal && ['azure', 'bloom', 'mint'].includes(paletteVal)) {
+      if (paletteVal === 'classic') {
+        // Pre-v17 installs could persist the retired 'classic' palette;
+        // migrate them to the v17 default.
+        localStorage.setItem('rvt-palette', 'azure');
+      } else if (paletteVal && ['azure', 'bloom', 'mint'].includes(paletteVal)) {
         this.palette.set(paletteVal as PaletteId);
       } else if (paletteVal) {
         localStorage.removeItem('rvt-palette');

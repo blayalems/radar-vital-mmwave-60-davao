@@ -28,7 +28,7 @@
 
 /* ---- Figtree as the primary UI typeface (faces declared in rvt-fonts.css) -- */
 :root {
-  --rvt-ui-font: "Figtree", "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+  --rvt-ui-font: "Inter", "Figtree", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, sans-serif;
 
   /* Expressive corner radii — overridden per palette below. */

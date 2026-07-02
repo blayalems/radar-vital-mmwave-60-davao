@@ -21,7 +21,7 @@ export const EN_MESSAGES = {
   "home.bleAddress": "BLE oximeter",
   "home.scanPorts": "Scan for radar serial ports",
   "home.rerunCheck": "Re-run check: {label}",
-  "home.systemChecks": "Hardware Preflight Pipeline",
+  "home.systemChecks": "Hardware preflight",
   "common.save": "Save",
   "common.cancel": "Cancel",
   "common.close": "Close",

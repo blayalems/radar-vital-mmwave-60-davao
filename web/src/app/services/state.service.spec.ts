@@ -32,7 +32,8 @@ describe('StateService', () => {
     expect(service.activeTab()).toBe('tab-overview');
     expect(service.ctlOn()).toBe(false);
     expect(service.paused()).toBe(false);
-    expect(service.theme()).toBe('dark');
+    // The Radar Vital Redesign prototype defaults to the light theme.
+    expect(service.theme()).toBe('light');
     expect(service.kpiThresholds()).toEqual(DEFAULT_KPI_THRESHOLDS);
   });
 

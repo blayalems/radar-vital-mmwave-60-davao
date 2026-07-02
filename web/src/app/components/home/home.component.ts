@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, HostListener, ViewChild, AfterViewInit, effect } from '@angular/core';
 import { KeyValuePipe, DatePipe, UpperCasePipe } from '@angular/common';
+import { DurationPipe } from '../../pipes/duration.pipe';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 
@@ -29,6 +30,7 @@ import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortReco
 @Component({
   selector: 'app-home',
   imports: [
+    DurationPipe,
     KeyValuePipe,
     DatePipe,
     UpperCasePipe,

@@ -466,10 +466,10 @@ RADAR_LOG_COLUMNS = [
     "wdt_near_miss_count",           # col 216, v15.1
     "cmd_rx_count",                  # col 217, v15.1
     "cmd_err_count",                 # col 218, v15.1
-    "uart_rx_high_water",            # col 219, v15.2 (audit A3a)
-    "hr_publish_tier",               # col 220, v15.2 (audit A4b: 0=INVALID,1=HELD,2=LIVE)
-    "rr_publish_tier",               # col 221, v15.2 (audit A4b)
-    "fw_uptime_s",                   # col 222, v15.2
+    "fw_uptime_s",                   # col 219, v15.1 (frozen position)
+    "uart_rx_high_water",            # col 220, v15.2 (audit A3a)
+    "hr_publish_tier",               # col 221, v15.2 (audit A4b: 0=INVALID,1=HELD,2=LIVE)
+    "rr_publish_tier",               # col 222, v15.2 (audit A4b)
 ]
 
 HR_PATH_SOURCE_NAMES = {
@@ -567,10 +567,10 @@ EXPECTED_RADAR_LOG_TAIL = (
     "wdt_near_miss_count",
     "cmd_rx_count",
     "cmd_err_count",
+    "fw_uptime_s",
     "uart_rx_high_water",
     "hr_publish_tier",
     "rr_publish_tier",
-    "fw_uptime_s",
 )
 LEGACY_V14_RADAR_LOG_TAIL = (
     "rr_phase_backed_publish_ready",

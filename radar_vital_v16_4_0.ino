@@ -3223,6 +3223,9 @@ void resetVitals() {
   hrPhaseBackedUpdateCount = 0; rrPhaseBackedUpdateCount = 0;
   nearFieldReflectorSuspect = false; agcFloorSuspect = false;
   phaseBackedPublishReady = false; hrAnchorDriftSuspect = false;
+  // v16.4 audit A2(b): a hard reset must also forget the fast-rejoin window so
+  // a fresh lock always re-earns PHASE_BACKED_PUBLISH_MIN_COUNT updates.
+  lastHrPublishReadyDropMs = 0UL; lastRrPublishReadyDropMs = 0UL; rrPublishReadyPrevCycle = false;
   phaseGapFillCount = 0; clutterRewarmCount = 0;
   skipDspRunLen = 0; agcFloorRunLen = 0; bufferZeroInjectedThisFrame = false;
   hrTrustAgeMsLogged = 0; rrTrustAgeMsLogged = 0;
@@ -3557,6 +3560,9 @@ static void forceClearAllVitalState() {
   hrPhaseBackedUpdateCount = 0; rrPhaseBackedUpdateCount = 0;
   nearFieldReflectorSuspect = false; agcFloorSuspect = false;
   phaseBackedPublishReady = false; hrAnchorDriftSuspect = false;
+  // v16.4 audit A2(b): a hard reset must also forget the fast-rejoin window so
+  // a fresh lock always re-earns PHASE_BACKED_PUBLISH_MIN_COUNT updates.
+  lastHrPublishReadyDropMs = 0UL; lastRrPublishReadyDropMs = 0UL; rrPublishReadyPrevCycle = false;
   phaseGapFillCount = 0; clutterRewarmCount = 0;
   skipDspRunLen = 0; agcFloorRunLen = 0; bufferZeroInjectedThisFrame = false;
   hrTrustAgeMsLogged = 0; rrTrustAgeMsLogged = 0;
@@ -3652,6 +3658,9 @@ static void handlePersonDetected(unsigned long now) {
   hrPhaseBackedUpdateCount = 0; rrPhaseBackedUpdateCount = 0;
   nearFieldReflectorSuspect = false; agcFloorSuspect = false;
   phaseBackedPublishReady = false; hrAnchorDriftSuspect = false;
+  // v16.4 audit A2(b): a hard reset must also forget the fast-rejoin window so
+  // a fresh lock always re-earns PHASE_BACKED_PUBLISH_MIN_COUNT updates.
+  lastHrPublishReadyDropMs = 0UL; lastRrPublishReadyDropMs = 0UL; rrPublishReadyPrevCycle = false;
   phaseGapFillCount = 0; clutterRewarmCount = 0;
   skipDspRunLen = 0; agcFloorRunLen = 0; bufferZeroInjectedThisFrame = false;
   hrTrustAgeMsLogged = 0; rrTrustAgeMsLogged = 0;

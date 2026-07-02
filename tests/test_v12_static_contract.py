@@ -341,10 +341,10 @@ def test_frozen_serial_protocol_contract():
         "wdt_near_miss_count",
         "cmd_rx_count",
         "cmd_err_count",
+        "fw_uptime_s",
         "uart_rx_high_water",
         "hr_publish_tier",
         "rr_publish_tier",
-        "fw_uptime_s",
     ]
     assert "EXPECTED_RADAR_LOG_COLUMN_COUNT = 222" in trainer
     assert "LEGACY_V15_1_COLUMN_COUNT = 219" in trainer

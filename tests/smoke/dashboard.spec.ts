@@ -420,7 +420,8 @@ test.describe('Dashboard smoke', () => {
       elements.map(element => element.getBoundingClientRect().height)
     );
     expect(graphHeights).toHaveLength(4);
-    expect(Math.min(...graphHeights)).toBeGreaterThanOrEqual(72);
+    // v17 advanced KPI cards use a 42px spark strip (prototype drawSpark spec).
+    expect(Math.min(...graphHeights)).toBeGreaterThanOrEqual(40);
   });
 
   test('keeps primary navigation available in simple view and collapses the desktop rail', async ({ page }) => {
@@ -1120,7 +1121,7 @@ test.describe('Dashboard smoke', () => {
     active = false;
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await expect(page.getByText(/Standby - polling stream/i)).toBeVisible();
+    await expect(page.getByText(/Standby — polling stream/i)).toBeVisible();
   });
 
   test('stopping through the command palette clears the active-session navigation guard', async ({ page }) => {

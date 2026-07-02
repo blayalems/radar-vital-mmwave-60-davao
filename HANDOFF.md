@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-02 — Prototype design system 1:1, firmware audit fixes, CSV v15.2
+
+- **Web**: imported the redesign prototype's own stylesheets (`web/src/styles/rvt-consolidated-css.css` + `patches/legacy-patches.css`) as the base design system; retired `rvt-design-exact.css`. Defaults now match the prototype: light theme, Inter, Simple live view; palettes gained a `classic` default (no `data-palette` attribute → prototype tokens rule; azure/bloom/mint stay opt-in). Home/Settings/Help merged toward the redesign preserving i18n/a11y/search/6-digit PIN/onboarding/recovery. Four icon ligatures missing from the bundled Material Symbols subset replaced (`qr_code_scanner`→`crop_free`, `qr_code_2`→`grid_on`, `dns_off`→`cloud_off`, `data_object`→`code`). Reset-defaults now lands on light/Simple.
+- **Firmware `radar_vital_v16_4_0.ino` (audit)**: A4(a) raw-vs-phase disagreement demoted from hard publish gate to metadata behind `HR_RAW_DISAGREE_HARD_GATE=false`; A4(b) `hr/rr_publish_tier` (0=INVALID,1=HELD,2=LIVE) + 15 s `PUBLISH_HELD_MAX_AGE_MS` ceiling; A2(b) fast re-promote within `PUBLISH_REJOIN_MS=10 s` (rejoin bookkeeping cleared on every vital reset); A3(a) `uart_rx_high_water` telemetry + wired `radar_uart_overflow_count`; A9 module-handshake failure logged once per boot, stale v16_3_0 `#error` fixed.
+- **CSV schema v15.1 → v15.2 (219 → 222 cols)**: three audit columns appended AFTER `fw_uptime_s` (right-edge extension keeps right-padded legacy v15.1 rows aligned). Trainer `EXPECTED_RADAR_LOG_COLUMN_COUNT=222`, `LEGACY_V15_1_COLUMN_COUNT=219` accepted for replay; static contract + parsing tests updated deliberately.
+
 ### 2026-06-29 — Rail, demo data, pairing PIN, report gates (prototype 1:1)
 
 - **Rail**: pinned the Commands + operator foot to the bottom (rail inner container is a flex column; `.rail-foot { margin-top:auto }`); replaced the visible Lock profile / Switch operator buttons with a menu opened from the operator card — matching the prototype's clean rail.

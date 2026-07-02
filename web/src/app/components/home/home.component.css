@@ -11,27 +11,13 @@
 .sandbox-note {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   padding: 16px 20px;
-  border-radius: var(--rv-r2, 14px);
-  background: var(--md-sys-color-warning-container, #ffe3b3);
-  color: var(--md-sys-color-on-warning-container, #2a1800);
-  border: 1px solid color-mix(in srgb, var(--md-sys-color-warning, #8a5a00) 32%, transparent);
+  border-radius: 12px;
+  background: var(--md-sys-color-error-container, rgba(220, 38, 38, 0.08));
+  color: var(--md-sys-color-on-error-container, #881b1b);
+  border: 1px solid var(--md-sys-color-error, rgba(220, 38, 38, 0.2));
   transition: all 0.3s ease;
-}
-
-/* Banner status icon: a fixed, self-centered tile so the glyph sits flush with
-   the title/body block instead of floating to the top-left. */
-.sandbox-note .status-icon {
-  flex: 0 0 auto;
-  align-self: center;
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  font-size: 24px;
-  line-height: 1;
-  margin: 0;
 }
 
 .sandbox-note.connected {
@@ -56,69 +42,16 @@
   opacity: 0.9;
 }
 
-.install-prompt-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 28%, var(--md-sys-color-outline-variant, #cbd5e1));
-  border-radius: 12px !important;
-  background:
-    linear-gradient(115deg, color-mix(in srgb, var(--md-sys-color-primary-container, #d5e3ff) 44%, transparent), transparent 58%),
-    var(--md-sys-color-surface, #ffffff) !important;
-  box-shadow: none !important;
-}
-
-.install-prompt-icon {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  color: var(--md-sys-color-on-primary-container, #001b3d);
-  background: var(--md-sys-color-primary-container, #d5e3ff);
-}
-
-.install-prompt-copy {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.install-prompt-copy strong {
-  color: var(--md-sys-color-on-surface, #1e293b);
-}
-
-.install-prompt-copy span {
-  color: var(--md-sys-color-on-surface-variant, #64748b);
-  font-size: 0.85rem;
-  line-height: 1.4;
-}
-
-.install-prompt-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  justify-self: end;
-}
-
 /* Confidence Score Widget styling */
 .mobile-ready-stack {
-  display: none;
+  display: block;
 }
 
 .mobile-confidence-card {
-  background: var(--md-sys-color-surface-container-lowest, #f4f7fb);
-  border-radius: var(--rv-r1, 22px);
+  background: var(--md-sys-color-surface-container-low, #f4f7fb);
+  border-radius: 12px;
   padding: 16px 20px;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
-}
-
-.mobile-confidence-head strong {
-  font-family: var(--rvt-mono-font);
-  font-weight: 800;
-  letter-spacing: -0.5px;
 }
 
 .mobile-confidence-head {
@@ -165,20 +98,8 @@
 /* Overall Readiness Scoreboard Grid */
 .home-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
-}
-
-@media (max-width: 1100px) {
-  .home-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 560px) {
-  .home-summary-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .home-stat-card {
@@ -187,16 +108,10 @@
   align-items: center;
   gap: 16px;
   padding: 16px 20px;
-  border-radius: var(--rv-r1, 22px) !important;
+  border-radius: 12px !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
-  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
-  transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
-}
-
-.home-stat-card:hover {
-  border-color: var(--md-sys-color-outline, #94a3b8);
-  transform: translateY(-2px);
+  background: var(--md-sys-color-surface-container, #ffffff) !important;
 }
 
 .home-stat-ic {
@@ -211,17 +126,17 @@
 }
 
 .home-stat-ic.home-stat-blue {
-  background: var(--md-sys-color-primary-container, rgba(0, 97, 164, 0.08));
+  background: rgba(0, 97, 164, 0.08);
   color: var(--md-sys-color-primary, #0061a4);
 }
 
 .home-stat-ic.home-stat-purple {
-  background: var(--md-sys-color-secondary-container, rgba(124, 58, 237, 0.08));
-  color: var(--md-sys-color-primary, #7c3aed);
+  background: rgba(124, 58, 237, 0.08);
+  color: #7c3aed;
 }
 
 .home-stat-ic.home-stat-teal {
-  background: var(--md-sys-color-tertiary-container, rgba(0, 164, 150, 0.08));
+  background: rgba(0, 164, 150, 0.08);
   color: var(--md-sys-color-tertiary, #00a496);
 }
 
@@ -234,7 +149,8 @@
 .home-stat-title {
   font-size: 0.8rem;
   color: var(--md-sys-color-on-surface-variant, #64748b);
-  letter-spacing: 0.1px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .home-stat-line {
@@ -245,50 +161,9 @@
   gap: 6px;
 }
 
-.home-stat-line strong {
-  font-family: var(--rvt-mono-font);
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  color: var(--md-sys-color-on-surface, #1e293b);
-}
-
-.home-stat-line span {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--md-sys-color-on-surface-variant, #64748b);
-}
-
 .home-stat-sub {
   font-size: 0.75rem;
   color: var(--md-sys-color-on-surface-variant, #94a3b8);
-}
-
-.home-empty-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  padding: 16px;
-  border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
-  border-radius: 12px !important;
-  background: var(--md-sys-color-surface-container-low, #f8fafc) !important;
-  box-shadow: none !important;
-}
-
-.home-empty-copy {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.home-empty-copy strong {
-  color: var(--md-sys-color-on-surface, #1e293b);
-}
-
-.home-empty-copy span {
-  color: var(--md-sys-color-on-surface-variant, #64748b);
-  font-size: 0.85rem;
-  line-height: 1.4;
 }
 
 /* circular readiness ring */
@@ -296,10 +171,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: transparent;
+  background: var(--md-sys-color-surface-variant, #e2e8f0);
   position: relative;
 }
 
@@ -308,20 +183,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  background:
-    radial-gradient(closest-side, var(--md-sys-color-surface-container-lowest, #ffffff) 76%, transparent 77% 100%),
-    conic-gradient(
-      var(--md-sys-color-primary, #0061a4) calc(var(--pct, 0) * 1%),
-      var(--md-sys-color-secondary-container, #e2e8f0) 0);
-  border: none;
-  font-family: var(--rvt-mono-font);
+  background: var(--md-sys-color-surface, #ffffff);
   font-size: 0.95rem;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  color: var(--md-sys-color-primary, #0061a4);
+  font-weight: 700;
 }
 
 .home-ring small {
@@ -343,101 +210,23 @@
 }
 
 .setup-config-card, .radar-scope-card {
-  border-radius: var(--rv-r1, 22px) !important;
+  border-radius: 16px !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-sizing: border-box;
   box-shadow: none !important;
   min-width: 0;
   padding: 16px;
   width: 100%;
-  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
-}
-
-/* ---- Section header icon-tile treatment (Material 3 Expressive) ---- */
-.setup-config-card mat-card-header,
-.radar-scope-card mat-card-header,
-.preflight-header-row,
-.sessions-header-row {
-  align-items: center;
-}
-
-.setup-config-card mat-card-title,
-.radar-scope-card mat-card-title,
-.preflight-header-row mat-card-title,
-.sessions-header-row mat-card-title {
-  font-family: var(--rvt-ui-font);
-  font-size: 14.5px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--md-sys-color-on-surface, #1e293b);
-}
-
-.setup-config-card mat-card-subtitle,
-.radar-scope-card mat-card-subtitle,
-.preflight-header-row mat-card-subtitle,
-.sessions-header-row mat-card-subtitle {
-  font-family: var(--rvt-ui-font);
-  font-size: 12px;
-  color: var(--md-sys-color-on-surface-variant, #64748b);
+  background: var(--md-sys-color-surface, #ffffff) !important;
 }
 
 .header-avatar-ic {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  background: var(--md-sys-color-secondary-container, rgba(0, 97, 164, 0.08));
+  background: rgba(0, 97, 164, 0.08);
   color: var(--md-sys-color-primary, #0061a4);
-  border-radius: 12px;
-}
-
-/* Icon-tile lead for headers whose markup has no avatar slot (preflight/sessions) */
-.preflight-header-row > div:first-child,
-.sessions-header-row > div:first-child {
-  position: relative;
-  padding-left: 50px;
-}
-
-/* On phones the title group (50px icon lead) plus the action button/chips can
-   exceed the card width by a few px and trip the horizontal-overflow smoke
-   check; let the header wrap so the action drops below the title instead. */
-@media (max-width: 599.98px) {
-  .preflight-header-row,
-  .sessions-header-row {
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-inline: 0 !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-}
-
-.preflight-header-row > div:first-child::before,
-.sessions-header-row > div:first-child::before {
-  content: "checklist";
-  font-family: "Material Symbols Rounded";
-  font-weight: normal;
-  font-size: 22px;
-  line-height: 1;
-  -webkit-font-feature-settings: "liga";
-  font-feature-settings: "liga";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: var(--md-sys-color-secondary-container, #e2e8f0);
-  color: var(--md-sys-color-primary, #0061a4);
-}
-
-.sessions-header-row > div:first-child::before {
-  content: "history";
+  border-radius: 50%;
 }
 
 .setup-card-content {
@@ -478,40 +267,29 @@
 
 .duration-chip {
   padding: 8px 16px;
-  border-radius: 999px;
+  border-radius: 20px;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
-  background: var(--md-sys-color-surface-container-lowest, #f8fafc);
-  color: var(--md-sys-color-on-surface, #1e293b);
+  background: var(--md-sys-color-surface-container-low, #f8fafc);
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+  transition: all 0.2s ease;
 }
 
 .duration-chip:hover {
   background: var(--md-sys-color-surface-container-high, #f1f5f9);
 }
 
-.duration-chip:active {
-  transform: scale(0.97);
-}
-
 .duration-chip.active {
-  background: var(--md-sys-color-primary-container, #0061a4);
-  color: var(--md-sys-color-on-primary-container, #ffffff);
-  border-color: transparent;
+  background: var(--md-sys-color-primary, #0061a4);
+  color: #ffffff;
+  border-color: var(--md-sys-color-primary, #0061a4);
 }
 
 .field-controls {
-  align-items: start;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   gap: 8px;
-}
-
-.field-controls .form-field-full {
-  min-width: 0;
-  width: 100%;
+  flex-wrap: wrap;
 }
 
 .native-ble-probe {
@@ -519,7 +297,7 @@
   gap: 10px;
   padding: 12px 14px;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 12px;
   background: var(--md-sys-color-surface-container-low, #f8fafc);
 }
 
@@ -554,7 +332,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--rv-r2, 14px) !important;
+  border-radius: 8px !important;
 }
 
 .pair-sensor-btn {
@@ -567,7 +345,7 @@
 .ble-scan-list {
   background: var(--md-sys-color-surface-container-high, #f1f5f9);
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 8px;
   overflow: hidden;
   margin-top: 4px;
 }
@@ -655,7 +433,7 @@
   margin-top: 4px;
   padding: 12px;
   border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 8px;
   color: var(--md-sys-color-on-surface-variant, #64748b);
   background: var(--md-sys-color-surface-container-low, #f8fafc);
   font-size: 0.82rem;
@@ -681,24 +459,7 @@
   width: 100%;
   height: 48px !important;
   font-weight: 600 !important;
-  border-radius: 999px !important;
-  background: var(--md-sys-color-primary, #0061a4) !important;
-  color: var(--md-sys-color-on-primary, #ffffff) !important;
-  box-shadow: 0 6px 18px -6px rgba(0, 0, 0, 0.35) !important;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
-}
-
-.start-session-btn:not([disabled]):hover {
-  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.4) !important;
-}
-
-.start-session-btn:not([disabled]):active {
-  transform: scale(0.97);
-}
-
-.start-session-btn[disabled] {
-  box-shadow: none !important;
-  opacity: 0.55;
+  border-radius: 24px !important;
 }
 
 /* Radar preview circular scope */
@@ -715,11 +476,9 @@
   max-width: 320px;
   height: 240px;
   position: relative;
-  /* The radar scope renders as a dark instrument display in every theme (per the
-     redesign mockup) so the green sweep/blip reads with proper contrast. */
-  background: radial-gradient(circle at 50% 45%, #0e1722, #070d14 72%);
-  border: 1px solid color-mix(in srgb, var(--rv-rr, #0e7c72) 24%, #0a1016);
-  border-radius: var(--rv-r2, 14px);
+  background: var(--md-sys-color-surface-container-lowest, #f8fafc);
+  border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
+  border-radius: 12px;
   overflow: hidden;
 }
 
@@ -734,17 +493,15 @@
   grid-template-columns: repeat(3, 1fr);
   width: 100%;
   gap: 8px;
-  text-align: left;
+  text-align: center;
 }
 
-/* Plain stacked metrics (prototype shows no card box around Range/HR/RR). */
 .scope-metric {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 4px 0;
-  background: transparent;
-  border: none;
+  padding: 8px;
+  background: var(--md-sys-color-surface-container-low, #f1f5f9);
+  border-radius: 8px;
 }
 
 .scope-metric span {
@@ -754,10 +511,7 @@
 }
 
 .scope-metric strong {
-  font-family: var(--rvt-mono-font);
   font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: -0.5px;
   color: var(--md-sys-color-primary, #0061a4);
   margin: 2px 0;
 }
@@ -771,7 +525,7 @@
   width: 100%;
   background: var(--md-sys-color-surface-container-lowest, #f8fafc);
   border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 12px;
   padding: 12px;
   box-sizing: border-box;
 }
@@ -810,14 +564,14 @@
 
 /* Preflight Checklist section */
 .preflight-card-stack {
-  border-radius: var(--rv-r1, 22px) !important;
+  border-radius: 16px !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-sizing: border-box;
   box-shadow: none !important;
   min-width: 0;
   padding: 16px;
   width: 100%;
-  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
+  background: var(--md-sys-color-surface, #ffffff) !important;
 }
 
 .preflight-header-row {
@@ -841,54 +595,19 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 10px;
   background: var(--md-sys-color-surface-container-low, #f8fafc);
   border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
-  transition: border-color 0.25s ease, transform 0.25s ease;
 }
 
 .preflight-row.pf-good {
-  background: var(--md-sys-color-success-container, rgba(0, 164, 150, 0.1));
-  border-color: color-mix(in srgb, var(--md-sys-color-success, #256d3b) 35%, transparent);
+  border-left: 4px solid var(--md-sys-color-tertiary, #00a496);
 }
 .preflight-row.pf-warn {
-  background: var(--md-sys-color-warning-container, rgba(234, 179, 8, 0.12));
-  border-color: color-mix(in srgb, var(--rv-warn, #8a5a00) 35%, transparent);
+  border-left: 4px solid #eab308;
 }
 .preflight-row.pf-bad {
-  background: var(--md-sys-color-error-container, rgba(220, 38, 38, 0.1));
-  border-color: color-mix(in srgb, var(--md-sys-color-error, #dc2626) 35%, transparent);
-}
-
-.preflight-empty-state {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 10px;
-  padding: 16px;
-  border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
-  border-radius: 12px;
-  color: var(--md-sys-color-on-surface-variant, #64748b);
-  background: var(--md-sys-color-surface-container-low, #f8fafc);
-}
-
-.preflight-empty-state mat-icon {
-  color: var(--md-sys-color-primary, #0061a4);
-}
-
-.preflight-empty-state div {
-  display: grid;
-  gap: 3px;
-}
-
-.preflight-empty-state strong {
-  color: var(--md-sys-color-on-surface, #1e293b);
-}
-
-.preflight-empty-state span {
-  font-size: 0.84rem;
-  line-height: 1.45;
+  border-left: 4px solid var(--md-sys-color-error, #dc2626);
 }
 
 .pf-info {
@@ -903,15 +622,9 @@
   flex-shrink: 0;
 }
 
-.pf-good .pf-status-icon { color: var(--md-sys-color-success, #256d3b); }
-.pf-warn .pf-status-icon { color: var(--rv-warn, #8a5a00); }
+.pf-good .pf-status-icon { color: var(--md-sys-color-tertiary, #00a496); }
+.pf-warn .pf-status-icon { color: #eab308; }
 .pf-bad .pf-status-icon { color: var(--md-sys-color-error, #dc2626); }
-
-.pf-good .pf-text strong,
-.pf-warn .pf-text strong,
-.pf-bad .pf-text strong {
-  color: var(--md-sys-color-on-surface, #1e293b);
-}
 
 .pf-text {
   display: flex;
@@ -936,14 +649,14 @@
 
 /* Past Sessions section */
 .sessions-history-card {
-  border-radius: var(--rv-r1, 22px) !important;
+  border-radius: 16px !important;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-sizing: border-box;
   box-shadow: none !important;
   min-width: 0;
   padding: 16px;
   width: 100%;
-  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
+  background: var(--md-sys-color-surface, #ffffff) !important;
 }
 
 .sessions-header-row {
@@ -962,29 +675,24 @@
 }
 
 .filter-chip {
-  padding: 6px 14px;
-  border-radius: 999px;
+  padding: 6px 12px;
+  border-radius: 16px;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
-  background: var(--md-sys-color-surface-container-lowest, #f8fafc);
-  color: var(--md-sys-color-on-surface, #1e293b);
+  background: var(--md-sys-color-surface-container-low, #f8fafc);
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+  transition: all 0.2s ease;
 }
 
 .filter-chip:hover {
   background: var(--md-sys-color-surface-container-high, #f1f5f9);
 }
 
-.filter-chip:active {
-  transform: scale(0.97);
-}
-
 .filter-chip.active {
-  background: var(--md-sys-color-primary-container, #d5e3ff);
-  color: var(--md-sys-color-on-primary-container, #001b3d);
-  border-color: transparent;
+  background: var(--md-sys-color-primary, #0061a4);
+  color: #ffffff;
+  border-color: var(--md-sys-color-primary, #0061a4);
 }
 
 .sessions-log-table {
@@ -1109,30 +817,6 @@
   padding: 40px;
   gap: 12px;
   color: var(--md-sys-color-on-surface-variant, #94a3b8);
-  text-align: center;
-  border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
-  border-radius: 12px;
-  background: var(--md-sys-color-surface-container-low, #f8fafc);
-}
-
-.sessions-empty-state h3 {
-  margin: 0;
-  color: var(--md-sys-color-on-surface, #1e293b);
-  font-size: 1rem;
-}
-
-.sessions-empty-state p {
-  margin: 0;
-  max-width: 520px;
-  font-size: 0.86rem;
-  line-height: 1.5;
-}
-
-.sessions-empty-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
 }
 
 .empty-icon {
@@ -1142,10 +826,6 @@
 }
 
 @media (max-width: 600px) {
-  .mobile-ready-stack {
-    display: block;
-  }
-
   .home-two-column-layout,
   .setup-config-card,
   .radar-scope-card,
@@ -1168,7 +848,7 @@
   }
 
   .field-controls .form-field-full {
-    min-width: 0;
+    flex: 1 1 auto;
     width: auto;
   }
 
@@ -1176,35 +856,9 @@
     flex: 0 0 52px;
     width: 52px !important;
   }
-
-  .pair-sensor-btn {
-    min-width: 52px !important;
-    padding-inline: 0 !important;
-  }
-
-  .pair-sensor-btn span {
-    clip-path: inset(50%);
-    height: 1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
-  }
-
-  .install-prompt-card,
-  .home-empty-card {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
-  .install-prompt-actions,
-  .home-empty-card button {
-    justify-self: stretch;
-    width: 100%;
-  }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 900px) {
   .setup-card-content {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1268,4 +922,156 @@
   font-size: 18px;
   width: 18px;
   height: 18px;
+}
+
+/* ================================================================
+   Repo-only feature styles (elements not present in the redesign
+   mockup): PWA install prompt, telemetry empty-state card, preflight
+   empty state, and session-history empty-state actions.
+   ================================================================ */
+
+/* PWA install prompt banner */
+.install-prompt-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 28%, var(--md-sys-color-outline-variant, #cbd5e1));
+  border-radius: 12px !important;
+  background:
+    linear-gradient(115deg, color-mix(in srgb, var(--md-sys-color-primary-container, #d5e3ff) 44%, transparent), transparent 58%),
+    var(--md-sys-color-surface, #ffffff) !important;
+  box-shadow: none !important;
+}
+
+.install-prompt-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  color: var(--md-sys-color-on-primary-container, #001b3d);
+  background: var(--md-sys-color-primary-container, #d5e3ff);
+}
+
+.install-prompt-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.install-prompt-copy strong {
+  color: var(--md-sys-color-on-surface, #1e293b);
+}
+
+.install-prompt-copy span {
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.install-prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: end;
+}
+
+/* "No telemetry data loaded yet" empty-state card */
+.home-empty-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: 12px !important;
+  background: var(--md-sys-color-surface-container-low, #f8fafc) !important;
+  box-shadow: none !important;
+}
+
+.home-empty-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.home-empty-copy strong {
+  color: var(--md-sys-color-on-surface, #1e293b);
+}
+
+.home-empty-copy span {
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+/* Preflight @empty placeholder */
+.preflight-empty-state {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 16px;
+  border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
+  border-radius: 12px;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  background: var(--md-sys-color-surface-container-low, #f8fafc);
+}
+
+.preflight-empty-state mat-icon {
+  color: var(--md-sys-color-primary, #0061a4);
+}
+
+.preflight-empty-state div {
+  display: grid;
+  gap: 3px;
+}
+
+.preflight-empty-state strong {
+  color: var(--md-sys-color-on-surface, #1e293b);
+}
+
+.preflight-empty-state span {
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+/* Session-history empty-state copy + recovery actions */
+.sessions-empty-state h3 {
+  margin: 0;
+  color: var(--md-sys-color-on-surface, #1e293b);
+  font-size: 1rem;
+}
+
+.sessions-empty-state p {
+  margin: 0;
+  max-width: 520px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.sessions-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Phone layout for repo-only banner/empty cards */
+@media (max-width: 600px) {
+  .install-prompt-card,
+  .home-empty-card {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .install-prompt-actions,
+  .home-empty-card button {
+    justify-self: stretch;
+    width: 100%;
+  }
 }

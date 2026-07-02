@@ -1,7 +1,7 @@
 :host {
   display: block;
   width: 100%;
-  max-width: 1240px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: clamp(14px, 2vw, 24px);
   box-sizing: border-box;
@@ -12,17 +12,20 @@
 .settings-container {
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 1.5rem;
   padding-bottom: 5rem;
 }
 
 .settings-header {
-  display: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  padding: 0.25rem 0 1rem;
 }
 
 .settings-title {
-  font-family: var(--rvt-ui-font);
-  font-size: 2rem;
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
   font-weight: 780;
   margin: 0;
   color: var(--md-sys-color-on-surface);
@@ -43,49 +46,15 @@
 
 .settings-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1rem;
   align-items: start;
-}
-
-.settings-search-field {
-  width: 100%;
-}
-
-/* The prototype leads the grid with appearance/display on the left and
-   source/pairing on the right; the app authored them in the reverse order,
-   so reorder the first two cards without moving the markup. */
-.settings-grid .display-card {
-  order: -2;
-}
-
-.settings-grid .connections-card {
-  order: -1;
-}
-
-/* Pill-shaped search to match the redesign prototype. Material renders the
-   notched-outline pieces in its own encapsulation context, so pierce it. */
-:host ::ng-deep .settings-search-field .mat-mdc-text-field-wrapper {
-  border-radius: 999px;
-}
-
-:host ::ng-deep .settings-search-field .mdc-notched-outline__leading {
-  border-radius: 999px 0 0 999px;
-  width: 28px;
-}
-
-:host ::ng-deep .settings-search-field .mdc-notched-outline__trailing {
-  border-radius: 0 999px 999px 0;
-}
-
-:host ::ng-deep .settings-search-field .mat-mdc-form-field-infix {
-  padding-left: 4px;
 }
 
 .settings-card {
   background: var(--md-sys-color-surface-container) !important;
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--rv-r1, 22px) !important;
+  border-radius: 8px !important;
   transition: border-color 280ms cubic-bezier(0.16, 1, 0.3, 1), background-color 280ms cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
 }
@@ -121,14 +90,22 @@ button,
   border-color: color-mix(in srgb, var(--md-sys-color-primary) 62%, var(--md-sys-color-outline-variant));
 }
 
-.settings-group-card {
-  min-height: 100%;
+.connection-card,
+.python-server-card,
+.ble-scanner-card,
+.thresholds-card {
+  grid-column: span 2;
 }
 
-.system-about-card {
+.connection-card {
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent), transparent 52%),
+    linear-gradient(90deg, color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent), transparent 38%),
     var(--md-sys-color-surface-container) !important;
+  border-left: 4px solid var(--md-sys-color-primary);
+}
+
+.python-server-card {
+  border-left: 4px solid var(--md-sys-color-tertiary, #0f766e);
 }
 
 .server-status-chip.running {
@@ -139,89 +116,6 @@ button,
 .server-status-chip.offline {
   background: var(--md-sys-color-error-container, #ffdad6) !important;
   color: var(--md-sys-color-on-error-container, #410002) !important;
-}
-
-.privacy-telemetry-card {
-  border-left: 4px solid var(--md-sys-color-tertiary, #0f766e);
-}
-
-.privacy-avatar {
-  color: var(--md-sys-color-tertiary) !important;
-  background: var(--md-sys-color-tertiary-container) !important;
-}
-
-.privacy-telemetry-card mat-chip.running {
-  background: var(--md-sys-color-tertiary-container, #ccfbf1) !important;
-  color: var(--md-sys-color-on-tertiary-container, #064e3b) !important;
-}
-
-.privacy-telemetry-card mat-chip.offline {
-  background: var(--md-sys-color-error-container, #ffdad6) !important;
-  color: var(--md-sys-color-on-error-container, #410002) !important;
-}
-
-.privacy-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.privacy-actions a,
-.privacy-actions button {
-  max-width: 100%;
-  white-space: normal;
-}
-
-.settings-mounted-card {
-  display: block;
-  min-width: 0;
-}
-
-:host ::ng-deep app-report-issue-card .report-issue-card {
-  background: var(--md-sys-color-surface-container) !important;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-left: 4px solid var(--md-sys-color-error, #ba1a1a);
-  border-radius: var(--rv-r1, 22px) !important;
-  overflow: hidden;
-}
-
-:host ::ng-deep app-report-issue-card .card-avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
-  padding: 0;
-  color: var(--md-sys-color-error, #ba1a1a);
-  background: var(--md-sys-color-error-container, #ffdad6);
-  border-radius: var(--rv-r2, 14px);
-  font-size: 20px;
-}
-
-:host ::ng-deep app-report-issue-card mat-card-header {
-  align-items: center;
-  gap: 12px;
-  padding: 1.1rem 1.25rem 0.4rem 1.25rem;
-}
-
-:host ::ng-deep app-report-issue-card mat-card-title {
-  font-family: var(--rvt-ui-font);
-  font-size: 1.05rem !important;
-  font-weight: 700 !important;
-  line-height: 1.25;
-  letter-spacing: 0;
-}
-
-:host ::ng-deep app-report-issue-card mat-card-subtitle {
-  color: var(--md-sys-color-on-surface-variant, #a4a4ac) !important;
-}
-
-:host ::ng-deep app-report-issue-card mat-card-content {
-  padding: 1.25rem !important;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
 }
 
 .server-actions {
@@ -240,7 +134,7 @@ button,
 
 .server-log-panel {
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 8px;
   background: var(--md-sys-color-surface-container-lowest, #0f172a);
   overflow: hidden;
 }
@@ -271,97 +165,31 @@ button,
   color: var(--md-sys-color-error, #ba1a1a);
 }
 
-/* Section header icon-tile (Material 3 Expressive — matches Home's header-avatar-ic) */
 .card-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
-  padding: 0;
   color: var(--md-sys-color-primary);
-  background: var(--md-sys-color-secondary-container);
-  border-radius: var(--rv-r2, 14px);
-  font-size: 20px;
-}
-
-.card-avatar.mat-mdc-card-avatar {
-  font-size: 20px;
+  background: var(--md-sys-color-primary-container);
+  border-radius: 8px;
+  padding: 8px;
 }
 
 mat-card-header {
-  align-items: center;
-  gap: 12px;
-  padding: 1.1rem 1.25rem 0.6rem 1.25rem;
+  padding: 1.25rem 1.25rem 0.5rem 1.25rem;
 }
 
 mat-card-title {
-  font-family: var(--rvt-ui-font);
-  font-size: 1.05rem !important;
-  font-weight: 700 !important;
-  line-height: 1.25;
+  font-size: 1.15rem !important;
+  font-weight: 600 !important;
   letter-spacing: 0;
 }
 
-mat-card-subtitle {
-  color: var(--md-sys-color-on-surface-variant, #a4a4ac) !important;
-  font-size: 0.78rem !important;
-  line-height: 1.3;
-}
-
 mat-card-content {
-  padding: 1.1rem 1.25rem 1.25rem !important;
+  padding: 1.25rem !important;
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
-}
-
-.settings-section {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 0 0 1.05rem;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
-}
-
-.settings-section:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-
-.settings-section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.inline-status-header {
-  align-items: flex-start;
-  flex-direction: row;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.section-title {
-  color: var(--md-sys-color-on-surface);
-  font-size: 0.88rem;
-  font-weight: 760;
-  line-height: 1.2;
-}
-
-.section-subtitle {
-  color: var(--md-sys-color-on-surface-variant, #a4a4ac);
-  font-size: 0.76rem;
-  line-height: 1.35;
-}
-
-/* Expressive pill buttons across action surfaces (matches Home). */
-mat-card-content .mat-mdc-unelevated-button,
-mat-card-content .mat-mdc-raised-button,
-mat-card-content .mat-mdc-outlined-button,
-mat-card-content .mat-mdc-button {
-  border-radius: 999px !important;
+  gap: 1.25rem;
 }
 
 .settings-row {
@@ -397,34 +225,12 @@ mat-card-content .mat-mdc-button {
   color: var(--md-sys-color-on-surface-variant, #a4a4ac);
 }
 
-.form-field-full {
-  width: 100%;
-}
-
-.settings-actions-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-}
-
-.settings-actions-row button,
-.audio-actions button,
-.threshold-actions button {
-  max-width: 100%;
-  white-space: normal;
-}
-
-.primary-wide-action {
-  flex: 1 1 220px;
-}
-
 /* Button Toggles */
 .theme-toggle-group, .density-toggle-group, .haptics-toggle-group {
   width: 100%;
   background: var(--md-sys-color-surface-container-low) !important;
   border: 1px solid var(--md-sys-color-outline-variant) !important;
-  border-radius: 999px !important;
+  border-radius: 8px !important;
   overflow: hidden;
 }
 
@@ -462,8 +268,7 @@ mat-button-toggle {
   .python-server-card,
   .ble-scanner-card,
   .thresholds-card,
-  .update-info-card,
-  .privacy-telemetry-card {
+  .update-info-card {
     grid-column: span 1;
   }
 
@@ -509,13 +314,12 @@ mat-button-toggle {
 }
 
 .threshold-value {
-  font-family: var(--rvt-mono-font, ui-monospace, SFMono-Regular, Consolas, monospace);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 700;
-  color: var(--md-sys-color-on-primary-container);
+  color: var(--md-sys-color-primary);
   background: var(--md-sys-color-primary-container);
-  padding: 2px 10px;
-  border-radius: 999px;
+  padding: 2px 8px;
+  border-radius: 12px;
 }
 
 .threshold-row {
@@ -533,10 +337,9 @@ mat-button-toggle {
   background: var(--md-sys-color-surface-container-low);
   border: 1px solid var(--md-sys-color-outline-variant);
   color: var(--md-sys-color-on-surface);
-  border-radius: var(--rv-r2, 14px);
-  padding: 8px;
+  border-radius: 8px;
+  padding: 6px;
   text-align: center;
-  font-family: var(--rvt-mono-font, ui-monospace, SFMono-Regular, Consolas, monospace);
   font-weight: 600;
   outline: none;
   transition: border-color 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -569,8 +372,8 @@ mat-button-toggle {
   align-items: center;
   gap: 1rem;
   background: var(--md-sys-color-surface-container-low);
-  padding: 10px 16px;
-  border-radius: var(--rv-r2, 14px);
+  padding: 8px 16px;
+  border-radius: 12px;
   border: 1px solid var(--md-sys-color-outline-variant);
 }
 
@@ -590,13 +393,13 @@ mat-button-toggle {
 }
 
 .test-btn {
-  border-radius: 999px !important;
+  border-radius: 8px !important;
 }
 
 /* Footer style */
 .settings-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   margin-top: 2rem;
   border-top: 1px solid var(--md-sys-color-outline-variant);
@@ -613,11 +416,11 @@ mat-button-toggle {
 }
 
 .reset-all-btn {
-  border-radius: 999px !important;
+  border-radius: 8px !important;
 }
 
 .done-btn {
-  border-radius: 999px !important;
+  border-radius: 8px !important;
   padding: 0 2rem !important;
 }
 
@@ -639,7 +442,7 @@ mat-button-toggle {
   justify-content: space-between;
   gap: 1rem;
   padding: 10px 16px;
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 12px;
   background: var(--md-sys-color-surface-container-low);
   border: 1px solid var(--md-sys-color-outline-variant);
 }
@@ -748,7 +551,7 @@ mat-button-toggle {
   align-items: center;
   background: var(--md-sys-color-surface-container-high);
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 8px;
   color: var(--md-sys-color-on-surface);
   cursor: pointer;
   display: grid;
@@ -802,109 +605,7 @@ mat-button-toggle {
   border-left: 4px solid var(--md-sys-color-primary, #0061a4);
 }
 
-.about-data-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.data-stat,
-.data-meter-card {
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--rv-r2, 14px);
-  background: var(--md-sys-color-surface-container-low);
-  padding: 0.9rem 1rem;
-}
-
-.data-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.data-stat strong,
-.data-meter-header strong {
-  color: var(--md-sys-color-on-surface);
-  font-family: var(--rvt-mono-font, ui-monospace, SFMono-Regular, Consolas, monospace);
-  font-size: 0.95rem;
-}
-
-.data-label {
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.76rem;
-  font-weight: 650;
-}
-
-.data-meter-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.data-meter-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.storage-meter {
-  width: 100%;
-  height: 10px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--md-sys-color-surface-container-highest, rgba(127, 127, 127, 0.2));
-}
-
-.storage-meter-fill {
-  display: block;
-  min-width: 3px;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary, var(--md-sys-color-primary)));
-}
-
-.embedded-system-section {
-  gap: 0.85rem;
-}
-
-.embedded-mounted-card {
-  display: block;
-}
-
-:host ::ng-deep .embedded-mounted-card .settings-card {
-  border: 1px solid var(--md-sys-color-outline-variant) !important;
-  border-left: 1px solid var(--md-sys-color-outline-variant) !important;
-  border-radius: var(--rv-r2, 14px) !important;
-  background: var(--md-sys-color-surface-container-low) !important;
-  box-shadow: none !important;
-}
-
-:host ::ng-deep .embedded-mounted-card mat-card-header {
-  padding: 0.95rem 1rem 0.2rem !important;
-}
-
-:host ::ng-deep .embedded-mounted-card mat-card-content {
-  padding: 0.9rem 1rem 1rem !important;
-}
-
-.settings-empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  padding: 1.25rem;
-  border: 1px dashed var(--md-sys-color-outline-variant);
-  border-radius: var(--rv-r1, 22px);
-  color: var(--md-sys-color-on-surface-variant);
-}
-
 @media (max-width: 480px) {
-  .settings-title {
-    font-size: 1.65rem;
-  }
-
   .settings-row {
     flex-direction: column;
     align-items: flex-start;
@@ -917,15 +618,8 @@ mat-button-toggle {
   }
   .server-actions button,
   .audio-actions button,
-  .threshold-actions button,
-  .settings-actions-row button,
-  .privacy-actions a,
-  .privacy-actions button {
+  .threshold-actions button {
     width: 100%;
-  }
-
-  .about-data-grid {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -940,8 +634,8 @@ mat-button-toggle {
 
 .update-available-container {
   margin-top: 16px;
-  padding: 14px;
-  border-radius: var(--rv-r2, 14px);
+  padding: 12px;
+  border-radius: 8px;
   background-color: var(--md-sys-color-secondary-container, #e8def8);
   color: var(--md-sys-color-on-secondary-container, #1d192b);
 }
@@ -1041,7 +735,7 @@ mat-button-toggle {
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem;
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 12px;
   background: var(--md-sys-color-surface-container-high);
   border: 1px solid var(--md-sys-color-outline-variant);
   margin-top: 1rem;
@@ -1053,7 +747,7 @@ mat-button-toggle {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 8px;
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
   font-size: 0.8rem;
@@ -1078,10 +772,9 @@ mat-button-toggle {
   max-width: 100%;
   overflow-wrap: anywhere;
   padding: 0.75rem;
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 8px;
   background: var(--md-sys-color-surface-container-low);
   color: var(--md-sys-color-on-surface);
-  font-family: var(--rvt-mono-font, ui-monospace, SFMono-Regular, Consolas, monospace);
   font-size: 0.8rem;
 }
 
@@ -1108,7 +801,6 @@ mat-button-toggle {
 }
 
 .pairing-pin {
-  font-family: var(--rvt-mono-font, ui-monospace, SFMono-Regular, Consolas, monospace);
   font-size: 1.6rem;
   font-weight: 800;
   letter-spacing: 0.18em;
@@ -1121,7 +813,7 @@ mat-button-toggle {
 }
 
 .new-pin-btn {
-  border-radius: 999px;
+  border-radius: 8px;
 }
 
 .pairing-qr-block {
@@ -1134,11 +826,209 @@ mat-button-toggle {
 .pairing-qr-img {
   width: 196px;
   height: 196px;
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 12px;
   background: #fff;
   padding: 8px;
   box-sizing: content-box;
   image-rendering: pixelated;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Repo-only rules re-appended after the mockup base. These style elements
+   that exist only in the repo build (settings search, palette picker,
+   LAN PIN block, consent/privacy actions, data & diagnostics meter,
+   embedded about/report-issue cards, search empty state).
+   ════════════════════════════════════════════════════════════════════════ */
+
+.settings-search-field {
+  width: 100%;
+}
+
+/* Pill-shaped search to match the redesign prototype. Material renders the
+   notched-outline pieces in its own encapsulation context, so pierce it. */
+:host ::ng-deep .settings-search-field .mat-mdc-text-field-wrapper {
+  border-radius: 999px;
+}
+
+:host ::ng-deep .settings-search-field .mdc-notched-outline__leading {
+  border-radius: 999px 0 0 999px;
+  width: 28px;
+}
+
+:host ::ng-deep .settings-search-field .mdc-notched-outline__trailing {
+  border-radius: 0 999px 999px 0;
+}
+
+:host ::ng-deep .settings-search-field .mat-mdc-form-field-infix {
+  padding-left: 4px;
+}
+
+.form-field-full {
+  width: 100%;
+}
+
+.settings-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.settings-actions-row button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.privacy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.privacy-actions a,
+.privacy-actions button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+/* Data & diagnostics: local storage meter */
+.data-stat,
+.data-meter-card {
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container-low);
+  padding: 0.9rem 1rem;
+}
+
+.data-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.data-stat strong,
+.data-meter-header strong {
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--rvt-mono-font, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: 0.95rem;
+}
+
+.data-label {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.data-meter-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.data-meter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.storage-meter {
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--md-sys-color-surface-container-highest, rgba(127, 127, 127, 0.2));
+}
+
+.storage-meter-fill {
+  display: block;
+  min-width: 3px;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary, var(--md-sys-color-primary)));
+}
+
+/* Embedded about/report-issue cards mounted inside the About & Legal card */
+.settings-mounted-card {
+  display: block;
+  min-width: 0;
+}
+
+.embedded-system-section {
+  gap: 0.85rem;
+}
+
+.embedded-mounted-card {
+  display: block;
+}
+
+:host ::ng-deep .embedded-mounted-card .settings-card {
+  border: 1px solid var(--md-sys-color-outline-variant) !important;
+  border-left: 1px solid var(--md-sys-color-outline-variant) !important;
+  border-radius: 8px !important;
+  background: var(--md-sys-color-surface-container-low) !important;
+  box-shadow: none !important;
+}
+
+:host ::ng-deep .embedded-mounted-card mat-card-header {
+  padding: 0.95rem 1rem 0.2rem !important;
+}
+
+:host ::ng-deep .embedded-mounted-card mat-card-content {
+  padding: 0.9rem 1rem 1rem !important;
+}
+
+:host ::ng-deep app-report-issue-card .report-issue-card {
+  background: var(--md-sys-color-surface-container-low) !important;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-left: 4px solid var(--md-sys-color-error, #ba1a1a);
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+:host ::ng-deep app-report-issue-card .card-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--md-sys-color-error, #ba1a1a);
+  background: var(--md-sys-color-error-container, #ffdad6);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+:host ::ng-deep app-report-issue-card mat-card-header {
+  padding: 0.95rem 1rem 0.2rem;
+}
+
+:host ::ng-deep app-report-issue-card mat-card-title {
+  font-size: 1.05rem !important;
+  font-weight: 600 !important;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+:host ::ng-deep app-report-issue-card mat-card-subtitle {
+  color: var(--md-sys-color-on-surface-variant, #a4a4ac) !important;
+}
+
+:host ::ng-deep app-report-issue-card mat-card-content {
+  padding: 0.9rem 1rem 1rem !important;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Search empty state */
+.settings-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 1.25rem;
+  border: 1px dashed var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* ── Material 3 Expressive palette selector (Appearance card) ──────────────── */
@@ -1156,7 +1046,7 @@ mat-button-toggle {
   width: 100%;
   padding: 13px 16px;
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--rv-r2, 14px);
+  border-radius: 8px;
   background: var(--md-sys-color-surface-container-low);
   color: var(--md-sys-color-on-surface);
   cursor: pointer;
@@ -1302,7 +1192,7 @@ mat-button-toggle {
   display: grid;
   place-items: center;
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--rv-r2, 12px);
+  border-radius: 8px;
   background: var(--md-sys-color-surface-container-lowest);
   font-family: var(--rvt-mono-font, "JetBrains Mono", monospace);
   font-size: 1.4rem;
@@ -1316,4 +1206,13 @@ mat-button-toggle {
   font-size: 0.78rem;
   color: var(--md-sys-color-on-surface-variant);
   margin: 0;
+}
+
+/* Mobile widths for repo-only action rows */
+@media (max-width: 480px) {
+  .settings-actions-row button,
+  .privacy-actions a,
+  .privacy-actions button {
+    width: 100%;
+  }
 }

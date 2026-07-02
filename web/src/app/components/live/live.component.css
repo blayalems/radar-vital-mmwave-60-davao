@@ -1745,3 +1745,22 @@
 .sqi-seg.good { background: var(--md-sys-color-primary); }
 .sqi-seg.warn { background: var(--md-sys-color-tertiary); }
 .sqi-seg.bad { background: var(--md-sys-color-error); }
+
+/* =============================================================================
+   SIMPLE (ZEN) KPI CARDS — prototype parity
+   In the prototype's Simple view the sparkline draws directly on the tinted
+   card (no inner panel), the drag handle is hidden, and the value reads
+   display-scale.
+   ========================================================================== */
+:host-context(body.zen-mode) .kpi-metric-card.kpi-hr .kpi-card-spark,
+:host-context(body.zen-mode) .kpi-metric-card.kpi-rr .kpi-card-spark {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  min-height: 120px;
+}
+:host-context(body.zen-mode) .kpi-metric-card.kpi-hr .drag-icon,
+:host-context(body.zen-mode) .kpi-metric-card.kpi-rr .drag-icon,
+:host-context(body.zen-mode) .kpi-metric-card .kpi-zoom-btn {
+  display: none;
+}

@@ -1,33 +1,19 @@
-/* =============================================================================
-   HELP SCREEN — Material 3 Expressive ("Radar Vital Redesign")
-   -----------------------------------------------------------------------------
-   Visual language mapped from the mockup onto the real Angular component:
-   - Content cards on `surface-container` with `--rv-r1` / `--rv-r2` radii.
-   - Circular icon-tile section headers (shared `header-avatar-ic` language).
-   - Clean type hierarchy; keyboard shortcuts / codes in the mono typeface.
-   - Tokens only, so light + dark + every palette stay in sync.
-   ========================================================================== */
-
 .help-container {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
   max-width: 1200px;
   margin: 0 auto;
   padding-bottom: 40px;
-  min-width: 0;
 }
 
-/* ---- Playbook header card -------------------------------------------------- */
-/* Compact status bar (prototype has no gradient hero — just the status
-   chips on the left and the Advanced-detail toggle on the right). */
+/* Playbook Header card */
 .help-header-card {
-  border-radius: var(--rv-r1) !important;
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 12px !important;
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
-  padding: 10px 16px;
-  background: var(--md-sys-color-surface-container) !important;
-  position: relative;
+  padding: 16px 20px;
+  background: var(--md-sys-color-surface-container, #ffffff) !important;
 }
 
 .help-header-inner {
@@ -41,56 +27,34 @@
 .help-title-group {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
-/* Circular icon tile leading the header — matches Home's header-avatar-ic. */
 .help-main-icon {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  font-size: 24px;
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
+  font-size: 2.2rem;
+  width: 36px;
+  height: 36px;
+  color: var(--md-sys-color-primary, #0061a4);
 }
 
 .help-title-group strong {
-  font-family: var(--rvt-ui-font);
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: -0.2px;
-  color: var(--md-sys-color-on-surface);
+  font-size: 1.1rem;
+  color: var(--md-sys-color-on-surface, #1e293b);
   display: block;
 }
 
 .help-title-group small {
   font-size: 0.85rem;
-  line-height: 1.45;
-  color: var(--md-sys-color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant, #64748b);
 }
 
-.header-controls {
-  align-items: flex-end;
-  display: grid;
-  gap: 12px;
-  justify-items: end;
-}
-
-.schema-progress {
-  margin: 16px -20px -18px;
-  width: calc(100% + 40px);
-}
-
-/* ---- Search toolbar card --------------------------------------------------- */
+/* Search toolbar */
 .help-search-card {
-  border-radius: var(--rv-r1) !important;
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 12px !important;
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
-  padding: 16px 20px;
-  background: var(--md-sys-color-surface-container-low) !important;
+  padding: 12px 20px;
+  background: var(--md-sys-color-surface, #ffffff) !important;
 }
 
 .search-toolbar-inner {
@@ -104,62 +68,44 @@
 .search-field {
   flex: 1;
   min-width: 280px;
-  --mdc-filled-text-field-container-color: var(--md-sys-color-surface-container-lowest);
 }
 
-/* Rounded (pill) search input with leading icon. */
-.search-field .mat-mdc-text-field-wrapper {
-  border-radius: var(--rv-r-pill) !important;
+.search-field {
+  --mdc-filled-text-field-container-color: var(--md-sys-color-surface-container-low, #f8fafc);
 }
 
-.search-field .mdc-notched-outline__leading {
-  border-radius: var(--rv-r-pill) 0 0 var(--rv-r-pill) !important;
-  width: 28px;
-}
-
-.search-field .mdc-notched-outline__trailing {
-  border-radius: 0 var(--rv-r-pill) var(--rv-r-pill) 0 !important;
-}
-
-.search-field mat-icon[matPrefix] {
-  color: var(--md-sys-color-on-surface-variant);
-  margin-inline: 4px 6px;
-}
-
-/* Keyboard-shortcut hint — mono. */
 .shortcut-tip {
-  font-size: 0.78rem;
-  font-family: var(--rvt-mono-font);
-  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.8rem;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
 }
 
 .shortcut-tip kbd {
   background: var(--md-sys-color-surface-container-high);
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   color: var(--md-sys-color-on-surface);
-  border-radius: 6px;
-  padding: 2px 7px;
-  font-size: 0.72rem;
-  font-family: var(--rvt-mono-font);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  font-family: monospace;
 }
 
-/* ---- Topic + category navigation (pills) ---------------------------------- */
-.topic-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
+/* Help content layout grid */
+.help-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 20px;
 }
 
-.topic-links button {
-  background: var(--md-sys-color-surface-container);
-  border-radius: var(--rv-r-pill);
-  color: var(--md-sys-color-on-surface-variant);
+@media (max-width: 992px) {
+  .help-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
-.topic-links button.active {
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
+@media (max-width: 760px) {
+  .help-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 .category-chips {
@@ -169,75 +115,29 @@
   margin-top: 10px;
 }
 
-.category-chips button {
-  border-radius: var(--rv-r-pill);
-}
-
 .category-chips button.active {
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
 }
 
-/* ---- Content layout grid --------------------------------------------------- */
-/* Single-column layout to match the prototype (FAQ accordion full width;
-   the secondary legal / checklist cards sit below). */
-.help-layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 18px;
-}
-
-.support-column {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  align-items: start;
-}
-
-@media (max-width: 760px) {
-  .support-column {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Full-width quick-support action grid (prototype's 2-column tap targets). */
-.recovery-actions-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-@media (max-width: 760px) {
-  .recovery-actions-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.recovery-actions-grid button {
-  justify-content: flex-start;
-  gap: 10px;
-  min-height: 52px;
-  border-radius: var(--rv-r2, 14px) !important;
-}
-
-/* ---- FAQ accordion --------------------------------------------------------- */
+/* Accordion layout */
 .help-accordion-content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .help-accordion {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .faq-panel {
-  border-radius: var(--rv-r2) !important;
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 12px !important;
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   box-shadow: none !important;
-  background: var(--md-sys-color-surface-container) !important;
+  background: var(--md-sys-color-surface, #ffffff) !important;
   overflow: hidden;
 }
 
@@ -246,45 +146,25 @@
   align-items: center;
   gap: 12px;
   font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--md-sys-color-on-surface);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface, #1e293b);
 }
 
 .faq-category-icon {
-  color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-primary, #0061a4);
   font-size: 1.25rem;
   width: 20px;
   height: 20px;
 }
 
 .faq-body-text {
-  padding: 14px 18px;
+  padding: 16px 20px;
   font-size: 0.9rem;
   line-height: 1.6;
-  color: var(--md-sys-color-on-surface-variant);
-  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant, #475569);
+  background: var(--md-sys-color-surface-container-lowest, #f8fafc);
   white-space: pre-line;
-  border-top: 1px solid var(--md-sys-color-outline-variant);
-}
-
-.faq-body-text strong {
-  color: var(--md-sys-color-on-surface);
-}
-
-.advanced-note {
-  align-items: flex-start;
-  background: var(--md-sys-color-tertiary-container);
-  border-radius: var(--rv-r2);
-  color: var(--md-sys-color-on-tertiary-container);
-  display: flex;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 12px;
-}
-
-.advanced-note mat-icon {
-  flex: 0 0 auto;
-  font-size: 20px;
+  border-top: 1px solid var(--md-sys-color-outline-variant, #f1f5f9);
 }
 
 .no-topics-state {
@@ -294,15 +174,24 @@
   justify-content: center;
   padding: 40px;
   gap: 12px;
-  color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-outline, #94a3b8);
 }
 
-/* ---- Reference gateway ----------------------------------------------------- */
+/* Support recovery card */
+.recovery-card {
+  border-radius: 16px !important;
+  border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
+  box-shadow: none !important;
+  padding: 16px;
+  background: var(--md-sys-color-surface, #ffffff) !important;
+  height: fit-content;
+}
+
 .reference-gateway {
   align-items: center;
   background: var(--md-sys-color-surface-container-low) !important;
   border: 1px dashed var(--md-sys-color-outline-variant);
-  border-radius: var(--rv-r1) !important;
+  border-radius: 16px !important;
   box-shadow: none !important;
   display: grid;
   gap: 12px;
@@ -319,108 +208,196 @@
   display: block;
 }
 
-.reference-gateway strong {
-  color: var(--md-sys-color-on-surface);
-}
-
 .reference-gateway span {
   color: var(--md-sys-color-on-surface-variant);
   font-size: 0.84rem;
   margin-top: 4px;
 }
 
-/* ---- Support column cards --------------------------------------------------- */
+.wide-help-card {
+  background: var(--md-sys-color-surface) !important;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 16px !important;
+  box-shadow: none !important;
+  padding: 16px;
+}
+
+.deep-reference-panels {
+  display: grid;
+  gap: 12px;
+}
+
+.pipeline-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 16px;
+}
+
+.pipeline-step,
+.tooltip-grid article {
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.pipeline-step > span {
+  align-items: center;
+  background: var(--md-sys-color-primary-container);
+  border-radius: 999px;
+  color: var(--md-sys-color-on-primary-container);
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.pipeline-step p {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.tooltip-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  margin-top: 16px;
+}
+
+.tooltip-grid span {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+.recovery-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.recovery-actions-list p {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  margin-bottom: 8px;
+}
+
+.recovery-btn {
+  width: 100%;
+  height: 40px !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  border-radius: 20px !important;
+}
+
+@media (max-width: 600px) {
+  .reference-gateway {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .reference-gateway button {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Material playbook parity: complete offline guidance, topic navigation and recovery state. */
+.help-container {
+  min-width: 0;
+}
+
+.help-header-card {
+  background:
+    radial-gradient(circle at 96% -20%, color-mix(in srgb, var(--md-sys-color-tertiary-container) 70%, transparent), transparent 42%),
+    linear-gradient(120deg, var(--md-sys-color-surface-container), var(--md-sys-color-surface-container-low)) !important;
+  overflow: hidden;
+  position: relative;
+}
+
+.help-header-card::before {
+  background: linear-gradient(90deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
+  content: '';
+  height: 3px;
+  inset: 0 0 auto;
+  position: absolute;
+}
+
+.header-controls {
+  align-items: flex-end;
+  display: grid;
+  gap: 12px;
+  justify-items: end;
+}
+
+.schema-progress {
+  margin: 16px -20px -16px;
+  width: calc(100% + 40px);
+}
+
+.topic-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.topic-links button {
+  background: var(--md-sys-color-surface-container-low);
+  border-radius: 999px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.topic-links button.active {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.advanced-note {
+  align-items: flex-start;
+  background: var(--md-sys-color-tertiary-container);
+  border-radius: 12px;
+  color: var(--md-sys-color-on-tertiary-container);
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.advanced-note mat-icon {
+  flex: 0 0 auto;
+  font-size: 20px;
+}
+
 .support-column {
   display: grid;
   gap: 14px;
   min-width: 0;
 }
 
-.recovery-card,
-.legal-card,
 .checklist-card {
-  border-radius: var(--rv-r1) !important;
+  background: var(--md-sys-color-surface) !important;
   border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 16px !important;
   box-shadow: none !important;
-  padding: 16px;
-  background: var(--md-sys-color-surface-container) !important;
-  height: fit-content;
   min-width: 0;
+  padding: 14px;
 }
 
-/* Circular section-header icon tile (shared expressive language). */
-.header-avatar-ic {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  font-size: 22px;
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-primary);
-}
-
-.recovery-card mat-card-header,
-.legal-card mat-card-header {
-  align-items: center;
-  gap: 12px;
-  padding: 0 0 14px;
-}
-
-.recovery-card mat-card-title,
-.legal-card mat-card-title,
-.checklist-card mat-card-title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--md-sys-color-on-surface);
-}
-
-.recovery-actions-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 0 !important;
-}
-
-.recovery-actions-list p {
-  font-size: 0.85rem;
-  line-height: 1.5;
-  color: var(--md-sys-color-on-surface-variant);
-  margin: 0 0 6px;
-}
-
-.recovery-actions-list button {
-  justify-content: flex-start;
-  border-radius: var(--rv-r-pill) !important;
-}
-
-.legal-links-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 0 !important;
-}
-
-.legal-links-list a {
-  justify-content: flex-start;
-  max-width: 100%;
-  white-space: normal;
-  border-radius: var(--rv-r-pill) !important;
-}
-
-/* ---- Recovery checklist card ----------------------------------------------- */
 .checklist-card mat-card-header {
   align-items: center;
   display: flex;
-  gap: 12px;
-  justify-content: flex-start;
-  margin-bottom: 14px;
+  justify-content: space-between;
+  margin-bottom: 12px;
   padding: 0;
 }
 
-.checklist-card mat-card-header button {
-  margin-left: auto;
+.checklist-card mat-card-title {
+  font-size: 0.94rem;
+  font-weight: 700;
 }
 
 .checklist-card mat-card-content {
@@ -439,10 +416,6 @@
   color: var(--md-sys-color-on-surface);
 }
 
-.checklist-progress span {
-  font-family: var(--rvt-mono-font);
-}
-
 .checklist-steps {
   display: grid;
   gap: 4px;
@@ -459,70 +432,10 @@
   white-space: normal;
 }
 
-.checklist-steps strong {
-  color: var(--md-sys-color-on-surface);
-}
-
 .checklist-steps small {
   color: var(--md-sys-color-on-surface-variant);
   font-size: 0.74rem;
   line-height: 1.35;
-}
-
-/* ---- Deep-reference panels ------------------------------------------------- */
-.deep-reference-panels {
-  display: grid;
-  gap: 12px;
-}
-
-.wide-help-card {
-  background: var(--md-sys-color-surface-container) !important;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--rv-r1) !important;
-  box-shadow: none !important;
-  padding: 16px;
-}
-
-.pipeline-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  margin-top: 16px;
-}
-
-.pipeline-step,
-.tooltip-grid article {
-  background: var(--md-sys-color-surface-container-low);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--rv-r2);
-  display: grid;
-  gap: 6px;
-  padding: 12px;
-}
-
-/* Mono numeral badge — codes/indices read as monospace. */
-.pipeline-step > span {
-  align-items: center;
-  background: var(--md-sys-color-primary-container);
-  border-radius: var(--rv-r-pill);
-  color: var(--md-sys-color-on-primary-container);
-  display: inline-flex;
-  font-family: var(--rvt-mono-font);
-  font-weight: 600;
-  height: 28px;
-  justify-content: center;
-  width: 28px;
-}
-
-.pipeline-step strong,
-.tooltip-grid strong {
-  color: var(--md-sys-color-on-surface);
-}
-
-.pipeline-step p {
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.82rem;
-  margin: 0;
 }
 
 .pipeline-step small {
@@ -534,26 +447,6 @@
   padding-top: 8px;
 }
 
-.tooltip-grid {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  margin-top: 16px;
-}
-
-/* Field-dictionary keys read as mono codes. */
-.tooltip-grid strong {
-  font-family: var(--rvt-mono-font);
-  font-size: 0.84rem;
-}
-
-.tooltip-grid span {
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.84rem;
-  line-height: 1.45;
-}
-
-/* ---- View-scoped layout + responsive -------------------------------------- */
 :host-context(body[data-view='help']) .help-layout {
   grid-template-columns: minmax(0, 1fr) minmax(280px, 300px);
 }
@@ -608,12 +501,40 @@
   .category-chips button {
     flex: 1 1 auto;
   }
+}
 
-  .reference-gateway {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
+/* ---- Repo-only: Legal & Project Links card (kept from the app; styled with
+   the same card language as the mockup support-column cards). ---------------- */
+.legal-card {
+  background: var(--md-sys-color-surface) !important;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 16px !important;
+  box-shadow: none !important;
+  min-width: 0;
+  padding: 14px;
+}
 
-  .reference-gateway button {
-    grid-column: 1 / -1;
-  }
+.legal-card mat-card-header {
+  align-items: center;
+  display: flex;
+  margin-bottom: 12px;
+  padding: 0;
+}
+
+.legal-card mat-card-title {
+  font-size: 0.94rem;
+  font-weight: 700;
+}
+
+.legal-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 !important;
+}
+
+.legal-links-list a {
+  justify-content: flex-start;
+  max-width: 100%;
+  white-space: normal;
 }

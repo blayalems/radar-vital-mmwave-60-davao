@@ -294,3 +294,57 @@
   border-color: #fff !important;
   color: #fff !important;
 }
+
+/* =============================================================================
+   PROTOTYPE-CSS COEXISTENCE FIXES
+   The consolidated prototype stylesheet styles `.mode-badge` for the legacy
+   div-based chip (shimmer overlay + hidden overflow). Keep the Angular MDC
+   chip's label legible and unclipped underneath those rules.
+   ========================================================================== */
+.topbar .status-pill.mode-badge {
+  overflow: visible;
+}
+.topbar .status-pill.mode-badge::after {
+  content: none;
+}
+.topbar .status-pill .mdc-evolution-chip__text-label,
+.topbar .status-pill .mat-mdc-chip-action-label {
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: visible;
+}
+
+/* Prototype topbar status pill: white surface, tinted status dot, mono sub —
+   the amber .mode-badge fill belongs to the legacy monolith chip only. */
+.topbar .status-pill.mode-badge,
+.topbar .status-pill.mode-badge.demo,
+.topbar .status-pill.mode-badge.live,
+.topbar .status-pill.mode-badge.failed {
+  background: var(--surface-1, #fff);
+  color: var(--ink-900, #0b1220);
+  border: 1px solid var(--line, #dde3ee);
+}
+.topbar .status-pill.mode-badge .status-dot {
+  background: var(--warn-500, #d97706);
+}
+.topbar .status-pill.mode-badge.live .status-dot {
+  background: var(--ok-500, #16a34a);
+}
+.topbar .status-pill.mode-badge.failed .status-dot {
+  background: var(--bad-500, #dc2626);
+}
+.topbar .status-pill.mode-badge .status-txt {
+  font-weight: 700;
+}
+.topbar .status-pill.mode-badge .status-sub {
+  font-family: var(--rvt-mono-font, 'JetBrains Mono', monospace);
+  color: var(--ink-500, #64748b);
+}
+.topbar .status-pill .status-separator {
+  display: none;
+}
+.topbar .status-pill.mode-badge #modeBadgeIcon:empty {
+  display: none;
+}

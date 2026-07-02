@@ -34,7 +34,7 @@
       primary: mat.$azure-palette,
       tertiary: mat.$cyan-palette
     ),
-    typography: ('Figtree', 'Inter', 'Roboto', sans-serif),
+    typography: ('Inter', 'Figtree', 'Roboto', sans-serif),
     density: 0
   ));
 }
@@ -74,17 +74,21 @@ html[data-theme='hc'] .kpi-card-spark {
   border-color: #fff !important;
 }
 
-/* Migrated v11/v12 visual contracts load after Material system tokens. */
+/* Migrated v11/v12 visual contracts load after Material system tokens.
+   `rvt-consolidated-css.css` + `patches/legacy-patches.css` are the "Radar
+   Vital Redesign" prototype's own stylesheets, imported verbatim so the
+   console inherits the prototype design system 1:1. */
 @import './styles/rvt-loader-critical.css';
+@import './styles/rvt-consolidated-css.css';
 @import './styles/rvt-v12-mobile-pwa-css.css';
+@import './styles/patches/legacy-patches.css';
 @import './styles/rvt-native-shell-final.css';
 @import './styles/print.css';
-/* Material 3 Expressive redesign — palette + token layer (must load last). */
+/* Opt-in exploration palettes (Settings → Appearance). The default "Classic"
+   look is the prototype palette above — no `data-palette` attribute is set for
+   it, so these higher-specificity overlays only match when an operator picks
+   Azure Expressive / Pixel Bloom / Clinical Mint explicitly. */
 @import './styles/rvt-redesign-tokens.css';
-/* Design-exact reskin — restates the "Radar Vital Redesign" prototype's exact
-   palette for every theme + exploration and maps it onto the Material and
-   --rv-* tokens. Loads LAST so the prototype values win across all screens. */
-@import './styles/rvt-design-exact.css';
 
 :root {
   @include mat.theme-overrides((

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, HostListener, ViewChild, AfterViewInit, effect } from '@angular/core';
 import { KeyValuePipe, DatePipe, UpperCasePipe } from '@angular/common';
+import { DurationPipe } from '../../pipes/duration.pipe';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 
@@ -25,11 +26,11 @@ import { ServerLifecycleService } from '../../services/server-lifecycle.service'
 import { I18nService } from '../../services/i18n.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
 import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
-import { DurationPipe } from '../../pipes/duration.pipe';
 
 @Component({
   selector: 'app-home',
   imports: [
+    DurationPipe,
     KeyValuePipe,
     DatePipe,
     UpperCasePipe,
@@ -45,7 +46,6 @@ import { DurationPipe } from '../../pipes/duration.pipe';
     MatProgressSpinnerModule,
     MatChipsModule,
     MatSnackBarModule,
-    DurationPipe,
     TranslatePipe
   ],
   templateUrl: './home.component.html',

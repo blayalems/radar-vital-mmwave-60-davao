@@ -177,7 +177,14 @@ export class StateService {
     effect(() => {
       const currentPalette = this.palette();
       localStorage.setItem('rvt-palette', currentPalette);
-      document.documentElement.dataset['palette'] = currentPalette;
+      if (currentPalette === 'classic') {
+        // Classic is the Radar Vital Redesign prototype palette itself — the
+        // base stylesheet. Removing the attribute keeps the opt-in
+        // `data-palette` token overlays from matching.
+        delete document.documentElement.dataset['palette'];
+      } else {
+        document.documentElement.dataset['palette'] = currentPalette;
+      }
     });
 
     effect(() => {
@@ -299,7 +306,7 @@ export class StateService {
       }
 
       const paletteVal = localStorage.getItem('rvt-palette');
-      if (paletteVal && ['azure', 'bloom', 'mint'].includes(paletteVal)) {
+      if (paletteVal && ['classic', 'azure', 'bloom', 'mint'].includes(paletteVal)) {
         this.palette.set(paletteVal as PaletteId);
       } else if (paletteVal) {
         localStorage.removeItem('rvt-palette');

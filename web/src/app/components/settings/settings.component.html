@@ -1,9 +1,8 @@
 <div class="settings-container">
   <div class="settings-header">
     <div>
-      <!-- Screen title is already provided by the topbar (Console · Settings);
-           keep only the descriptive lead-in here to avoid a duplicate heading. -->
-      <p class="settings-subtitle">Grouped controls for trainer sources, display, alerts, privacy, data, and app details.</p>
+      <h2 class="settings-title">Dashboard Settings</h2>
+      <p class="settings-subtitle">Keep live mode honest. Demo mode is explicit, not silent.</p>
     </div>
     <button mat-icon-button (click)="close()" title="Close settings" aria-label="Close settings" class="close-btn">
       <mat-icon>close</mat-icon>
@@ -28,427 +27,494 @@
   </mat-form-field>
 
   <div class="settings-grid">
+    <!-- Source Mode -->
     @if (settingsCardMatches('connections')) {
-      <mat-card class="settings-card settings-group-card premium-card connections-card">
+      <mat-card class="settings-card premium-card connection-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">sensors</mat-icon>
-          <mat-card-title>Source mode</mat-card-title>
-          <mat-card-subtitle>Keep live mode honest — demo is explicit, never silent.</mat-card-subtitle>
+          <mat-card-title>Source Mode</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <section class="settings-section" aria-labelledby="source-mode-title">
-            <div class="settings-section-header">
-              <span id="source-mode-title" class="section-title">Source mode</span>
-              <span class="section-subtitle">Live trainer feed or explicit demo telemetry.</span>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <span class="row-title">Demo Mode</span>
+              <span class="row-description">Use generated sample telemetry instead of the trainer JSON feed. Intended for UI demos only.</span>
             </div>
+            <mat-slide-toggle [checked]="state.demoMode()" (change)="setDemoMode($event.checked)"></mat-slide-toggle>
+          </div>
 
-            <div class="settings-row">
-              <div class="settings-copy">
-                <span class="row-title">Demo Mode</span>
-                <span class="row-description">Use generated sample telemetry instead of the trainer JSON feed. Intended for UI demos only.</span>
-              </div>
-              <mat-slide-toggle [checked]="state.demoMode()" (change)="setDemoMode($event.checked)"></mat-slide-toggle>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <span class="row-title">Auto-enable Demo on Disconnect</span>
+              <span class="row-description">If live polling fails repeatedly, switch to demo automatically. Default is off.</span>
             </div>
+            <mat-slide-toggle [checked]="state.autoDemoOnDisconnect()" (change)="state.autoDemoOnDisconnect.set($event.checked)"></mat-slide-toggle>
+          </div>
+          <mat-form-field appearance="outline" class="form-field-full">
+            <mat-label>Trainer server origin</mat-label>
+            <input matInput [ngModel]="endpointInput()" (ngModelChange)="endpointInput.set($event)" placeholder="http://127.0.0.1:8765">
+            <mat-hint>Leave blank when the dashboard is served by the trainer.</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="form-field-full">
+            <mat-label>Six-digit LAN pairing PIN</mat-label>
+            <input matInput type="password" inputmode="numeric" maxlength="6" [ngModel]="pinInput()" (ngModelChange)="pinInput.set($event)" autocomplete="one-time-code">
+            <mat-hint>Scan the trainer QR code or enter its one-time PIN. The issued token stays in this browser tab only.</mat-hint>
+          </mat-form-field>
+          <button mat-flat-button type="button" (click)="pairWithPin()" [disabled]="connectionBusy() || pinInput().length !== 6" class="mat-tonal-button">
+            <mat-icon>grid_on</mat-icon>Pair with PIN
+          </button>
+          <button mat-flat-button type="button" (click)="reconnectTrainer()" [disabled]="connectionBusy()">
+            <mat-icon>link</mat-icon>{{ connectionBusy() ? 'Connecting...' : 'Connect to trainer' }}
+          </button>
 
-            <div class="settings-row">
-              <div class="settings-copy">
-                <span class="row-title">Auto-enable Demo on Disconnect</span>
-                <span class="row-description">If live polling fails repeatedly, switch to demo automatically. Default is off.</span>
-              </div>
-              <mat-slide-toggle [checked]="state.autoDemoOnDisconnect()" (change)="state.autoDemoOnDisconnect.set($event.checked)"></mat-slide-toggle>
+          <div class="lan-pin-block">
+            <div class="lan-pin-head">
+              <span class="lan-pin-title">Single-use LAN pairing PIN</span>
+              <span class="lan-pin-expiry">expires in {{ pinExpiryLabel() }}</span>
             </div>
-
-            <mat-form-field appearance="outline" class="form-field-full">
-              <mat-label>Trainer server origin</mat-label>
-              <input matInput [ngModel]="endpointInput()" (ngModelChange)="endpointInput.set($event)" placeholder="http://127.0.0.1:8765">
-              <mat-hint>Leave blank when the dashboard is served by the trainer.</mat-hint>
-            </mat-form-field>
-
-            <div class="lan-pin-block">
-              <div class="lan-pin-head">
-                <span class="lan-pin-title">Single-use LAN pairing PIN</span>
-                <span class="lan-pin-expiry">expires in {{ pinExpiryLabel() }}</span>
-              </div>
-              <div class="lan-pin-row">
-                <div class="lan-pin-boxes" role="group" aria-label="LAN pairing PIN">
-                  @for (digit of lanPinDigits(); track $index) {
-                    <span class="lan-pin-box">{{ digit }}</span>
-                  }
-                </div>
-                <button mat-icon-button type="button" class="lan-pin-refresh" (click)="regenerateLanPin()" title="Regenerate PIN" aria-label="Regenerate pairing PIN">
-                  <mat-icon>autorenew</mat-icon>
-                </button>
-                <button mat-flat-button type="button" class="mat-tonal-button" (click)="showPairingQr()">
-                  <mat-icon>qr_code_2</mat-icon>Show QR
-                </button>
-              </div>
-              <p class="lan-pin-hint">Enter this PIN on the paired phone to authorize LAN access. PINs are single-use and held in memory only.</p>
-            </div>
-
-            <div class="settings-actions-row">
-              <button mat-flat-button type="button" class="primary-wide-action" (click)="reconnectTrainer()" [disabled]="connectionBusy()">
-                <mat-icon>link</mat-icon>{{ connectionBusy() ? 'Connecting...' : 'Connect to trainer' }}
-              </button>
-            </div>
-          </section>
-
-          <section class="settings-section" aria-labelledby="python-server-title">
-            <div class="settings-section-header inline-status-header">
-              <div>
-                <span id="python-server-title" class="section-title">Python server</span>
-                <span class="section-subtitle">
-                  {{ serverLifecycle.platform() === 'exe'
-                    ? 'Bundled sidecar lifecycle for the Windows EXE.'
-                    : 'LAN or loopback trainer connection for APK/PWA builds.' }}
-                </span>
-              </div>
-              <mat-chip-set aria-label="Python server status">
-                <mat-chip class="server-status-chip" [class.running]="serverLifecycle.status() === 'running'" [class.offline]="serverLifecycle.status() !== 'running'">
-                  <mat-icon matChipAvatar>{{ serverLifecycle.status() === 'running' ? 'check_circle' : 'error' }}</mat-icon>
-                  {{ serverLifecycle.statusLabel() }}
-                </mat-chip>
-              </mat-chip-set>
-            </div>
-
-            @if (serverLifecycle.platform() === 'exe') {
-              <div class="settings-row share-toggle-row">
-                <div class="settings-copy">
-                  <span class="row-title">Phone access - share on local network</span>
-                  <span class="row-description">Allow phones on the same local network to pair and view real-time telemetry.</span>
-                </div>
-                <mat-slide-toggle [checked]="isSharing()" [disabled]="connectionBusy()" (change)="onShareToggleChange($event.checked)"></mat-slide-toggle>
-              </div>
-
-              @if (isSharing() && serverLifecycle.bindMode() === 'lan' && serverLifecycle.status() === 'running') {
-                <div class="sharing-qr-container">
-                  <div class="firewall-notice">
-                    <mat-icon>info</mat-icon>
-                    <span>Accept the Windows Firewall prompt if prompted to allow connection.</span>
-                  </div>
-
-                  @if (serverLifecycle.pairingInfo(); as info) {
-                    @if (serverLifecycle.pairingQrDataUrl(); as qr) {
-                      <div class="pairing-qr-block">
-                        <img class="pairing-qr-img" [src]="qr" width="196" height="196"
-                             alt="QR code for phone pairing. Scanning opens the trainer pairing link on the phone." />
-                        <span class="pairing-expiry">Scan with the phone camera - no typing needed.</span>
-                      </div>
-                    }
-                    <div class="pairing-address-block">
-                      <span class="pairing-label">Open on the phone</span>
-                      @if (serverLifecycle.pairingUrl(); as link) {
-                        <code class="pairing-address">{{ link }}</code>
-                        <button mat-flat-button type="button" class="mat-tonal-button" (click)="copyPairingLink()">
-                          <mat-icon>content_copy</mat-icon>Copy pairing link
-                        </button>
-                      } @else {
-                        <span class="pairing-expiry">The trainer prints the LAN pairing URL and PIN at startup; see the server log below.</span>
-                      }
-                    </div>
-                    <div class="pairing-details">
-                      <div class="pairing-pin-row">
-                        <span class="pairing-label">One-time pairing PIN</span>
-                        @if (info.active_pin) {
-                          <span class="pairing-pin">{{ info.active_pin }}</span>
-                        } @else {
-                          <span class="pairing-expiry">This trainer build does not expose the PIN over the native channel; read it from the server log or the /pair page.</span>
-                        }
-                        @if (serverLifecycle.pairingTtlSeconds(); as ttl) {
-                          <span class="pairing-expiry">Expires in {{ ttl }}s and is consumed after first use.</span>
-                        } @else {
-                          <span class="pairing-expiry">Expired or not currently minted.</span>
-                        }
-                      </div>
-                      <button mat-flat-button type="button" class="mat-tonal-button new-pin-btn" (click)="restartInLanMode()" [disabled]="connectionBusy()">
-                        <mat-icon>refresh</mat-icon>New PIN
-                      </button>
-                    </div>
-                  }
-                </div>
-              }
-
-              <div class="settings-actions-row server-actions">
-                <button mat-flat-button type="button" (click)="startPythonServer()" [disabled]="connectionBusy() || serverLifecycle.status() === 'running'">
-                  <mat-icon>play_arrow</mat-icon>Start
-                </button>
-                <button mat-flat-button type="button" class="mat-tonal-button" (click)="stopPythonServer()" [disabled]="connectionBusy() || serverLifecycle.status() === 'stopped'">
-                  <mat-icon>stop</mat-icon>Stop
-                </button>
-                <button mat-flat-button type="button" class="mat-tonal-button" (click)="restartPythonServer()" [disabled]="connectionBusy()">
-                  <mat-icon>restart_alt</mat-icon>Restart
-                </button>
-              </div>
-              <div class="server-log-panel" role="log" aria-label="Bundled trainer log tail">
-                <div class="server-log-head">
-                  <span>Last 20 server log lines</span>
-                  <button mat-button type="button" (click)="serverLifecycle.refreshLogTail()">Refresh</button>
-                </div>
-                <pre>{{ serverLifecycle.logTail().length ? serverLifecycle.logTail().join('\n') : 'No trainer output captured yet.' }}</pre>
-              </div>
-            } @else {
-              <mat-form-field appearance="outline" class="form-field-full">
-                <mat-label>Server address</mat-label>
-                <input matInput [ngModel]="endpointInput()" (ngModelChange)="endpointInput.set($event)" placeholder="http://127.0.0.1:8765">
-                <mat-hint>Run `python radar_vital_trainer_v12_for_v16_0.py serve --bind lan`, then pair this device.</mat-hint>
-              </mat-form-field>
-              <div class="settings-actions-row server-actions">
-                <button mat-flat-button type="button" (click)="openPairPage()" [disabled]="connectionBusy()">
-                  <mat-icon>qr_code_2</mat-icon>Pair with server
-                </button>
-                <button mat-flat-button type="button" class="mat-tonal-button" (click)="retryPythonServer()" [disabled]="connectionBusy()">
-                  <mat-icon>sync</mat-icon>{{ connectionBusy() ? 'Checking...' : 'Retry connection' }}
-                </button>
-              </div>
-            }
-
-            @if (serverLifecycle.lastError()) {
-              <p class="settings-help-text server-error" role="alert">{{ serverLifecycle.lastError() }}</p>
-            }
-          </section>
-
-          <section class="settings-section" aria-labelledby="ble-reference-title">
-            <div class="settings-section-header">
-              <span id="ble-reference-title" class="section-title">BLE reference scanner</span>
-              <span class="section-subtitle">Find and apply the oximeter address used by preflight and live pairing.</span>
-            </div>
-
-            <div class="settings-row">
-              <div class="settings-copy">
-                <span class="row-title">Selected BLE Reference</span>
-                <span class="row-description">{{ state.setup().ble_address || 'No BLE reference selected' }}</span>
-              </div>
-              <button mat-flat-button type="button" class="mat-tonal-button" (click)="scanBleDevices()" [disabled]="bleScanBusy()">
-                <mat-icon>bluetooth_searching</mat-icon>{{ bleScanBusy() ? 'Scanning...' : 'Scan BLE' }}
-              </button>
-            </div>
-            <p class="settings-help-text" role="status" aria-live="polite">{{ bleScanMessage() }}</p>
-            @if (bleScanDevices().length > 0) {
-              <div class="ble-device-list" role="list" aria-label="BLE scan results">
-                @for (device of bleScanDevices(); track device.address || device.id || device.name) {
-                  <button type="button" class="ble-device-row" [attr.aria-label]="'Use BLE device ' + (device.name || device.address || device.id || 'unnamed')" (click)="selectBleDevice(device)">
-                    <mat-icon>bluetooth</mat-icon>
-                    <span class="ble-device-copy">
-                      <strong>{{ device.name || 'Unnamed BLE device' }}</strong>
-                      <span>{{ device.address || device.id || 'No address reported' }}</span>
-                    </span>
-                    @if (device.rssi !== undefined) {
-                      <span class="ble-rssi">{{ device.rssi }} dBm</span>
-                    }
-                  </button>
+            <div class="lan-pin-row">
+              <div class="lan-pin-boxes" role="group" aria-label="LAN pairing PIN">
+                @for (digit of lanPinDigits(); track $index) {
+                  <span class="lan-pin-box">{{ digit }}</span>
                 }
               </div>
-            }
-          </section>
-
-          <section class="settings-section" aria-labelledby="disconnect-title">
-            <div class="settings-row">
-              <div class="settings-copy">
-                <span id="disconnect-title" class="row-title">Freeze on Stale Live Data</span>
-                <span class="row-description">When live data disappears, keep the last real payload visible and mark the dashboard stale instead of simulating new activity.</span>
-              </div>
-              <mat-slide-toggle [checked]="state.freezeOnStale()" (change)="state.freezeOnStale.set($event.checked)"></mat-slide-toggle>
+              <button mat-icon-button type="button" class="lan-pin-refresh" (click)="regenerateLanPin()" title="Regenerate PIN" aria-label="Regenerate pairing PIN">
+                <mat-icon>autorenew</mat-icon>
+              </button>
+              <button mat-flat-button type="button" class="mat-tonal-button" (click)="showPairingQr()">
+                <mat-icon>grid_on</mat-icon>Show QR
+              </button>
             </div>
-          </section>
+            <p class="lan-pin-hint">Enter this PIN on the paired phone to authorize LAN access. PINs are single-use and held in memory only.</p>
+          </div>
         </mat-card-content>
       </mat-card>
     }
 
+    <!-- Python Server -->
+    @if (settingsCardMatches('connections')) {
+      <mat-card class="settings-card premium-card python-server-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="card-avatar">terminal</mat-icon>
+          <mat-card-title>Python Server</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="settings-row block-row">
+            <div class="settings-copy">
+              <span class="row-title">Server lifecycle</span>
+              <span class="row-description">
+                {{ serverLifecycle.platform() === 'exe'
+                  ? 'The Windows EXE starts the bundled Python trainer sidecar automatically.'
+                  : 'APK and PWA builds connect to a Python trainer running on this machine or a LAN host.' }}
+              </span>
+            </div>
+            <mat-chip-set aria-label="Python server status">
+              <mat-chip class="server-status-chip" [class.running]="serverLifecycle.status() === 'running'" [class.offline]="serverLifecycle.status() !== 'running'">
+                <mat-icon matChipAvatar>{{ serverLifecycle.status() === 'running' ? 'check_circle' : 'error' }}</mat-icon>
+                {{ serverLifecycle.statusLabel() }}
+              </mat-chip>
+            </mat-chip-set>
+          </div>
+
+          @if (serverLifecycle.platform() === 'exe') {
+            <div class="settings-row share-toggle-row">
+              <div class="settings-copy">
+                <span class="row-title">Phone access — share on local network</span>
+                <span class="row-description">Allow phones on the same local network to pair and view real-time telemetry.</span>
+              </div>
+              <mat-slide-toggle [checked]="isSharing()" [disabled]="connectionBusy()" (change)="onShareToggleChange($event.checked)"></mat-slide-toggle>
+            </div>
+
+            @if (isSharing() && serverLifecycle.bindMode() === 'lan' && serverLifecycle.status() === 'running') {
+              <div class="sharing-qr-container">
+                <div class="firewall-notice">
+                  <mat-icon>info</mat-icon>
+                  <span>Accept the Windows Firewall prompt if prompted to allow connection.</span>
+                </div>
+
+                @if (serverLifecycle.pairingInfo(); as info) {
+                  @if (serverLifecycle.pairingQrDataUrl(); as qr) {
+                    <div class="pairing-qr-block">
+                      <img class="pairing-qr-img" [src]="qr" width="196" height="196"
+                           alt="QR code for phone pairing. Scanning opens the trainer pairing link on the phone." />
+                      <span class="pairing-expiry">Scan with the phone camera — no typing needed.</span>
+                    </div>
+                  }
+                  <div class="pairing-address-block">
+                    <span class="pairing-label">Open on the phone</span>
+                    @if (serverLifecycle.pairingUrl(); as link) {
+                      <code class="pairing-address">{{ link }}</code>
+                      <button mat-flat-button type="button" class="mat-tonal-button" (click)="copyPairingLink()">
+                        <mat-icon>content_copy</mat-icon>Copy pairing link
+                      </button>
+                    } @else {
+                      <span class="pairing-expiry">The trainer prints the LAN pairing URL and PIN at startup; see the server log below.</span>
+                    }
+                  </div>
+                  <div class="pairing-details">
+                    <div class="pairing-pin-row">
+                      <span class="pairing-label">One-time pairing PIN</span>
+                      @if (info.active_pin) {
+                        <span class="pairing-pin">{{ info.active_pin }}</span>
+                      } @else {
+                        <span class="pairing-expiry">This trainer build does not expose the PIN over the native channel; read it from the server log or the /pair page.</span>
+                      }
+                      @if (serverLifecycle.pairingTtlSeconds(); as ttl) {
+                        <span class="pairing-expiry">Expires in {{ ttl }}s and is consumed after first use.</span>
+                      } @else {
+                        <span class="pairing-expiry">Expired or not currently minted.</span>
+                      }
+                    </div>
+                    <button mat-flat-button type="button" class="mat-tonal-button new-pin-btn" (click)="restartInLanMode()" [disabled]="connectionBusy()">
+                      <mat-icon>refresh</mat-icon>New PIN
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+
+            <div class="settings-actions-row server-actions">
+              <button mat-flat-button type="button" (click)="startPythonServer()" [disabled]="connectionBusy() || serverLifecycle.status() === 'running'">
+                <mat-icon>play_arrow</mat-icon>Start
+              </button>
+              <button mat-flat-button type="button" class="mat-tonal-button" (click)="stopPythonServer()" [disabled]="connectionBusy() || serverLifecycle.status() === 'stopped'">
+                <mat-icon>stop</mat-icon>Stop
+              </button>
+              <button mat-flat-button type="button" class="mat-tonal-button" (click)="restartPythonServer()" [disabled]="connectionBusy()">
+                <mat-icon>restart_alt</mat-icon>Restart
+              </button>
+            </div>
+            <div class="server-log-panel" role="log" aria-label="Bundled trainer log tail">
+              <div class="server-log-head">
+                <span>Last 20 server log lines</span>
+                <button mat-button type="button" (click)="serverLifecycle.refreshLogTail()">Refresh</button>
+              </div>
+              <pre>{{ serverLifecycle.logTail().length ? serverLifecycle.logTail().join('\n') : 'No trainer output captured yet.' }}</pre>
+            </div>
+          } @else {
+            <mat-form-field appearance="outline" class="form-field-full">
+              <mat-label>Server address</mat-label>
+              <input matInput [ngModel]="endpointInput()" (ngModelChange)="endpointInput.set($event)" placeholder="http://127.0.0.1:8765">
+              <mat-hint>Run `python radar_vital_trainer_v12_for_v16_0.py serve --bind lan`, then pair this device.</mat-hint>
+            </mat-form-field>
+            <div class="settings-actions-row server-actions">
+              <button mat-flat-button type="button" (click)="openPairPage()" [disabled]="connectionBusy()">
+                <mat-icon>grid_on</mat-icon>Pair with server
+              </button>
+              <button mat-flat-button type="button" class="mat-tonal-button" (click)="retryPythonServer()" [disabled]="connectionBusy()">
+                <mat-icon>sync</mat-icon>{{ connectionBusy() ? 'Checking...' : 'Retry connection' }}
+              </button>
+            </div>
+          }
+
+          @if (serverLifecycle.lastError()) {
+            <p class="settings-help-text server-error" role="alert">{{ serverLifecycle.lastError() }}</p>
+          }
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- BLE Reference Scanner -->
+    @if (settingsCardMatches('connections')) {
+      <mat-card class="settings-card premium-card ble-scanner-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="card-avatar">bluetooth_searching</mat-icon>
+          <mat-card-title>BLE Reference Scanner</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p class="settings-help-text">
+            Scan for the reference oximeter advertised by the trainer, then apply the address used for preflight and live pairing.
+          </p>
+          <div class="settings-row block-row">
+            <div class="settings-copy">
+              <span class="row-title">Selected BLE Reference</span>
+              <span class="row-description">{{ state.setup().ble_address || 'No BLE reference selected' }}</span>
+            </div>
+            <button mat-flat-button type="button" class="mat-tonal-button" (click)="scanBleDevices()" [disabled]="bleScanBusy()">
+              <mat-icon>bluetooth_searching</mat-icon>{{ bleScanBusy() ? 'Scanning...' : 'Scan BLE' }}
+            </button>
+          </div>
+          <p class="settings-help-text" role="status" aria-live="polite">{{ bleScanMessage() }}</p>
+          @if (bleScanDevices().length > 0) {
+            <div class="ble-device-list" role="list" aria-label="BLE scan results">
+              @for (device of bleScanDevices(); track device.address || device.id || device.name) {
+                <button type="button" class="ble-device-row" [attr.aria-label]="'Use BLE device ' + (device.name || device.address || device.id || 'unnamed')" (click)="selectBleDevice(device)">
+                  <mat-icon>bluetooth</mat-icon>
+                  <span class="ble-device-copy">
+                    <strong>{{ device.name || 'Unnamed BLE device' }}</strong>
+                    <span>{{ device.address || device.id || 'No address reported' }}</span>
+                  </span>
+                  @if (device.rssi !== undefined) {
+                    <span class="ble-rssi">{{ device.rssi }} dBm</span>
+                  }
+                </button>
+              }
+            </div>
+          }
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Disconnect Behavior -->
+    @if (settingsCardMatches('connections')) {
+      <mat-card class="settings-card premium-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="card-avatar">wifi_off</mat-icon>
+          <mat-card-title>Disconnect Behavior</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <span class="row-title">Freeze on Stale Live Data</span>
+              <span class="row-description">When live data disappears, keep the last real payload visible and mark the dashboard stale instead of simulating new activity.</span>
+            </div>
+            <mat-slide-toggle [checked]="state.freezeOnStale()" (change)="state.freezeOnStale.set($event.checked)"></mat-slide-toggle>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Appearance -->
     @if (settingsCardMatches('display')) {
-      <mat-card class="settings-card settings-group-card premium-card display-card">
+      <mat-card class="settings-card premium-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">palette</mat-icon>
           <mat-card-title>Appearance</mat-card-title>
-          <mat-card-subtitle>Design exploration, theme and density.</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <section class="settings-section" aria-labelledby="appearance-title">
-            <div class="settings-section-header">
-              <span id="appearance-title" class="section-title">Appearance</span>
-              <span class="section-subtitle">Tune the dashboard's tonal system and scale.</span>
+          <div class="settings-row block-row">
+            <div class="settings-copy">
+              <span class="row-title">Color palette</span>
+              <span class="row-description">Material 3 Expressive explorations. Each retunes the whole tonal system.</span>
             </div>
-
-            <div class="settings-row block-row">
-              <div class="settings-copy">
-                <span class="row-title">Color palette</span>
-                <span class="row-description">Three Material 3 Expressive explorations. Each retunes the whole tonal system.</span>
-              </div>
-              <div class="palette-options" role="radiogroup" aria-label="Color palette">
-                @for (opt of paletteOptions; track opt.id) {
-                  <button type="button" class="palette-option" role="radio"
-                    [class.active]="state.palette() === opt.id"
-                    [attr.aria-checked]="state.palette() === opt.id"
-                    (click)="selectPalette(opt.id)">
-                    <span class="palette-dots" aria-hidden="true">
-                      @for (dot of opt.dots; track $index) {
-                        <span class="palette-dot" [style.background]="dot"></span>
-                      }
-                    </span>
-                    <span class="palette-copy">
-                      <span class="palette-name">{{ opt.name }}</span>
-                      <span class="palette-desc">{{ opt.desc }}</span>
-                    </span>
-                    <span class="palette-radio" aria-hidden="true"></span>
-                  </button>
-                }
-              </div>
-            </div>
-
-            <div class="settings-row block-row">
-              <div class="settings-copy">
-                <span class="row-title">Theme</span>
-                <span class="row-description">Choose a fixed theme or follow system settings.</span>
-              </div>
-              <mat-button-toggle-group [value]="state.theme()" (change)="state.theme.set($event.value)" aria-label="Theme mode" class="theme-toggle-group">
-                <mat-button-toggle value="light">Light</mat-button-toggle>
-                <mat-button-toggle value="dark">Dark</mat-button-toggle>
-                <mat-button-toggle value="night">Night Red</mat-button-toggle>
-                <mat-button-toggle value="hc">HC</mat-button-toggle>
-              </mat-button-toggle-group>
-            </div>
-
-            <div class="settings-row block-row">
-              <div class="settings-copy">
-                <span class="row-title">Text Scale</span>
-                <span class="row-description">Increase dashboard text without hiding telemetry controls.</span>
-              </div>
-              <mat-slider min="0.9" max="1.25" step="0.05" discrete class="audio-slider">
-                <input matSliderThumb [value]="state.fontScale()" (valueChange)="state.fontScale.set($event)">
-              </mat-slider>
-              <span class="audio-label">{{ Math.round(state.fontScale() * 100) }}%</span>
-            </div>
-
-            <div class="settings-row block-row">
-              <div class="settings-copy">
-                <span class="row-title">Density</span>
-                <span class="row-description">Comfortable leaves more breathing room; compact fits more telemetry.</span>
-              </div>
-              <mat-button-toggle-group [value]="state.density()" (change)="state.density.set($event.value)" aria-label="Display density" class="density-toggle-group">
-                <mat-button-toggle value="comfortable">Comfort</mat-button-toggle>
-                <mat-button-toggle value="compact">Compact</mat-button-toggle>
-              </mat-button-toggle-group>
-            </div>
-          </section>
-
-          <section class="settings-section" aria-labelledby="material-you-title">
-            <div class="settings-section-header">
-              <span id="material-you-title" class="section-title">Material You</span>
-              <span class="section-subtitle">Generate the color palette from a single source color.</span>
-            </div>
-
-            <div class="settings-row">
-              <div class="settings-copy">
-                <span class="row-title">Dynamic Color</span>
-                <span class="row-description">Generate the entire color palette from a single source color, just like Material You on Android.</span>
-              </div>
-              <mat-slide-toggle [checked]="dynamicColor.enabled()" (change)="dynamicColor.setEnabled($event.checked)"></mat-slide-toggle>
-            </div>
-
-            @if (dynamicColor.enabled()) {
-              <div class="color-picker-row">
-                <label class="color-picker-label" for="sourceColorPicker">
-                  <span class="color-preview-swatch" [style.background]="dynamicColor.sourceColor()"></span>
-                  Source color
-                </label>
-                <input id="sourceColorPicker" type="color" [value]="dynamicColor.sourceColor()" (input)="onSourceColorInput($event)" class="color-input">
-              </div>
-
-              <div class="preset-swatches" role="radiogroup" aria-label="Preset color options">
-                @for (preset of presetColors; track preset.hex) {
-                  <button type="button" class="swatch-btn"
-                    [class.active]="dynamicColor.sourceColor() === preset.hex"
-                    [style.--swatch-color]="preset.hex"
-                    [attr.aria-label]="preset.name"
-                    [attr.title]="preset.name"
-                    (click)="selectPresetColor(preset.hex)">
-                    @if (dynamicColor.sourceColor() === preset.hex) {
-                      <span class="material-symbols-rounded swatch-check" aria-hidden="true">check</span>
+            <div class="palette-options" role="radiogroup" aria-label="Color palette">
+              @for (opt of paletteOptions; track opt.id) {
+                <button type="button" class="palette-option" role="radio"
+                  [class.active]="state.palette() === opt.id"
+                  [attr.aria-checked]="state.palette() === opt.id"
+                  (click)="selectPalette(opt.id)">
+                  <span class="palette-dots" aria-hidden="true">
+                    @for (dot of opt.dots; track $index) {
+                      <span class="palette-dot" [style.background]="dot"></span>
                     }
-                  </button>
-                }
-              </div>
-            }
-          </section>
+                  </span>
+                  <span class="palette-copy">
+                    <span class="palette-name">{{ opt.name }}</span>
+                    <span class="palette-desc">{{ opt.desc }}</span>
+                  </span>
+                  <span class="palette-radio" aria-hidden="true"></span>
+                </button>
+              }
+            </div>
+          </div>
+
+          <div class="settings-row block-row">
+            <div class="settings-copy">
+              <span class="row-title">Theme</span>
+              <span class="row-description">Choose a fixed theme or follow system settings.</span>
+            </div>
+            <mat-button-toggle-group [value]="state.theme()" (change)="state.theme.set($event.value)" aria-label="Theme mode" class="theme-toggle-group">
+              <mat-button-toggle value="light">Light</mat-button-toggle>
+              <mat-button-toggle value="dark">Dark</mat-button-toggle>
+              <mat-button-toggle value="night">Night Red</mat-button-toggle>
+              <mat-button-toggle value="hc">HC</mat-button-toggle>
+            </mat-button-toggle-group>
+          </div>
+
+          <div class="settings-row block-row">
+            <div class="settings-copy">
+              <span class="row-title">Text Scale</span>
+              <span class="row-description">Increase dashboard text without hiding telemetry controls.</span>
+            </div>
+            <mat-slider min="0.9" max="1.25" step="0.05" discrete class="audio-slider">
+              <input matSliderThumb [value]="state.fontScale()" (valueChange)="state.fontScale.set($event)">
+            </mat-slider>
+            <span class="audio-label">{{ Math.round(state.fontScale() * 100) }}%</span>
+          </div>
+
+          <div class="settings-row block-row">
+            <div class="settings-copy">
+              <span class="row-title">Density</span>
+              <span class="row-description">Comfortable leaves more breathing room; compact fits more telemetry.</span>
+            </div>
+            <mat-button-toggle-group [value]="state.density()" (change)="state.density.set($event.value)" aria-label="Display density" class="density-toggle-group">
+              <mat-button-toggle value="comfortable">Comfort</mat-button-toggle>
+              <mat-button-toggle value="compact">Compact</mat-button-toggle>
+            </mat-button-toggle-group>
+          </div>
         </mat-card-content>
       </mat-card>
     }
 
-    @if (settingsCardMatches('sound')) {
-      <mat-card class="settings-card settings-group-card premium-card">
+    <!-- Material You Dynamic Color -->
+    @if (settingsCardMatches('display')) {
+      <mat-card class="settings-card premium-card dynamic-color-card">
         <mat-card-header>
-          <mat-icon mat-card-avatar class="card-avatar">volume_up</mat-icon>
-          <mat-card-title>Sound &amp; haptics</mat-card-title>
-          <mat-card-subtitle>Alert tones, voice, volume, vibration</mat-card-subtitle>
+          <mat-icon mat-card-avatar class="card-avatar card-avatar-dynamic">palette</mat-icon>
+          <mat-card-title>Material You</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <section class="settings-section" aria-labelledby="audio-alerts-title">
-            <div class="settings-section-header">
-              <span id="audio-alerts-title" class="section-title">Audio alerts</span>
-              <span class="section-subtitle">Audible warnings for thresholds and connection changes.</span>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <span class="row-title">Dynamic Color</span>
+              <span class="row-description">Generate the entire color palette from a single source color, just like Material You on Android.</span>
+            </div>
+            <mat-slide-toggle [checked]="dynamicColor.enabled()" (change)="dynamicColor.setEnabled($event.checked)"></mat-slide-toggle>
+          </div>
+
+          @if (dynamicColor.enabled()) {
+            <div class="color-picker-row">
+              <label class="color-picker-label" for="sourceColorPicker">
+                <span class="color-preview-swatch" [style.background]="dynamicColor.sourceColor()"></span>
+                Source color
+              </label>
+              <input id="sourceColorPicker" type="color" [value]="dynamicColor.sourceColor()" (input)="onSourceColorInput($event)" class="color-input">
             </div>
 
-            <div class="settings-row">
-              <div class="settings-copy">
-                <span class="row-title">Enable Audio Alerts</span>
-                <span class="row-description">Play a brief tone when HR/RR crosses thresholds or connection drops.</span>
-              </div>
-              <mat-slide-toggle [checked]="state.audioAlertsEnabled()" (change)="state.audioAlertsEnabled.set($event.checked)"></mat-slide-toggle>
+            <div class="preset-swatches" role="radiogroup" aria-label="Preset color options">
+              @for (preset of presetColors; track preset.hex) {
+                <button type="button" class="swatch-btn"
+                  [class.active]="dynamicColor.sourceColor() === preset.hex"
+                  [style.--swatch-color]="preset.hex"
+                  [attr.aria-label]="preset.name"
+                  [attr.title]="preset.name"
+                  (click)="selectPresetColor(preset.hex)">
+                  @if (dynamicColor.sourceColor() === preset.hex) {
+                    <span class="material-symbols-rounded swatch-check" aria-hidden="true">check</span>
+                  }
+                </button>
+              }
             </div>
-
-            <div class="settings-row">
-              <div class="settings-copy">
-                <span class="row-title">Voice Announcements</span>
-                <span class="row-description">Use browser speech synthesis for eyes-busy alert callouts.</span>
-              </div>
-              <mat-slide-toggle [checked]="state.voiceAlertsEnabled()" (change)="state.voiceAlertsEnabled.set($event.checked)"></mat-slide-toggle>
-            </div>
-
-            <div class="audio-control-row">
-              <mat-icon class="audio-volume-icon">volume_down</mat-icon>
-              <mat-slider min="0" max="1" step="0.05" class="audio-slider">
-                <input matSliderThumb [value]="state.audioVolume()" (valueChange)="state.audioVolume.set($event)">
-              </mat-slider>
-              <mat-icon class="audio-volume-icon">volume_up</mat-icon>
-              <span class="audio-label">Volume: {{ Math.round(state.audioVolume() * 100) }}%</span>
-            </div>
-
-            <div class="audio-actions">
-              <button mat-flat-button (click)="testSound()" class="test-btn">
-                <mat-icon>volume_up</mat-icon> Test Sound
-              </button>
-            </div>
-          </section>
-
-          <section class="settings-section" aria-labelledby="haptics-title">
-            <div class="settings-section-header">
-              <span id="haptics-title" class="section-title">Haptic feedback</span>
-              <span class="section-subtitle">Subtle vibration on important dashboard actions.</span>
-            </div>
-
-            <div class="settings-row block-row">
-              <div class="settings-copy">
-                <span class="row-title">Haptics Mode</span>
-                <span class="row-description">Subtle vibration on session start, stop, export, copy, and destructive confirmations.</span>
-              </div>
-              <mat-button-toggle-group [value]="state.hxMode()" (change)="state.hxMode.set($event.value)" aria-label="Haptics mode" class="haptics-toggle-group">
-                <mat-button-toggle value="off">Off</mat-button-toggle>
-                <mat-button-toggle value="auto">Auto</mat-button-toggle>
-                <mat-button-toggle value="on">On</mat-button-toggle>
-              </mat-button-toggle-group>
-            </div>
-          </section>
+          }
         </mat-card-content>
       </mat-card>
     }
 
+    <!-- Idle Privacy Lock -->
+    @if (settingsCardMatches('privacy')) {
+      <mat-card class="settings-card premium-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="card-avatar">lock</mat-icon>
+          <mat-card-title>Privacy Screen Lock</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="settings-row block-row">
+            <div class="settings-copy">
+              <span class="row-title">Auto-Lock Timeout</span>
+              <span class="row-description">Automatically cover the dashboard when inactive to prevent accidental contact or viewing.</span>
+            </div>
+            <mat-button-toggle-group [value]="idleLock.timeoutMinutes()" (change)="idleLock.setTimeoutMinutes($event.value)" aria-label="Idle Lock timeout" class="haptics-toggle-group">
+              <mat-button-toggle [value]="0">Off</mat-button-toggle>
+              <mat-button-toggle [value]="5">5m</mat-button-toggle>
+              <mat-button-toggle [value]="15">15m</mat-button-toggle>
+              <mat-button-toggle [value]="30">30m</mat-button-toggle>
+              <mat-button-toggle [value]="60">1h</mat-button-toggle>
+              <mat-button-toggle [value]="120">2h</mat-button-toggle>
+            </mat-button-toggle-group>
+          </div>
+          <div class="settings-row" style="margin-top: 16px;">
+            <button mat-flat-button type="button" class="mat-tonal-button" (click)="idleLock.lock(); state.triggerHaptic('tap')">
+              <mat-icon>lock</mat-icon>Lock now
+            </button>
+          </div>
+
+          <div class="settings-row block-row">
+            <div class="settings-copy">
+              <span class="row-title">Terms consent</span>
+              <span class="row-description">
+                Accepted version:
+                <strong>{{ consentRecord()?.version || 'not accepted' }}</strong>
+                — Current required version: <strong>{{ termsVersion }}</strong>
+              </span>
+              <span class="row-description">Accepted at: {{ consentAcceptedLabel() }}</span>
+            </div>
+            <mat-chip-set aria-label="Consent status">
+              <mat-chip class="server-status-chip" [class.running]="consentRecord()?.version === termsVersion" [class.offline]="consentRecord()?.version !== termsVersion">
+                <mat-icon matChipAvatar>{{ consentRecord()?.version === termsVersion ? 'verified_user' : 'gpp_bad' }}</mat-icon>
+                {{ consentRecord()?.version === termsVersion ? 'Current consent' : 'Consent required' }}
+              </mat-chip>
+            </mat-chip-set>
+          </div>
+
+          <div class="settings-row block-row">
+            <div class="settings-copy">
+              <span class="row-title">Issue-report diagnostics</span>
+              <span class="row-description">
+                {{ issueReport.diagnosticsEnabled()
+                  ? 'Issue reports include platform, connection mode, controller status, de-identified alert counts, and trainer log tail.'
+                  : 'Issue reports include only product version and platform until diagnostics are re-enabled.' }}
+              </span>
+            </div>
+            <button mat-flat-button type="button" class="mat-tonal-button" (click)="scrollToIssueDiagnostics()">
+              <mat-icon>bug_report</mat-icon>Review diagnostics toggle
+            </button>
+          </div>
+
+          <div class="privacy-actions">
+            <a mat-stroked-button [href]="termsUrl" target="_blank" rel="noopener noreferrer">
+              <mat-icon>gavel</mat-icon>View terms
+            </a>
+            <a mat-stroked-button [href]="privacyUrl" target="_blank" rel="noopener noreferrer">
+              <mat-icon>policy</mat-icon>View privacy
+            </a>
+            <button mat-flat-button type="button" color="warn" class="mat-tonal-button" (click)="withdrawConsent()">
+              <mat-icon>logout</mat-icon>Withdraw consent
+            </button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Haptic Feedback -->
+    @if (settingsCardMatches('sound')) {
+      <mat-card class="settings-card premium-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="card-avatar">vibration</mat-icon>
+          <mat-card-title>Haptic Feedback</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="settings-row block-row">
+            <div class="settings-copy">
+              <span class="row-title">Haptics Mode</span>
+              <span class="row-description">Subtle vibration on session start, stop, export, copy, and destructive confirmations.</span>
+            </div>
+            <mat-button-toggle-group [value]="state.hxMode()" (change)="state.hxMode.set($event.value)" aria-label="Haptics mode" class="haptics-toggle-group">
+              <mat-button-toggle value="off">Off</mat-button-toggle>
+              <mat-button-toggle value="auto">Auto</mat-button-toggle>
+              <mat-button-toggle value="on">On</mat-button-toggle>
+            </mat-button-toggle-group>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    @if (settingsCardMatches('backup')) {
+      <mat-card class="settings-card premium-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="card-avatar">import_export</mat-icon>
+          <mat-card-title>Preferences Portability</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p class="settings-help-text">Export or restore presentation and alert preferences. Pairing tokens and session data are excluded.</p>
+          <div class="audio-actions">
+            <button mat-flat-button type="button" (click)="exportPreferences()" class="mat-tonal-button"><mat-icon>download</mat-icon>Export</button>
+            <button mat-flat-button type="button" (click)="settingsFile.click()" class="mat-tonal-button"><mat-icon>upload</mat-icon>Import</button>
+            <input #settingsFile class="visually-hidden" type="file" accept="application/json" (change)="importPreferences($event)">
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- KPI Alert Thresholds -->
     @if (settingsCardMatches('alerts')) {
-      <mat-card class="settings-card settings-group-card premium-card">
+      <mat-card class="settings-card premium-card thresholds-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">warning</mat-icon>
-          <mat-card-title>Alerts &amp; thresholds</mat-card-title>
-          <mat-card-subtitle>HR/RR limits that trigger live alerts</mat-card-subtitle>
+          <mat-card-title>KPI Alert Thresholds</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="thresholds-grid">
+            <!-- Heart Rate Low -->
             <div class="threshold-field">
               <div class="threshold-header">
                 <span class="threshold-label">HR Low (bpm)</span>
@@ -462,6 +528,7 @@
               </div>
             </div>
 
+            <!-- Heart Rate High -->
             <div class="threshold-field">
               <div class="threshold-header">
                 <span class="threshold-label">HR High (bpm)</span>
@@ -475,6 +542,7 @@
               </div>
             </div>
 
+            <!-- Respiration Rate Low -->
             <div class="threshold-field">
               <div class="threshold-header">
                 <span class="threshold-label">RR Low (br/min)</span>
@@ -488,6 +556,7 @@
               </div>
             </div>
 
+            <!-- Respiration Rate High -->
             <div class="threshold-field">
               <div class="threshold-header">
                 <span class="threshold-label">RR High (br/min)</span>
@@ -511,12 +580,54 @@
       </mat-card>
     }
 
+    <!-- Audio & Voice Alerts -->
+    @if (settingsCardMatches('sound')) {
+      <mat-card class="settings-card premium-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="card-avatar">volume_up</mat-icon>
+          <mat-card-title>Audio Alerts</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <span class="row-title">Enable Audio Alerts</span>
+              <span class="row-description">Play a brief tone when HR/RR crosses thresholds or connection drops.</span>
+            </div>
+            <mat-slide-toggle [checked]="state.audioAlertsEnabled()" (change)="state.audioAlertsEnabled.set($event.checked)"></mat-slide-toggle>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-copy">
+              <span class="row-title">Voice Announcements</span>
+              <span class="row-description">Use browser speech synthesis for eyes-busy alert callouts.</span>
+            </div>
+            <mat-slide-toggle [checked]="state.voiceAlertsEnabled()" (change)="state.voiceAlertsEnabled.set($event.checked)"></mat-slide-toggle>
+          </div>
+
+          <div class="audio-control-row">
+            <mat-icon class="audio-volume-icon">volume_down</mat-icon>
+            <mat-slider min="0" max="1" step="0.05" class="audio-slider">
+              <input matSliderThumb [value]="state.audioVolume()" (valueChange)="state.audioVolume.set($event)">
+            </mat-slider>
+            <mat-icon class="audio-volume-icon">volume_up</mat-icon>
+            <span class="audio-label">Volume: {{ Math.round(state.audioVolume() * 100) }}%</span>
+          </div>
+
+          <div class="audio-actions">
+            <button mat-flat-button (click)="testSound()" class="test-btn">
+              <mat-icon>volume_up</mat-icon> Test Sound
+            </button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Live Rendering -->
     @if (settingsCardMatches('telemetry')) {
-      <mat-card class="settings-card settings-group-card premium-card">
+      <mat-card class="settings-card premium-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">insights</mat-icon>
-          <mat-card-title>Telemetry &amp; rendering</mat-card-title>
-          <mat-card-subtitle>Waveform window and chart limits</mat-card-subtitle>
+          <mat-card-title>Live Rendering</mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <div class="settings-row">
@@ -531,277 +642,156 @@
       </mat-card>
     }
 
-    @if (settingsCardMatches('privacy')) {
-      <mat-card class="settings-card settings-group-card premium-card">
-        <mat-card-header>
-          <mat-icon mat-card-avatar class="card-avatar">lock</mat-icon>
-          <mat-card-title>Privacy &amp; security</mat-card-title>
-          <mat-card-subtitle>Idle lock, consent, terms, diagnostics preference</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          <section class="settings-section" aria-labelledby="privacy-lock-title">
-            <div class="settings-section-header">
-              <span id="privacy-lock-title" class="section-title">Privacy screen lock</span>
-              <span class="section-subtitle">Cover the dashboard after inactivity or on demand.</span>
-            </div>
-
-            <div class="settings-row block-row">
-              <div class="settings-copy">
-                <span class="row-title">Auto-Lock Timeout</span>
-                <span class="row-description">Automatically cover the dashboard when inactive to prevent accidental contact or viewing.</span>
-              </div>
-              <mat-button-toggle-group [value]="idleLock.timeoutMinutes()" (change)="idleLock.setTimeoutMinutes($event.value)" aria-label="Idle Lock timeout" class="haptics-toggle-group">
-                <mat-button-toggle [value]="0">Off</mat-button-toggle>
-                <mat-button-toggle [value]="5">5m</mat-button-toggle>
-                <mat-button-toggle [value]="15">15m</mat-button-toggle>
-                <mat-button-toggle [value]="30">30m</mat-button-toggle>
-                <mat-button-toggle [value]="60">1h</mat-button-toggle>
-                <mat-button-toggle [value]="120">2h</mat-button-toggle>
-              </mat-button-toggle-group>
-            </div>
-            <div class="settings-actions-row">
-              <button mat-flat-button type="button" class="mat-tonal-button" (click)="idleLock.lock(); state.triggerHaptic('tap')">
-                <mat-icon>lock</mat-icon>Lock now
-              </button>
-            </div>
-          </section>
-
-          <section class="settings-section" aria-labelledby="consent-title">
-            <div class="settings-section-header">
-              <span id="consent-title" class="section-title">Privacy &amp; telemetry</span>
-              <span class="section-subtitle">Consent state and issue-report diagnostics preference.</span>
-            </div>
-
-            <div class="settings-row block-row">
-              <div class="settings-copy">
-                <span class="row-title">Terms consent</span>
-                <span class="row-description">
-                  Accepted version:
-                  <strong>{{ consentRecord()?.version || 'not accepted' }}</strong>
-                  - Current required version: <strong>{{ termsVersion }}</strong>
-                </span>
-                <span class="row-description">Accepted at: {{ consentAcceptedLabel() }}</span>
-              </div>
-              <mat-chip-set aria-label="Consent status">
-                <mat-chip [class.running]="consentRecord()?.version === termsVersion" [class.offline]="consentRecord()?.version !== termsVersion">
-                  <mat-icon matChipAvatar>{{ consentRecord()?.version === termsVersion ? 'verified_user' : 'gpp_bad' }}</mat-icon>
-                  {{ consentRecord()?.version === termsVersion ? 'Current consent' : 'Consent required' }}
-                </mat-chip>
-              </mat-chip-set>
-            </div>
-
-            <div class="settings-row block-row">
-              <div class="settings-copy">
-                <span class="row-title">Issue-report diagnostics</span>
-                <span class="row-description">
-                  {{ issueReport.diagnosticsEnabled()
-                    ? 'Issue reports include platform, connection mode, controller status, de-identified alert counts, and trainer log tail.'
-                    : 'Issue reports include only product version and platform until diagnostics are re-enabled.' }}
-                </span>
-              </div>
-              <button mat-flat-button type="button" class="mat-tonal-button" (click)="scrollToIssueDiagnostics()">
-                <mat-icon>bug_report</mat-icon>Review diagnostics toggle
-              </button>
-            </div>
-
-            <div class="privacy-actions">
-              <a mat-stroked-button [href]="termsUrl" target="_blank" rel="noopener noreferrer">
-                <mat-icon>gavel</mat-icon>View terms
-              </a>
-              <a mat-stroked-button [href]="privacyUrl" target="_blank" rel="noopener noreferrer">
-                <mat-icon>policy</mat-icon>View privacy
-              </a>
-              <button mat-flat-button type="button" color="warn" class="mat-tonal-button" (click)="withdrawConsent()">
-                <mat-icon>logout</mat-icon>Withdraw consent
-              </button>
-            </div>
-          </section>
-        </mat-card-content>
-      </mat-card>
-    }
-
-    @if (settingsCardMatches('backup')) {
-      <mat-card class="settings-card settings-group-card premium-card">
-        <mat-card-header>
-          <mat-icon mat-card-avatar class="card-avatar">import_export</mat-icon>
-          <mat-card-title>Backup &amp; reset</mat-card-title>
-          <mat-card-subtitle>Export/import prefs and restore dashboard defaults</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          <section class="settings-section" aria-labelledby="portable-title">
-            <div class="settings-section-header">
-              <span id="portable-title" class="section-title">Preferences portability</span>
-              <span class="section-subtitle">Presentation and alert preferences only; session data stays local.</span>
-            </div>
-            <p class="settings-help-text">Export or restore presentation and alert preferences. Pairing tokens and session data are excluded.</p>
-            <div class="audio-actions">
-              <button mat-flat-button type="button" (click)="exportPreferences()" class="mat-tonal-button"><mat-icon>download</mat-icon>Export</button>
-              <button mat-flat-button type="button" (click)="settingsFile.click()" class="mat-tonal-button"><mat-icon>upload</mat-icon>Import</button>
-              <input #settingsFile class="visually-hidden" type="file" accept="application/json" (change)="importPreferences($event)">
-            </div>
-          </section>
-
-          <section class="settings-section danger-section" aria-labelledby="reset-title">
-            <div class="settings-row">
-              <div class="settings-copy">
-                <span id="reset-title" class="row-title">Reset Dashboard Defaults</span>
-                <span class="row-description">Restore theme, alert, telemetry, display, source-mode, and profile preferences to defaults.</span>
-              </div>
-              <button mat-flat-button color="warn" (click)="resetAllDefaults()" class="mat-tonal-button reset-all-btn">
-                <mat-icon>restart_alt</mat-icon>Reset
-              </button>
-            </div>
-          </section>
-        </mat-card-content>
-      </mat-card>
-    }
-
+    <!-- Update & Version Info -->
     @if (settingsCardMatches('system')) {
-      <mat-card class="settings-card settings-group-card system-about-card premium-card">
+      <mat-card class="settings-card premium-card update-info-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">system_update</mat-icon>
-          <mat-card-title>System &amp; about</mat-card-title>
-          <mat-card-subtitle>Version, local data, diagnostics, legal, report an issue</mat-card-subtitle>
+          <mat-card-title>Update & Version Info</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <section class="settings-section update-info-card" aria-labelledby="version-title">
-            <div class="settings-section-header">
-              <span id="version-title" class="section-title">Update &amp; version info</span>
-              <span class="section-subtitle">Dashboard build identity and release checks.</span>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <span class="row-title">Product Version</span>
+              <span class="row-description">{{ productVersion }}</span>
             </div>
-
-            <div class="about-data-grid">
-              <div class="data-stat settings-copy">
-                <span class="data-label">Product version</span>
-                <strong class="row-description">{{ productVersion }}</strong>
-              </div>
-              <div class="data-stat">
-                <span class="data-label">Schema version</span>
-                <strong>{{ schemaVersion }}</strong>
-              </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-copy">
+              <span class="row-title">Schema Version</span>
+              <span class="row-description">{{ schemaVersion }}</span>
             </div>
+          </div>
 
-            <div class="settings-actions-row update-check-row">
-              <button mat-flat-button type="button" class="mat-tonal-button" (click)="checkForUpdates()" [disabled]="updateCheckBusy()" [aria-busy]="updateCheckBusy()" aria-describedby="updateResultRegion">
-                <mat-icon>sync</mat-icon>{{ updateCheckBusy() ? 'Checking...' : 'Check for Updates' }}
-              </button>
-            </div>
+          <div class="settings-row block-row update-check-row">
+            <button mat-flat-button type="button" class="mat-tonal-button" (click)="checkForUpdates()" [disabled]="updateCheckBusy()" [aria-busy]="updateCheckBusy()" aria-describedby="updateResultRegion">
+              <mat-icon>sync</mat-icon>{{ updateCheckBusy() ? 'Checking...' : 'Check for Updates' }}
+            </button>
+          </div>
 
-            <div id="updateResultRegion" role="status" aria-live="polite" class="update-result-region">
-              @if (updateCheckResult(); as result) {
-                @if (result.ok) {
-                  @if (result.updateAvailable) {
-                    <div class="update-available-container">
-                      <div class="update-header-row">
-                        <mat-icon class="update-icon">downloading</mat-icon>
-                        <span class="update-title-text">
-                          {{ result.isNewBuild ? 'New Build Available' : 'Update Available' }}: {{ result.release_tag || result.product_version }}
-                        </span>
-                      </div>
-                      <div class="update-release-date">
-                        Released: {{ result.released_at_formatted }}
-                      </div>
-
-                      <div class="download-links">
-                        @if (result.artifacts?.apk; as apk) {
-                          <div class="artifact-row border-bottom">
-                            <div>
-                              <strong>Android APK</strong> ({{ apk.compatibility }})<br>
-                              <span class="artifact-meta">Size: {{ apk.size_mb }} MB | SHA256: {{ apk.sha256.substring(0, 8) }}...</span>
-                            </div>
-                            <a mat-stroked-button [href]="apk.url" target="_blank" rel="noopener">Download</a>
-                          </div>
-                        }
-                        @if (result.artifacts?.exe; as exe) {
-                          <div class="artifact-row">
-                            <div>
-                              <strong>Windows EXE</strong> ({{ exe.compatibility }})<br>
-                              <span class="artifact-meta">Size: {{ exe.size_mb }} MB | SHA256: {{ exe.sha256.substring(0, 8) }}...</span>
-                            </div>
-                            <a mat-stroked-button [href]="exe.url" target="_blank" rel="noopener">Download</a>
-                          </div>
-                        }
-                      </div>
-                      <div class="update-install-panel">
-                        @if (updateService.state().phase === 'downloading') {
-                          <mat-progress-bar mode="determinate" [value]="updateDownloadProgress()" aria-label="Update download progress"></mat-progress-bar>
-                        } @else if (updateService.state().phase === 'verifying' || updateService.state().phase === 'installing') {
-                          <mat-progress-bar mode="indeterminate" aria-label="Update installation progress"></mat-progress-bar>
-                        }
-                        <span class="update-install-tooltip" [matTooltip]="updateInstallDisabledReason()" [matTooltipDisabled]="!updateInstallDisabledReason()">
-                          <button
-                            mat-flat-button
-                            type="button"
-                            color="primary"
-                            (click)="onInstallUpdate()"
-                            [disabled]="updateCheckBusy() || !!updateInstallDisabledReason()"
-                            [attr.aria-disabled]="updateCheckBusy() || !!updateInstallDisabledReason()"
-                            [attr.aria-describedby]="updateInstallDisabledReason() ? 'updateInstallHelp' : 'updateResultRegion'">
-                            <mat-icon>system_update_alt</mat-icon>{{ updateService.installButtonLabel() }}
-                          </button>
-                        </span>
-                        @if (updateInstallDisabledReason()) {
-                          <p id="updateInstallHelp" class="settings-help-text update-install-help">{{ updateInstallDisabledReason() }}</p>
-                        }
-                      </div>
+          <div id="updateResultRegion" role="status" aria-live="polite" class="update-result-region">
+            @if (updateCheckResult(); as result) {
+              @if (result.ok) {
+                @if (result.updateAvailable) {
+                  <div class="update-available-container">
+                    <div class="update-header-row">
+                      <mat-icon class="update-icon">downloading</mat-icon>
+                      <span class="update-title-text">
+                        {{ result.isNewBuild ? 'New Build Available' : 'Update Available' }}: {{ result.release_tag || result.product_version }}
+                      </span>
                     </div>
-                  } @else {
-                    <div class="settings-row update-status-row success-state">
-                      <mat-icon>check_circle</mat-icon>
-                      <div class="settings-copy">
-                        <span class="row-title color-inherit">Your dashboard is up to date.</span>
-                        <span class="row-description color-inherit">Version: {{ productVersion }}</span>
-                      </div>
+                    <div class="update-release-date">
+                      Released: {{ result.released_at_formatted }}
                     </div>
-                  }
+
+                    <div class="download-links">
+                      @if (result.artifacts?.apk; as apk) {
+                        <div class="artifact-row border-bottom">
+                          <div>
+                            <strong>Android APK</strong> ({{ apk.compatibility }})<br>
+                            <span class="artifact-meta">Size: {{ apk.size_mb }} MB | SHA256: {{ apk.sha256.substring(0, 8) }}...</span>
+                          </div>
+                          <a mat-stroked-button [href]="apk.url" target="_blank" rel="noopener">Download</a>
+                        </div>
+                      }
+                      @if (result.artifacts?.exe; as exe) {
+                        <div class="artifact-row">
+                          <div>
+                            <strong>Windows EXE</strong> ({{ exe.compatibility }})<br>
+                            <span class="artifact-meta">Size: {{ exe.size_mb }} MB | SHA256: {{ exe.sha256.substring(0, 8) }}...</span>
+                          </div>
+                          <a mat-stroked-button [href]="exe.url" target="_blank" rel="noopener">Download</a>
+                        </div>
+                      }
+                    </div>
+                    <div class="update-install-panel">
+                      @if (updateService.state().phase === 'downloading') {
+                        <mat-progress-bar mode="determinate" [value]="updateDownloadProgress()" aria-label="Update download progress"></mat-progress-bar>
+                      } @else if (updateService.state().phase === 'verifying' || updateService.state().phase === 'installing') {
+                        <mat-progress-bar mode="indeterminate" aria-label="Update installation progress"></mat-progress-bar>
+                      }
+                      <span class="update-install-tooltip" [matTooltip]="updateInstallDisabledReason()" [matTooltipDisabled]="!updateInstallDisabledReason()">
+                        <button
+                          mat-flat-button
+                          type="button"
+                          color="primary"
+                          (click)="onInstallUpdate()"
+                          [disabled]="updateCheckBusy() || !!updateInstallDisabledReason()"
+                          [attr.aria-disabled]="updateCheckBusy() || !!updateInstallDisabledReason()"
+                          [attr.aria-describedby]="updateInstallDisabledReason() ? 'updateInstallHelp' : 'updateResultRegion'">
+                          <mat-icon>system_update_alt</mat-icon>{{ updateService.installButtonLabel() }}
+                        </button>
+                      </span>
+                      @if (updateInstallDisabledReason()) {
+                        <p id="updateInstallHelp" class="settings-help-text update-install-help">{{ updateInstallDisabledReason() }}</p>
+                      }
+                    </div>
+                  </div>
                 } @else {
-                  <div class="settings-row update-status-row error-state">
-                    <mat-icon>error</mat-icon>
+                  <div class="settings-row update-status-row success-state">
+                    <mat-icon>check_circle</mat-icon>
                     <div class="settings-copy">
-                      <span class="row-title color-inherit">Check Failed</span>
-                      <span class="row-description color-inherit">{{ result.error }}</span>
+                      <span class="row-title color-inherit">Your dashboard is up to date.</span>
+                      <span class="row-description color-inherit">Version: {{ productVersion }}</span>
                     </div>
                   </div>
                 }
+              } @else {
+                <div class="settings-row update-status-row error-state">
+                  <mat-icon>error</mat-icon>
+                  <div class="settings-copy">
+                    <span class="row-title color-inherit">Check Failed</span>
+                    <span class="row-description color-inherit">{{ result.error }}</span>
+                  </div>
+                </div>
               }
-            </div>
-          </section>
+            }
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
 
-          <section class="settings-section" aria-labelledby="local-data-title">
-            <div class="settings-section-header">
-              <span id="local-data-title" class="section-title">Data &amp; diagnostics</span>
-              <span class="section-subtitle">Browser storage estimate, diagnostics export, and local cache cleanup.</span>
+    <!-- Data & Diagnostics -->
+    @if (settingsCardMatches('system')) {
+      <mat-card class="settings-card premium-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="card-avatar">storage</mat-icon>
+          <mat-card-title>Data & Diagnostics</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="data-meter-card">
+            <div class="data-meter-header">
+              <span class="data-label">Local browser storage</span>
+              <strong>{{ storageUsageLabel() }}</strong>
             </div>
+            <div class="storage-meter" role="meter" aria-label="Local browser storage use" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="storageUsagePercent()">
+              <span class="storage-meter-fill" [style.width.%]="storageUsagePercent()"></span>
+            </div>
+            <p class="settings-help-text">Includes localStorage plus the browser estimate for cached sessions, notes, snapshots, alerts, and waveform data when available.</p>
+          </div>
 
-            <div class="data-meter-card">
-              <div class="data-meter-header">
-                <span class="data-label">Local browser storage</span>
-                <strong>{{ storageUsageLabel() }}</strong>
-              </div>
-              <div class="storage-meter" role="meter" aria-label="Local browser storage use" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="storageUsagePercent()">
-                <span class="storage-meter-fill" [style.width.%]="storageUsagePercent()"></span>
-              </div>
-              <p class="settings-help-text">Includes localStorage plus the browser estimate for cached sessions, notes, snapshots, alerts, and waveform data when available.</p>
-            </div>
+          <div class="settings-actions-row">
+            <button mat-flat-button type="button" class="mat-tonal-button" (click)="exportDiagnostics()" [disabled]="dataActionBusy()">
+              <mat-icon>download</mat-icon>Export diagnostics
+            </button>
+            <button mat-flat-button type="button" color="warn" class="mat-tonal-button" (click)="clearLocalCache()" [disabled]="dataActionBusy()">
+              <mat-icon>delete_sweep</mat-icon>Clear local cache
+            </button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
 
-            <div class="settings-actions-row">
-              <button mat-flat-button type="button" class="mat-tonal-button" (click)="exportDiagnostics()" [disabled]="dataActionBusy()">
-                <mat-icon>download</mat-icon>Export diagnostics
-              </button>
-              <button mat-flat-button type="button" color="warn" class="mat-tonal-button" (click)="clearLocalCache()" [disabled]="dataActionBusy()">
-                <mat-icon>delete_sweep</mat-icon>Clear local cache
-              </button>
-            </div>
-          </section>
-
-          <section class="settings-section embedded-system-section" aria-labelledby="about-legal-title">
-            <div class="settings-section-header">
-              <span id="about-legal-title" class="section-title">About &amp; legal</span>
-              <span class="section-subtitle">Project details, legal links, and issue reporting.</span>
-            </div>
-            <app-about-card id="about-legal" class="settings-mounted-card embedded-mounted-card" [version]="productVersion"></app-about-card>
-            <app-report-issue-card id="report-issue-card" class="settings-mounted-card embedded-mounted-card"></app-report-issue-card>
-          </section>
+    <!-- About & Legal (embedded repo cards) -->
+    @if (settingsCardMatches('system')) {
+      <mat-card class="settings-card premium-card">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="card-avatar">info</mat-icon>
+          <mat-card-title>About & Legal</mat-card-title>
+        </mat-card-header>
+        <mat-card-content class="embedded-system-section">
+          <app-about-card id="about-legal" class="settings-mounted-card embedded-mounted-card" [version]="productVersion"></app-about-card>
+          <app-report-issue-card id="report-issue-card" class="settings-mounted-card embedded-mounted-card"></app-report-issue-card>
         </mat-card-content>
       </mat-card>
     }
@@ -816,6 +806,7 @@
   }
 
   <div class="settings-footer">
+    <button mat-flat-button color="warn" (click)="resetAllDefaults()" class="mat-tonal-button reset-all-btn">Reset Dashboard Defaults</button>
     <button mat-flat-button color="primary" (click)="close()" class="done-btn">Done</button>
   </div>
 </div>

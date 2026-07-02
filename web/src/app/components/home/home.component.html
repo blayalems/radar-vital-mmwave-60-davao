@@ -47,7 +47,7 @@
   <div class="mobile-ready-stack">
     <div class="mobile-confidence-card">
       <div class="mobile-confidence-head">
-        <span>Session readiness confidence</span>
+        <span>Session Readiness Confidence</span>
         <strong><span>{{ getReadinessPercentage() }}</span><em>%</em></strong>
       </div>
       <div class="ready-progress-track">
@@ -60,13 +60,13 @@
     <!-- OVERALL READINESS SCORE -->
     <mat-card class="home-stat-card home-stat-readiness">
       <div class="home-stat-ic home-stat-ring">
-        <div class="home-ring" [attr.data-pct]="getReadinessPercentage()" [style.--pct]="getReadinessPercentage()">
+        <div class="home-ring" [attr.data-pct]="getReadinessPercentage()">
           <strong>{{ getReadinessPercentage() }}</strong>
           <small>%</small>
         </div>
       </div>
       <div class="home-stat-copy">
-        <div class="home-stat-title">Overall readiness</div>
+        <div class="home-stat-title">Overall Readiness</div>
         <div class="home-stat-line">
           <strong>{{ getReadinessPercentage() }}%</strong>
           <span>{{ getReadinessPercentage() >= 80 ? 'Ready' : 'Incomplete' }}</span>
@@ -81,12 +81,12 @@
         <mat-icon>check_circle</mat-icon>
       </div>
       <div class="home-stat-copy">
-        <div class="home-stat-title">Checks passed</div>
+        <div class="home-stat-title">Checks Passed</div>
         <div class="home-stat-line">
-          <strong>{{ getChecksPassedCount() }}/{{ preflightChecks.length }}</strong>
+          <strong>{{ getChecksPassedCount() }} / {{ preflightChecks.length }}</strong>
         </div>
         <div class="home-stat-sub">
-          {{ getChecksPassedCount() === preflightChecks.length ? 'All checks good' : 'Review warnings' }}
+          {{ getChecksPassedCount() === preflightChecks.length ? 'All checks good' : 'Requires review' }}
         </div>
       </div>
     </mat-card>
@@ -97,7 +97,7 @@
         <mat-icon>settings</mat-icon>
       </div>
       <div class="home-stat-copy">
-        <div class="home-stat-title">Session setup</div>
+        <div class="home-stat-title">Session Setup</div>
         <div class="home-stat-line">
           <strong>{{ selectedDuration | rvtDuration }}</strong>
         </div>
@@ -139,14 +139,14 @@
     <mat-card class="setup-config-card">
       <mat-card-header>
         <mat-icon mat-card-avatar class="header-avatar-ic">tune</mat-icon>
-        <mat-card-title>Session setup</mat-card-title>
+        <mat-card-title>Session Setup</mat-card-title>
         <mat-card-subtitle>Configure your telemetry session parameters.</mat-card-subtitle>
       </mat-card-header>
 
       <mat-card-content class="setup-card-content">
         <!-- DURATION CHOICE CHIPS -->
         <div class="setup-field span-full">
-          <label class="field-label" id="recDurationLabel">{{ 'home.recordingDuration' | translate:i18n.locale():i18n.revision() }}</label>
+          <label class="field-label" id="recDurationLabel">{{ 'home.recordingDuration' | translate:i18n.locale():i18n.revision() }} <span class="label-hint">how long to record</span></label>
           <div class="duration-chips" role="group" aria-labelledby="recDurationLabel">
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 30" [attr.aria-pressed]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 60" [attr.aria-pressed]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
@@ -185,7 +185,7 @@
             </mat-form-field>
             <button mat-flat-button (click)="scanBleDevices()" [disabled]="isScanningBle" class="mat-tonal-button icon-action-btn pair-sensor-btn" aria-label="Pair BLE oximeter">
               <mat-icon>{{ isScanningBle ? 'sync' : 'bluetooth' }}</mat-icon>
-              <span>Pair</span>
+              <span>Pair sensor</span>
             </button>
           </div>
           @if (bleDevices.length > 0) {
@@ -233,9 +233,9 @@
         }
 
         <div class="setup-field">
-          <label class="field-label" id="subjectProfileLabel">Subject profile</label>
           <mat-form-field appearance="outline" class="form-field-full">
-            <mat-select [ngModel]="state.setup().subject_profile_id" (ngModelChange)="updateSetup('subject_profile_id', $event); state.activeSubjectProfileId.set($event)" aria-labelledby="subjectProfileLabel">
+            <mat-label>Subject Profile</mat-label>
+            <mat-select [ngModel]="state.setup().subject_profile_id" (ngModelChange)="updateSetup('subject_profile_id', $event); state.activeSubjectProfileId.set($event)">
               @for (profile of subjectProfiles | keyvalue; track profile.key) {
               <mat-option [value]="profile.key">{{ profile.value.label }}</mat-option>
               }
@@ -245,25 +245,25 @@
 
         <!-- SUBJECT LABELS -->
         <div class="setup-field">
-          <label class="field-label" id="subjectLabelLabel">Subject label</label>
           <mat-form-field appearance="outline" class="form-field-full">
-            <input matInput [ngModel]="state.setup().subject_label" (ngModelChange)="updateSetup('subject_label', $event)" placeholder="P-014" aria-labelledby="subjectLabelLabel">
+            <mat-label>Subject Label (Optional)</mat-label>
+            <input matInput [ngModel]="state.setup().subject_label" (ngModelChange)="updateSetup('subject_label', $event)" placeholder="P-014">
           </mat-form-field>
         </div>
 
         <!-- OPERATOR LABELS -->
         <div class="setup-field">
-          <label class="field-label" id="operatorLabelLabel">Operator label</label>
           <mat-form-field appearance="outline" class="form-field-full">
-            <input matInput [ngModel]="state.setup().operator_label" (ngModelChange)="updateSetup('operator_label', $event)" placeholder="Operator A" aria-labelledby="operatorLabelLabel">
+            <mat-label>Operator Label</mat-label>
+            <input matInput [ngModel]="state.setup().operator_label" (ngModelChange)="updateSetup('operator_label', $event)" placeholder="Operator A">
           </mat-form-field>
         </div>
 
         <!-- STATION LABELS -->
         <div class="setup-field span-full">
-          <label class="field-label" id="stationLabelLabel">Research station</label>
           <mat-form-field appearance="outline" class="form-field-full">
-            <input matInput [ngModel]="state.setup().station_label" (ngModelChange)="updateSetup('station_label', $event)" placeholder="Lab / Station 3" aria-labelledby="stationLabelLabel">
+            <mat-label>Research Station</mat-label>
+            <input matInput [ngModel]="state.setup().station_label" (ngModelChange)="updateSetup('station_label', $event)" placeholder="Lab / Station 3">
           </mat-form-field>
         </div>
 
@@ -279,7 +279,7 @@
         @if (preflightChecks.length && getChecksPassedCount() < preflightChecks.length && !hasBlockingPreflightFailure()) {
           <p class="start-gate-hint" role="status">
             <mat-icon aria-hidden="true">info</mat-icon>
-            {{ preflightChecks.length - getChecksPassedCount() }} preflight {{ preflightChecks.length - getChecksPassedCount() === 1 ? 'check needs' : 'checks need' }} review — starting is still allowed.
+            {{ preflightChecks.length - getChecksPassedCount() }} preflight check(s) need review — starting is still allowed.
           </p>
         }
         <button mat-flat-button color="primary" class="start-session-btn" (click)="startSession()" [disabled]="!canStartSession() || isStartingSession">
@@ -289,7 +289,7 @@
           } @else {
             <ng-container>
               <mat-icon>play_arrow</mat-icon>
-              Start telemetry session
+              Start Telemetry Session
             </ng-container>
           }
         </button>
@@ -299,9 +299,8 @@
     <!-- LIVE RADAR SCOPE PREVIEW -->
     <mat-card class="radar-scope-card">
       <mat-card-header>
-        <mat-icon mat-card-avatar class="header-avatar-ic">radar</mat-icon>
-        <mat-card-title>Live radar scope</mat-card-title>
-        <mat-card-subtitle>Range calibration and placement cues.</mat-card-subtitle>
+        <mat-card-title>Live Radar Scope Preview</mat-card-title>
+        <mat-card-subtitle>Radar range calibration, sweep freshness, and placement cues.</mat-card-subtitle>
       </mat-card-header>
 
       <mat-card-content class="scope-card-content">
@@ -336,7 +335,7 @@
         <!-- 60-SEC SPARKLINE TREND GRAPH -->
         <div class="scope-trend-container">
           <div class="trend-header">
-            <span>Trend — last 60 s</span>
+            <span>Trend (last 60s)</span>
             <div class="trend-legend">
               <span class="legend-dot hr"></span><span>HR</span>
               <span class="legend-dot rr"></span><span>RR</span>
@@ -352,12 +351,12 @@
   <mat-card class="preflight-card-stack">
     <mat-card-header class="preflight-header-row">
       <div>
-        <mat-card-title>Hardware preflight</mat-card-title>
-        <mat-card-subtitle>Serial, BLE, schema, storage and clock checks.</mat-card-subtitle>
+        <mat-card-title>Hardware Preflight Pipeline</mat-card-title>
+        <mat-card-subtitle>Verifies serial interfaces, BLE availability, local schemas, and storage space limits.</mat-card-subtitle>
       </div>
       <button mat-flat-button color="primary" (click)="runPreflight()" [disabled]="isPreflightRunning" class="mat-tonal-button">
         <mat-icon>{{ isPreflightRunning ? 'sync' : 'fact_check' }}</mat-icon>
-        Re-run all
+        Re-run Preflight Pipeline
       </button>
     </mat-card-header>
 
@@ -398,7 +397,7 @@
   <mat-card class="sessions-history-card">
     <mat-card-header class="sessions-header-row">
       <div>
-        <mat-card-title>Session history</mat-card-title>
+        <mat-card-title>Telemetry Session History Log</mat-card-title>
         <mat-card-subtitle>Review quality verdict outcomes, sensor profiles, and historical charts.</mat-card-subtitle>
       </div>
       <div class="sessions-filter-chips">

@@ -868,3 +868,19 @@
   height: 4px;
   flex-shrink: 0;
 }
+
+/* =============================================================================
+   PROTOTYPE-CSS COEXISTENCE FIXES
+   The consolidated prototype stylesheet lays `.brand` out as a single flex row
+   with `overflow: hidden`. The Angular rail adds the full-width Collapse pill
+   as a second flex child, which squeezed the brand label down to one glyph.
+   Wrap the row so the pill drops below the brand exactly like the prototype.
+   ========================================================================== */
+.rail .brand {
+  flex-wrap: wrap !important;
+  overflow: visible !important;
+}
+.rail .brand .brand-label .bl-top,
+.rail .brand .brand-label .bl-bot {
+  white-space: nowrap;
+}

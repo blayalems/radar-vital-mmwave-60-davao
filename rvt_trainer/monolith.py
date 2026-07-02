@@ -466,7 +466,10 @@ RADAR_LOG_COLUMNS = [
     "wdt_near_miss_count",           # col 216, v15.1
     "cmd_rx_count",                  # col 217, v15.1
     "cmd_err_count",                 # col 218, v15.1
-    "fw_uptime_s",                   # col 219, v15.1
+    "uart_rx_high_water",            # col 219, v15.2 (audit A3a)
+    "hr_publish_tier",               # col 220, v15.2 (audit A4b: 0=INVALID,1=HELD,2=LIVE)
+    "rr_publish_tier",               # col 221, v15.2 (audit A4b)
+    "fw_uptime_s",                   # col 222, v15.2
 ]
 
 HR_PATH_SOURCE_NAMES = {
@@ -493,13 +496,15 @@ HEART_PQI_GATE_MID = 0.20
 HEART_PQI_GATE_FAR = 0.35
 # v11/v15: final-schema-first. v15.1 firmware emits 219 columns.
 # The trainer accepts 207 and v14.1 rows; missing right-edge columns are padded.
-EXPECTED_RADAR_LOG_COLUMN_COUNT = 219
+EXPECTED_RADAR_LOG_COLUMN_COUNT = 222
+LEGACY_V15_1_COLUMN_COUNT = 219
 LEGACY_V15_COLUMN_COUNT = 207
 LEGACY_V14_COLUMN_COUNT = 199
 SCHEMA_VERSION_MAP = {
     LEGACY_V14_COLUMN_COUNT: "v14.1",
     LEGACY_V15_COLUMN_COUNT: "v15.0",
-    EXPECTED_RADAR_LOG_COLUMN_COUNT: "v15.1",
+    LEGACY_V15_1_COLUMN_COUNT: "v15.1",
+    EXPECTED_RADAR_LOG_COLUMN_COUNT: "v15.2",
 }
 # v15/v15.1 right-edge default values for legacy row padding.
 # Float columns use NaN (parser converts to NaN downstream); int columns use 0.
@@ -562,6 +567,9 @@ EXPECTED_RADAR_LOG_TAIL = (
     "wdt_near_miss_count",
     "cmd_rx_count",
     "cmd_err_count",
+    "uart_rx_high_water",
+    "hr_publish_tier",
+    "rr_publish_tier",
     "fw_uptime_s",
 )
 LEGACY_V14_RADAR_LOG_TAIL = (
@@ -602,7 +610,7 @@ def _is_supported_radar_contract_length(length: object) -> bool:
         n = int(length)
     except Exception:
         return False
-    return n in {EXPECTED_RADAR_LOG_COLUMN_COUNT, LEGACY_V15_COLUMN_COUNT, LEGACY_V14_COLUMN_COUNT}
+    return n in {EXPECTED_RADAR_LOG_COLUMN_COUNT, LEGACY_V15_1_COLUMN_COUNT, LEGACY_V15_COLUMN_COUNT, LEGACY_V14_COLUMN_COUNT}
 
 
 LEGACY_RADAR_LOG_COLUMN_COUNT = 131
@@ -7691,9 +7699,9 @@ def _parse_radar_data_line(line: str, cols: Sequence[str]) -> Tuple[str, Optiona
     payload = line.split(",")[1:]
     if payload == list(cols) or (payload and payload[0] == "timestamp_ms"):
         return "header", None, ""
-    # v12 trainer accepts v15.1 (219), v15.0 (207), and v14.1 (199) schemas.
-    # Older legacy counts retained for back-compat with archived sessions.
-    accepted_legacy_counts = (LEGACY_RADAR_LOG_COLUMN_COUNT, 136, 180, 195, LEGACY_V14_COLUMN_COUNT, LEGACY_V15_COLUMN_COUNT)
+    # v12 trainer accepts v15.2 (222), v15.1 (219), v15.0 (207), and v14.1
+    # (199) schemas. Older legacy counts retained for archived sessions.
+    accepted_legacy_counts = (LEGACY_RADAR_LOG_COLUMN_COUNT, 136, 180, 195, LEGACY_V14_COLUMN_COUNT, LEGACY_V15_COLUMN_COUNT, LEGACY_V15_1_COLUMN_COUNT)
     if len(payload) not in ((len(cols),) + accepted_legacy_counts):
         return "reject", None, f"{len(payload)} fields, expected {accepted_legacy_counts} or {len(cols)}"
     if len(payload) in accepted_legacy_counts:

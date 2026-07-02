@@ -72,7 +72,7 @@ import { ServerLifecycleService } from '../../services/server-lifecycle.service'
 
               <!-- Scan QR Option -->
               <button mat-stroked-button style="height: 56px; font-size: 16px;" (click)="startScanner()">
-                <mat-icon>qr_code_scanner</mat-icon>
+                <mat-icon>crop_free</mat-icon>
                 Scan Pairing QR Code
               </button>
 

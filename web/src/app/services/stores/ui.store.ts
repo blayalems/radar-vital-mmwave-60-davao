@@ -12,8 +12,8 @@ export class UiStore {
   commandPaletteOpen = signal<boolean>(false);
   alertsOpen = signal<boolean>(false);
   
-  theme = signal<ThemeId>('dark');
-  palette = signal<PaletteId>('azure');
+  theme = signal<ThemeId>('light');
+  palette = signal<PaletteId>('classic');
   density = signal<DensityId>('comfortable');
   fontScale = signal<number>(1);
   zenMode = signal<boolean>(true);

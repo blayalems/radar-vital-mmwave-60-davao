@@ -4,15 +4,18 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 
 import { ConfirmDialogComponent } from '../components/confirm-dialog/confirm-dialog.component';
+import { StateService } from './state.service';
 
 @Injectable({ providedIn: 'root' })
 export class SwUpdateService {
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly state = inject(StateService);
   private initialized = false;
   private promptOpen = false;
   private noticeOpen = false;
   private applyingUpdate = false;
+  private reloadScheduled = false;
   private registration: ServiceWorkerRegistration | null = null;
 
   initialize(): void {
@@ -76,7 +79,14 @@ export class SwUpdateService {
       }
 
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (this.applyingUpdate) location.reload();
+        if (!this.applyingUpdate || this.reloadScheduled) return;
+        if (this.state.sessionActive()) {
+          this.applyingUpdate = false;
+          this.snackBar.open('Update is ready. Reload after the telemetry session is stopped.', 'Dismiss', { duration: 7000 });
+          return;
+        }
+        this.reloadScheduled = true;
+        location.reload();
       });
       return registration;
     } catch (_) {
@@ -125,6 +135,10 @@ export class SwUpdateService {
   }
 
   private supportsServiceWorker(): boolean {
-    return typeof window !== 'undefined' && 'serviceWorker' in navigator;
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return false;
+    const cap = (window as any).Capacitor;
+    if ((window as any).__TAURI__?.core || (window as any).__TAURI_INTERNALS__) return false;
+    if (cap?.isNativePlatform?.()) return false;
+    return true;
   }
 }

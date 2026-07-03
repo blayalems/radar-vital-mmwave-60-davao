@@ -79,6 +79,35 @@ def test_run_preflight_all_refs_carry_port_and_address():
     assert report["refs"]["address"] == "AA:BB:CC:DD:EE:FF"
 
 
+def test_session_start_gate_keeps_ble_failures_advisory():
+    assert "ble_adapter" not in monolith.SESSION_START_PREFLIGHT_IDS
+    assert "ble_device_probe" not in monolith.SESSION_START_PREFLIGHT_IDS
+    report = {
+        "checks": [
+            {"id": "ble_adapter", "label": "BLE adapter", "status": "fail", "detail": "permission denied"},
+            {"id": "ble_device_probe", "label": "BLE device", "status": "fail", "detail": "not found"},
+            {"id": "serial_port_probe", "label": "Serial probe", "status": "fail", "detail": "busy"},
+        ]
+    }
+    assert monolith._session_start_blocking_failures(report) == []
+
+
+def test_session_start_gate_blocks_required_runtime_failures():
+    report = {
+        "checks": [
+            {"id": "python_env", "label": "Python environment", "status": "fail", "detail": "serial missing", "remediation": "install"},
+            {"id": "ble_adapter", "label": "BLE adapter", "status": "fail", "detail": "permission denied"},
+        ]
+    }
+    failures = monolith._session_start_blocking_failures(report)
+    assert failures == [{
+        "id": "python_env",
+        "label": "Python environment",
+        "detail": "serial missing",
+        "remediation": "install",
+    }]
+
+
 def test_monolith_reexports_point_at_extracted_runner():
     assert monolith._run_preflight_all is runner.run_preflight_all
     assert monolith._run_preflight_check is runner.run_preflight_check

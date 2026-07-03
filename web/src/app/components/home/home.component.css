@@ -554,11 +554,13 @@
 
 .scope-trend-container {
   width: 100%;
+  height: 122px;
   background: transparent;
   border: none;
   border-radius: 0;
   padding: 0;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .trend-header {
@@ -589,7 +591,8 @@
 
 .trend-canvas-graph {
   width: 100%;
-  height: 90px;
+  height: 90px !important;
+  max-height: 90px;
   display: block;
 }
 
@@ -804,7 +807,8 @@
 .session-micro-sparkline {
   display: block;
   width: 60px;
-  height: 24px;
+  height: 24px !important;
+  max-height: 24px;
 }
 
 .session-verdict-badge {

@@ -6401,6 +6401,34 @@ def _effective_defaults(sessions_root: str) -> Dict[str, object]:
     return defaults
 
 
+SESSION_START_PREFLIGHT_IDS = [
+    "python_env",
+    "firmware_file_present",
+    "serial_port_list",
+    "session_folder_writable",
+    "disk_space",
+    "schema_hash_consistency",
+    "clock_monotonic_sanity",
+]
+
+
+def _session_start_blocking_failures(report: Dict[str, object]) -> List[Dict[str, object]]:
+    blocking_ids = set(SESSION_START_PREFLIGHT_IDS)
+    failures = []
+    for check in report.get("checks", []):
+        if not isinstance(check, dict):
+            continue
+        if check.get("id") not in blocking_ids or check.get("status") != "fail":
+            continue
+        failures.append({
+            "id": check.get("id"),
+            "label": check.get("label"),
+            "detail": check.get("detail"),
+            "remediation": check.get("remediation"),
+        })
+    return failures
+
+
 class _ControlHandler(SimpleHTTPRequestHandler):
     def handle(self):
         try:
@@ -7194,15 +7222,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             if self.server.supervisor.current():
                 self._send_json(409, {"ok": False, "error": {"code": "SESSION_IN_PROGRESS", "message": "active session already running"}})
                 return
-            structural = ["python_env", "firmware_file_present", "serial_port_list", "session_folder_writable", "disk_space", "schema_hash_consistency", "clock_monotonic_sanity", "ble_adapter"]
             try:
-                report = _run_preflight_all(sessions_root=self.server.sessions_root, port=radar_port, address=ble_address, include=structural)
+                report = _run_preflight_all(sessions_root=self.server.sessions_root, port=radar_port, address=ble_address, include=SESSION_START_PREFLIGHT_IDS)
             except Exception as e:
                 self._send_json(500, {"ok": False, "error": {"code": "PREFLIGHT_ERROR", "message": str(e)}})
                 return
-            failed = [{"id": c.get("id"), "label": c.get("label"), "detail": c.get("detail"), "remediation": c.get("remediation")} for c in report.get("checks", []) if c.get("status") == "fail"]
+            failed = _session_start_blocking_failures(report)
             if failed:
-                self._send_json(424, {"ok": False, "error": {"code": "PREFLIGHT_FAILED", "message": "one or more structural preflight checks failed", "failed": failed}})
+                self._send_json(424, {"ok": False, "error": {"code": "PREFLIGHT_FAILED", "message": "one or more required start checks failed", "failed": failed}})
                 return
             try:
                 advanced = body.get("advanced") if isinstance(body.get("advanced"), dict) else {}
@@ -8854,6 +8881,7 @@ def cmd_session(args):
     radar_thread = None
     ble_thread = None
     stop_reason = "completed"
+    ble_failure_reported = False
     start_t = time.time()
 
     try:
@@ -8892,16 +8920,19 @@ def cmd_session(args):
                 break
 
             radar_done = (radar_proc.poll() is not None)
-            ble_done = (ble_proc.poll() is not None)
-            if radar_done and ble_done:
-                stop_reason = "both loggers exited"
-                break
-            if radar_done and not ble_done:
+            ble_done = (ble_proc is not None and ble_proc.poll() is not None)
+            if radar_done:
                 stop_reason = "radar logger exited"
                 break
-            if ble_done and not radar_done:
-                stop_reason = "BLE logger exited"
-                break
+            if ble_done:
+                if not ble_failure_reported:
+                    ble_failure_reported = True
+                    code = ble_proc.returncode
+                    msg = f"[BLE] Reference logger exited with code {code}; radar collection continues."
+                    warn(msg)
+                    with event_lock:
+                        recent_events.append(msg)
+                ble_proc = None
 
     except KeyboardInterrupt:
         stop_reason = "user interrupt"

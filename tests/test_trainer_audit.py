@@ -113,6 +113,17 @@ def test_session_start_gate_blocks_required_runtime_failures():
     }]
 
 
+def test_radar_log_contract_prefers_current_firmware_source():
+    path = monolith._assert_radar_log_contract()
+    assert path.name == "radar_vital_v16_4_0.ino"
+
+
+def test_radar_log_contract_can_use_builtin_schema_when_source_missing(monkeypatch):
+    monkeypatch.setattr(monolith, "_firmware_contract_candidates", lambda: [])
+    monkeypatch.setattr(monolith, "_FIRMWARE_CONTRACT_CACHE", None)
+    assert monolith._assert_radar_log_contract(allow_missing_source=True) is None
+
+
 def test_monolith_reexports_point_at_extracted_runner():
     assert monolith._run_preflight_all is runner.run_preflight_all
     assert monolith._run_preflight_check is runner.run_preflight_check

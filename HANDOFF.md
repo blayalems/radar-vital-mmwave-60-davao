@@ -8,7 +8,8 @@
 ### 2026-07-03 - PR71 EXE/PWA telemetry start hotfix
 
 - **Start/BLE/Home**: Preserved COM7/COM10 choices through defaults and serial scans, made BLE/probe plus packaged Python/firmware-source audit failures advisory for Start, kept radar collection running when the BLE reference logger exits, routed EXE BLE scans through the native bridge, skipped PWA service-worker reload behavior in native shells, and fixed Home trend/micro canvas heights that caused vertical scroll growth.
-- **Verification**: `python -m pytest -q tests/test_trainer_audit.py tests/test_trainer_transport.py tests/test_operator_auth.py` 27/27; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer`; `npm run test:unit:web` 161/161; `npm run build:web`; `npm run build:check`. A broad local Playwright grep remained blocked by stale smoke fixtures/idle-lock overlay and was not used as the release gate.
+- **Session logger**: Updated firmware contract lookup for `radar_vital_v16_4_0.ino`, aligned the trainer's v15.2 tail to the firmware order (`uart_rx_high_water`, publish tiers, then `fw_uptime_s`), preserved legacy v15.1 uptime padding, and let live serial logging fall back to the built-in 222-column trainer schema when packaged runtimes do not include the firmware source file.
+- **Verification**: `python -m pytest -q tests/test_trainer_audit.py tests/test_trainer_transport.py tests/test_operator_auth.py` 29/29; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer`; `npm run test:unit:web` 161/161; `npm run build:web`; `npm run build:check`. A broad local Playwright grep remained blocked by stale smoke fixtures/idle-lock overlay and was not used as the release gate.
 
 ### 2026-07-02 — v17 standalone prototype parity pass (Azure default, shell/Home/Live/Report/Settings)
 

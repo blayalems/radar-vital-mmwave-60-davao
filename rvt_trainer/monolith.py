@@ -466,10 +466,10 @@ RADAR_LOG_COLUMNS = [
     "wdt_near_miss_count",           # col 216, v15.1
     "cmd_rx_count",                  # col 217, v15.1
     "cmd_err_count",                 # col 218, v15.1
-    "fw_uptime_s",                   # col 219, v15.1 (frozen position)
-    "uart_rx_high_water",            # col 220, v15.2 (audit A3a)
-    "hr_publish_tier",               # col 221, v15.2 (audit A4b: 0=INVALID,1=HELD,2=LIVE)
-    "rr_publish_tier",               # col 222, v15.2 (audit A4b)
+    "uart_rx_high_water",            # col 219, v15.2 (audit A3a)
+    "hr_publish_tier",               # col 220, v15.2 (audit A4b: 0=INVALID,1=HELD,2=LIVE)
+    "rr_publish_tier",               # col 221, v15.2 (audit A4b)
+    "fw_uptime_s",                   # col 222, v15.1 value kept at firmware right edge
 ]
 
 HR_PATH_SOURCE_NAMES = {
@@ -567,10 +567,10 @@ EXPECTED_RADAR_LOG_TAIL = (
     "wdt_near_miss_count",
     "cmd_rx_count",
     "cmd_err_count",
-    "fw_uptime_s",
     "uart_rx_high_water",
     "hr_publish_tier",
     "rr_publish_tier",
+    "fw_uptime_s",
 )
 LEGACY_V14_RADAR_LOG_TAIL = (
     "rr_phase_backed_publish_ready",
@@ -4596,7 +4596,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_3_0.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_4_0.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -7589,6 +7589,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
+        Path("radar_vital_v16_4_0.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
@@ -7628,7 +7629,7 @@ def _extract_firmware_data_header_tokens(ino_path: Path) -> List[str]:
     raise RuntimeError(f"Could not locate DATA header in firmware file: {ino_path}")
 
 
-def _assert_radar_log_contract() -> Path:
+def _assert_radar_log_contract(allow_missing_source: bool = False) -> Optional[Path]:
     global _FIRMWARE_CONTRACT_CACHE
     expected = list(RADAR_LOG_COLUMNS)
     if len(expected) != EXPECTED_RADAR_LOG_COLUMN_COUNT:
@@ -7675,6 +7676,8 @@ def _assert_radar_log_contract() -> Path:
             + f". Searched: {', '.join(searched)}"
         )
 
+    if allow_missing_source:
+        return None
     raise RuntimeError(
         "Could not locate firmware DATA header source for contract verification. "
         f"Tried: {', '.join(searched)}"
@@ -7729,7 +7732,11 @@ def _parse_radar_data_line(line: str, cols: Sequence[str]) -> Tuple[str, Optiona
     accepted_legacy_counts = (LEGACY_RADAR_LOG_COLUMN_COUNT, 136, 180, 195, LEGACY_V14_COLUMN_COUNT, LEGACY_V15_COLUMN_COUNT, LEGACY_V15_1_COLUMN_COUNT)
     if len(payload) not in ((len(cols),) + accepted_legacy_counts):
         return "reject", None, f"{len(payload)} fields, expected {accepted_legacy_counts} or {len(cols)}"
-    if len(payload) in accepted_legacy_counts:
+    if len(payload) == LEGACY_V15_1_COLUMN_COUNT:
+        # v15.1 ended with fw_uptime_s. v15.2 firmware inserted three audit
+        # fields before that right-edge value, so preserve old uptime position.
+        payload = payload[:-1] + ["", "", ""] + payload[-1:]
+    elif len(payload) in accepted_legacy_counts:
         payload = payload + [""] * (EXPECTED_RADAR_LOG_COLUMN_COUNT - len(payload))
     try:
         float(payload[0])
@@ -9263,10 +9270,13 @@ def cmd_log(args):
         sys.exit("pyserial not found. Run: pip install pyserial")
 
     cols = list(RADAR_LOG_COLUMNS)
-    contract_path = _assert_radar_log_contract()
+    contract_path = _assert_radar_log_contract(allow_missing_source=True)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
-    print(f"[LOG] Firmware contract OK: {contract_path.name} ({len(cols)} columns)")
+    if contract_path is not None:
+        print(f"[LOG] Firmware contract OK: {contract_path.name} ({len(cols)} columns)")
+    else:
+        print(f"[LOG] Firmware contract source unavailable; using built-in trainer schema ({len(cols)} columns)")
     print(f"[LOG] Opening {args.port} @ 115200 baud")
     print(f"[LOG] Writing to {args.out}")
     print("[LOG] Waiting for first DATA frame... (Ctrl-C to stop)\n")

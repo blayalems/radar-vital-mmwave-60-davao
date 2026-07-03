@@ -6402,8 +6402,6 @@ def _effective_defaults(sessions_root: str) -> Dict[str, object]:
 
 
 SESSION_START_PREFLIGHT_IDS = [
-    "python_env",
-    "firmware_file_present",
     "serial_port_list",
     "session_folder_writable",
     "disk_space",

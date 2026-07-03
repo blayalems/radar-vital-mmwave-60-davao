@@ -30,8 +30,6 @@ import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortReco
 const FALLBACK_RADAR_PORT = 'COM10';
 const DEFAULT_RADAR_PORT_CHOICES = ['COM7', FALLBACK_RADAR_PORT, 'COM3', 'COM4', 'COM11', 'COM12', '/dev/ttyUSB0', '/dev/ttyUSB1'];
 const START_BLOCKING_PREFLIGHT_IDS = new Set([
-  'python_env',
-  'firmware_file_present',
   'serial_port_list',
   'session_folder_writable',
   'disk_space',
@@ -451,11 +449,20 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     return this.preflightChecks.some(check => isStartBlockingPreflightCheck(check));
   }
 
+  protected isCheckStartBlocking(check: PreflightCheck): boolean {
+    return isStartBlockingPreflightCheck(check);
+  }
+
+  protected preflightStatusIcon(check: PreflightCheck): string {
+    if (this.checkPasses(check)) return 'check_circle';
+    return this.isCheckStartBlocking(check) ? 'error' : 'warning';
+  }
+
   canStartSession(): boolean {
     return !this.isPreflightRunning && this.preflightChecks.length > 0 && !this.hasBlockingPreflightFailure();
   }
 
-  private checkPasses(check: PreflightCheck): boolean {
+  protected checkPasses(check: PreflightCheck): boolean {
     return ['good', 'pass', 'ready', 'ok'].includes(normalizePreflightStatus(check));
   }
 

@@ -19,8 +19,13 @@ describe('HomeComponent start readiness helpers', () => {
     expect(isStartBlockingPreflightCheck(check('serial_port_probe', 'fail'))).toBe(false);
   });
 
-  it('hard-blocks Start for required local runtime and storage failures', () => {
-    expect(isStartBlockingPreflightCheck(check('python_env', 'fail'))).toBe(true);
+  it('does not hard-block Start for package/source audit failures', () => {
+    expect(isStartBlockingPreflightCheck(check('python_env', 'fail'))).toBe(false);
+    expect(isStartBlockingPreflightCheck(check('firmware_file_present', 'fail'))).toBe(false);
+  });
+
+  it('hard-blocks Start for required collection storage and schema failures', () => {
+    expect(isStartBlockingPreflightCheck(check('serial_port_list', 'fail'))).toBe(true);
     expect(isStartBlockingPreflightCheck(check('session_folder_writable', 'error'))).toBe(true);
     expect(isStartBlockingPreflightCheck(check('schema_hash_consistency', 'bad'))).toBe(true);
   });

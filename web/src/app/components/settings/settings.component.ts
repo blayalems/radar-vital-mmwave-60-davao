@@ -20,6 +20,7 @@ import { StateService, DEFAULT_KPI_THRESHOLDS, KPI_THRESHOLD_META, KpiThresholds
 import { AudioService } from '../../services/audio.service';
 import { ApiService } from '../../services/api.service';
 import { DynamicColorService } from '../../services/dynamic-color.service';
+import { BluetoothService } from '../../services/bluetooth.service';
 import { IdleLockService } from '../../services/idle-lock.service';
 import { IssueReportService } from '../../services/issue-report.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
@@ -105,6 +106,7 @@ export class SettingsComponent {
   protected readonly audio = inject(AudioService);
   protected readonly api = inject(ApiService);
   protected readonly dynamicColor = inject(DynamicColorService);
+  protected readonly bluetooth = inject(BluetoothService);
   protected readonly idleLock = inject(IdleLockService);
   protected readonly issueReport = inject(IssueReportService);
   protected readonly serverLifecycle = inject(ServerLifecycleService);
@@ -455,8 +457,18 @@ export class SettingsComponent {
     this.bleScanBusy.set(true);
     this.bleScanMessage.set('Scanning for BLE reference devices...');
     try {
-      const result = await this.api.request<{ ok?: boolean; devices?: BleScanDevice[]; error?: string }>('/api/ble/scan');
-      const devices = Array.isArray(result.devices) ? result.devices : [];
+      let devices: BleScanDevice[];
+      if (this.serverLifecycle.platform() === 'exe' && this.bluetooth.isSupported()) {
+        const dev = await this.bluetooth.requestDevice();
+        devices = [{
+          id: dev.id,
+          name: dev.name || 'Windows BLE device',
+          address: String(dev.nativeHandle?.address || dev.id || '').trim()
+        }];
+      } else {
+        const result = await this.api.request<{ ok?: boolean; devices?: BleScanDevice[]; error?: string }>('/api/ble/scan');
+        devices = Array.isArray(result.devices) ? result.devices : [];
+      }
       this.bleScanDevices.set(devices);
       this.bleScanMessage.set(devices.length
         ? `${devices.length} device${devices.length === 1 ? '' : 's'} found.`

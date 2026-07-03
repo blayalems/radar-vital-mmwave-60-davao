@@ -27,6 +27,38 @@ import { I18nService } from '../../services/i18n.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
 import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
 
+const FALLBACK_RADAR_PORT = 'COM10';
+const DEFAULT_RADAR_PORT_CHOICES = ['COM7', FALLBACK_RADAR_PORT, 'COM3', 'COM4', 'COM11', 'COM12', '/dev/ttyUSB0', '/dev/ttyUSB1'];
+const START_BLOCKING_PREFLIGHT_IDS = new Set([
+  'python_env',
+  'firmware_file_present',
+  'serial_port_list',
+  'session_folder_writable',
+  'disk_space',
+  'schema_hash_consistency',
+  'clock_monotonic_sanity'
+]);
+
+export function mergeRadarPortChoices(...groups: Array<Array<string | undefined> | undefined>): string[] {
+  const seen = new Set<string>();
+  const choices: string[] = [];
+  for (const group of groups) {
+    for (const value of group || []) {
+      const port = String(value || '').trim();
+      if (!port) continue;
+      const key = port.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      choices.push(port);
+    }
+  }
+  return choices;
+}
+
+export function isStartBlockingPreflightCheck(check: PreflightCheck): boolean {
+  return START_BLOCKING_PREFLIGHT_IDS.has(check.id) && ['bad', 'fail', 'error'].includes(normalizePreflightStatus(check));
+}
+
 @Component({
   selector: 'app-home',
   imports: [
@@ -89,7 +121,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   // Local form model binding
-  radarPorts: string[] = ['COM3', 'COM10', 'COM11', 'COM12', '/dev/ttyUSB0', '/dev/ttyUSB1'];
+  radarPorts: string[] = [...DEFAULT_RADAR_PORT_CHOICES];
   bleDevices: BleScanDevice[] = [];
   subjectProfiles: Record<string, SubjectProfileRecord> = {};
   preflightChecks: PreflightCheck[] = [];
@@ -191,11 +223,18 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       const defs = await this.api.request<{ radar_port?: string; serial_ports?: string[] }>('/api/defaults');
       if (defs) {
         if (defs.radar_port) {
-          this.state.setup.update(s => ({ ...s, radar_port: defs.radar_port ?? s.radar_port }));
+          this.state.setup.update(s => {
+            const current = String(s.radar_port || '').trim();
+            const preserveOperatorChoice = current && current.toUpperCase() !== FALLBACK_RADAR_PORT;
+            return { ...s, radar_port: preserveOperatorChoice ? current : (defs.radar_port ?? current) };
+          });
         }
-        if (defs.serial_ports && Array.isArray(defs.serial_ports)) {
-          this.radarPorts = defs.serial_ports;
-        }
+        this.radarPorts = mergeRadarPortChoices(
+          [this.state.setup().radar_port],
+          Array.isArray(defs.serial_ports) ? defs.serial_ports : undefined,
+          [defs.radar_port],
+          DEFAULT_RADAR_PORT_CHOICES
+        );
       }
     } catch (e) {
       console.warn('Could not load hardware defaults, using fallback lists', e);
@@ -241,8 +280,13 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       const result = await this.api.request<{ ports?: SerialPortRecord[]; selected?: string }>('/api/serial/ports');
       const ports = (result.ports || []).map(port => port.device).filter(Boolean);
       if (ports.length) {
-        this.radarPorts = ports;
-        if (result.selected && ports.includes(result.selected)) {
+        const current = String(this.state.setup().radar_port || '').trim();
+        this.radarPorts = mergeRadarPortChoices([current], ports, [result.selected], DEFAULT_RADAR_PORT_CHOICES);
+        if (current && ports.includes(current)) {
+          // Keep the operator's explicit COM choice.
+        } else if (ports.length === 1) {
+          this.state.setup.update(setup => ({ ...setup, radar_port: ports[0] }));
+        } else if (result.selected && ports.includes(result.selected)) {
           this.state.setup.update(setup => ({ ...setup, radar_port: result.selected! }));
         }
       }
@@ -259,7 +303,14 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.bleScanAttempted = true;
     this.state.triggerHaptic('tap');
     try {
-      if (this.state.ctlStatus()?.mode !== 'sandbox') {
+      if (this.serverLifecycle.platform() === 'exe' && this.bluetooth.isSupported()) {
+        const dev = await this.bluetooth.requestDevice();
+        this.bleDevices = [{
+          id: dev.id,
+          name: dev.name || 'Windows BLE device',
+          address: String(dev.nativeHandle?.address || dev.id || '').trim()
+        }];
+      } else if (this.state.ctlStatus()?.mode !== 'sandbox') {
         const response = await this.api.request<{ devices?: BleScanDevice[] }>('/api/ble/scan?timeout_s=3');
         this.bleDevices = response.devices || [];
       } else if (this.bluetooth.isSupported() && !this.state.demoMode()) {
@@ -397,7 +448,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   hasBlockingPreflightFailure(): boolean {
-    return this.preflightChecks.some(check => ['bad', 'fail', 'error'].includes(normalizePreflightStatus(check)));
+    return this.preflightChecks.some(check => isStartBlockingPreflightCheck(check));
   }
 
   canStartSession(): boolean {

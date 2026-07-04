@@ -1,9 +1,37 @@
-# Radar Vital v16.3.0 Milestones
+# Radar Vital v16.4.0 / PR72 Milestones
 
 This file tracks release-readiness milestones for PR #54. It is intentionally
 honest about gates that code cannot solve by itself: University of Mindanao
 legal / Research Ethics Committee review, Google Play policy timing, signing
 identity validation, and SmartScreen reputation.
+
+## Current v16.4 / PR72 status
+
+Goal: close the PR71/PR72 production blockers found during EXE/PWA live testing
+and the s01-s14 session-data audit.
+
+Exit criteria:
+
+- Windows EXE and local browser can start a real telemetry session on COM7 or
+  COM10 and show Live telemetry without relying on demo mode.
+- AiLink BLE reference capture works through the packaged Python/WinRT sidecar
+  when the device is available; if BLE is absent, the trainer preserves the
+  radar session and records `radar_only` status.
+- Home preflight persists across refresh/navigation, shows progress, and treats
+  BLE/package/firmware-source failures as advisory while keeping real collection,
+  storage, schema, and clock failures blocking.
+- Historical session rows infer missing date, duration, and subject from session
+  files and profiles instead of showing epoch/undated/0 s/blank values.
+- PR72 data audit fixes are verified: 222-column on-disk contract width,
+  module firmware truthfulness, adaptive-correction shadow metrics, v15 PQI
+  shadow metrics, BLE time-based coverage, and periodic `ref_ble_summary.json`
+  snapshots.
+- Firmware `radar_vital_v16_4_0.ino` passively polls module firmware version at
+  boot/recovery without changing the default `ENABLE_BLE=false` radar path.
+
+Risk: training-quality verdicts still require capture quality that code cannot
+fake. Short sessions, low HR phase coverage, subject motion, or poor oximeter
+contact should remain conditional/not-ready until the capture procedure improves.
 
 ## v16.3.0-rc
 

@@ -4,7 +4,7 @@
  * + Active Buzzer for audio feedback
  *
  * Firmware release: v16.4.0
- * CSV schema release: v15.1.0 / trainer contract v12.0.0
+ * CSV schema release: v15.2.0 / trainer contract v12.0.0
  *
 * Manuscript-facing calibration / release notes
 * -------------------------------------------
@@ -13,8 +13,10 @@
 *   a gated BLE bridge path for the v12 dashboard / native app milestone.
 * + ENABLE_BLE defaults to false; with BLE off, the serial DSP path is
 *   behaviorally identical to v15.0.0.
-* + v15.1.0 expands DATA telemetry to 219 columns by appending field diagnostics;
-*   the first 207 columns remain the frozen v15 trainer/dashboard audit contract.
+* + v15.1.0 expanded DATA telemetry to 219 columns by appending field diagnostics;
+*   v15.2.0 keeps those diagnostics and appends three v16.4 audit columns
+*   at the right edge for a 222-column DATA contract.
+* + The first 207 columns remain the frozen v15 trainer/dashboard audit contract.
 * + The raw CSV now exposes both sketch identity and radar-module identity:
 *   sketch_major/sketch_sub/sketch_mod and
 *   module_fw_major/module_fw_sub/module_fw_mod.

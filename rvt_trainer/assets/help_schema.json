@@ -239,7 +239,7 @@
         "kpi.fps": "Effective radar/DSP frame cadence. Very low FPS can make trend and freshness decisions less reliable.",
         "kpi.distance": "Current target range from radar spatial telemetry.",
         "preflight.python_env": "Checks required Python packages before hardware collection starts.",
-        "preflight.firmware_file_present": "Parses the firmware DATA header and verifies the expected v15.1 219-column contract while preserving the 207-column legacy prefix.",
+        "preflight.firmware_file_present": "Parses the firmware DATA header and verifies the expected v15.2 222-column contract while preserving the 207-column legacy prefix and 219-column v15.1 replay compatibility.",
         "preflight.serial_port_list": "Lists serial ports and checks whether the selected radar port is present.",
         "preflight.serial_port_probe": "Opens the selected radar port briefly and listens passively for boot/header evidence.",
         "preflight.ble_adapter": "Exercises the Bluetooth adapter through Bleak discovery.",

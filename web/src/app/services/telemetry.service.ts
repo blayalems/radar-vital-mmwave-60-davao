@@ -25,6 +25,7 @@ export class TelemetryService {
   private sseErrors: number[] = [];
   private httpPollFailures = 0;
   private demoT = 0;
+  private readonly alertCooldownUntil = new Map<string, number>();
   /** Epoch ms of the next scheduled SSE reconnect attempt (null when connected). */
   readonly nextRetryAtMs = signal<number | null>(null);
 
@@ -131,7 +132,7 @@ export class TelemetryService {
       }
       this.httpPollFailures = 0;
       this.state.ctlStatus.update((s) => ({ ...(s ?? { ok: true }), ok: true, latency }));
-      this.scheduleNextPoll(1000);
+      this.scheduleNextPoll(500);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'poll failed';
       console.warn('Telemetry poll failed', error);
@@ -147,18 +148,18 @@ export class TelemetryService {
           error: undefined,
           last_stop_reason: 'No active telemetry session'
         }));
+        this.scheduleNextPoll(1000);
       } else {
         this.emitAlert(`Live connection unavailable: ${message}`, 'critical');
-      }
-
-      if (this.state.autoDemoOnDisconnect()) {
-        this.state.autoDemoActive.set(true);
-        this.scheduleNextPoll(0);
-      } else {
-        this.httpPollFailures++;
-        const baseDelay = Math.min(60_000, 3_000 * 2 ** Math.min(this.httpPollFailures - 1, 4));
-        const jitter = Math.floor(Math.random() * 1000) - 500;
-        this.scheduleNextPoll(Math.max(1000, baseDelay + jitter));
+        if (this.state.autoDemoOnDisconnect()) {
+          this.state.autoDemoActive.set(true);
+          this.scheduleNextPoll(0);
+        } else {
+          this.httpPollFailures++;
+          const baseDelay = Math.min(60_000, 3_000 * 2 ** Math.min(this.httpPollFailures - 1, 4));
+          const jitter = Math.floor(Math.random() * 1000) - 500;
+          this.scheduleNextPoll(Math.max(1000, baseDelay + jitter));
+        }
       }
     }
   }
@@ -496,12 +497,12 @@ export class TelemetryService {
     this.staleTimer = setTimeout(() => this.state.telemetryStale.set(true), 3500);
 
     const thresholds = this.state.kpiThresholds();
-    const hr = Number(normalized.radar.reported_hr);
-    const rr = Number(normalized.radar.reported_rr);
-    if (Number.isFinite(hr) && (hr < thresholds.hrLow || hr > thresholds.hrHigh)) {
+    const hr = this.validVitalNumber(normalized.radar.reported_hr);
+    const rr = this.validVitalNumber(normalized.radar.reported_rr);
+    if (hr !== null && (hr < thresholds.hrLow || hr > thresholds.hrHigh)) {
       this.emitAlert(`Heart rate ${Math.round(hr)} bpm outside ${thresholds.hrLow}-${thresholds.hrHigh} bpm`, 'warn', 'heart-rate');
     }
-    if (Number.isFinite(rr) && (rr < thresholds.rrLow || rr > thresholds.rrHigh)) {
+    if (rr !== null && (rr < thresholds.rrLow || rr > thresholds.rrHigh)) {
       this.emitAlert(`Respiration ${Math.round(rr)} br/min outside ${thresholds.rrLow}-${thresholds.rrHigh} br/min`, 'warn', 'respiration');
     }
     normalized.faults.forEach((fault) => {
@@ -572,9 +573,19 @@ export class TelemetryService {
     return median > 0 ? 1 / median : null;
   }
 
+  private validVitalNumber(value: unknown): number | null {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+  }
+
   private emitAlert(message: string, severity: 'warn' | 'critical', source = 'telemetry'): void {
+    const now = Date.now();
+    const key = `${source}:${message}`;
+    const cooldownUntil = this.alertCooldownUntil.get(key) || 0;
+    if (cooldownUntil > now) return;
+    this.alertCooldownUntil.set(key, now + 60_000);
     const before = this.state.alertHistory().length;
-    this.state.pushAlert(message, severity, source, Date.now());
+    this.state.pushAlert(message, severity, source, now);
     if (this.state.alertHistory().length === before) return;
     this.audio.playAlertBeep(severity === 'critical' ? 'bad' : 'warn');
     this.audio.speakAlert(message, severity === 'critical' ? 'bad' : 'warn');

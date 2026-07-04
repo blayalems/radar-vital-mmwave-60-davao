@@ -146,7 +146,7 @@
                    (pointerdown)="onKpiDragStart($event, 'hr')"
                    (pointermove)="onKpiDragMove($event)"
                    (pointerup)="onKpiDragEnd($event)"
-                   aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Heart rate (click to zoom, drag to reorder)', 'reported_hr', 'beats per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
+                   aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Heart rate (click to zoom, drag to reorder)', 'reported_hr', 'beats per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > 0 && (state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
                 <div class="kpi-card-header">
                   <span>Heart rate</span>
                   @if (hrConfidencePct() !== null) {
@@ -186,7 +186,7 @@
                    (pointerdown)="onKpiDragStart($event, 'rr')"
                    (pointermove)="onKpiDragMove($event)"
                    (pointerup)="onKpiDragEnd($event)"
-                   aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Respiration (click to zoom, drag to reorder)', 'reported_rr', 'breaths per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
+                   aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Respiration (click to zoom, drag to reorder)', 'reported_rr', 'breaths per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > 0 && (state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
                 <div class="kpi-card-header">
                   <span>Respiration</span>
                   @if (rrConfidencePct() !== null) {

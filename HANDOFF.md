@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-04 - PR71 demo self-healing and Home/Live UX recovery
+
+- **Self-healing analysis/history**: Session history now infers missing timestamps from captured `.csv`/`.txt` files before falling back to dashboard/manifest mtimes, infers missing durations from `timestamp_ms`/`timestamp_s` CSV columns, fills missing subject labels from the saved/default subject profile, and records `timestamp_source`/`started_ms` so old sessions no longer collapse into undated/epoch groups. Empty BLE/reference runs now write `analysis/analyse_status.json` with `analysis_status=radar_only` instead of spawning a doomed paired analysis, preserving radar data and surfacing the BLE address/error in status.
+- **Home/Live demo blockers**: Preflight checks persist in the shared state/local storage and show an explicit progress/status row while re-running, so the card does not blank after refresh/navigation. Recording duration now includes 2 m, 3 m, and 1-60 minute custom input. Live telemetry polling updates twice per second on healthy streams and treats standby/no active live JSON as recoverable. Standby zero HR/RR values no longer create out-of-range alert spam, alert rows have proper icon spacing, and Live waveform, trend, target, and Doppler canvas containers now have fixed bounds/containment to stop vertical scroll growth.
+- **Verification**: `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer`; `python -m rvt_trainer --help`; `python -m pytest -q tests/test_trainer_lifecycle.py` 28/28; `python -m pytest -q tests/test_trainer_lifecycle.py tests/test_trainer_audit.py tests/test_session_isolation.py tests/test_trainer_transport.py` 55/55; `npm --prefix web run build`; `npm --prefix web run test:ci -- --include src/app/services/telemetry.service.spec.ts` 3/3; `npm run test:unit:web` 163/163; `npm run build:web`; `npm run build:check`; `git diff --check`. Angular build keeps the pre-existing initial bundle budget warning.
+
 ### 2026-07-04 - PR72 merge conflict resolution against main
 
 - **Merge resolution**: Merged `origin/main` into `codex/pr71-exe-production-fixes` and kept the PR72 production behavior: packaged Python/firmware-source failures stay advisory for Start, advisory preflight rows render as warnings, and the inline COM7/COM10 session logger plus startup/live payload path remain intact.

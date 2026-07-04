@@ -18,6 +18,10 @@
   display: flex;
 }
 
+.alert-row mat-icon[matListItemIcon] {
+  margin-inline-end: 12px;
+}
+
 .alert-row mat-icon.critical {
   color: var(--md-sys-color-error, #ba1a1a);
 }

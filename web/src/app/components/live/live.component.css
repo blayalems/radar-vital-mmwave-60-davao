@@ -92,6 +92,8 @@
   max-width: 1200px;
   margin: 0 auto;
   padding-bottom: 40px;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 /* Command strip card styling */
@@ -711,6 +713,8 @@
   box-shadow: none !important;
   padding: 16px;
   background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
+  overflow: hidden;
+  contain: layout paint;
 }
 
 .waveforms-grid {
@@ -730,6 +734,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-height: 0;
+  min-width: 0;
 }
 
 .chart-header {
@@ -742,9 +748,12 @@
 .canvas-plot-container {
   width: 100%;
   height: 180px;
+  max-height: 180px;
   border-radius: var(--rv-r2, 14px);
   border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
   overflow: hidden;
+  flex: 0 0 180px;
+  contain: layout paint size;
 }
 
 /* Breathing waveform wrap (RR) tinted with the respiration container. */
@@ -762,6 +771,7 @@
 .waveform-canvas {
   width: 100%;
   height: 100%;
+  max-height: 100%;
   display: block;
 }
 
@@ -772,6 +782,8 @@
   box-shadow: none !important;
   padding: 16px;
   background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
+  overflow: hidden;
+  contain: layout paint;
 }
 
 .trend-large-content {
@@ -781,16 +793,21 @@
 .large-canvas-container {
   width: 100%;
   height: 320px;
+  max-height: 320px;
   background: var(--md-sys-color-surface-container-lowest, #f8fafc);
   border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
   border-radius: var(--rv-r2, 14px);
   padding: 12px;
   box-sizing: border-box;
+  overflow: hidden;
+  flex: 0 0 320px;
+  contain: layout paint size;
 }
 
 .large-trend-canvas {
   width: 100%;
   height: 100%;
+  max-height: 100%;
   display: block;
 }
 
@@ -1071,6 +1088,7 @@
   gap: 18px;
   margin-top: 18px;
   min-width: 0;
+  align-items: start;
 }
 
 .target-plot-panel {
@@ -1081,6 +1099,8 @@
   border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
   padding: 14px;
   min-width: 0;
+  overflow: hidden;
+  contain: layout paint;
 }
 
 .target-status-row {
@@ -1117,6 +1137,8 @@
   display: block;
   width: 100%;
   height: 238px;
+  max-height: 238px;
+  overflow: hidden;
 }
 
 .target-details-grid {
@@ -1434,8 +1456,11 @@
 
 .ba-canvas-container {
   height: 280px;
+  max-height: 280px;
   position: relative;
   width: 100%;
+  overflow: hidden;
+  contain: layout paint size;
 }
 
 .ba-canvas {

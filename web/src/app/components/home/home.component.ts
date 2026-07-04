@@ -132,18 +132,24 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   radarPorts: string[] = [...DEFAULT_RADAR_PORT_CHOICES];
   bleDevices: BleScanDevice[] = [];
   subjectProfiles: Record<string, SubjectProfileRecord> = {};
-  preflightChecks: PreflightCheck[] = [];
   preflightError = '';
   isScanningPorts = false;
   isScanningBle = false;
   bleScanAttempted = false;
   isValidatingNativeBle = false;
   nativeBleProbeStatus = '';
-  isPreflightRunning = false;
   isStartingSession = false;
   selectedDuration = 30;
 
   sessionFilter: 'all' | 'pass' | 'warn' | 'fail' | 'tagged' = 'all';
+
+  get preflightChecks(): PreflightCheck[] {
+    return this.state.preflightChecks();
+  }
+
+  get isPreflightRunning(): boolean {
+    return this.state.preflightRunning();
+  }
 
   ngOnInit() {
     this.selectedDuration = this.state.setup().duration_s;
@@ -252,6 +258,19 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   selectDuration(seconds: number) {
     this.selectedDuration = seconds;
     this.state.setup.update(s => ({ ...s, duration_s: seconds }));
+    this.state.triggerHaptic('tap');
+  }
+
+  selectCustomDurationMinutes(value: unknown): void {
+    const minutes = Math.max(1, Math.min(60, Math.round(Number(value) || 1)));
+    const seconds = minutes * 60;
+    this.selectedDuration = seconds;
+    this.state.setup.update(s => ({
+      ...s,
+      duration_s: seconds,
+      customDuration: minutes,
+      customUnit: 'm'
+    }));
     this.state.triggerHaptic('tap');
   }
 
@@ -402,7 +421,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   async runPreflight() {
-    this.isPreflightRunning = true;
+    this.state.preflightRunning.set(true);
     this.preflightError = '';
     try {
       const query = new URLSearchParams({
@@ -416,7 +435,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         PREFLIGHT_REQUEST_TIMEOUT_MS
       );
       if (resp && Array.isArray(resp.checks)) {
-        this.preflightChecks = resp.checks;
+        this.state.preflightChecks.set(resp.checks);
+        this.state.preflightUpdatedAtMs.set(Date.now());
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Preflight unavailable.';
@@ -424,7 +444,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         ? 'Preflight timed out while probing hardware. Re-run the checks; Start only blocks on collection, storage, schema, and clock failures.'
         : message;
     } finally {
-      this.isPreflightRunning = false;
+      this.state.preflightRunning.set(false);
     }
   }
 
@@ -441,7 +461,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       });
       const check = 'check' in resp && resp.check ? resp.check : resp as PreflightCheck;
       if (check && check.id) {
-        this.preflightChecks = this.preflightChecks.map(c => c.id === checkId ? check : c);
+        this.state.preflightChecks.set(this.preflightChecks.map(c => c.id === checkId ? check : c));
+        this.state.preflightUpdatedAtMs.set(Date.now());
         if (check.status === 'good') {
           this.state.triggerHaptic('success');
         } else {
@@ -465,6 +486,12 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   hasBlockingPreflightFailure(): boolean {
     return this.preflightChecks.some(check => isStartBlockingPreflightCheck(check));
+  }
+
+  preflightProgressLabel(): string {
+    if (this.isPreflightRunning) return this.preflightChecks.length ? 'Refreshing hardware checks...' : 'Running hardware checks...';
+    const updatedAt = this.state.preflightUpdatedAtMs();
+    return updatedAt ? `Last checked ${new Date(updatedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : 'Not checked yet';
   }
 
   protected isCheckStartBlocking(check: PreflightCheck): boolean {
@@ -557,6 +584,16 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   sessionStartTimeLabel(session: SessionRecord): string {
     const startedMs = sessionStartTimestampMs(session);
     return startedMs ? new Date(startedMs).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '--';
+  }
+
+  sessionSubjectLabel(session: SessionRecord): string {
+    return String(
+      session.subject_label ||
+      session.subject ||
+      session['subject_profile_label'] ||
+      session['subject_profile_id'] ||
+      '--'
+    );
   }
 
   sessionDuration(session: SessionRecord): string {

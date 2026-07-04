@@ -276,6 +276,7 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .duration-chip {
@@ -297,6 +298,11 @@
   background: var(--md-sys-color-primary, #0061a4);
   color: #ffffff;
   border-color: var(--md-sys-color-primary, #0061a4);
+}
+
+.duration-custom-field {
+  width: 156px;
+  min-width: 140px;
 }
 
 .field-controls {
@@ -622,6 +628,26 @@
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
   margin-top: 20px;
+}
+
+.preflight-progress-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--md-sys-color-surface-container-low, #f8fafc);
+  color: var(--md-sys-color-on-surface-variant, #475569);
+  border: 1px solid var(--md-sys-color-outline-variant, #e2e8f0);
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.preflight-progress-row.active {
+  background: color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 9%, var(--md-sys-color-surface-container-lowest, #fff));
+  color: var(--md-sys-color-on-surface, #1e293b);
 }
 
 .preflight-row {

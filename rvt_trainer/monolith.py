@@ -45,6 +45,7 @@ import hashlib
 import inspect
 import importlib.util
 import json
+import math
 import mimetypes
 import os
 import pickle
@@ -5244,6 +5245,103 @@ def _summary_value(*values):
     return None
 
 
+def _iso_from_mtime(path: Path) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(path.stat().st_mtime))
+
+
+def _infer_session_timestamp(root: Path, manifest: Optional[Dict[str, object]]) -> Tuple[Optional[str], Optional[int], str]:
+    explicit = _summary_value(
+        (manifest or {}).get("started_at"),
+        (manifest or {}).get("started"),
+        (manifest or {}).get("started_utc"),
+    )
+    if explicit:
+        parsed_ms = None
+        try:
+            parsed = pd.to_datetime(explicit, utc=True, errors="coerce")
+            if not pd.isna(parsed):
+                parsed_ms = int(parsed.timestamp() * 1000)
+        except Exception:
+            parsed_ms = None
+        return str(explicit), parsed_ms, "manifest"
+
+    data_candidates: List[Tuple[int, Path, str]] = []
+    metadata_candidates: List[Tuple[int, Path, str]] = []
+    for pattern, source, bucket in (
+        ("*.csv", "session_file_mtime", data_candidates),
+        ("*.txt", "session_file_mtime", data_candidates),
+        ("live_dashboard.json", "dashboard_mtime", metadata_candidates),
+        ("dashboard.json", "dashboard_mtime", metadata_candidates),
+        ("session_manifest.json", "manifest_mtime", metadata_candidates),
+    ):
+        for path in root.glob(pattern):
+            if path.is_file():
+                try:
+                    bucket.append((int(path.stat().st_mtime * 1000), path, source))
+                except OSError:
+                    pass
+    candidates = data_candidates or metadata_candidates
+    if not candidates:
+        return None, None, "missing"
+    mtime_ms, path, source = max(candidates, key=lambda item: item[0])
+    return _iso_from_mtime(path), mtime_ms, source
+
+
+def _numeric_or_none(value: object) -> Optional[float]:
+    try:
+        numeric = float(value)
+    except Exception:
+        return None
+    return numeric if math.isfinite(numeric) else None
+
+
+def _duration_from_csv(path: Path) -> Optional[float]:
+    if not path.exists() or not path.is_file():
+        return None
+    try:
+        with path.open("r", encoding="utf-8", errors="ignore", newline="") as f:
+            reader = csv.DictReader(f)
+            if not reader.fieldnames:
+                return None
+            timestamp_column = next((name for name in ("timestamp_ms", "timestamp_s", "t_s", "time_s", "elapsed_s") if name in reader.fieldnames), None)
+            if not timestamp_column:
+                return None
+            first: Optional[float] = None
+            last: Optional[float] = None
+            for row in reader:
+                numeric = _numeric_or_none(row.get(timestamp_column))
+                if numeric is None:
+                    continue
+                if first is None:
+                    first = numeric
+                last = numeric
+            if first is None or last is None or last < first:
+                return None
+            duration = last - first
+            if timestamp_column == "timestamp_ms":
+                duration /= 1000.0
+            return max(0.0, duration)
+    except Exception:
+        return None
+
+
+def _infer_session_duration_s(root: Path, manifest: Optional[Dict[str, object]], analysis: Optional[Dict[str, object]]) -> Optional[int]:
+    for value in (
+        (manifest or {}).get("duration_s"),
+        (manifest or {}).get("duration"),
+        (analysis or {}).get("duration_s") if isinstance(analysis, dict) else None,
+        (analysis or {}).get("session_duration_s") if isinstance(analysis, dict) else None,
+    ):
+        numeric = _numeric_or_none(value)
+        if numeric is not None and numeric > 0:
+            return int(round(numeric))
+    for path in (root / "radar.csv", root / "ref.csv"):
+        duration = _duration_from_csv(path)
+        if duration is not None and duration > 0:
+            return int(round(duration))
+    return None
+
+
 def _contract_diagnosis(analysis: Optional[Dict[str, object]], manifest: Optional[Dict[str, object]]) -> Dict[str, object]:
     analysis = analysis if isinstance(analysis, dict) else {}
     manifest = manifest if isinstance(manifest, dict) else {}
@@ -5300,24 +5398,63 @@ def _load_session_summary(session_dir: str) -> Dict[str, object]:
     ble_summary = ble_summary if isinstance(ble_summary, dict) else None
     session_id = ((manifest or {}).get("session_id") if isinstance(manifest, dict) else None) or root.name
     downloads = _download_items_for_session(str(root))
+    started_at, started_ms, timestamp_source = _infer_session_timestamp(root, manifest)
+    duration_s = _infer_session_duration_s(root, manifest, analysis if isinstance(analysis, dict) else None)
+    subject_profile_id = str((manifest or {}).get("subject_profile_id") or "adult_default")
+    profiles_payload = _read_json_if_exists(str(root.parent / "subject_profiles.json")) or {}
+    subject_profile = (profiles_payload.get("profiles") or {}).get(subject_profile_id)
+    subject_profile_label = (
+        subject_profile.get("label")
+        if isinstance(subject_profile, dict) and subject_profile.get("label")
+        else DEFAULT_SUBJECT_PROFILES.get(subject_profile_id, {}).get("label")
+    )
+    subject_label = _summary_value(
+        (manifest or {}).get("subject_label"),
+        (manifest or {}).get("subject"),
+        (manifest or {}).get("params", {}).get("subject_label") if isinstance((manifest or {}).get("params"), dict) else None,
+        subject_profile_label,
+        subject_profile_id,
+    )
+    operator_label = _summary_value(
+        (manifest or {}).get("operator_label"),
+        (manifest or {}).get("operator"),
+        (manifest or {}).get("params", {}).get("operator_label") if isinstance((manifest or {}).get("params"), dict) else None,
+    )
     base = {
         "session_id": session_id,
         "session_dir": str(root.resolve()),
         "manifest": manifest,
-        "subject_label": (manifest or {}).get("subject_label"),
-        "subject": (manifest or {}).get("subject_label"),
-        "operator_label": (manifest or {}).get("operator_label"),
-        "operator": (manifest or {}).get("operator_label"),
+        "subject_label": subject_label,
+        "subject": subject_label,
+        "subject_profile_id": subject_profile_id,
+        "subject_profile_label": subject_profile_label,
+        "operator_label": operator_label,
+        "operator": operator_label,
         "notes": (manifest or {}).get("notes"),
-        "started_at": (manifest or {}).get("started_at"),
+        "started_at": started_at,
+        "started_ms": started_ms,
+        "timestamp_source": timestamp_source,
         "ended_at": (manifest or {}).get("ended_at"),
-        "duration_s": (manifest or {}).get("duration_s"),
+        "duration_s": duration_s,
         "started_from": (manifest or {}).get("started_from"),
         "trainer_version": (manifest or {}).get("trainer_version", VERSION),
         "dashboard_version": (manifest or {}).get("dashboard_version", DASHBOARD_VERSION),
         "downloads": downloads,
     }
     if not isinstance(analysis, dict):
+        status_path = root / "analysis" / "analyse_status.json"
+        status_payload = _read_json_if_exists(str(status_path))
+        if isinstance(status_payload, dict):
+            base.update({
+                "status": status_payload.get("status", "incomplete"),
+                "analysis_status": status_payload.get("analysis_status", status_payload.get("status", "incomplete")),
+                "analysis": None,
+                "verdict": None,
+                "ml_readiness_verdict": _build_ml_readiness_verdict(None),
+                "contract_diagnosis": _contract_diagnosis(None, manifest),
+                "warnings": [str(status_payload.get("last_line") or status_payload.get("message") or "Analysis summary is not available yet.")],
+            })
+            return base
         base.update({
             "status": "incomplete",
             "analysis_status": "no_analysis",
@@ -5421,9 +5558,13 @@ def _scan_sessions_root(root: str, prefix: str = "s") -> List[Dict[str, object]]
         items.append({
             "session_id": d.name,
             "started_at": summary.get("started_at") or manifest.get("started_at"),
+            "started_ms": summary.get("started_ms"),
+            "timestamp_source": summary.get("timestamp_source"),
             "duration_s": summary.get("duration_s") or manifest.get("duration_s"),
             "subject": summary.get("subject_label") or manifest.get("subject_label"),
             "subject_label": summary.get("subject_label") or manifest.get("subject_label"),
+            "subject_profile_id": summary.get("subject_profile_id") or manifest.get("subject_profile_id"),
+            "subject_profile_label": summary.get("subject_profile_label"),
             "operator": summary.get("operator_label") or manifest.get("operator_label"),
             "operator_label": summary.get("operator_label") or manifest.get("operator_label"),
             "verdict": summary.get("verdict"),
@@ -6162,7 +6303,52 @@ def _rerun_session_analysis(session_dir: str) -> Dict[str, object]:
     root = Path(session_dir)
     out = root / "analysis"
     out.mkdir(parents=True, exist_ok=True)
-    argv = [sys.executable, str(_TRAINER_ENTRYPOINT), "analyse", "--radar", str(root / "radar.csv"), "--ref", str(root / "ref.csv"), "--out", str(out)]
+    status_path = out / "analyse_status.json"
+    radar = root / "radar.csv"
+    ref = root / "ref.csv"
+    radar_rows = _count_csv_data_rows(radar)
+    ref_rows = _count_csv_data_rows(ref)
+    if radar_rows <= 0:
+        payload = {
+            "schema_version": CONTROL_API_SCHEMA_VERSION,
+            "session_id": root.name,
+            "status": "failed",
+            "analysis_status": "missing_radar",
+            "progress_pct": 0,
+            "analysis_dir": str(out),
+            "completed_at": _iso_now(),
+            "radar_rows": radar_rows,
+            "ref_rows": ref_rows,
+            "last_line": "Radar CSV is missing or contains no data rows; analysis was not started.",
+        }
+        save_json(payload, str(status_path))
+        return payload
+    if ref_rows <= 0:
+        ble_summary = _read_json_if_exists(str(root / "ref_ble_summary.json")) or {}
+        message = "BLE reference is missing or empty; paired HR/RR analysis was skipped and radar data was preserved."
+        if isinstance(ble_summary, dict) and ble_summary.get("error"):
+            message = f"{message} BLE error: {ble_summary.get('error')}"
+        payload = {
+            "schema_version": CONTROL_API_SCHEMA_VERSION,
+            "session_id": root.name,
+            "status": "complete",
+            "analysis_status": "radar_only",
+            "progress_pct": 100,
+            "analysis_dir": str(out),
+            "completed_at": _iso_now(),
+            "radar_rows": radar_rows,
+            "ref_rows": ref_rows,
+            "last_line": message,
+        }
+        save_json(payload, str(status_path))
+        _write_session_manifest(str(root), [str(radar)], [], str(out), None)
+        return payload
+    try:
+        if status_path.exists():
+            status_path.unlink()
+    except Exception:
+        pass
+    argv = [sys.executable, str(_TRAINER_ENTRYPOINT), "analyse", "--radar", str(radar), "--ref", str(ref), "--out", str(out)]
     proc = subprocess.Popen(argv)
     job_id = root.name
     started_at = _iso_now()
@@ -6183,6 +6369,7 @@ def _analysis_job_status(sessions_root: str, session_id: str) -> Dict[str, objec
     job = _ANALYSIS_JOBS.get(session_id)
     session_dir = Path(sessions_root) / session_id
     summary_path = session_dir / "analysis" / "analyse_summary.json"
+    status_path = session_dir / "analysis" / "analyse_status.json"
     sentinel_path = _auto_analyse_sentinel(session_dir)
     if job:
         proc = job.get("proc")
@@ -6215,6 +6402,9 @@ def _analysis_job_status(sessions_root: str, session_id: str) -> Dict[str, objec
         })
     if summary_path.exists():
         return _schema_wrap({"session_id": session_id, "status": "complete", "analysis_status": "complete", "progress_pct": 100, "last_line": "analyse_summary.json exists"})
+    status_payload = _read_json_if_exists(str(status_path))
+    if isinstance(status_payload, dict):
+        return _schema_wrap(status_payload)
     return _schema_wrap({"session_id": session_id, "status": "idle", "analysis_status": "idle", "progress_pct": 0, "last_line": "No analysis job is tracked for this session."})
 
 

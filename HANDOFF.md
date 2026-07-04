@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-04 - PR72 merge conflict resolution against main
+
+- **Merge resolution**: Merged `origin/main` into `codex/pr71-exe-production-fixes` and kept the PR72 production behavior: packaged Python/firmware-source failures stay advisory for Start, advisory preflight rows render as warnings, and the inline COM7/COM10 session logger plus startup/live payload path remain intact.
+- **Home regressions**: Stopped missing/invalid session timestamps from grouping under Unix epoch (`Thursday, January 1, 1970`), rendered undated sessions explicitly, extended the Home preflight request timeout for hardware probes, and updated the source-integrity guard to track the timestamp-safe Home binding.
+- **Verification**: `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer`; `python -m rvt_trainer --help`; `python -m pytest -q tests/test_trainer_audit.py tests/test_session_isolation.py tests/test_trainer_lifecycle.py tests/test_trainer_transport.py` 52/52; `npm run test:unit:web` 162/162; `npm run build:web`; `npm run build:check`; `git diff --check`; exact conflict-marker scan clean. Build emits the pre-existing initial bundle budget warning.
+
 ### 2026-07-04 - PR71 live telemetry start and BLE runtime follow-up
 
 - **Session start/live follow-up**: Reviewed local `sessions/s01`-`s14`: early runs timed out or produced no rows, `s07` proved COM7 radar-only capture, and `s08`/`s09`/`s11`/`s12`/`s14` captured both COM7 radar rows plus BLE rows from `10:22:33:9E:8F:63`. The control server now creates a startup `live_dashboard.json`, uses a 30 s start timeout, avoids a nested dashboard port conflict with `--dashboard-port 0`, returns a standby/latest live payload instead of 404 when no session is active, and records radar-only sessions when BLE is absent instead of dropping the manifest.

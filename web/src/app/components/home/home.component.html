@@ -432,7 +432,7 @@
 
           @for (session of group.items; track session.session_id) {
           <div class="session-log-row">
-            <strong>{{ session.started_at | date:'shortTime' }}</strong>
+            <strong>{{ sessionStartTimeLabel(session) }}</strong>
             <span>
               <span class="session-duration-badge">{{ sessionDuration(session) }}</span>
             </span>

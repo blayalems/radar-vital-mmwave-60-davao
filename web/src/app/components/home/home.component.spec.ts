@@ -1,5 +1,5 @@
 import { PreflightCheck } from '../../models/rvt.models';
-import { isStartBlockingPreflightCheck, mergeRadarPortChoices } from './home.component';
+import { isStartBlockingPreflightCheck, mergeRadarPortChoices, sessionStartTimestampMs } from './home.component';
 
 describe('HomeComponent start readiness helpers', () => {
   const check = (id: string, status: string): PreflightCheck => ({
@@ -28,5 +28,11 @@ describe('HomeComponent start readiness helpers', () => {
     expect(isStartBlockingPreflightCheck(check('serial_port_list', 'fail'))).toBe(true);
     expect(isStartBlockingPreflightCheck(check('session_folder_writable', 'error'))).toBe(true);
     expect(isStartBlockingPreflightCheck(check('schema_hash_consistency', 'bad'))).toBe(true);
+  });
+
+  it('does not treat missing session timestamps as Unix epoch', () => {
+    expect(sessionStartTimestampMs({})).toBeNull();
+    expect(sessionStartTimestampMs({ started_at: '', started_ms: 0 })).toBeNull();
+    expect(sessionStartTimestampMs({ started_at: '1970-01-01T00:00:00.000Z' })).toBeNull();
   });
 });

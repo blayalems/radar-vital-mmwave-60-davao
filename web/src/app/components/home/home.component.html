@@ -149,9 +149,15 @@
           <div class="duration-chips" role="group" aria-labelledby="recDurationLabel">
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 30" [attr.aria-pressed]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 60" [attr.aria-pressed]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
+            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 120" [attr.aria-pressed]="selectedDuration === 120" (click)="selectDuration(120)">2m</button>
+            <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 180" [attr.aria-pressed]="selectedDuration === 180" (click)="selectDuration(180)">3m</button>
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 300" [attr.aria-pressed]="selectedDuration === 300" (click)="selectDuration(300)">5m</button>
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 480" [attr.aria-pressed]="selectedDuration === 480" (click)="selectDuration(480)">8m</button>
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 1200" [attr.aria-pressed]="selectedDuration === 1200" (click)="selectDuration(1200)">20m</button>
+            <mat-form-field appearance="outline" class="duration-custom-field" subscriptSizing="dynamic">
+              <mat-label>Custom minutes</mat-label>
+              <input matInput type="number" min="1" max="60" step="1" [ngModel]="state.setup().customDuration" (ngModelChange)="selectCustomDurationMinutes($event)" aria-label="Custom recording duration in minutes">
+            </mat-form-field>
           </div>
         </div>
 
@@ -357,19 +363,27 @@
       </div>
       <button mat-flat-button color="primary" (click)="runPreflight()" [disabled]="isPreflightRunning" class="mat-tonal-button preflight-rerun-btn">
         <mat-icon>{{ isPreflightRunning ? 'sync' : 'fact_check' }}</mat-icon>
-        Re-run all
+        {{ isPreflightRunning ? 'Checking...' : 'Re-run all' }}
       </button>
     </mat-card-header>
 
     <mat-card-content class="preflight-card-grid">
+      <div class="preflight-progress-row" [class.active]="isPreflightRunning" role="status" aria-live="polite">
+        @if (isPreflightRunning) {
+          <mat-spinner diameter="22"></mat-spinner>
+        } @else {
+          <mat-icon aria-hidden="true">schedule</mat-icon>
+        }
+        <span>{{ preflightProgressLabel() }}</span>
+      </div>
       @if (preflightError) {
         <p role="alert">{{ preflightError }}</p>
       }
       @for (check of preflightChecks; track check.id) {
-      <div class="preflight-row" [class.pf-good]="check.status === 'good' || check.status === 'pass'" [class.pf-warn]="check.status === 'warn'" [class.pf-bad]="check.status === 'bad' || check.status === 'fail'">
+      <div class="preflight-row" [class.pf-good]="checkPasses(check)" [class.pf-warn]="!checkPasses(check) && !isCheckStartBlocking(check)" [class.pf-bad]="isCheckStartBlocking(check)">
         <div class="pf-info">
           <mat-icon class="pf-status-icon">
-            {{ check.status === 'good' || check.status === 'pass' ? 'check_circle' : check.status === 'warn' ? 'warning' : 'error' }}
+            {{ preflightStatusIcon(check) }}
           </mat-icon>
           <div class="pf-text">
             <strong>{{ check.label }}</strong>
@@ -432,11 +446,11 @@
 
           @for (session of group.items; track session.session_id) {
           <div class="session-log-row">
-            <strong>{{ session.started_at | date:'shortTime' }}</strong>
+            <strong>{{ sessionStartTimeLabel(session) }}</strong>
             <span>
               <span class="session-duration-badge">{{ sessionDuration(session) }}</span>
             </span>
-            <span>{{ session.subject_label || session.subject || '--' }}</span>
+            <span>{{ sessionSubjectLabel(session) }}</span>
             <div class="session-sparkline-cell">
               <canvas class="session-micro-sparkline" [attr.data-session-id]="session.session_id" role="img" aria-label="Micro-sparkline recent trend"></canvas>
             </div>

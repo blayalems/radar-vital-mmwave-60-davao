@@ -41,7 +41,7 @@ const requiredTemplateBindings = {
     /\{\{\s*port\s*\}\}/,
     /\{\{\s*check\.label\s*\}\}/,
     /\{\{[\s\S]*?state\.lastPayload\(\)\?\.radar\?\.reported_hr[\s\S]*?\}\}/,
-    /\{\{\s*session\.started_at\s*\|\s*date\s*:\s*['"]shortTime['"]\s*\}\}/,
+    /\{\{\s*sessionStartTimeLabel\(session\)\s*\}\}/,
     /\[attr\.aria-pressed\]="selectedDuration === 30"/,
     /translate:i18n\.locale\(\):i18n\.revision\(\)/,
   ],

@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
-from rvt_trainer.monolith import _SessionSupervisor, _session_is_active, _next_session_dir, save_json
+from rvt_trainer.monolith import _SessionSupervisor, _session_is_active, _next_session_dir, save_json, _latest_live_dashboard_payload
 
 @pytest.fixture
 def temp_sessions_root(tmp_path):
@@ -52,6 +52,49 @@ def test_active_session_locking_isolation(mock_popen, mock_pid_alive, temp_sessi
     with pytest.raises(RuntimeError) as excinfo:
         supervisor.start(timeout_s=1.0)
     assert "SESSION_IN_PROGRESS" in str(excinfo.value)
+
+@patch("rvt_trainer.monolith._pid_alive")
+@patch("subprocess.Popen")
+def test_supervisor_writes_starting_live_payload_before_child_dashboard_ready(mock_popen, mock_pid_alive, temp_sessions_root):
+    mock_proc = MagicMock()
+    mock_proc.pid = 12345
+    mock_proc.poll.return_value = None
+    mock_popen.return_value = mock_proc
+    mock_pid_alive.return_value = True
+
+    supervisor = _SessionSupervisor(str(temp_sessions_root))
+    res = supervisor.start(duration_s=60, radar_port="COM7", timeout_s=0.1)
+
+    assert res["session_id"] == "s01"
+    argv = mock_popen.call_args.args[0]
+    assert "--dashboard-port" in argv
+    assert argv[argv.index("--dashboard-port") + 1] == "0"
+    live = temp_sessions_root / "s01" / "live_dashboard.json"
+    assert live.exists()
+    payload = json.loads(live.read_text(encoding="utf-8"))
+    assert payload["meta"]["status"] == "starting"
+    assert payload["meta"]["remaining_s"] == 60.0
+    assert payload["radar"]["rows"] == 0
+
+def test_latest_live_dashboard_payload_marks_stale_active_payload_as_waiting(temp_sessions_root):
+    s01 = temp_sessions_root / "s01"
+    s01.mkdir(parents=True)
+    save_json({
+        "schema_version": "rvt-live-events-v12.0",
+        "session_id": "s01",
+        "meta": {"status": "collecting", "session_id": "s01"},
+        "radar": {"rows": 12},
+        "ble": {"rows": 3},
+        "series": {},
+    }, str(s01 / "live_dashboard.json"))
+
+    payload = _latest_live_dashboard_payload(str(temp_sessions_root))
+
+    assert payload is not None
+    assert payload["session_id"] == "s01"
+    assert payload["meta"]["status"] == "waiting"
+    assert payload["meta"]["active"] is False
+    assert payload["meta"]["latest_session"] is True
 
 @patch("rvt_trainer.monolith._pid_alive")
 @patch("subprocess.Popen")

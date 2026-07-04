@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { ControlStatus, SetupState, SessionRecord, SessionSignoff } from '../../models/rvt.models';
+import { ControlStatus, PreflightCheck, SetupState, SessionRecord, SessionSignoff } from '../../models/rvt.models';
 
 @Injectable({
   providedIn: 'root'
@@ -32,4 +32,7 @@ export class SessionStore {
   sessionItems = signal<SessionRecord[]>([]);
   currentSessionId = signal<string | null>(null);
   sessionActive = signal<boolean>(false);
+  preflightChecks = signal<PreflightCheck[]>([]);
+  preflightRunning = signal<boolean>(false);
+  preflightUpdatedAtMs = signal<number | null>(null);
 }

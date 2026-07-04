@@ -106,4 +106,18 @@ describe('TelemetryService', () => {
 
     expect(consoleWarnSpy).toHaveBeenCalledWith('SSE live parse failed', expect.any(Error));
   });
+
+  it('does not alert for standby zero vitals', () => {
+    service = TestBed.inject(TelemetryService);
+    const state = TestBed.inject(StateService);
+
+    (service as any).applyLivePayload({
+      meta: { status: 'waiting', active: false },
+      radar: { reported_hr: 0, reported_rr: 0 }
+    });
+
+    expect(state.alertHistory()).toEqual([]);
+    expect(mockAudio.playAlertBeep).not.toHaveBeenCalled();
+    expect(mockAudio.speakAlert).not.toHaveBeenCalled();
+  });
 });

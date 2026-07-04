@@ -80,10 +80,14 @@ def test_run_preflight_all_refs_carry_port_and_address():
 
 
 def test_session_start_gate_keeps_ble_failures_advisory():
+    assert "python_env" not in monolith.SESSION_START_PREFLIGHT_IDS
+    assert "firmware_file_present" not in monolith.SESSION_START_PREFLIGHT_IDS
     assert "ble_adapter" not in monolith.SESSION_START_PREFLIGHT_IDS
     assert "ble_device_probe" not in monolith.SESSION_START_PREFLIGHT_IDS
     report = {
         "checks": [
+            {"id": "python_env", "label": "Python environment", "status": "fail", "detail": "sklearn unavailable"},
+            {"id": "firmware_file_present", "label": "Firmware file", "status": "fail", "detail": "source file not bundled"},
             {"id": "ble_adapter", "label": "BLE adapter", "status": "fail", "detail": "permission denied"},
             {"id": "ble_device_probe", "label": "BLE device", "status": "fail", "detail": "not found"},
             {"id": "serial_port_probe", "label": "Serial probe", "status": "fail", "detail": "busy"},
@@ -95,17 +99,29 @@ def test_session_start_gate_keeps_ble_failures_advisory():
 def test_session_start_gate_blocks_required_runtime_failures():
     report = {
         "checks": [
-            {"id": "python_env", "label": "Python environment", "status": "fail", "detail": "serial missing", "remediation": "install"},
+            {"id": "session_folder_writable", "label": "Session folder writable", "status": "fail", "detail": "permission denied", "remediation": "choose another folder"},
+            {"id": "firmware_file_present", "label": "Firmware file", "status": "fail", "detail": "source file not bundled"},
             {"id": "ble_adapter", "label": "BLE adapter", "status": "fail", "detail": "permission denied"},
         ]
     }
     failures = monolith._session_start_blocking_failures(report)
     assert failures == [{
-        "id": "python_env",
-        "label": "Python environment",
-        "detail": "serial missing",
-        "remediation": "install",
+        "id": "session_folder_writable",
+        "label": "Session folder writable",
+        "detail": "permission denied",
+        "remediation": "choose another folder",
     }]
+
+
+def test_radar_log_contract_prefers_current_firmware_source():
+    path = monolith._assert_radar_log_contract()
+    assert path.name == "radar_vital_v16_4_0.ino"
+
+
+def test_radar_log_contract_can_use_builtin_schema_when_source_missing(monkeypatch):
+    monkeypatch.setattr(monolith, "_firmware_contract_candidates", lambda: [])
+    monkeypatch.setattr(monolith, "_FIRMWARE_CONTRACT_CACHE", None)
+    assert monolith._assert_radar_log_contract(allow_missing_source=True) is None
 
 
 def test_monolith_reexports_point_at_extracted_runner():

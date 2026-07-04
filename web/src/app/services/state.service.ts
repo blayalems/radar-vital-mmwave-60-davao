@@ -7,6 +7,7 @@ import {
   HapticMode,
   LivePayload,
   PaletteId,
+  PreflightCheck,
   SessionRecord,
   SetupState,
   SnapshotRecord,
@@ -138,6 +139,9 @@ export class StateService {
   sessionItems = this.sessionStore.sessionItems;
   currentSessionId = this.sessionStore.currentSessionId;
   sessionActive = this.sessionStore.sessionActive;
+  preflightChecks = this.sessionStore.preflightChecks;
+  preflightRunning = this.sessionStore.preflightRunning;
+  preflightUpdatedAtMs = this.sessionStore.preflightUpdatedAtMs;
 
   // Sparkline buffer for live KPIs
   spark = this.telemetryStore.spark;
@@ -263,6 +267,13 @@ export class StateService {
     });
 
     effect(() => {
+      localStorage.setItem('rvt-preflight-checks', JSON.stringify({
+        checks: this.preflightChecks(),
+        updated_at_ms: this.preflightUpdatedAtMs()
+      }));
+    });
+
+    effect(() => {
       document.body.dataset['view'] = this.currentView();
     });
 
@@ -357,6 +368,17 @@ export class StateService {
         const stored = JSON.parse(setupVal);
         if (stored && typeof stored === 'object') {
           this.setup.update(current => ({ ...current, ...stored }));
+        }
+      }
+
+      const preflightVal = localStorage.getItem('rvt-preflight-checks');
+      if (preflightVal) {
+        const stored = JSON.parse(preflightVal);
+        const checks = Array.isArray(stored?.checks) ? stored.checks as PreflightCheck[] : [];
+        const updatedAtMs = Number(stored?.updated_at_ms);
+        if (checks.length) {
+          this.preflightChecks.set(checks.filter(check => check && typeof check.id === 'string'));
+          this.preflightUpdatedAtMs.set(Number.isFinite(updatedAtMs) && updatedAtMs > 0 ? updatedAtMs : null);
         }
       }
 

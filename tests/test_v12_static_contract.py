@@ -341,10 +341,10 @@ def test_frozen_serial_protocol_contract():
         "wdt_near_miss_count",
         "cmd_rx_count",
         "cmd_err_count",
-        "fw_uptime_s",
         "uart_rx_high_water",
         "hr_publish_tier",
         "rr_publish_tier",
+        "fw_uptime_s",
     ]
     assert "EXPECTED_RADAR_LOG_COLUMN_COUNT = 222" in trainer
     assert "LEGACY_V15_1_COLUMN_COUNT = 219" in trainer
@@ -368,6 +368,21 @@ def test_trainer_pads_legacy_207_rows_to_v15_1_contract():
     assert row[m.LEGACY_V15_COLUMN_COUNT :] == [""] * (
         m.EXPECTED_RADAR_LOG_COLUMN_COUNT - m.LEGACY_V15_COLUMN_COUNT
     )
+
+
+def test_trainer_preserves_legacy_v15_1_uptime_when_inserting_v15_2_audit_fields():
+    from rvt_trainer import monolith as m
+
+    payload = [str(i) for i in range(m.LEGACY_V15_1_COLUMN_COUNT)]
+    kind, row, detail = m._parse_radar_data_line("DATA," + ",".join(payload), m.RADAR_LOG_COLUMNS)
+
+    assert kind == "data", detail
+    assert row is not None
+    assert len(row) == m.EXPECTED_RADAR_LOG_COLUMN_COUNT
+    assert row[m.RADAR_LOG_COLUMNS.index("uart_rx_high_water")] == ""
+    assert row[m.RADAR_LOG_COLUMNS.index("hr_publish_tier")] == ""
+    assert row[m.RADAR_LOG_COLUMNS.index("rr_publish_tier")] == ""
+    assert row[m.RADAR_LOG_COLUMNS.index("fw_uptime_s")] == str(m.LEGACY_V15_1_COLUMN_COUNT - 1)
 
 
 def test_firmware_pr58_robustness_guards_present():

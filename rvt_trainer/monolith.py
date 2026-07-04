@@ -45,6 +45,7 @@ import hashlib
 import inspect
 import importlib.util
 import json
+import math
 import mimetypes
 import os
 import pickle
@@ -66,6 +67,7 @@ from functools import lru_cache, partial
 from html import escape as html_escape
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Deque, Dict, Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -466,10 +468,10 @@ RADAR_LOG_COLUMNS = [
     "wdt_near_miss_count",           # col 216, v15.1
     "cmd_rx_count",                  # col 217, v15.1
     "cmd_err_count",                 # col 218, v15.1
-    "fw_uptime_s",                   # col 219, v15.1 (frozen position)
-    "uart_rx_high_water",            # col 220, v15.2 (audit A3a)
-    "hr_publish_tier",               # col 221, v15.2 (audit A4b: 0=INVALID,1=HELD,2=LIVE)
-    "rr_publish_tier",               # col 222, v15.2 (audit A4b)
+    "uart_rx_high_water",            # col 219, v15.2 (audit A3a)
+    "hr_publish_tier",               # col 220, v15.2 (audit A4b: 0=INVALID,1=HELD,2=LIVE)
+    "rr_publish_tier",               # col 221, v15.2 (audit A4b)
+    "fw_uptime_s",                   # col 222, v15.1 value kept at firmware right edge
 ]
 
 HR_PATH_SOURCE_NAMES = {
@@ -567,10 +569,10 @@ EXPECTED_RADAR_LOG_TAIL = (
     "wdt_near_miss_count",
     "cmd_rx_count",
     "cmd_err_count",
-    "fw_uptime_s",
     "uart_rx_high_water",
     "hr_publish_tier",
     "rr_publish_tier",
+    "fw_uptime_s",
 )
 LEGACY_V14_RADAR_LOG_TAIL = (
     "rr_phase_backed_publish_ready",
@@ -974,13 +976,51 @@ def _format_sketch_version(major, sub, mod) -> Optional[str]:
     return f"v{m}.{s}.{x}"
 
 
-def _truthfulness_from_radar(raw_df: pd.DataFrame) -> Dict[str, object]:
+def _radar_csv_on_disk_contract_length(paths: Sequence[str]) -> Optional[int]:
+    """Widest CSV header width across the given radar log files, read from disk.
+
+    PR72 session-data audit (s08-s11): the loaded dataframe gains loader-derived
+    columns (timestamp_s, the hr_trust_fresh alias, session_id from
+    _combine_radar_frames), so ``len(df.columns)`` overstates the firmware
+    contract width (222 -> 225) and every session was wrongly marked
+    ``firmware_rejected``. The firmware contract must be measured against the
+    on-disk header, not the augmented frame.
+    """
+    widths: List[int] = []
+    for path in paths or []:
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                header = fh.readline().rstrip("\r\n")
+        except OSError:
+            continue
+        if header:
+            widths.append(header.count(",") + 1)
+    return max(widths) if widths else None
+
+
+def _first_populated_series(raw_df: pd.DataFrame, *names: str) -> pd.Series:
+    """Return the first named column that exists with any non-NaN values.
+
+    load_radar's canonicalize_with_synonyms renames module_fw_major/sub/mod to
+    fw_major/fw_sub/fw_mod (copy + drop), so truthfulness must accept either
+    spelling depending on whether it receives a raw or a loader-canonical frame.
+    """
+    for name in names:
+        if name in raw_df.columns:
+            series = safe_series(raw_df, name, default=np.nan).dropna()
+            if len(series):
+                return series
+    return pd.Series(dtype=float)
+
+
+def _truthfulness_from_radar(raw_df: pd.DataFrame, contract_length: Optional[int] = None) -> Dict[str, object]:
+    fallback_len = int(len(raw_df.columns)) if isinstance(raw_df, pd.DataFrame) else EXPECTED_RADAR_LOG_COLUMN_COUNT
     out = {
         "version": "unknown",
         "module_version": None,
         "module_version_detected": False,
         "module_version_valid": False,
-        "contract_length": int(len(raw_df.columns)) if isinstance(raw_df, pd.DataFrame) else EXPECTED_RADAR_LOG_COLUMN_COUNT,
+        "contract_length": int(contract_length) if contract_length else fallback_len,
         "critical_columns_ok": False,
         "notes": "Derived from sketch/module telemetry in radar.csv",
     }
@@ -991,9 +1031,9 @@ def _truthfulness_from_radar(raw_df: pd.DataFrame) -> Dict[str, object]:
     sketch_mod = safe_series(raw_df, "sketch_mod", default=np.nan).dropna()
     if len(sketch_major) and len(sketch_sub) and len(sketch_mod):
         out["version"] = _format_sketch_version(sketch_major.iloc[-1], sketch_sub.iloc[-1], sketch_mod.iloc[-1]) or "unknown"
-    mod_major = safe_series(raw_df, "module_fw_major", default=np.nan).dropna()
-    mod_sub = safe_series(raw_df, "module_fw_sub", default=np.nan).dropna()
-    mod_mod = safe_series(raw_df, "module_fw_mod", default=np.nan).dropna()
+    mod_major = _first_populated_series(raw_df, "module_fw_major", "fw_major")
+    mod_sub = _first_populated_series(raw_df, "module_fw_sub", "fw_sub")
+    mod_mod = _first_populated_series(raw_df, "module_fw_mod", "fw_mod")
     critical_cols = {"timestamp_ms", "reported_hr", "reported_rr", "candidate_hr", "candidate_rr", "pqi_heart", "pqi_breath"}
     out["critical_columns_ok"] = critical_cols.issubset(set(raw_df.columns))
     if "module_fw_valid" in raw_df.columns:
@@ -4596,7 +4636,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_3_0.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_4_0.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -4702,10 +4742,27 @@ def _build_adaptive_correction_shadow(df) -> Dict[str, object]:
     if df is None or not hasattr(df, "columns") or len(df) == 0:
         return out
 
-    needed = ("raw_hr_uncorrected", "raw_hr_corrected", "ref_hr")
-    if not all(c in df.columns for c in needed):
+    # PR72 session-data audit: this shadow runs on the 1 Hz feature frame,
+    # where radar columns carry aggregation suffixes (raw_hr_uncorrected_mean),
+    # so the unsuffixed names never matched and the shadow was skipped on every
+    # session ("missing one of ...") even though the data was present.
+    def _resolve_column(*candidates: str) -> Optional[str]:
+        for cand in candidates:
+            if cand in df.columns:
+                return cand
+        return None
+
+    unc_col = _resolve_column("raw_hr_uncorrected", "raw_hr_uncorrected_mean")
+    cor_col = _resolve_column("raw_hr_corrected", "raw_hr_corrected_mean")
+    ref_col = _resolve_column("ref_hr", "ref_hr_mean")
+    missing = [label for label, col in (
+        ("raw_hr_uncorrected", unc_col),
+        ("raw_hr_corrected", cor_col),
+        ("ref_hr", ref_col),
+    ) if col is None]
+    if missing:
         out["recommendation"] = (
-            f"Adaptive correction shadow skipped: missing one of {needed}."
+            f"Adaptive correction shadow skipped: missing {tuple(missing)}."
         )
         return out
 
@@ -4715,9 +4772,9 @@ def _build_adaptive_correction_shadow(df) -> Dict[str, object]:
             motion_col = c
             break
 
-    raw_unc = _pd.to_numeric(df["raw_hr_uncorrected"], errors="coerce")
-    raw_cor = _pd.to_numeric(df["raw_hr_corrected"], errors="coerce")
-    ref_hr  = _pd.to_numeric(df["ref_hr"], errors="coerce")
+    raw_unc = _pd.to_numeric(df[unc_col], errors="coerce")
+    raw_cor = _pd.to_numeric(df[cor_col], errors="coerce")
+    ref_hr  = _pd.to_numeric(df[ref_col], errors="coerce")
     valid_mask = (raw_unc.notna() & raw_cor.notna() & ref_hr.notna()
                   & (raw_unc > 30.0) & (raw_cor > 30.0) & (ref_hr > 30.0)
                   & (raw_unc < 200.0) & (raw_cor < 200.0) & (ref_hr < 200.0))
@@ -4734,9 +4791,9 @@ def _build_adaptive_correction_shadow(df) -> Dict[str, object]:
         )
         return out
 
-    raw_unc_p = _pd.to_numeric(paired["raw_hr_uncorrected"], errors="coerce").to_numpy(dtype=float)
-    raw_cor_p = _pd.to_numeric(paired["raw_hr_corrected"], errors="coerce").to_numpy(dtype=float)
-    ref_hr_p  = _pd.to_numeric(paired["ref_hr"], errors="coerce").to_numpy(dtype=float)
+    raw_unc_p = _pd.to_numeric(paired[unc_col], errors="coerce").to_numpy(dtype=float)
+    raw_cor_p = _pd.to_numeric(paired[cor_col], errors="coerce").to_numpy(dtype=float)
+    ref_hr_p  = _pd.to_numeric(paired[ref_col], errors="coerce").to_numpy(dtype=float)
 
     residual = raw_cor_p - ref_hr_p
     out["firmware_default_rmse_bpm"] = float(_np.sqrt(_np.mean(residual * residual)))
@@ -4850,7 +4907,7 @@ def _build_pqi_v15_shadow(df) -> Dict[str, object]:
     v15_cols = ("pqi_heart_v15", "pqi_breath_v15",
                 "phase_buffer_valid_pct", "pqi_v15_pair_coverage_min")
     if not all(c in df.columns for c in v15_cols):
-        out["recommendation"] = "v15 PQI columns not present in CSV (firmware <v15.0). No shadow data."
+        out["recommendation"] = "v15 PQI columns not present in this frame (firmware <v15.0, or frame lacks the raw radar columns). No shadow data."
         out["n_rows"] = int(len(df))
         return out
 
@@ -4986,7 +5043,12 @@ def _build_ml_readiness_verdict(analyse_summary, **kwargs) -> Dict[str, object]:
     ble = analyse_summary.get("ble_ref_quality") if isinstance(analyse_summary.get("ble_ref_quality"), dict) else {}
     fw = analyse_summary.get("fw_truthfulness") if isinstance(analyse_summary.get("fw_truthfulness"), dict) else {}
     pqi = _to_num(analyse_summary.get("pqi_lock_pct"), float("nan"))
-    coverage = _to_num(ble.get("distilled_rows_pct_of_raw", ble.get("coverage_pct")), float("nan"))
+    # PR72 session-data audit: prefer true time coverage over the packet ratio
+    # (distilled_rows_pct_of_raw), which protocol-normally sits near 33% and
+    # made the reference gate fail every session.
+    coverage = _to_num(ble.get("coverage_pct"), float("nan"))
+    if not np.isfinite(coverage):
+        coverage = _to_num(ble.get("distilled_rows_pct_of_raw"), float("nan"))
     pi = _to_num(ble.get("pi_median"), float("nan"))
     categories: List[Dict[str, str]] = []
     passed: List[str] = []
@@ -5243,6 +5305,103 @@ def _summary_value(*values):
     return None
 
 
+def _iso_from_mtime(path: Path) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(path.stat().st_mtime))
+
+
+def _infer_session_timestamp(root: Path, manifest: Optional[Dict[str, object]]) -> Tuple[Optional[str], Optional[int], str]:
+    explicit = _summary_value(
+        (manifest or {}).get("started_at"),
+        (manifest or {}).get("started"),
+        (manifest or {}).get("started_utc"),
+    )
+    if explicit:
+        parsed_ms = None
+        try:
+            parsed = pd.to_datetime(explicit, utc=True, errors="coerce")
+            if not pd.isna(parsed):
+                parsed_ms = int(parsed.timestamp() * 1000)
+        except Exception:
+            parsed_ms = None
+        return str(explicit), parsed_ms, "manifest"
+
+    data_candidates: List[Tuple[int, Path, str]] = []
+    metadata_candidates: List[Tuple[int, Path, str]] = []
+    for pattern, source, bucket in (
+        ("*.csv", "session_file_mtime", data_candidates),
+        ("*.txt", "session_file_mtime", data_candidates),
+        ("live_dashboard.json", "dashboard_mtime", metadata_candidates),
+        ("dashboard.json", "dashboard_mtime", metadata_candidates),
+        ("session_manifest.json", "manifest_mtime", metadata_candidates),
+    ):
+        for path in root.glob(pattern):
+            if path.is_file():
+                try:
+                    bucket.append((int(path.stat().st_mtime * 1000), path, source))
+                except OSError:
+                    pass
+    candidates = data_candidates or metadata_candidates
+    if not candidates:
+        return None, None, "missing"
+    mtime_ms, path, source = max(candidates, key=lambda item: item[0])
+    return _iso_from_mtime(path), mtime_ms, source
+
+
+def _numeric_or_none(value: object) -> Optional[float]:
+    try:
+        numeric = float(value)
+    except Exception:
+        return None
+    return numeric if math.isfinite(numeric) else None
+
+
+def _duration_from_csv(path: Path) -> Optional[float]:
+    if not path.exists() or not path.is_file():
+        return None
+    try:
+        with path.open("r", encoding="utf-8", errors="ignore", newline="") as f:
+            reader = csv.DictReader(f)
+            if not reader.fieldnames:
+                return None
+            timestamp_column = next((name for name in ("timestamp_ms", "timestamp_s", "t_s", "time_s", "elapsed_s") if name in reader.fieldnames), None)
+            if not timestamp_column:
+                return None
+            first: Optional[float] = None
+            last: Optional[float] = None
+            for row in reader:
+                numeric = _numeric_or_none(row.get(timestamp_column))
+                if numeric is None:
+                    continue
+                if first is None:
+                    first = numeric
+                last = numeric
+            if first is None or last is None or last < first:
+                return None
+            duration = last - first
+            if timestamp_column == "timestamp_ms":
+                duration /= 1000.0
+            return max(0.0, duration)
+    except Exception:
+        return None
+
+
+def _infer_session_duration_s(root: Path, manifest: Optional[Dict[str, object]], analysis: Optional[Dict[str, object]]) -> Optional[int]:
+    for value in (
+        (manifest or {}).get("duration_s"),
+        (manifest or {}).get("duration"),
+        (analysis or {}).get("duration_s") if isinstance(analysis, dict) else None,
+        (analysis or {}).get("session_duration_s") if isinstance(analysis, dict) else None,
+    ):
+        numeric = _numeric_or_none(value)
+        if numeric is not None and numeric > 0:
+            return int(round(numeric))
+    for path in (root / "radar.csv", root / "ref.csv"):
+        duration = _duration_from_csv(path)
+        if duration is not None and duration > 0:
+            return int(round(duration))
+    return None
+
+
 def _contract_diagnosis(analysis: Optional[Dict[str, object]], manifest: Optional[Dict[str, object]]) -> Dict[str, object]:
     analysis = analysis if isinstance(analysis, dict) else {}
     manifest = manifest if isinstance(manifest, dict) else {}
@@ -5299,24 +5458,63 @@ def _load_session_summary(session_dir: str) -> Dict[str, object]:
     ble_summary = ble_summary if isinstance(ble_summary, dict) else None
     session_id = ((manifest or {}).get("session_id") if isinstance(manifest, dict) else None) or root.name
     downloads = _download_items_for_session(str(root))
+    started_at, started_ms, timestamp_source = _infer_session_timestamp(root, manifest)
+    duration_s = _infer_session_duration_s(root, manifest, analysis if isinstance(analysis, dict) else None)
+    subject_profile_id = str((manifest or {}).get("subject_profile_id") or "adult_default")
+    profiles_payload = _read_json_if_exists(str(root.parent / "subject_profiles.json")) or {}
+    subject_profile = (profiles_payload.get("profiles") or {}).get(subject_profile_id)
+    subject_profile_label = (
+        subject_profile.get("label")
+        if isinstance(subject_profile, dict) and subject_profile.get("label")
+        else DEFAULT_SUBJECT_PROFILES.get(subject_profile_id, {}).get("label")
+    )
+    subject_label = _summary_value(
+        (manifest or {}).get("subject_label"),
+        (manifest or {}).get("subject"),
+        (manifest or {}).get("params", {}).get("subject_label") if isinstance((manifest or {}).get("params"), dict) else None,
+        subject_profile_label,
+        subject_profile_id,
+    )
+    operator_label = _summary_value(
+        (manifest or {}).get("operator_label"),
+        (manifest or {}).get("operator"),
+        (manifest or {}).get("params", {}).get("operator_label") if isinstance((manifest or {}).get("params"), dict) else None,
+    )
     base = {
         "session_id": session_id,
         "session_dir": str(root.resolve()),
         "manifest": manifest,
-        "subject_label": (manifest or {}).get("subject_label"),
-        "subject": (manifest or {}).get("subject_label"),
-        "operator_label": (manifest or {}).get("operator_label"),
-        "operator": (manifest or {}).get("operator_label"),
+        "subject_label": subject_label,
+        "subject": subject_label,
+        "subject_profile_id": subject_profile_id,
+        "subject_profile_label": subject_profile_label,
+        "operator_label": operator_label,
+        "operator": operator_label,
         "notes": (manifest or {}).get("notes"),
-        "started_at": (manifest or {}).get("started_at"),
+        "started_at": started_at,
+        "started_ms": started_ms,
+        "timestamp_source": timestamp_source,
         "ended_at": (manifest or {}).get("ended_at"),
-        "duration_s": (manifest or {}).get("duration_s"),
+        "duration_s": duration_s,
         "started_from": (manifest or {}).get("started_from"),
         "trainer_version": (manifest or {}).get("trainer_version", VERSION),
         "dashboard_version": (manifest or {}).get("dashboard_version", DASHBOARD_VERSION),
         "downloads": downloads,
     }
     if not isinstance(analysis, dict):
+        status_path = root / "analysis" / "analyse_status.json"
+        status_payload = _read_json_if_exists(str(status_path))
+        if isinstance(status_payload, dict):
+            base.update({
+                "status": status_payload.get("status", "incomplete"),
+                "analysis_status": status_payload.get("analysis_status", status_payload.get("status", "incomplete")),
+                "analysis": None,
+                "verdict": None,
+                "ml_readiness_verdict": _build_ml_readiness_verdict(None),
+                "contract_diagnosis": _contract_diagnosis(None, manifest),
+                "warnings": [str(status_payload.get("last_line") or status_payload.get("message") or "Analysis summary is not available yet.")],
+            })
+            return base
         base.update({
             "status": "incomplete",
             "analysis_status": "no_analysis",
@@ -5420,9 +5618,13 @@ def _scan_sessions_root(root: str, prefix: str = "s") -> List[Dict[str, object]]
         items.append({
             "session_id": d.name,
             "started_at": summary.get("started_at") or manifest.get("started_at"),
+            "started_ms": summary.get("started_ms"),
+            "timestamp_source": summary.get("timestamp_source"),
             "duration_s": summary.get("duration_s") or manifest.get("duration_s"),
             "subject": summary.get("subject_label") or manifest.get("subject_label"),
             "subject_label": summary.get("subject_label") or manifest.get("subject_label"),
+            "subject_profile_id": summary.get("subject_profile_id") or manifest.get("subject_profile_id"),
+            "subject_profile_label": summary.get("subject_profile_label"),
             "operator": summary.get("operator_label") or manifest.get("operator_label"),
             "operator_label": summary.get("operator_label") or manifest.get("operator_label"),
             "verdict": summary.get("verdict"),
@@ -5986,6 +6188,54 @@ def _mock_live_payload(seq: int = 0, window_s: int = 60) -> Dict[str, object]:
     }
 
 
+def _idle_live_payload(sessions_root: str, message: str = "No active telemetry session.") -> Dict[str, object]:
+    return {
+        "schema_version": LIVE_EVENT_SCHEMA_VERSION,
+        "revision": int(time.time() * 1000),
+        "session_id": None,
+        "meta": {
+            "status": "waiting",
+            "session_id": None,
+            "active": False,
+            "elapsed_s": 0.0,
+            "remaining_s": None,
+            "version": VERSION,
+            "session_dir": os.path.abspath(sessions_root),
+            "note": message,
+        },
+        "radar": {"rows": 0},
+        "ble": {"rows": 0, "raw_packets": 0},
+        "thresholds": {},
+        "faults": [],
+        "events": [f"[INFO] {message}"],
+        "series": {},
+        "analysis": None,
+    }
+
+
+def _latest_live_dashboard_payload(sessions_root: str) -> Optional[Dict[str, object]]:
+    for item in _scan_sessions_root(sessions_root):
+        session_id = str(item.get("session_id") or "").strip()
+        if not session_id:
+            continue
+        live_path = Path(sessions_root) / session_id / "live_dashboard.json"
+        payload = _read_json_if_exists(str(live_path))
+        if not isinstance(payload, dict):
+            continue
+        meta = dict(payload.get("meta") or {})
+        status = str(meta.get("status") or "").strip().lower()
+        if status in {"starting", "collecting", "running", "active", "recording"}:
+            meta["status"] = "waiting"
+        meta["active"] = False
+        meta["latest_session"] = True
+        meta["note"] = meta.get("note") or "No active session; showing the latest completed live payload."
+        payload = dict(payload)
+        payload["meta"] = meta
+        payload.setdefault("session_id", session_id)
+        return payload
+    return None
+
+
 def _decimate_records(records: List[Dict[str, object]], max_points: int) -> List[Dict[str, object]]:
     if max_points <= 0 or len(records) <= max_points:
         return records
@@ -6113,7 +6363,52 @@ def _rerun_session_analysis(session_dir: str) -> Dict[str, object]:
     root = Path(session_dir)
     out = root / "analysis"
     out.mkdir(parents=True, exist_ok=True)
-    argv = [sys.executable, str(_TRAINER_ENTRYPOINT), "analyse", "--radar", str(root / "radar.csv"), "--ref", str(root / "ref.csv"), "--out", str(out)]
+    status_path = out / "analyse_status.json"
+    radar = root / "radar.csv"
+    ref = root / "ref.csv"
+    radar_rows = _count_csv_data_rows(radar)
+    ref_rows = _count_csv_data_rows(ref)
+    if radar_rows <= 0:
+        payload = {
+            "schema_version": CONTROL_API_SCHEMA_VERSION,
+            "session_id": root.name,
+            "status": "failed",
+            "analysis_status": "missing_radar",
+            "progress_pct": 0,
+            "analysis_dir": str(out),
+            "completed_at": _iso_now(),
+            "radar_rows": radar_rows,
+            "ref_rows": ref_rows,
+            "last_line": "Radar CSV is missing or contains no data rows; analysis was not started.",
+        }
+        save_json(payload, str(status_path))
+        return payload
+    if ref_rows <= 0:
+        ble_summary = _read_json_if_exists(str(root / "ref_ble_summary.json")) or {}
+        message = "BLE reference is missing or empty; paired HR/RR analysis was skipped and radar data was preserved."
+        if isinstance(ble_summary, dict) and ble_summary.get("error"):
+            message = f"{message} BLE error: {ble_summary.get('error')}"
+        payload = {
+            "schema_version": CONTROL_API_SCHEMA_VERSION,
+            "session_id": root.name,
+            "status": "complete",
+            "analysis_status": "radar_only",
+            "progress_pct": 100,
+            "analysis_dir": str(out),
+            "completed_at": _iso_now(),
+            "radar_rows": radar_rows,
+            "ref_rows": ref_rows,
+            "last_line": message,
+        }
+        save_json(payload, str(status_path))
+        _write_session_manifest(str(root), [str(radar)], [], str(out), None)
+        return payload
+    try:
+        if status_path.exists():
+            status_path.unlink()
+    except Exception:
+        pass
+    argv = [sys.executable, str(_TRAINER_ENTRYPOINT), "analyse", "--radar", str(radar), "--ref", str(ref), "--out", str(out)]
     proc = subprocess.Popen(argv)
     job_id = root.name
     started_at = _iso_now()
@@ -6134,6 +6429,7 @@ def _analysis_job_status(sessions_root: str, session_id: str) -> Dict[str, objec
     job = _ANALYSIS_JOBS.get(session_id)
     session_dir = Path(sessions_root) / session_id
     summary_path = session_dir / "analysis" / "analyse_summary.json"
+    status_path = session_dir / "analysis" / "analyse_status.json"
     sentinel_path = _auto_analyse_sentinel(session_dir)
     if job:
         proc = job.get("proc")
@@ -6166,6 +6462,9 @@ def _analysis_job_status(sessions_root: str, session_id: str) -> Dict[str, objec
         })
     if summary_path.exists():
         return _schema_wrap({"session_id": session_id, "status": "complete", "analysis_status": "complete", "progress_pct": 100, "last_line": "analyse_summary.json exists"})
+    status_payload = _read_json_if_exists(str(status_path))
+    if isinstance(status_payload, dict):
+        return _schema_wrap(status_payload)
     return _schema_wrap({"session_id": session_id, "status": "idle", "analysis_status": "idle", "progress_pct": 0, "last_line": "No analysis job is tracked for this session."})
 
 
@@ -6281,6 +6580,38 @@ class _SessionSupervisor:
         data = _read_json_if_exists(str(self._current_path()))
         return data if isinstance(data, dict) else None
 
+    def _write_starting_live_payload(self, duration_s=None):
+        session_id = Path(self.session_dir).name
+        remaining = None
+        if duration_s is not None:
+            try:
+                remaining = max(0.0, float(duration_s))
+            except Exception:
+                remaining = None
+        payload = {
+            "schema_version": LIVE_EVENT_SCHEMA_VERSION,
+            "revision": int(time.time() * 1000),
+            "session_id": session_id,
+            "meta": {
+                "status": "starting",
+                "session_id": session_id,
+                "elapsed_s": 0.0,
+                "remaining_s": remaining,
+                "version": VERSION,
+                "session_dir": os.path.abspath(self.session_dir),
+                "note": "Session subprocess is starting.",
+            },
+            "radar": {"rows": 0},
+            "ble": {"rows": 0, "raw_packets": 0},
+            "thresholds": {},
+            "faults": [],
+            "events": ["[INFO] Session subprocess starting"],
+            "series": {},
+            "analysis": None,
+        }
+        save_json(payload, str(Path(self.session_dir) / "live_dashboard.json"))
+        save_json(payload, str(Path(self.session_dir) / "dashboard.json"))
+
     def _poll(self):
         if self.proc is not None and self.proc.poll() is not None:
             self._clear_current()
@@ -6289,15 +6620,25 @@ class _SessionSupervisor:
         return False
 
     def start(self, duration_s=None, radar_port=DEFAULT_RADAR_PORT, ble_address=DEFAULT_BLE_ADDRESS,
-              ble_profile="ailink_oximeter", timeout_s: float = 6.0, **kwargs):
+              ble_profile="ailink_oximeter", timeout_s: float = 30.0, **kwargs):
         self._poll()
         if self.proc is not None and self.proc.poll() is None:
             raise RuntimeError("SESSION_IN_PROGRESS: active session already running")
         if _session_is_active(self.sessions_root):
             raise RuntimeError("SESSION_IN_PROGRESS: session lock active")
+        radar_port = str(radar_port or DEFAULT_RADAR_PORT).strip() or DEFAULT_RADAR_PORT
+        ble_address = str(ble_address or DEFAULT_BLE_ADDRESS).strip() or DEFAULT_BLE_ADDRESS
         self.session_dir = str(Path(_next_session_dir(self.sessions_root)))
         Path(self.session_dir).mkdir(parents=True, exist_ok=True)
-        argv = [sys.executable, str(_TRAINER_ENTRYPOINT), "session", "--session-dir", self.session_dir, "--port", radar_port, "--address", ble_address, "--ble-profile", ble_profile, "--no-open-dashboard"]
+        argv = [
+            sys.executable, str(_TRAINER_ENTRYPOINT), "session",
+            "--session-dir", self.session_dir,
+            "--port", radar_port,
+            "--address", ble_address,
+            "--ble-profile", ble_profile,
+            "--dashboard-port", "0",
+            "--no-open-dashboard",
+        ]
         if kwargs.get("notify_char"):
             argv += ["--notify-char", str(kwargs.get("notify_char"))]
         if kwargs.get("dashboard_refresh_s"):
@@ -6313,6 +6654,7 @@ class _SessionSupervisor:
         self.params = {"duration_s": duration_s, "radar_port": radar_port, "ble_address": ble_address, "ble_profile": ble_profile}
         self.params.update({k: v for k, v in kwargs.items() if v not in (None, "")})
         self._write_current()
+        self._write_starting_live_payload(duration_s=duration_s)
         live = Path(self.session_dir) / "live_dashboard.json"
         deadline = time.monotonic() + float(timeout_s)
         while time.monotonic() < deadline:
@@ -6402,8 +6744,6 @@ def _effective_defaults(sessions_root: str) -> Dict[str, object]:
 
 
 SESSION_START_PREFLIGHT_IDS = [
-    "python_env",
-    "firmware_file_present",
     "serial_port_list",
     "session_folder_writable",
     "disk_space",
@@ -6910,7 +7250,18 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             if cur and live_path.exists():
                 self._send_bytes(200, live_path.read_bytes(), "application/json; charset=utf-8")
             else:
-                self._send_json(404, {"ok": False, "error": {"code": "NO_LIVE_DASHBOARD", "message": "active live_dashboard.json is not available"}})
+                payload = _idle_live_payload(
+                    self.server.sessions_root,
+                    "Active session is starting; waiting for live_dashboard.json."
+                ) if cur else (_latest_live_dashboard_payload(self.server.sessions_root) or _idle_live_payload(self.server.sessions_root))
+                if cur:
+                    payload["session_id"] = cur.get("session_id")
+                    meta = dict(payload.get("meta") or {})
+                    meta["session_id"] = cur.get("session_id")
+                    meta["active"] = True
+                    meta["status"] = "starting"
+                    payload["meta"] = meta
+                self._send_json(200, payload)
             return
         if path == "/api/session/buffer":
             q = parse_qs(parsed.query)
@@ -7215,10 +7566,10 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self._send_json(200, _run_preflight_check(check_id, sessions_root=self.server.sessions_root, **body))
             return
         if path == "/api/session/start":
-            radar_port = body.get("radar_port", DEFAULT_RADAR_PORT)
+            radar_port = str(body.get("radar_port") or DEFAULT_RADAR_PORT).strip() or DEFAULT_RADAR_PORT
             if str(radar_port).strip().lower() in {"auto", "autodetect", "auto-detect"}:
                 radar_port = _auto_detect_radar_port(DEFAULT_RADAR_PORT)
-            ble_address = body.get("ble_address", DEFAULT_BLE_ADDRESS)
+            ble_address = str(body.get("ble_address") or DEFAULT_BLE_ADDRESS).strip() or DEFAULT_BLE_ADDRESS
             if self.server.supervisor.current():
                 self._send_json(409, {"ok": False, "error": {"code": "SESSION_IN_PROGRESS", "message": "active session already running"}})
                 return
@@ -7238,7 +7589,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     radar_port=radar_port,
                     ble_address=ble_address,
                     ble_profile=body.get("ble_profile", "ailink_oximeter"),
-                    timeout_s=float(body.get("timeout_s", 6.0) or 6.0),
+                    timeout_s=float(body.get("timeout_s", 30.0) or 30.0),
                     subject_label=body.get("subject_label"),
                     operator_label=body.get("operator_label"),
                     subject_profile_id=body.get("subject_profile_id", "adult_default"),
@@ -7591,6 +7942,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
+        Path("radar_vital_v16_4_0.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
@@ -7630,7 +7982,7 @@ def _extract_firmware_data_header_tokens(ino_path: Path) -> List[str]:
     raise RuntimeError(f"Could not locate DATA header in firmware file: {ino_path}")
 
 
-def _assert_radar_log_contract() -> Path:
+def _assert_radar_log_contract(allow_missing_source: bool = False) -> Optional[Path]:
     global _FIRMWARE_CONTRACT_CACHE
     expected = list(RADAR_LOG_COLUMNS)
     if len(expected) != EXPECTED_RADAR_LOG_COLUMN_COUNT:
@@ -7677,6 +8029,8 @@ def _assert_radar_log_contract() -> Path:
             + f". Searched: {', '.join(searched)}"
         )
 
+    if allow_missing_source:
+        return None
     raise RuntimeError(
         "Could not locate firmware DATA header source for contract verification. "
         f"Tried: {', '.join(searched)}"
@@ -7731,7 +8085,11 @@ def _parse_radar_data_line(line: str, cols: Sequence[str]) -> Tuple[str, Optiona
     accepted_legacy_counts = (LEGACY_RADAR_LOG_COLUMN_COUNT, 136, 180, 195, LEGACY_V14_COLUMN_COUNT, LEGACY_V15_COLUMN_COUNT, LEGACY_V15_1_COLUMN_COUNT)
     if len(payload) not in ((len(cols),) + accepted_legacy_counts):
         return "reject", None, f"{len(payload)} fields, expected {accepted_legacy_counts} or {len(cols)}"
-    if len(payload) in accepted_legacy_counts:
+    if len(payload) == LEGACY_V15_1_COLUMN_COUNT:
+        # v15.1 ended with fw_uptime_s. v15.2 firmware inserted three audit
+        # fields before that right-edge value, so preserve old uptime position.
+        payload = payload[:-1] + ["", "", ""] + payload[-1:]
+    elif len(payload) in accepted_legacy_counts:
         payload = payload + [""] * (EXPECTED_RADAR_LOG_COLUMN_COUNT - len(payload))
     try:
         float(payload[0])
@@ -8785,7 +9143,6 @@ def cmd_session(args):
     analysis_dir = os.path.join(session_dir, "analysis")
     radar_out = os.path.join(session_dir, "radar.csv")
     ref_out = os.path.join(session_dir, "ref.csv")
-    script_path = str(_TRAINER_ENTRYPOINT)
     initial_manifest = {
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
@@ -8805,11 +9162,7 @@ def cmd_session(args):
             lock_acquired = False
         raise
 
-    radar_cmd = [sys.executable, "-u", script_path, "log",
-                 "--port", args.port,
-                 "--out", radar_out]
-
-    ble_cmd = [sys.executable, "-u", script_path, "ble_reflog",
+    ble_cmd = [sys.executable, "-u", "-m", "rvt_trainer", "ble_reflog",
                "--out", ref_out]
     if getattr(args, "address", None):
         ble_cmd += ["--address", args.address]
@@ -8880,25 +9233,40 @@ def cmd_session(args):
     ble_proc = None
     radar_thread = None
     ble_thread = None
+    radar_done_event = threading.Event()
+    radar_error: List[str] = []
     stop_reason = "completed"
     ble_failure_reported = False
     start_t = time.time()
 
+    def run_radar_logger_inline():
+        try:
+            cmd_log(SimpleNamespace(port=args.port, out=radar_out, duration_s=args.duration_s))
+        except BaseException as e:
+            radar_error.append(str(e))
+            event_cb("[RADAR]", f"inline logger exited: {e}")
+        finally:
+            radar_done_event.set()
+
+    def csv_data_row_count(path: str) -> int:
+        if not os.path.exists(path):
+            return 0
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore", newline="") as f:
+                return max(0, sum(1 for _ in f) - 1)
+        except Exception:
+            return 0
+
     try:
-        radar_proc = subprocess.Popen(
-            radar_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, universal_newlines=True
-        )
         radar_thread = threading.Thread(
-            target=_stream_subprocess_output,
-            args=(radar_proc.stdout, "[RADAR]", event_cb, not dashboard_enabled),
+            target=run_radar_logger_inline,
             daemon=True
         )
         radar_thread.start()
 
         ble_proc = subprocess.Popen(
             ble_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, universal_newlines=True
+            text=True, bufsize=1, universal_newlines=True, cwd=str(_REPO_ROOT)
         )
         ble_thread = threading.Thread(
             target=_stream_subprocess_output,
@@ -8919,10 +9287,15 @@ def cmd_session(args):
                 stop_reason = f"duration reached ({args.duration_s:.1f}s)"
                 break
 
-            radar_done = (radar_proc.poll() is not None)
+            radar_done = radar_done_event.is_set()
             ble_done = (ble_proc is not None and ble_proc.poll() is not None)
             if radar_done:
-                stop_reason = "radar logger exited"
+                if radar_error:
+                    stop_reason = f"radar logger exited: {radar_error[-1]}"
+                elif args.duration_s and elapsed >= max(0.0, float(args.duration_s) - 1.0):
+                    stop_reason = f"duration reached ({args.duration_s:.1f}s)"
+                else:
+                    stop_reason = "radar logger exited"
                 break
             if ble_done:
                 if not ble_failure_reported:
@@ -8950,8 +9323,22 @@ def cmd_session(args):
             _render_live_dashboard(session_dir, start_t, args.duration_s, radar_tracker, ref_tracker, raw_tracker,
                                    recent_events, event_lock, f"stopped ({stop_reason})", analysis_summary=_dashboard_analysis_payload(session_dir))
 
-    if not (os.path.exists(radar_out) and os.path.exists(ref_out)):
-        warn("Expected radar/ref CSV files were not created; skipping analyse.")
+    radar_rows = csv_data_row_count(radar_out)
+    ref_rows = csv_data_row_count(ref_out)
+    radar_paths = [radar_out] if radar_rows > 0 else []
+    ref_paths = [ref_out] if ref_rows > 0 else []
+    if radar_rows <= 0:
+        warn("Radar CSV was not created or has no data rows; skipping analyse.")
+        _write_session_manifest(session_dir, radar_paths, ref_paths, analysis_dir, None)
+        if dashboard_server is not None:
+            dashboard_server.stop()
+        if lock_acquired:
+            _release_session_lock(lock_root)
+            lock_acquired = False
+        return
+    if ref_rows <= 0:
+        warn("BLE reference CSV was not created or has no data rows; saved radar-only session and skipped paired analyse.")
+        _write_session_manifest(session_dir, radar_paths, ref_paths, analysis_dir, None)
         if dashboard_server is not None:
             dashboard_server.stop()
         if lock_acquired:
@@ -8961,7 +9348,7 @@ def cmd_session(args):
 
     if not getattr(args, "auto_analyse", True):
         warn("Auto analyse disabled by --no-auto-analyse.")
-        _write_session_manifest(session_dir, [radar_out], [ref_out], analysis_dir, None)
+        _write_session_manifest(session_dir, radar_paths, ref_paths, analysis_dir, None)
         if dashboard_server is not None:
             dashboard_server.stop()
         if lock_acquired:
@@ -9265,10 +9652,13 @@ def cmd_log(args):
         sys.exit("pyserial not found. Run: pip install pyserial")
 
     cols = list(RADAR_LOG_COLUMNS)
-    contract_path = _assert_radar_log_contract()
+    contract_path = _assert_radar_log_contract(allow_missing_source=True)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
-    print(f"[LOG] Firmware contract OK: {contract_path.name} ({len(cols)} columns)")
+    if contract_path is not None:
+        print(f"[LOG] Firmware contract OK: {contract_path.name} ({len(cols)} columns)")
+    else:
+        print(f"[LOG] Firmware contract source unavailable; using built-in trainer schema ({len(cols)} columns)")
     print(f"[LOG] Opening {args.port} @ 115200 baud")
     print(f"[LOG] Writing to {args.out}")
     print("[LOG] Waiting for first DATA frame... (Ctrl-C to stop)\n")
@@ -10114,13 +10504,26 @@ def cmd_ble_reflog(args):
                         print(_yellow(f"  write failed on {char_uuid}: {e}"))
 
             try:
+                last_summary_snapshot = time.time()
+
+                def _maybe_snapshot_summary() -> None:
+                    nonlocal last_summary_snapshot
+                    if time.time() - last_summary_snapshot >= 5.0:
+                        last_summary_snapshot = time.time()
+                        try:
+                            _write_ble_summary(None)
+                        except Exception:
+                            pass
+
                 if args.duration_s is not None and args.duration_s > 0:
                     end_time = time.time() + float(args.duration_s)
                     while time.time() < end_time:
                         await asyncio.sleep(0.25)
+                        _maybe_snapshot_summary()
                 else:
                     while True:
                         await asyncio.sleep(0.25)
+                        _maybe_snapshot_summary()
             finally:
                 for candidate in reversed(active_notify_chars):
                     try:
@@ -10128,17 +10531,12 @@ def cmd_ble_reflog(args):
                     except Exception:
                         pass
 
-    error_text = None
-    try:
-        asyncio.run(run_ble())
-    except KeyboardInterrupt:
-        print("\n[BLE REFLOG] Stopped by user.")
-    except Exception as e:
-        error_text = str(e)
-        raise
-    finally:
-        parsed_f.close()
-        raw_f.close()
+    def _write_ble_summary(error_text_val: Optional[str]) -> None:
+        # PR72 session-data audit: s08-s11 had no ref_ble_summary.json because
+        # the session orchestrator hard-terminates this logger on Windows, so a
+        # finally-only write never ran and analyse lost the true per-source
+        # decode statistics. The summary is now also snapshotted periodically
+        # from the wait loop, surviving a hard kill.
         summary = {
             "version": VERSION,
             "reference_csv": os.path.abspath(args.out),
@@ -10164,9 +10562,22 @@ def cmd_ble_reflog(args):
             },
             "write_ops": [{"char_uuid": c, "payload_hex": p.hex()} for c, p in write_ops],
             "stats_by_source": nan_safe(stats),
-            "error": error_text,
+            "error": error_text_val,
         }
         save_json(summary, summary_out)
+
+    error_text = None
+    try:
+        asyncio.run(run_ble())
+    except KeyboardInterrupt:
+        print("\n[BLE REFLOG] Stopped by user.")
+    except Exception as e:
+        error_text = str(e)
+        raise
+    finally:
+        parsed_f.close()
+        raw_f.close()
+        _write_ble_summary(error_text)
 
     if parsed_count == 0:
         print(_yellow("\n[BLE REFLOG] No parsed HR/RR/SpO2 values were logged."))
@@ -11895,6 +12306,15 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
         "packet_loss_expected": 0.0,
     }
     sources = []
+    # PR72 session-data audit: packet ratio (parsed_rows/raw_packets) is not a
+    # coverage metric — the oximeter emits ~3x more raw notifications than
+    # distilled reference rows by protocol design, which pinned the old
+    # "coverage" at ~33% and decode_error_pct at ~66% on every session.
+    # Track true time coverage (seconds with >=1 parsed row / capture span)
+    # and the PI median that the readiness verdict already expects.
+    pi_values_all: List[float] = []
+    coverage_seconds_covered = 0
+    coverage_span_seconds = 0.0
     for ref_path in ref_paths:
         ref_abs = os.path.abspath(ref_path)
         raw_path = _first_existing(_raw_ble_candidates_for_ref(ref_abs))
@@ -11902,6 +12322,8 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
         ref_rows = 0
         pi_rows = 0
         pi_low = 0
+        ref_seconds: set = set()
+        ref_span_s = 0.0
         try:
             ref_df = pd.read_csv(ref_abs)
             ref_rows = int(len(ref_df))
@@ -11909,18 +12331,28 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
                 pi = pd.to_numeric(ref_df["ref_pi"], errors="coerce")
                 pi_rows = int(pi.notna().sum())
                 pi_low = int((pi.dropna() < float(pi_threshold)).sum())
+                pi_values_all.extend(float(v) for v in pi.dropna().tolist())
+            if "timestamp_ms" in ref_df.columns:
+                ref_ts = pd.to_numeric(ref_df["timestamp_ms"], errors="coerce").dropna()
+                if len(ref_ts):
+                    ref_seconds = set((ref_ts // 1000).astype(int).tolist())
+                    if len(ref_ts) >= 2:
+                        ref_span_s = float((ref_ts.max() - ref_ts.min()) / 1000.0)
         except Exception:
             pass
 
         raw_rows = 0
         packet_loss_missing = 0.0
         packet_loss_expected = 0.0
+        raw_span_s = 0.0
         if raw_path:
             try:
                 raw_df = pd.read_csv(raw_path)
                 raw_rows = int(len(raw_df))
                 if "timestamp_ms" in raw_df.columns and raw_rows >= 3:
                     ts = pd.to_numeric(raw_df["timestamp_ms"], errors="coerce").dropna().sort_values().to_numpy(dtype=float)
+                    if len(ts) >= 2:
+                        raw_span_s = float((ts[-1] - ts[0]) / 1000.0)
                     diffs = np.diff(ts)
                     diffs = diffs[np.isfinite(diffs) & (diffs > 0)]
                     if len(diffs):
@@ -11931,6 +12363,10 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
                             packet_loss_missing = float(max(0, expected - raw_rows))
             except Exception:
                 pass
+        span_s = raw_span_s if raw_span_s > 0 else ref_span_s
+        if span_s > 0 and ref_seconds:
+            coverage_span_seconds += span_s
+            coverage_seconds_covered += min(len(ref_seconds), int(span_s) + 1)
 
         summary = _read_json_if_exists(summary_path) if summary_path else None
         summary_packets = 0
@@ -11966,9 +12402,16 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
         })
 
     raw_denom = max(1, int(totals["raw_packets"]))
-    decode_packets = int(totals["summary_packet_count"]) or int(totals["raw_packets"])
-    parsed_packets = int(totals["summary_parsed_packets"]) or int(totals["parsed_rows"])
-    decode_error_pct = float(100.0 * max(0, decode_packets - parsed_packets) / max(1, decode_packets))
+    # decode_error_pct is only measurable when the BLE logger's summary JSON
+    # recorded true per-source parse counts. The old fallback divided distilled
+    # reference rows by raw notification count, mislabelling protocol-normal
+    # redundant packets as decode errors (~66% on every session).
+    if int(totals["summary_packet_count"]) > 0:
+        decode_packets = int(totals["summary_packet_count"])
+        parsed_packets = int(totals["summary_parsed_packets"])
+        decode_error_pct = float(100.0 * max(0, decode_packets - parsed_packets) / max(1, decode_packets))
+    else:
+        decode_error_pct = float("nan")
     packet_loss_pct = (
         float(100.0 * totals["packet_loss_estimated_missing"] / totals["packet_loss_expected"])
         if totals["packet_loss_expected"] > 0 else float("nan")
@@ -11978,12 +12421,19 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
         if totals["pi_rows"] > 0 else float("nan")
     )
     distilled_pct = float(100.0 * int(totals["parsed_rows"]) / raw_denom) if totals["raw_packets"] else float("nan")
+    coverage_pct = (
+        float(100.0 * min(1.0, coverage_seconds_covered / max(coverage_span_seconds, 1e-9)))
+        if coverage_span_seconds > 0 else float("nan")
+    )
+    pi_median = float(np.median(pi_values_all)) if pi_values_all else float("nan")
     return {
         "raw_packets": int(totals["raw_packets"]),
         "parsed_rows": int(totals["parsed_rows"]),
         "distilled_rows_pct_of_raw": distilled_pct,
+        "coverage_pct": coverage_pct,
         "packet_loss_pct": packet_loss_pct,
         "decode_error_pct": decode_error_pct,
+        "pi_median": pi_median,
         "pi_below_threshold_pct": pi_below_pct,
         "pi_threshold": float(pi_threshold),
         "sources": sources,
@@ -12471,7 +12921,10 @@ def cmd_analyse(args):
     hr_gate_reason_histogram = _histogram_from_series(raw_radar_df.get("hr_gate_reason", pd.Series(dtype=float)), HR_GATE_REASON_NAMES)
     rr_gate_reason_histogram = _histogram_from_series(raw_radar_df.get("rr_gate_reason", pd.Series(dtype=float)), RR_GATE_REASON_NAMES)
     agc_anomaly_flags = _build_agc_anomaly_flags(raw_radar_df)
-    fw_truthfulness = _truthfulness_from_radar(raw_radar_df)
+    fw_truthfulness = _truthfulness_from_radar(
+        raw_radar_df,
+        contract_length=_radar_csv_on_disk_contract_length(args.radar),
+    )
     coverage_ledger = _coverage_loss_ledger(raw_radar_df)
     oracle_audit = _oracle_candidate_audit(feat_df)
     hr_publish_source_hist = _histogram_from_series(raw_radar_df.get("hr_publish_source", pd.Series(dtype=float)), HR_PUBLISH_SOURCE_NAMES)
@@ -12706,7 +13159,13 @@ def cmd_analyse(args):
     # v15.0 Stage C: pqi_v15 shadow analysis. Surfaces whether the gap-aware
     # PQI would unlock more candidate-eligible frames vs the v14 PQI, AND
     # whether it would inflate on motion frames (the go/no-go safety check).
-    summary["pqi_v15_shadow"] = _build_pqi_v15_shadow(feat_df)
+    # PR72 session-data audit: the v15 PQI columns are never aggregated into
+    # the 1 Hz feature frame, so running the shadow on feat_df always claimed
+    # "columns not present (firmware <v15.0)" even for v16.4 logs that carry
+    # the reserved columns with sentinel -1.0. Run it on the raw radar frame.
+    summary["pqi_v15_shadow"] = _build_pqi_v15_shadow(
+        raw_radar_df if isinstance(raw_radar_df, pd.DataFrame) and len(raw_radar_df) else feat_df
+    )
 
     # v15.0 Stage E: adaptive correction shadow. Dual-domain (reference + deployment)
     # piecewise-linear fit. Push to firmware is DEFERRED to v12 — this is analysis-only.

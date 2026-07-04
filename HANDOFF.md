@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-05 - PR72 README/docs contract sync
+
+- **Docs sync**: Updated README, AGENTS, CONTRIBUTING, changelog, milestones, operator quickstart, physical acceptance, wiki install/troubleshooting pages, audit ledger, packaged help schema, firmware header comments, demo preflight copy, and smoke fixture wording to reflect PR71/PR72 behavior: v16.4 firmware, v15.2 222-column CSV, packaged AiLink BLE sidecar capture, radar-only fallback, persistent preflight, inferred session metadata, PR72 data-audit checks, and module firmware readback.
+- **Verification**: `python -m pytest -q tests/test_pages_docs_contract.py tests/test_repo_hygiene_contract.py tests/test_audit_remediation.py tests/test_trainer_parsing.py` 75/75; `npm run build:web`; `npm run build:check`; `git diff --check`. Angular build keeps the pre-existing initial bundle budget warning.
+
 ### 2026-07-05 - PR72 session-data audit fixes (s01-s14): trainer truthfulness + BLE metrics + module version poll
 
 - **Contract-length verdict (server)**: `_truthfulness_from_radar` measured `len(df.columns)` on the loader-augmented frame (222 on-disk + `timestamp_s` + `hr_trust_fresh` + `session_id` = 225), so every v16.4.0 session was `firmware_rejected` with "Observed contract length 225; expected 222". New `_radar_csv_on_disk_contract_length()` reads the real CSV header width; `cmd_analyse` passes it through. All s08-s11 radar logs verified 222-wide on disk (header + data rows).

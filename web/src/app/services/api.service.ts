@@ -683,7 +683,7 @@ export class ApiService {
     if (url.pathname === '/api/preflight') return { ok: true, checks: [
       { id: 'trainer', label: 'Trainer link', status: 'good', description: 'Demo trainer reachable — simulated control plane.' },
       { id: 'radar', label: 'Radar serial', status: 'good', description: 'COM4 — XIAO ESP32-S3 detected.' },
-      { id: 'firmware', label: 'Firmware contract', status: 'good', description: 'Simulated 219-column contract intact.' },
+      { id: 'firmware', label: 'Firmware contract', status: 'good', description: 'Simulated 222-column contract intact.' },
       { id: 'ble', label: 'BLE reference', status: 'good', description: 'AiLink oximeter paired (simulated).' },
       { id: 'placement', label: 'Subject placement', status: 'good', description: 'Subject within the radar sweet spot.' },
       { id: 'coverage', label: 'Reference coverage', status: 'warn', description: 'Simulated BLE coverage 72% — review before trusting agreement.', remediation: 'Keep the oximeter within range for the full session.' }

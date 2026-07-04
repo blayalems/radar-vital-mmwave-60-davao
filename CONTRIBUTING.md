@@ -11,7 +11,7 @@ project. Contributions are welcome for review and discussion; note the
 |---|---|---|
 | Dashboard (source of truth) | `web/src/` | `npm --prefix web ci && npm run build:web` (regenerates the committed monolith + `www/`) |
 | Trainer | `rvt_trainer/` (+ root shim) | `pip install -r requirements-v12.txt` or `pip install -e .` |
-| Firmware | `radar_vital_v16_2_0.ino` | Arduino CLI, `esp32:esp32:XIAO_ESP32C6` |
+| Firmware | `radar_vital_v16_4_0.ino` | Arduino CLI, `esp32:esp32:XIAO_ESP32C6` |
 | Windows EXE | `src-tauri/` | `npm run tauri:build` |
 | Android APK | Capacitor (generated `android/`) | `npm run cap:sync` |
 
@@ -31,7 +31,7 @@ Linux/macOS screenshots.
 
 ## Rules that are easy to trip over
 
-- The serial CSV contract is frozen (219 columns; additions right-side only).
+- The serial CSV contract is frozen at v15.2 / 222 columns; the original 207-column prefix and v15.1 219-column replay compatibility must remain intact. Additions are right-side only.
 - The root dashboard `.html` is a **build artifact** — never edit by hand.
 - Every commit adds a dated entry at the top of `HANDOFF.md`.
 - New trainer API routes are registered before the static fall-through,

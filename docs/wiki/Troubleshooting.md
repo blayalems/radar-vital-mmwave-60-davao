@@ -9,6 +9,11 @@ Use this page for operator-level triage before filing an issue.
 | App shows demo data | Demo mode is enabled or the trainer is unreachable | Turn off demo mode and reconnect to the trainer origin. |
 | HR/RR stays blank | Subject not detected or signal not locked | Reposition the subject within the tested range and wait for stable presence. |
 | Values look stale | Telemetry stream is disconnected or holding last accepted values | Check freshness indicators, SSE reconnect state, and trainer logs. Do not treat stale values as fresh readings. |
+| History shows `0s`, missing subject, or undated rows | Old session manifest lacks metadata | Use the PR71+ trainer; it infers timestamp/duration/subject from session files and subject profiles. |
+| Analysis reports `radar_only` | BLE reference data is missing or empty | Radar capture is preserved. Repeat with the AiLink oximeter powered on and stable finger contact if reference comparison is required. |
+| Session cannot pass readiness gate | Session is too short, HR phase coverage is low, or oximeter PI/contact is poor | Collect at least 10 minutes, keep subject motion low, and verify oximeter contact before using the session for training. |
+| Repeated `0 bpm outside threshold` alerts | Old dashboard build generated alerts from standby zero values | Update to the PR71+ dashboard; zero/missing vitals are ignored and identical alerts are throttled. |
+| Firmware rejected with observed contract length above 222 | Old trainer measured loader-added feature columns instead of CSV header width | Use the PR72+ trainer; on-disk v16.4 CSV logs should report a 222-column contract. |
 | Recovery code fails | Wrong code, already used code, or profile predates recovery codes | Use the new rotated code after reset, or perform a host reset from the trusted trainer computer. |
 | Windows warning on install | Unsigned build or low SmartScreen reputation | Verify release hash and source. Signing identity work reduces warnings but cannot promise immediate reputation. |
 | Play install unavailable | Closed-testing gate not met or tester not opted in | Add tester email, share opt-in URL, and wait for Play's closed-testing requirements. |

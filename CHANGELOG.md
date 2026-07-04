@@ -6,6 +6,18 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+## [16.4.0] — 2026-07-05
+
+### Added
+- v15.2 / 222-column radar CSV contract with right-edge v16.4 audit fields while preserving the original 207-column prefix and 219-column v15.1 replay compatibility.
+- PR72 session-data regression coverage for on-disk contract width, module firmware truthfulness, adaptive-correction shadow metrics, v15 PQI shadow checks, and BLE reference-quality calculations.
+- Passive MR60BHA2 module firmware version polling during firmware boot and radar recovery.
+
+### Fixed
+- Trainer truthfulness now measures the on-disk CSV header width instead of loader-added feature columns, avoiding false firmware rejection on valid v16.4 sessions.
+- BLE reference quality now uses time-based coverage and preserves `ref_ble_summary.json` during Windows-side capture.
+- PR71 live-session start recovery creates standby/startup `live_dashboard.json`, preserves radar-only sessions when BLE is absent, persists Home preflight state, infers legacy session dates/durations/subjects, suppresses standby `0 bpm` alert spam, and bounds Live chart/Doppler growth.
+
 ## [16.3.0] — 2026-06-12
 
 ### Added
@@ -97,5 +109,6 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
   ML-readiness audit pipeline; Playwright smoke/visual CI across four
   viewports.
 
-[Unreleased]: https://github.com/blayalems/radar-vital-mmwave-60-davao/compare/v16.3.0...HEAD
+[Unreleased]: https://github.com/blayalems/radar-vital-mmwave-60-davao/compare/v16.4.0...HEAD
+[16.4.0]: https://github.com/blayalems/radar-vital-mmwave-60-davao/compare/v16.3.0...v16.4.0
 [16.3.0]: https://github.com/blayalems/radar-vital-mmwave-60-davao/compare/v16.2.0...v16.3.0

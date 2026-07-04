@@ -7,6 +7,8 @@ a Python trainer sidecar so the operator can run sessions from one PC.
 
 - Use a Windows 10/11 PC with WebView2 available.
 - Connect the XIAO ESP32-C6 / MR60BHA2 radar over USB.
+- Flash the current firmware, `radar_vital_v16_4_0.ino`, before validating PR72
+  session-data metrics.
 - Keep the PC physically secured. Session CSV files and operator profiles live
   on this host.
 - If the installer is not yet production signed, expect Windows SmartScreen or
@@ -20,11 +22,18 @@ a Python trainer sidecar so the operator can run sessions from one PC.
 3. Launch Radar Vital from the Start menu or desktop shortcut.
 4. Confirm the Python Server card shows the trainer sidecar as running.
 5. Create or unlock an operator profile with the PIN flow.
-6. Use the Home tab preflight before starting a real session.
+6. Use the Home tab preflight before starting a real session. Advisory
+   Python/firmware-source/BLE warnings do not block Start if radar collection,
+   storage, schema, and clock checks pass.
 
 By default the trainer binds to `127.0.0.1:8765`, which is local-only. This is
 the safest mode for a single PC because phones and other devices cannot reach
 the trainer. Use LAN mode only when a phone or tablet must pair with the host.
+
+The EXE does not depend on a Chromium local-device-discovery prompt for BLE.
+AiLink oximeter reference capture runs through the bundled Python/WinRT sidecar;
+if the oximeter is unavailable, the radar session is preserved and marked
+`radar_only` for analysis.
 
 ## LAN use
 

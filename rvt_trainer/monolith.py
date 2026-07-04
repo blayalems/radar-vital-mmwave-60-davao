@@ -976,13 +976,51 @@ def _format_sketch_version(major, sub, mod) -> Optional[str]:
     return f"v{m}.{s}.{x}"
 
 
-def _truthfulness_from_radar(raw_df: pd.DataFrame) -> Dict[str, object]:
+def _radar_csv_on_disk_contract_length(paths: Sequence[str]) -> Optional[int]:
+    """Widest CSV header width across the given radar log files, read from disk.
+
+    PR72 session-data audit (s08-s11): the loaded dataframe gains loader-derived
+    columns (timestamp_s, the hr_trust_fresh alias, session_id from
+    _combine_radar_frames), so ``len(df.columns)`` overstates the firmware
+    contract width (222 -> 225) and every session was wrongly marked
+    ``firmware_rejected``. The firmware contract must be measured against the
+    on-disk header, not the augmented frame.
+    """
+    widths: List[int] = []
+    for path in paths or []:
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                header = fh.readline().rstrip("\r\n")
+        except OSError:
+            continue
+        if header:
+            widths.append(header.count(",") + 1)
+    return max(widths) if widths else None
+
+
+def _first_populated_series(raw_df: pd.DataFrame, *names: str) -> pd.Series:
+    """Return the first named column that exists with any non-NaN values.
+
+    load_radar's canonicalize_with_synonyms renames module_fw_major/sub/mod to
+    fw_major/fw_sub/fw_mod (copy + drop), so truthfulness must accept either
+    spelling depending on whether it receives a raw or a loader-canonical frame.
+    """
+    for name in names:
+        if name in raw_df.columns:
+            series = safe_series(raw_df, name, default=np.nan).dropna()
+            if len(series):
+                return series
+    return pd.Series(dtype=float)
+
+
+def _truthfulness_from_radar(raw_df: pd.DataFrame, contract_length: Optional[int] = None) -> Dict[str, object]:
+    fallback_len = int(len(raw_df.columns)) if isinstance(raw_df, pd.DataFrame) else EXPECTED_RADAR_LOG_COLUMN_COUNT
     out = {
         "version": "unknown",
         "module_version": None,
         "module_version_detected": False,
         "module_version_valid": False,
-        "contract_length": int(len(raw_df.columns)) if isinstance(raw_df, pd.DataFrame) else EXPECTED_RADAR_LOG_COLUMN_COUNT,
+        "contract_length": int(contract_length) if contract_length else fallback_len,
         "critical_columns_ok": False,
         "notes": "Derived from sketch/module telemetry in radar.csv",
     }
@@ -993,9 +1031,9 @@ def _truthfulness_from_radar(raw_df: pd.DataFrame) -> Dict[str, object]:
     sketch_mod = safe_series(raw_df, "sketch_mod", default=np.nan).dropna()
     if len(sketch_major) and len(sketch_sub) and len(sketch_mod):
         out["version"] = _format_sketch_version(sketch_major.iloc[-1], sketch_sub.iloc[-1], sketch_mod.iloc[-1]) or "unknown"
-    mod_major = safe_series(raw_df, "module_fw_major", default=np.nan).dropna()
-    mod_sub = safe_series(raw_df, "module_fw_sub", default=np.nan).dropna()
-    mod_mod = safe_series(raw_df, "module_fw_mod", default=np.nan).dropna()
+    mod_major = _first_populated_series(raw_df, "module_fw_major", "fw_major")
+    mod_sub = _first_populated_series(raw_df, "module_fw_sub", "fw_sub")
+    mod_mod = _first_populated_series(raw_df, "module_fw_mod", "fw_mod")
     critical_cols = {"timestamp_ms", "reported_hr", "reported_rr", "candidate_hr", "candidate_rr", "pqi_heart", "pqi_breath"}
     out["critical_columns_ok"] = critical_cols.issubset(set(raw_df.columns))
     if "module_fw_valid" in raw_df.columns:
@@ -4704,10 +4742,27 @@ def _build_adaptive_correction_shadow(df) -> Dict[str, object]:
     if df is None or not hasattr(df, "columns") or len(df) == 0:
         return out
 
-    needed = ("raw_hr_uncorrected", "raw_hr_corrected", "ref_hr")
-    if not all(c in df.columns for c in needed):
+    # PR72 session-data audit: this shadow runs on the 1 Hz feature frame,
+    # where radar columns carry aggregation suffixes (raw_hr_uncorrected_mean),
+    # so the unsuffixed names never matched and the shadow was skipped on every
+    # session ("missing one of ...") even though the data was present.
+    def _resolve_column(*candidates: str) -> Optional[str]:
+        for cand in candidates:
+            if cand in df.columns:
+                return cand
+        return None
+
+    unc_col = _resolve_column("raw_hr_uncorrected", "raw_hr_uncorrected_mean")
+    cor_col = _resolve_column("raw_hr_corrected", "raw_hr_corrected_mean")
+    ref_col = _resolve_column("ref_hr", "ref_hr_mean")
+    missing = [label for label, col in (
+        ("raw_hr_uncorrected", unc_col),
+        ("raw_hr_corrected", cor_col),
+        ("ref_hr", ref_col),
+    ) if col is None]
+    if missing:
         out["recommendation"] = (
-            f"Adaptive correction shadow skipped: missing one of {needed}."
+            f"Adaptive correction shadow skipped: missing {tuple(missing)}."
         )
         return out
 
@@ -4717,9 +4772,9 @@ def _build_adaptive_correction_shadow(df) -> Dict[str, object]:
             motion_col = c
             break
 
-    raw_unc = _pd.to_numeric(df["raw_hr_uncorrected"], errors="coerce")
-    raw_cor = _pd.to_numeric(df["raw_hr_corrected"], errors="coerce")
-    ref_hr  = _pd.to_numeric(df["ref_hr"], errors="coerce")
+    raw_unc = _pd.to_numeric(df[unc_col], errors="coerce")
+    raw_cor = _pd.to_numeric(df[cor_col], errors="coerce")
+    ref_hr  = _pd.to_numeric(df[ref_col], errors="coerce")
     valid_mask = (raw_unc.notna() & raw_cor.notna() & ref_hr.notna()
                   & (raw_unc > 30.0) & (raw_cor > 30.0) & (ref_hr > 30.0)
                   & (raw_unc < 200.0) & (raw_cor < 200.0) & (ref_hr < 200.0))
@@ -4736,9 +4791,9 @@ def _build_adaptive_correction_shadow(df) -> Dict[str, object]:
         )
         return out
 
-    raw_unc_p = _pd.to_numeric(paired["raw_hr_uncorrected"], errors="coerce").to_numpy(dtype=float)
-    raw_cor_p = _pd.to_numeric(paired["raw_hr_corrected"], errors="coerce").to_numpy(dtype=float)
-    ref_hr_p  = _pd.to_numeric(paired["ref_hr"], errors="coerce").to_numpy(dtype=float)
+    raw_unc_p = _pd.to_numeric(paired[unc_col], errors="coerce").to_numpy(dtype=float)
+    raw_cor_p = _pd.to_numeric(paired[cor_col], errors="coerce").to_numpy(dtype=float)
+    ref_hr_p  = _pd.to_numeric(paired[ref_col], errors="coerce").to_numpy(dtype=float)
 
     residual = raw_cor_p - ref_hr_p
     out["firmware_default_rmse_bpm"] = float(_np.sqrt(_np.mean(residual * residual)))
@@ -4852,7 +4907,7 @@ def _build_pqi_v15_shadow(df) -> Dict[str, object]:
     v15_cols = ("pqi_heart_v15", "pqi_breath_v15",
                 "phase_buffer_valid_pct", "pqi_v15_pair_coverage_min")
     if not all(c in df.columns for c in v15_cols):
-        out["recommendation"] = "v15 PQI columns not present in CSV (firmware <v15.0). No shadow data."
+        out["recommendation"] = "v15 PQI columns not present in this frame (firmware <v15.0, or frame lacks the raw radar columns). No shadow data."
         out["n_rows"] = int(len(df))
         return out
 
@@ -4988,7 +5043,12 @@ def _build_ml_readiness_verdict(analyse_summary, **kwargs) -> Dict[str, object]:
     ble = analyse_summary.get("ble_ref_quality") if isinstance(analyse_summary.get("ble_ref_quality"), dict) else {}
     fw = analyse_summary.get("fw_truthfulness") if isinstance(analyse_summary.get("fw_truthfulness"), dict) else {}
     pqi = _to_num(analyse_summary.get("pqi_lock_pct"), float("nan"))
-    coverage = _to_num(ble.get("distilled_rows_pct_of_raw", ble.get("coverage_pct")), float("nan"))
+    # PR72 session-data audit: prefer true time coverage over the packet ratio
+    # (distilled_rows_pct_of_raw), which protocol-normally sits near 33% and
+    # made the reference gate fail every session.
+    coverage = _to_num(ble.get("coverage_pct"), float("nan"))
+    if not np.isfinite(coverage):
+        coverage = _to_num(ble.get("distilled_rows_pct_of_raw"), float("nan"))
     pi = _to_num(ble.get("pi_median"), float("nan"))
     categories: List[Dict[str, str]] = []
     passed: List[str] = []
@@ -10444,13 +10504,26 @@ def cmd_ble_reflog(args):
                         print(_yellow(f"  write failed on {char_uuid}: {e}"))
 
             try:
+                last_summary_snapshot = time.time()
+
+                def _maybe_snapshot_summary() -> None:
+                    nonlocal last_summary_snapshot
+                    if time.time() - last_summary_snapshot >= 5.0:
+                        last_summary_snapshot = time.time()
+                        try:
+                            _write_ble_summary(None)
+                        except Exception:
+                            pass
+
                 if args.duration_s is not None and args.duration_s > 0:
                     end_time = time.time() + float(args.duration_s)
                     while time.time() < end_time:
                         await asyncio.sleep(0.25)
+                        _maybe_snapshot_summary()
                 else:
                     while True:
                         await asyncio.sleep(0.25)
+                        _maybe_snapshot_summary()
             finally:
                 for candidate in reversed(active_notify_chars):
                     try:
@@ -10458,17 +10531,12 @@ def cmd_ble_reflog(args):
                     except Exception:
                         pass
 
-    error_text = None
-    try:
-        asyncio.run(run_ble())
-    except KeyboardInterrupt:
-        print("\n[BLE REFLOG] Stopped by user.")
-    except Exception as e:
-        error_text = str(e)
-        raise
-    finally:
-        parsed_f.close()
-        raw_f.close()
+    def _write_ble_summary(error_text_val: Optional[str]) -> None:
+        # PR72 session-data audit: s08-s11 had no ref_ble_summary.json because
+        # the session orchestrator hard-terminates this logger on Windows, so a
+        # finally-only write never ran and analyse lost the true per-source
+        # decode statistics. The summary is now also snapshotted periodically
+        # from the wait loop, surviving a hard kill.
         summary = {
             "version": VERSION,
             "reference_csv": os.path.abspath(args.out),
@@ -10494,9 +10562,22 @@ def cmd_ble_reflog(args):
             },
             "write_ops": [{"char_uuid": c, "payload_hex": p.hex()} for c, p in write_ops],
             "stats_by_source": nan_safe(stats),
-            "error": error_text,
+            "error": error_text_val,
         }
         save_json(summary, summary_out)
+
+    error_text = None
+    try:
+        asyncio.run(run_ble())
+    except KeyboardInterrupt:
+        print("\n[BLE REFLOG] Stopped by user.")
+    except Exception as e:
+        error_text = str(e)
+        raise
+    finally:
+        parsed_f.close()
+        raw_f.close()
+        _write_ble_summary(error_text)
 
     if parsed_count == 0:
         print(_yellow("\n[BLE REFLOG] No parsed HR/RR/SpO2 values were logged."))
@@ -12225,6 +12306,15 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
         "packet_loss_expected": 0.0,
     }
     sources = []
+    # PR72 session-data audit: packet ratio (parsed_rows/raw_packets) is not a
+    # coverage metric — the oximeter emits ~3x more raw notifications than
+    # distilled reference rows by protocol design, which pinned the old
+    # "coverage" at ~33% and decode_error_pct at ~66% on every session.
+    # Track true time coverage (seconds with >=1 parsed row / capture span)
+    # and the PI median that the readiness verdict already expects.
+    pi_values_all: List[float] = []
+    coverage_seconds_covered = 0
+    coverage_span_seconds = 0.0
     for ref_path in ref_paths:
         ref_abs = os.path.abspath(ref_path)
         raw_path = _first_existing(_raw_ble_candidates_for_ref(ref_abs))
@@ -12232,6 +12322,8 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
         ref_rows = 0
         pi_rows = 0
         pi_low = 0
+        ref_seconds: set = set()
+        ref_span_s = 0.0
         try:
             ref_df = pd.read_csv(ref_abs)
             ref_rows = int(len(ref_df))
@@ -12239,18 +12331,28 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
                 pi = pd.to_numeric(ref_df["ref_pi"], errors="coerce")
                 pi_rows = int(pi.notna().sum())
                 pi_low = int((pi.dropna() < float(pi_threshold)).sum())
+                pi_values_all.extend(float(v) for v in pi.dropna().tolist())
+            if "timestamp_ms" in ref_df.columns:
+                ref_ts = pd.to_numeric(ref_df["timestamp_ms"], errors="coerce").dropna()
+                if len(ref_ts):
+                    ref_seconds = set((ref_ts // 1000).astype(int).tolist())
+                    if len(ref_ts) >= 2:
+                        ref_span_s = float((ref_ts.max() - ref_ts.min()) / 1000.0)
         except Exception:
             pass
 
         raw_rows = 0
         packet_loss_missing = 0.0
         packet_loss_expected = 0.0
+        raw_span_s = 0.0
         if raw_path:
             try:
                 raw_df = pd.read_csv(raw_path)
                 raw_rows = int(len(raw_df))
                 if "timestamp_ms" in raw_df.columns and raw_rows >= 3:
                     ts = pd.to_numeric(raw_df["timestamp_ms"], errors="coerce").dropna().sort_values().to_numpy(dtype=float)
+                    if len(ts) >= 2:
+                        raw_span_s = float((ts[-1] - ts[0]) / 1000.0)
                     diffs = np.diff(ts)
                     diffs = diffs[np.isfinite(diffs) & (diffs > 0)]
                     if len(diffs):
@@ -12261,6 +12363,10 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
                             packet_loss_missing = float(max(0, expected - raw_rows))
             except Exception:
                 pass
+        span_s = raw_span_s if raw_span_s > 0 else ref_span_s
+        if span_s > 0 and ref_seconds:
+            coverage_span_seconds += span_s
+            coverage_seconds_covered += min(len(ref_seconds), int(span_s) + 1)
 
         summary = _read_json_if_exists(summary_path) if summary_path else None
         summary_packets = 0
@@ -12296,9 +12402,16 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
         })
 
     raw_denom = max(1, int(totals["raw_packets"]))
-    decode_packets = int(totals["summary_packet_count"]) or int(totals["raw_packets"])
-    parsed_packets = int(totals["summary_parsed_packets"]) or int(totals["parsed_rows"])
-    decode_error_pct = float(100.0 * max(0, decode_packets - parsed_packets) / max(1, decode_packets))
+    # decode_error_pct is only measurable when the BLE logger's summary JSON
+    # recorded true per-source parse counts. The old fallback divided distilled
+    # reference rows by raw notification count, mislabelling protocol-normal
+    # redundant packets as decode errors (~66% on every session).
+    if int(totals["summary_packet_count"]) > 0:
+        decode_packets = int(totals["summary_packet_count"])
+        parsed_packets = int(totals["summary_parsed_packets"])
+        decode_error_pct = float(100.0 * max(0, decode_packets - parsed_packets) / max(1, decode_packets))
+    else:
+        decode_error_pct = float("nan")
     packet_loss_pct = (
         float(100.0 * totals["packet_loss_estimated_missing"] / totals["packet_loss_expected"])
         if totals["packet_loss_expected"] > 0 else float("nan")
@@ -12308,12 +12421,19 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
         if totals["pi_rows"] > 0 else float("nan")
     )
     distilled_pct = float(100.0 * int(totals["parsed_rows"]) / raw_denom) if totals["raw_packets"] else float("nan")
+    coverage_pct = (
+        float(100.0 * min(1.0, coverage_seconds_covered / max(coverage_span_seconds, 1e-9)))
+        if coverage_span_seconds > 0 else float("nan")
+    )
+    pi_median = float(np.median(pi_values_all)) if pi_values_all else float("nan")
     return {
         "raw_packets": int(totals["raw_packets"]),
         "parsed_rows": int(totals["parsed_rows"]),
         "distilled_rows_pct_of_raw": distilled_pct,
+        "coverage_pct": coverage_pct,
         "packet_loss_pct": packet_loss_pct,
         "decode_error_pct": decode_error_pct,
+        "pi_median": pi_median,
         "pi_below_threshold_pct": pi_below_pct,
         "pi_threshold": float(pi_threshold),
         "sources": sources,
@@ -12801,7 +12921,10 @@ def cmd_analyse(args):
     hr_gate_reason_histogram = _histogram_from_series(raw_radar_df.get("hr_gate_reason", pd.Series(dtype=float)), HR_GATE_REASON_NAMES)
     rr_gate_reason_histogram = _histogram_from_series(raw_radar_df.get("rr_gate_reason", pd.Series(dtype=float)), RR_GATE_REASON_NAMES)
     agc_anomaly_flags = _build_agc_anomaly_flags(raw_radar_df)
-    fw_truthfulness = _truthfulness_from_radar(raw_radar_df)
+    fw_truthfulness = _truthfulness_from_radar(
+        raw_radar_df,
+        contract_length=_radar_csv_on_disk_contract_length(args.radar),
+    )
     coverage_ledger = _coverage_loss_ledger(raw_radar_df)
     oracle_audit = _oracle_candidate_audit(feat_df)
     hr_publish_source_hist = _histogram_from_series(raw_radar_df.get("hr_publish_source", pd.Series(dtype=float)), HR_PUBLISH_SOURCE_NAMES)
@@ -13036,7 +13159,13 @@ def cmd_analyse(args):
     # v15.0 Stage C: pqi_v15 shadow analysis. Surfaces whether the gap-aware
     # PQI would unlock more candidate-eligible frames vs the v14 PQI, AND
     # whether it would inflate on motion frames (the go/no-go safety check).
-    summary["pqi_v15_shadow"] = _build_pqi_v15_shadow(feat_df)
+    # PR72 session-data audit: the v15 PQI columns are never aggregated into
+    # the 1 Hz feature frame, so running the shadow on feat_df always claimed
+    # "columns not present (firmware <v15.0)" even for v16.4 logs that carry
+    # the reserved columns with sentinel -1.0. Run it on the raw radar frame.
+    summary["pqi_v15_shadow"] = _build_pqi_v15_shadow(
+        raw_radar_df if isinstance(raw_radar_df, pd.DataFrame) and len(raw_radar_df) else feat_df
+    )
 
     # v15.0 Stage E: adaptive correction shadow. Dual-domain (reference + deployment)
     # piecewise-linear fit. Push to firmware is DEFERRED to v12 — this is analysis-only.

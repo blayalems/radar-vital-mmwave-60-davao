@@ -66,6 +66,7 @@ from functools import lru_cache, partial
 from html import escape as html_escape
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Deque, Dict, Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -5986,6 +5987,54 @@ def _mock_live_payload(seq: int = 0, window_s: int = 60) -> Dict[str, object]:
     }
 
 
+def _idle_live_payload(sessions_root: str, message: str = "No active telemetry session.") -> Dict[str, object]:
+    return {
+        "schema_version": LIVE_EVENT_SCHEMA_VERSION,
+        "revision": int(time.time() * 1000),
+        "session_id": None,
+        "meta": {
+            "status": "waiting",
+            "session_id": None,
+            "active": False,
+            "elapsed_s": 0.0,
+            "remaining_s": None,
+            "version": VERSION,
+            "session_dir": os.path.abspath(sessions_root),
+            "note": message,
+        },
+        "radar": {"rows": 0},
+        "ble": {"rows": 0, "raw_packets": 0},
+        "thresholds": {},
+        "faults": [],
+        "events": [f"[INFO] {message}"],
+        "series": {},
+        "analysis": None,
+    }
+
+
+def _latest_live_dashboard_payload(sessions_root: str) -> Optional[Dict[str, object]]:
+    for item in _scan_sessions_root(sessions_root):
+        session_id = str(item.get("session_id") or "").strip()
+        if not session_id:
+            continue
+        live_path = Path(sessions_root) / session_id / "live_dashboard.json"
+        payload = _read_json_if_exists(str(live_path))
+        if not isinstance(payload, dict):
+            continue
+        meta = dict(payload.get("meta") or {})
+        status = str(meta.get("status") or "").strip().lower()
+        if status in {"starting", "collecting", "running", "active", "recording"}:
+            meta["status"] = "waiting"
+        meta["active"] = False
+        meta["latest_session"] = True
+        meta["note"] = meta.get("note") or "No active session; showing the latest completed live payload."
+        payload = dict(payload)
+        payload["meta"] = meta
+        payload.setdefault("session_id", session_id)
+        return payload
+    return None
+
+
 def _decimate_records(records: List[Dict[str, object]], max_points: int) -> List[Dict[str, object]]:
     if max_points <= 0 or len(records) <= max_points:
         return records
@@ -6281,6 +6330,38 @@ class _SessionSupervisor:
         data = _read_json_if_exists(str(self._current_path()))
         return data if isinstance(data, dict) else None
 
+    def _write_starting_live_payload(self, duration_s=None):
+        session_id = Path(self.session_dir).name
+        remaining = None
+        if duration_s is not None:
+            try:
+                remaining = max(0.0, float(duration_s))
+            except Exception:
+                remaining = None
+        payload = {
+            "schema_version": LIVE_EVENT_SCHEMA_VERSION,
+            "revision": int(time.time() * 1000),
+            "session_id": session_id,
+            "meta": {
+                "status": "starting",
+                "session_id": session_id,
+                "elapsed_s": 0.0,
+                "remaining_s": remaining,
+                "version": VERSION,
+                "session_dir": os.path.abspath(self.session_dir),
+                "note": "Session subprocess is starting.",
+            },
+            "radar": {"rows": 0},
+            "ble": {"rows": 0, "raw_packets": 0},
+            "thresholds": {},
+            "faults": [],
+            "events": ["[INFO] Session subprocess starting"],
+            "series": {},
+            "analysis": None,
+        }
+        save_json(payload, str(Path(self.session_dir) / "live_dashboard.json"))
+        save_json(payload, str(Path(self.session_dir) / "dashboard.json"))
+
     def _poll(self):
         if self.proc is not None and self.proc.poll() is not None:
             self._clear_current()
@@ -6289,15 +6370,25 @@ class _SessionSupervisor:
         return False
 
     def start(self, duration_s=None, radar_port=DEFAULT_RADAR_PORT, ble_address=DEFAULT_BLE_ADDRESS,
-              ble_profile="ailink_oximeter", timeout_s: float = 6.0, **kwargs):
+              ble_profile="ailink_oximeter", timeout_s: float = 30.0, **kwargs):
         self._poll()
         if self.proc is not None and self.proc.poll() is None:
             raise RuntimeError("SESSION_IN_PROGRESS: active session already running")
         if _session_is_active(self.sessions_root):
             raise RuntimeError("SESSION_IN_PROGRESS: session lock active")
+        radar_port = str(radar_port or DEFAULT_RADAR_PORT).strip() or DEFAULT_RADAR_PORT
+        ble_address = str(ble_address or DEFAULT_BLE_ADDRESS).strip() or DEFAULT_BLE_ADDRESS
         self.session_dir = str(Path(_next_session_dir(self.sessions_root)))
         Path(self.session_dir).mkdir(parents=True, exist_ok=True)
-        argv = [sys.executable, str(_TRAINER_ENTRYPOINT), "session", "--session-dir", self.session_dir, "--port", radar_port, "--address", ble_address, "--ble-profile", ble_profile, "--no-open-dashboard"]
+        argv = [
+            sys.executable, str(_TRAINER_ENTRYPOINT), "session",
+            "--session-dir", self.session_dir,
+            "--port", radar_port,
+            "--address", ble_address,
+            "--ble-profile", ble_profile,
+            "--dashboard-port", "0",
+            "--no-open-dashboard",
+        ]
         if kwargs.get("notify_char"):
             argv += ["--notify-char", str(kwargs.get("notify_char"))]
         if kwargs.get("dashboard_refresh_s"):
@@ -6313,6 +6404,7 @@ class _SessionSupervisor:
         self.params = {"duration_s": duration_s, "radar_port": radar_port, "ble_address": ble_address, "ble_profile": ble_profile}
         self.params.update({k: v for k, v in kwargs.items() if v not in (None, "")})
         self._write_current()
+        self._write_starting_live_payload(duration_s=duration_s)
         live = Path(self.session_dir) / "live_dashboard.json"
         deadline = time.monotonic() + float(timeout_s)
         while time.monotonic() < deadline:
@@ -6908,7 +7000,18 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             if cur and live_path.exists():
                 self._send_bytes(200, live_path.read_bytes(), "application/json; charset=utf-8")
             else:
-                self._send_json(404, {"ok": False, "error": {"code": "NO_LIVE_DASHBOARD", "message": "active live_dashboard.json is not available"}})
+                payload = _idle_live_payload(
+                    self.server.sessions_root,
+                    "Active session is starting; waiting for live_dashboard.json."
+                ) if cur else (_latest_live_dashboard_payload(self.server.sessions_root) or _idle_live_payload(self.server.sessions_root))
+                if cur:
+                    payload["session_id"] = cur.get("session_id")
+                    meta = dict(payload.get("meta") or {})
+                    meta["session_id"] = cur.get("session_id")
+                    meta["active"] = True
+                    meta["status"] = "starting"
+                    payload["meta"] = meta
+                self._send_json(200, payload)
             return
         if path == "/api/session/buffer":
             q = parse_qs(parsed.query)
@@ -7213,10 +7316,10 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self._send_json(200, _run_preflight_check(check_id, sessions_root=self.server.sessions_root, **body))
             return
         if path == "/api/session/start":
-            radar_port = body.get("radar_port", DEFAULT_RADAR_PORT)
+            radar_port = str(body.get("radar_port") or DEFAULT_RADAR_PORT).strip() or DEFAULT_RADAR_PORT
             if str(radar_port).strip().lower() in {"auto", "autodetect", "auto-detect"}:
                 radar_port = _auto_detect_radar_port(DEFAULT_RADAR_PORT)
-            ble_address = body.get("ble_address", DEFAULT_BLE_ADDRESS)
+            ble_address = str(body.get("ble_address") or DEFAULT_BLE_ADDRESS).strip() or DEFAULT_BLE_ADDRESS
             if self.server.supervisor.current():
                 self._send_json(409, {"ok": False, "error": {"code": "SESSION_IN_PROGRESS", "message": "active session already running"}})
                 return
@@ -7236,7 +7339,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     radar_port=radar_port,
                     ble_address=ble_address,
                     ble_profile=body.get("ble_profile", "ailink_oximeter"),
-                    timeout_s=float(body.get("timeout_s", 6.0) or 6.0),
+                    timeout_s=float(body.get("timeout_s", 30.0) or 30.0),
                     subject_label=body.get("subject_label"),
                     operator_label=body.get("operator_label"),
                     subject_profile_id=body.get("subject_profile_id", "adult_default"),
@@ -8790,7 +8893,6 @@ def cmd_session(args):
     analysis_dir = os.path.join(session_dir, "analysis")
     radar_out = os.path.join(session_dir, "radar.csv")
     ref_out = os.path.join(session_dir, "ref.csv")
-    script_path = str(_TRAINER_ENTRYPOINT)
     initial_manifest = {
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
@@ -8810,11 +8912,7 @@ def cmd_session(args):
             lock_acquired = False
         raise
 
-    radar_cmd = [sys.executable, "-u", script_path, "log",
-                 "--port", args.port,
-                 "--out", radar_out]
-
-    ble_cmd = [sys.executable, "-u", script_path, "ble_reflog",
+    ble_cmd = [sys.executable, "-u", "-m", "rvt_trainer", "ble_reflog",
                "--out", ref_out]
     if getattr(args, "address", None):
         ble_cmd += ["--address", args.address]
@@ -8885,25 +8983,40 @@ def cmd_session(args):
     ble_proc = None
     radar_thread = None
     ble_thread = None
+    radar_done_event = threading.Event()
+    radar_error: List[str] = []
     stop_reason = "completed"
     ble_failure_reported = False
     start_t = time.time()
 
+    def run_radar_logger_inline():
+        try:
+            cmd_log(SimpleNamespace(port=args.port, out=radar_out, duration_s=args.duration_s))
+        except BaseException as e:
+            radar_error.append(str(e))
+            event_cb("[RADAR]", f"inline logger exited: {e}")
+        finally:
+            radar_done_event.set()
+
+    def csv_data_row_count(path: str) -> int:
+        if not os.path.exists(path):
+            return 0
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore", newline="") as f:
+                return max(0, sum(1 for _ in f) - 1)
+        except Exception:
+            return 0
+
     try:
-        radar_proc = subprocess.Popen(
-            radar_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, universal_newlines=True
-        )
         radar_thread = threading.Thread(
-            target=_stream_subprocess_output,
-            args=(radar_proc.stdout, "[RADAR]", event_cb, not dashboard_enabled),
+            target=run_radar_logger_inline,
             daemon=True
         )
         radar_thread.start()
 
         ble_proc = subprocess.Popen(
             ble_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, universal_newlines=True
+            text=True, bufsize=1, universal_newlines=True, cwd=str(_REPO_ROOT)
         )
         ble_thread = threading.Thread(
             target=_stream_subprocess_output,
@@ -8924,10 +9037,15 @@ def cmd_session(args):
                 stop_reason = f"duration reached ({args.duration_s:.1f}s)"
                 break
 
-            radar_done = (radar_proc.poll() is not None)
+            radar_done = radar_done_event.is_set()
             ble_done = (ble_proc is not None and ble_proc.poll() is not None)
             if radar_done:
-                stop_reason = "radar logger exited"
+                if radar_error:
+                    stop_reason = f"radar logger exited: {radar_error[-1]}"
+                elif args.duration_s and elapsed >= max(0.0, float(args.duration_s) - 1.0):
+                    stop_reason = f"duration reached ({args.duration_s:.1f}s)"
+                else:
+                    stop_reason = "radar logger exited"
                 break
             if ble_done:
                 if not ble_failure_reported:
@@ -8955,8 +9073,22 @@ def cmd_session(args):
             _render_live_dashboard(session_dir, start_t, args.duration_s, radar_tracker, ref_tracker, raw_tracker,
                                    recent_events, event_lock, f"stopped ({stop_reason})", analysis_summary=_dashboard_analysis_payload(session_dir))
 
-    if not (os.path.exists(radar_out) and os.path.exists(ref_out)):
-        warn("Expected radar/ref CSV files were not created; skipping analyse.")
+    radar_rows = csv_data_row_count(radar_out)
+    ref_rows = csv_data_row_count(ref_out)
+    radar_paths = [radar_out] if radar_rows > 0 else []
+    ref_paths = [ref_out] if ref_rows > 0 else []
+    if radar_rows <= 0:
+        warn("Radar CSV was not created or has no data rows; skipping analyse.")
+        _write_session_manifest(session_dir, radar_paths, ref_paths, analysis_dir, None)
+        if dashboard_server is not None:
+            dashboard_server.stop()
+        if lock_acquired:
+            _release_session_lock(lock_root)
+            lock_acquired = False
+        return
+    if ref_rows <= 0:
+        warn("BLE reference CSV was not created or has no data rows; saved radar-only session and skipped paired analyse.")
+        _write_session_manifest(session_dir, radar_paths, ref_paths, analysis_dir, None)
         if dashboard_server is not None:
             dashboard_server.stop()
         if lock_acquired:
@@ -8966,7 +9098,7 @@ def cmd_session(args):
 
     if not getattr(args, "auto_analyse", True):
         warn("Auto analyse disabled by --no-auto-analyse.")
-        _write_session_manifest(session_dir, [radar_out], [ref_out], analysis_dir, None)
+        _write_session_manifest(session_dir, radar_paths, ref_paths, analysis_dir, None)
         if dashboard_server is not None:
             dashboard_server.stop()
         if lock_acquired:

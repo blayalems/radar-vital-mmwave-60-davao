@@ -17,6 +17,7 @@ from pathlib import Path
 
 
 from rvt_trainer.monolith import _ControlServer
+from rvt_trainer.monolith import save_json
 
 
 def _get(base: str, path: str) -> tuple[int, object]:
@@ -35,6 +36,15 @@ def _start_mock_server(tmp_path: Path):
     server.start()
     base = f"http://127.0.0.1:{server.httpd.server_port}"
     return server, base
+
+
+def _start_live_server(tmp_path: Path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=False)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    return server, base, sessions
 
 
 # ---------------------------------------------------------------------------
@@ -270,5 +280,40 @@ class TestApiLiveDashboardMock:
             t = series["t"]
             assert isinstance(t, list)
             assert len(t) > 0
+        finally:
+            server.stop()
+
+
+class TestApiLiveDashboardReal:
+    def test_live_dashboard_returns_idle_payload_without_active_session(self, tmp_path):
+        server, base, _ = _start_live_server(tmp_path)
+        try:
+            status, payload = _get(base, "/api/session/current/live_dashboard.json")
+            assert status == 200
+            assert payload["meta"]["status"] == "waiting"
+            assert payload["meta"]["active"] is False
+        finally:
+            server.stop()
+
+    def test_live_dashboard_returns_latest_payload_without_active_session(self, tmp_path):
+        server, base, sessions = _start_live_server(tmp_path)
+        try:
+            session_dir = sessions / "s01"
+            session_dir.mkdir()
+            save_json({
+                "schema_version": "rvt-live-events-v12.0",
+                "session_id": "s01",
+                "meta": {"status": "analysis complete", "session_id": "s01"},
+                "radar": {"rows": 44},
+                "ble": {"rows": 22},
+                "series": {},
+            }, str(session_dir / "live_dashboard.json"))
+
+            status, payload = _get(base, "/api/session/current/live_dashboard.json")
+            assert status == 200
+            assert payload["session_id"] == "s01"
+            assert payload["radar"]["rows"] == 44
+            assert payload["meta"]["active"] is False
+            assert payload["meta"]["latest_session"] is True
         finally:
             server.stop()

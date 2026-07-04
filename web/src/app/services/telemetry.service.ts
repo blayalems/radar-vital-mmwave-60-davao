@@ -137,7 +137,19 @@ export class TelemetryService {
       console.warn('Telemetry poll failed', error);
       this.state.telemetryStale.set(true);
       this.state.ctlStatus.update((s) => ({ ...(s ?? { ok: false }), ok: false, error: message }));
-      this.emitAlert(`Live connection unavailable: ${message}`, 'critical');
+      const noActiveSession = /NO_ACTIVE_SESSION|NO_LIVE_DASHBOARD|no active session|active live_dashboard\.json/i.test(message);
+      if (noActiveSession) {
+        this.state.sessionActive.set(false);
+        this.state.currentSessionId.set(null);
+        this.state.ctlStatus.update((s) => ({
+          ...(s ?? { ok: true }),
+          ok: true,
+          error: undefined,
+          last_stop_reason: 'No active telemetry session'
+        }));
+      } else {
+        this.emitAlert(`Live connection unavailable: ${message}`, 'critical');
+      }
 
       if (this.state.autoDemoOnDisconnect()) {
         this.state.autoDemoActive.set(true);
@@ -471,7 +483,9 @@ export class TelemetryService {
     this.state.telemetryStale.set(false);
     const payloadStatus = String(normalized.meta['status'] || '').toLowerCase();
     const payloadSessionId = String(normalized.meta['session_id'] || normalized.meta['active_session_id'] || '');
-    if (['idle', 'waiting', 'stopped', 'complete', 'completed'].includes(payloadStatus)) {
+    const inactiveStatus = ['idle', 'waiting', 'stopped', 'complete', 'completed', 'analysis complete'].includes(payloadStatus)
+      || payloadStatus.startsWith('stopped ');
+    if (inactiveStatus || normalized.meta['active'] === false) {
       this.state.sessionActive.set(false);
       this.state.currentSessionId.set(null);
     } else if (payloadSessionId && ['running', 'active', 'recording'].includes(payloadStatus)) {

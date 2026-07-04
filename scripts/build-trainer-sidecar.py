@@ -37,6 +37,7 @@ ADD_DATA: list[tuple[Path, str]] = [
 ]
 
 COLLECT_ALL = [
+    "bleak",
     "matplotlib",
     "numpy",
     "pandas",
@@ -44,10 +45,12 @@ COLLECT_ALL = [
 ]
 
 HIDDEN_IMPORTS = [
+    "bleak.backends.winrt",
     "serial",
     "serial.tools.list_ports",
     "sklearn.ensemble._gb",
     "sklearn.tree._tree",
+    "winrt.runtime",
 ]
 
 

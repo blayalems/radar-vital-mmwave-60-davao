@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-04 - PR71 live telemetry start and BLE runtime follow-up
+
+- **Session start/live follow-up**: Reviewed local `sessions/s01`-`s14`: early runs timed out or produced no rows, `s07` proved COM7 radar-only capture, and `s08`/`s09`/`s11`/`s12`/`s14` captured both COM7 radar rows plus BLE rows from `10:22:33:9E:8F:63`. The control server now creates a startup `live_dashboard.json`, uses a 30 s start timeout, avoids a nested dashboard port conflict with `--dashboard-port 0`, returns a standby/latest live payload instead of 404 when no session is active, and records radar-only sessions when BLE is absent instead of dropping the manifest.
+- **BLE/EXE runtime**: Promoted `bleak` into the packaged trainer dependency set and PyInstaller collection/hidden imports so the Windows sidecar can connect to the oximeter without a manual `pip install bleak`; local module probes confirmed `bleak.backends.winrt` and `winrt.runtime` are importable.
+- **Live UI**: Angular telemetry polling now treats `NO_ACTIVE_SESSION`/missing live JSON as standby instead of a critical alert loop, and classifies `analysis complete`, `stopped (...)`, and `meta.active=false` payloads as inactive so the Live page can display the latest completed payload without pretending it is recording.
+- **Verification**: `python -m pytest -q tests/test_session_isolation.py tests/test_trainer_lifecycle.py tests/test_trainer_transport.py` 40/40; `python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer`; `python -m rvt_trainer --help`; `npm run test:unit:web` 161/161; `npm run build:web`; `npm run build:check` clean. Build emits the pre-existing initial bundle budget warning.
+
 ### 2026-07-03 - PR71 EXE/PWA telemetry start hotfix
 
 - **Start/BLE/Home**: Preserved COM7/COM10 choices through defaults and serial scans, made BLE/probe plus packaged Python/firmware-source audit failures advisory for Start, kept radar collection running when the BLE reference logger exits, routed EXE BLE scans through the native bridge, skipped PWA service-worker reload behavior in native shells, and fixed Home trend/micro canvas heights that caused vertical scroll growth.

@@ -10,7 +10,7 @@ Ensure the following hardware components are available:
 1. **Target Mobile Device**: Android 10+ (tested against Pixel baseline).
 2. **Target Windows Machine**: Windows 10 or 11 with a working Bluetooth 4.2+ BLE USB adapter or integrated chip.
 3. **Reference BLE Device**: AiLink Pulse Oximeter or compatible GATT simulator.
-4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_3_0.ino`.
+4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_4_0.ino`.
 5. **LAN Test Environment**: Both the trainer server (PC) and the mobile device must be connected to the exact same subnet (e.g., local Wi-Fi router).
 
 ---
@@ -35,9 +35,12 @@ Ensure the following hardware components are available:
 
 ### Phase C: 1 Hz Stream and EventSource Stability
 - [ ] Start a live telemetry recording session from the dashboard.
+- [ ] Verify Home preflight rows remain visible after a refresh/navigation and that advisory BLE/package warnings do not block Start when radar collection is otherwise available.
+- [ ] Verify the session can start on the expected lab serial port (`COM7` or `COM10`) and creates `live_dashboard.json` before the start timeout.
 - [ ] Verify the Overview graphs draw vital parameters (Heart Rate and Respiration) at exactly 1 Hz.
 - [ ] Confirm that minimizing the application for 60 seconds does not cause the service worker EventSource to drop or fail reconnecting.
 - [ ] Verify the **DEMO** banner displays if sandbox fallback occurs, and that sandbox telemetry is isolated inside the IndexedDB store.
+- [ ] If the AiLink oximeter is unavailable, verify the trainer preserves the radar session and marks analysis/status as `radar_only` rather than failing session creation.
 
 ### Phase D: Firmware Robustness Fault Injection
 - [ ] Disconnect LCD SDA mid-session and verify the serial DATA cadence remains at 1 Hz with loop timing still within the pre-fault budget ±5 ms.
@@ -68,7 +71,7 @@ Ensure the following hardware components are available:
 - [ ] Verify that the notes or annotations for Session A remain isolated within `s01/session_notes.json` and are not copied or exposed in `s02/session_notes.json`.
 - [ ] Check `s02/session_notes.json` and verify it is either empty or only contains annotations specific to Session B.
 
-### Phase G: v16.3 RTM Shell, Dialogs, and Store-Readiness QA
+### Phase G: v16.4 Shell, Dialogs, and Store-Readiness QA
 - [ ] Android APK: verify edge-to-edge layout does not clip the topbar, bottom navigation, consent dialog, onboarding tutorial, recovery-code dialog, or issue-report preview on a Pixel-class phone.
 - [ ] Android APK: open each new dialog (consent, tutorial, recovery code, issue preview), use the system back gesture, and verify it either dismisses only when allowed or returns to the previous step without losing operator/session state.
 - [ ] PWA on Android Chrome: verify the Home install banner appears after `beforeinstallprompt`, can be dismissed, and does not reappear in the same accepted/dismissed session.
@@ -79,6 +82,12 @@ Ensure the following hardware components are available:
 - [ ] Issue reporting: from Settings on EXE and APK, preview the diagnostic bundle, toggle diagnostics off and on, then open the external GitHub issue URL; verify no token, PIN, or private key material appears in the URL/body.
 - [ ] Accessibility: keyboard-tab through consent, tutorial, recovery-code, and issue-preview dialogs; verify focus starts inside the dialog, remains trapped, Escape behavior matches the dialog contract, and focus returns to the invoking control when the dialog closes.
 - [ ] PWA privacy URL: from the hosted Pages build, open `/privacy.html` and `/terms.html`; verify both render without the trainer API and match the in-app legal copy version.
+
+### Phase H: PR72 Session-Data Audit Regression
+- [ ] Record or replay a v16.4 session and verify the trainer reports the on-disk CSV contract length as 222 columns, not the loader-augmented feature width.
+- [ ] Verify `module_fw_major`, `module_fw_sub`, `module_fw_mod`, and `module_fw_valid` populate after boot/recovery when the MR60BHA2 version TLV is observed.
+- [ ] Confirm BLE reference quality uses time-based `coverage_pct` and does not label expected AiLink protocol gaps as decode errors.
+- [ ] Confirm `ref_ble_summary.json` is present after a Windows-side BLE reference run, including interrupted/terminated child-process cases.
 
 ---
 

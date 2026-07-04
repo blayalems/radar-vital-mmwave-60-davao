@@ -6,7 +6,7 @@ radar directly.
 
 ## Closed testing
 
-The v16.3 release plan targets Google Play closed testing before production.
+The v16.4 release plan targets Google Play closed testing before production.
 Play personal-account promotion has practical gates: a closed-testing cohort
 needs at least 12 opted-in testers and 14 days of active testing before
 production eligibility. AAB signing, Play listing review, data-safety answers,
@@ -34,4 +34,7 @@ to generate a fresh PIN.
   this Android install path.
 - The Android app depends on the host trainer for serial radar access, session
   storage, authentication, and export.
+- BLE/preflight warnings are advisory for starting a radar-only capture. The
+  host trainer records `radar_only` analysis status if the AiLink oximeter is
+  unavailable or produces an empty reference CSV.
 - Demo mode is safe for training and UI review but does not capture real data.

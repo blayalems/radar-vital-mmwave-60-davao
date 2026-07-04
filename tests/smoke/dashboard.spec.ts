@@ -71,7 +71,7 @@ async function mockDemoReportSession(page: Page): Promise<void> {
       verdict: 'ready',
       readiness_kind: 'ready',
       categories: [
-        { id: 'firmware', label: 'Firmware contract', status: 'pass', detail: '219-column contract intact; 207-column prefix preserved.', remediation: '' },
+        { id: 'firmware', label: 'Firmware contract', status: 'pass', detail: '222-column contract intact; 207-column prefix preserved.', remediation: '' },
         { id: 'reference', label: 'Reference coverage', status: 'warn', detail: 'BLE coverage 72%.', remediation: 'Keep the oximeter within range for the full session.' }
       ]
     },

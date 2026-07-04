@@ -94,6 +94,27 @@ controls become available. Re-pair after every trainer restart.
 
 ---
 
+## 2.5. Starting a telemetry session
+
+1. On **Home**, select the radar port (`COM7` or `COM10` in the current lab
+   wiring) and confirm the BLE address if using the AiLink oximeter
+   (`10:22:33:9E:8F:63` in the current bench setup).
+2. Run **Hardware preflight**. The checks remain visible after refresh or page
+   navigation. Python package, firmware-source, BLE adapter, and BLE-device
+   warnings are advisory; collection/storage/schema/clock failures block Start.
+3. Pick a duration. Built-in choices include 30 s, 60 s, 2 m, 3 m, 5 m, 8 m,
+   and 20 m; the custom field accepts 1-60 minutes.
+4. Click **Start session**. The trainer creates a startup `live_dashboard.json`
+   immediately, then updates the Live view as serial/BLE data arrives.
+5. If the BLE reference device is unavailable, the trainer keeps the radar
+   session and marks analysis as `radar_only` instead of failing the whole run.
+
+For training-quality verdicts, collect at least 10 minutes with stable
+placement and good oximeter contact. Shorter sessions can still be useful for
+live-demo verification but will usually remain conditional/not-ready.
+
+---
+
 ## 3. Subject placement
 
 Mount the sensor (XIAO ESP32-C6 carrier with MR60BHA2 module) so it faces the
@@ -225,4 +246,8 @@ whose summaries predate these fields.
 | PIN cooldown — pairing locked for 1 minute | Five consecutive wrong PIN attempts from one IP | Wait 60 seconds, then retry with the correct PIN or restart the trainer for a fresh PIN. |
 | QR code not scanning | Camera permission denied or QR page expired | Grant camera permission in browser/app settings; restart trainer to refresh the QR. |
 | HR/RR reads "--" | No subject detected or signal not yet locked | Confirm subject is within 40–140 cm, facing the sensor. Wait for "Subject detected" on the Home scope. |
+| History row shows missing or old metadata | Legacy session manifest did not record started time, duration, or subject | Current trainer versions infer date/duration/subject from session files and subject profiles; rerun the server on the updated branch and refresh Home. |
+| Analysis says `radar_only` | BLE reference CSV was empty or the oximeter was unavailable | Radar data was preserved. Re-run with the oximeter powered on and finger contact stable when HR/RR reference comparison is required. |
+| Session verdict remains conditional/not-ready | Capture was too short, HR phase coverage was low, or oximeter PI/contact was poor | Collect at least 10 minutes, keep the subject still, improve placement, and verify oximeter contact before retraining. |
+| Alerts repeat "0 bpm outside threshold" | Old dashboard build treated standby zero values as physiological alerts | Use the PR71+ dashboard build; standby `0` values are ignored and identical threshold alerts are throttled. |
 | RR anchor stale warning | Subject moved abruptly; anchor not re-established | Ask subject to remain still for 15–30 seconds while the RR anchor re-establishes. |

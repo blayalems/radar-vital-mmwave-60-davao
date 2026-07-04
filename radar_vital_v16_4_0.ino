@@ -4,7 +4,7 @@
  * + Active Buzzer for audio feedback
  *
  * Firmware release: v16.4.0
- * CSV schema release: v15.1.0 / trainer contract v12.0.0
+ * CSV schema release: v15.2.0 / trainer contract v12.0.0
  *
 * Manuscript-facing calibration / release notes
 * -------------------------------------------
@@ -13,8 +13,10 @@
 *   a gated BLE bridge path for the v12 dashboard / native app milestone.
 * + ENABLE_BLE defaults to false; with BLE off, the serial DSP path is
 *   behaviorally identical to v15.0.0.
-* + v15.1.0 expands DATA telemetry to 219 columns by appending field diagnostics;
-*   the first 207 columns remain the frozen v15 trainer/dashboard audit contract.
+* + v15.1.0 expanded DATA telemetry to 219 columns by appending field diagnostics;
+*   v15.2.0 keeps those diagnostics and appends three v16.4 audit columns
+*   at the right edge for a 222-column DATA contract.
+* + The first 207 columns remain the frozen v15 trainer/dashboard audit contract.
 * + The raw CSV now exposes both sketch identity and radar-module identity:
 *   sketch_major/sketch_sub/sketch_mod and
 *   module_fw_major/module_fw_sub/module_fw_mod.
@@ -2983,6 +2985,38 @@ static float v13_refinedDistanceCm(float uartDistanceCm, bool uartDistOk) {
   return uartDistanceCm;
 }
 
+// v16.4 audit A9 follow-up (PR72 session-data audit): module_fw_major/sub/mod
+// logged -1 with module_fw_valid=0 in EVERY recorded session (s07-s11). The
+// MR60BHA2 emits its firmware-version TLV around module (re)boot, but the
+// first read attempt only happened after calibration + first radar frame -
+// long after the boot-window TLV had been discarded. These helpers let setup()
+// and the radar-recovery path pump the parser and catch the version while it
+// is actually in flight. Passive-read semantics are unchanged (no new library
+// API is used).
+static bool tryReadModuleFirmwareVersion() {
+  FirmwareInfo fwTmp;
+  if (!mmWave.getFirmwareInfo(fwTmp)) return false;
+  moduleVersion = fwTmp;
+  moduleVersionValid = true;
+  fwVersionCheckedThisBoot = true;
+  Serial.printf("[FW_VER] Module: %u.%u.%u.%u\n",
+                moduleVersion.firmware_verson.project_name,
+                moduleVersion.firmware_verson.major_version,
+                moduleVersion.firmware_verson.sub_version,
+                moduleVersion.firmware_verson.modified_version);
+  return true;
+}
+
+static void pollModuleFirmwareVersionWindow(unsigned long windowMs) {
+  unsigned long pollStartMs = millis();
+  while (!moduleVersionValid && (millis() - pollStartMs) < windowMs) {
+    mmWave.update(5);
+    if (tryReadModuleFirmwareVersion()) break;
+    wdtReset();
+    delay(25);
+  }
+}
+
 static void v13_pollSpatialFrames(unsigned long now) {
   bool pointCloudHit = mmWave.getPeopleCountingPointCloud(lastPointCloud);
   bool targetInfoHit = mmWave.getPeopleCountingTargetInfo(lastTargetInfo);
@@ -2993,27 +3027,17 @@ static void v13_pollSpatialFrames(unsigned long now) {
   lastTargetInfoValid = (lastTargetInfoRxMs > 0UL) && (safeElapsedMs(now, lastTargetInfoRxMs) <= TARGET_INFO_FRESH_MS);
 
   if (!fwVersionCheckedThisBoot) {
-    FirmwareInfo fwTmp;
-    if (!mmWave.getFirmwareInfo(fwTmp)) {
-      // v16.4 audit A9: the module handshake previously failed silently
-      // (module_valid=False in every session). The read stays passive - the
-      // Seeed library only surfaces the version once the module happens to
-      // emit it - but the failure is now announced once per boot so a session
+    if (!tryReadModuleFirmwareVersion()) {
+      // v16.4 audit A9: the runtime read stays passive - the Seeed library
+      // only surfaces the version once the module happens to emit it. The
+      // active boot-window poll lives in setup()/radar recovery; if both
+      // missed the TLV the failure is announced once per boot so a session
       // with an unidentified module is visible in the serial log.
       static bool fwVersionUnreadWarned = false;
       if (!fwVersionUnreadWarned && millis() > 30000UL) {
         fwVersionUnreadWarned = true;
         Serial.println("[FW_VER] WARN: module firmware version still unread after 30 s; module_fw_valid stays 0");
       }
-    } else {
-      moduleVersion = fwTmp;
-      moduleVersionValid = true;
-      fwVersionCheckedThisBoot = true;
-      Serial.printf("[FW_VER] Module: %u.%u.%u.%u\n",
-                    moduleVersion.firmware_verson.project_name,
-                    moduleVersion.firmware_verson.major_version,
-                    moduleVersion.firmware_verson.sub_version,
-                    moduleVersion.firmware_verson.modified_version);
     }
   }
 
@@ -4315,6 +4339,10 @@ void setup() {
   mmWaveSerial.setRxBufferSize(MMWAVE_RX_BUFFER_SIZE);
 #endif
   mmWaveSerial.begin(115200); mmWave.begin(&mmWaveSerial);
+  // PR72 session-data audit: catch the module's boot-window firmware-version
+  // TLV now, while it is in flight (module_fw_valid was 0 in s07-s11 because
+  // the first read happened long after boot).
+  pollModuleFirmwareVersionWindow(1500UL);
   lastPointCloud.targets.reserve(MAX_TARGET_NUM);
   lastTargetInfo.targets.reserve(MAX_TARGET_NUM);
 
@@ -6092,6 +6120,11 @@ void loop() {
     mmWaveSerial.setRxBufferSize(MMWAVE_RX_BUFFER_SIZE);
     mmWaveSerial.begin(115200);
     mmWave.begin(&mmWaveSerial);
+    if (!moduleVersionValid) {
+      // Module link was just re-initialized; the version TLV may re-arrive.
+      fwVersionCheckedThisBoot = false;
+      pollModuleFirmwareVersionWindow(400UL);
+    }
     radarWatchdogStartMs = now;
     lastRadarPacketMs = 0;
     consecutiveBadRadar = BAD_RADAR_LIMIT - 1;

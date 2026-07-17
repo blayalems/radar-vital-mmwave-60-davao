@@ -69,6 +69,8 @@ export class ReportComponent implements OnInit, AfterViewInit {
   summaryError = '';
   sessionNotesInput = '';
   signoff: SessionSignoff = { session_id: '', operator_name: '', initials: '', validation_comment: '', signed_at: null };
+  private sessionLoadEpoch = 0;
+  private compareLoadEpoch = 0;
 
   ngOnInit() {
     this.loadSessions();
@@ -177,7 +179,13 @@ export class ReportComponent implements OnInit, AfterViewInit {
   }
 
   async onSessionChange() {
-    this.selectedSession = this.sessions.find(s => s.session_id === this.selectedSessionId) || null;
+    const sessionId = this.selectedSessionId;
+    const loadEpoch = ++this.sessionLoadEpoch;
+    // Changing the primary session also invalidates an in-flight secondary
+    // comparison so a late overlay cannot attach to the new report.
+    ++this.compareLoadEpoch;
+    this.compareLoading = false;
+    this.selectedSession = this.sessions.find(s => s.session_id === sessionId) || null;
     this.selectedSummary = null;
     this.comparison = null;
     this.analysisStatus = null;
@@ -187,11 +195,12 @@ export class ReportComponent implements OnInit, AfterViewInit {
     this.compareSessionId = '';
     this.compareSummary = null;
     this.compareRows = [];
+    this.summaryLoading = false;
     if (this.selectedSession) {
-      this.sessionNotesInput = this.state.sessionNotes()[this.selectedSessionId] || this.selectedSession.summary || '';
+      this.sessionNotesInput = this.state.sessionNotes()[sessionId] || this.selectedSession.summary || '';
       this.summaryLoading = true;
       try {
-        const sessionPath = `/api/sessions/${encodeURIComponent(this.selectedSessionId)}`;
+        const sessionPath = `/api/sessions/${encodeURIComponent(sessionId)}`;
         const [summary, data, comparison, analysisStatus, notes, signoff] = await Promise.all([
           this.api.request<SessionRecord>(`${sessionPath}/summary`),
           this.api.request<SessionDataPayload>(`${sessionPath}/data?points=1000`),
@@ -200,18 +209,23 @@ export class ReportComponent implements OnInit, AfterViewInit {
           this.api.request<SessionNotesPayload>(`${sessionPath}/notes`),
           this.api.request<SessionSignoff>(`${sessionPath}/signoff`)
         ]);
+        if (loadEpoch !== this.sessionLoadEpoch || this.selectedSessionId !== sessionId) return;
         this.selectedSummary = summary;
         this.sessionDataRows = data.rows || [];
         this.comparison = comparison;
         this.analysisStatus = analysisStatus;
         this.sessionNotesInput = notes.review_summary || '';
-        this.signoff = { ...signoff, session_id: this.selectedSessionId };
+        this.signoff = { ...signoff, session_id: sessionId };
       } catch (error: unknown) {
-        this.summaryError = error instanceof Error ? error.message : 'Recorded session summary is unavailable.';
+        if (loadEpoch === this.sessionLoadEpoch && this.selectedSessionId === sessionId) {
+          this.summaryError = error instanceof Error ? error.message : 'Recorded session summary is unavailable.';
+        }
       } finally {
-        this.summaryLoading = false;
-        this.cdr.markForCheck();
-        setTimeout(() => this.drawReportTrends(), 50);
+        if (loadEpoch === this.sessionLoadEpoch && this.selectedSessionId === sessionId) {
+          this.summaryLoading = false;
+          this.cdr.markForCheck();
+          setTimeout(() => this.drawReportTrends(), 50);
+        }
       }
     } else {
       this.cdr.markForCheck();
@@ -219,35 +233,42 @@ export class ReportComponent implements OnInit, AfterViewInit {
   }
 
   async saveReportNotes(): Promise<void> {
-    if (this.selectedSessionId) {
-      try {
-        await this.api.request<SessionNotesPayload>(`/api/sessions/${encodeURIComponent(this.selectedSessionId)}/notes`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ review_summary: this.sessionNotesInput })
-        });
-        this.state.sessionNotes.update(notes => ({ ...notes, [this.selectedSessionId]: this.sessionNotesInput }));
-        this.state.triggerHaptic('success');
-        this.snackBar.open('Operator review summary saved.', 'Dismiss', { duration: 4000 });
-      } catch (error: unknown) {
-        this.snackBar.open(error instanceof Error ? error.message : 'Review summary could not be saved.', 'Dismiss', { duration: 6000 });
-      }
+    const sessionId = this.selectedSessionId;
+    const reviewSummary = this.sessionNotesInput;
+    if (!sessionId) return;
+    try {
+      await this.api.request<SessionNotesPayload>(`/api/sessions/${encodeURIComponent(sessionId)}/notes`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_summary: reviewSummary })
+      });
+      this.state.sessionNotes.update(notes => ({ ...notes, [sessionId]: reviewSummary }));
+      this.state.triggerHaptic('success');
+      this.snackBar.open('Operator review summary saved.', 'Dismiss', { duration: 4000 });
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Review summary could not be saved.', 'Dismiss', { duration: 6000 });
     }
   }
 
   async saveSignoff(): Promise<void> {
-    if (!this.selectedSessionId) return;
+    const sessionId = this.selectedSessionId;
+    const signoffInput = {
+      operator_name: this.signoff.operator_name,
+      initials: this.signoff.initials.toUpperCase(),
+      validation_comment: this.signoff.validation_comment
+    };
+    if (!sessionId) return;
     try {
-      this.signoff = await this.api.request<SessionSignoff>(`/api/sessions/${encodeURIComponent(this.selectedSessionId)}/signoff`, {
+      const response = await this.api.request<SessionSignoff>(`/api/sessions/${encodeURIComponent(sessionId)}/signoff`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operator_name: this.signoff.operator_name,
-          initials: this.signoff.initials.toUpperCase(),
-          validation_comment: this.signoff.validation_comment
-        })
+        body: JSON.stringify(signoffInput)
       });
-      this.state.sessionSignoffs.update(items => ({ ...items, [this.selectedSessionId]: this.signoff }));
+      const savedSignoff = { ...response, session_id: sessionId };
+      this.state.sessionSignoffs.update(items => ({ ...items, [sessionId]: savedSignoff }));
+      if (this.selectedSessionId === sessionId) {
+        this.signoff = savedSignoff;
+      }
       this.state.triggerHaptic('success');
       this.snackBar.open('Operator validation sign-off recorded.', 'Dismiss', { duration: 4000 });
     } catch (error: unknown) {
@@ -455,8 +476,10 @@ export class ReportComponent implements OnInit, AfterViewInit {
   }
 
   async loadCompareSession(sessionId: string): Promise<void> {
+    const loadEpoch = ++this.compareLoadEpoch;
     this.compareSessionId = sessionId;
     if (!sessionId) {
+      this.compareLoading = false;
       this.compareSummary = null;
       this.compareRows = [];
       setTimeout(() => this.drawReportTrends(), 0);
@@ -469,16 +492,21 @@ export class ReportComponent implements OnInit, AfterViewInit {
         this.api.request<SessionRecord>(`${sessionPath}/summary`),
         this.api.request<{ rows?: Array<Record<string, number | string | null>> }>(`${sessionPath}/data?points=1000`)
       ]);
+      if (loadEpoch !== this.compareLoadEpoch || this.compareSessionId !== sessionId) return;
       this.compareSummary = summary;
       this.compareRows = Array.isArray(data?.rows) ? data.rows : [];
     } catch (error: unknown) {
-      this.compareSummary = null;
-      this.compareRows = [];
-      this.snackBar.open(error instanceof Error ? error.message : 'Comparison session could not be loaded.', 'Dismiss', { duration: 5000 });
+      if (loadEpoch === this.compareLoadEpoch && this.compareSessionId === sessionId) {
+        this.compareSummary = null;
+        this.compareRows = [];
+        this.snackBar.open(error instanceof Error ? error.message : 'Comparison session could not be loaded.', 'Dismiss', { duration: 5000 });
+      }
     } finally {
-      this.compareLoading = false;
-      this.cdr.markForCheck();
-      setTimeout(() => this.drawReportTrends(), 0);
+      if (loadEpoch === this.compareLoadEpoch && this.compareSessionId === sessionId) {
+        this.compareLoading = false;
+        this.cdr.markForCheck();
+        setTimeout(() => this.drawReportTrends(), 0);
+      }
     }
   }
 

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Route lazy boundaries and measured bundle budget
+
+- **Lazy routing**: Converted Connect, Layout, Home, and Live from eager imports to `loadComponent` boundaries, completing the route-level split already used by Report, Help, and Settings without changing guards, redirects, or route URLs.
+- **Bundle contract**: The production initial bundle falls from 2.52 MB to 1.45 MB; locked that measured improvement with a 1.55 MB warning and 1.70 MB error budget while keeping Live (210.61 kB), Layout (190.60 kB), and Home (70.42 kB) route chunks independently loadable.
+- **Verification**: Production Angular build passes without an initial-bundle warning; full source-integrity, contrast, and Angular unit gates pass 186/186; generated-monolith round-trip passes.
+
 ### 2026-07-17 - Shared visible-chart render scheduler
 
 - **Render ownership**: Added one coalescing `ChartRenderSchedulerService` with per-owner rate limits, cancellation, document-visibility gating, and zero-size/hidden-canvas suppression; migrated Home radar/session sparklines, Live overview/analysis canvases, wave/trend canvases, KPI sparklines, and the KPI zoom dialog off independent animation-frame queues.

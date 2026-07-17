@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Tablet Simple-view smoke contract
+
+- **Navigation contract**: Aligned the iPad Simple/zen-mode smoke assertion with the shipped responsive shell: the desktop rail is removed and bottom navigation remains available through the 600–1023 px tablet band.
+- **Browser evidence**: The full PR smoke run passed 331/332 cases; its only failure was the superseded assertion expecting the hidden rail while the rendered bottom navigation correctly preserved primary routes.
+
 ### 2026-07-17 - Deterministic Settings visual capture
 
 - **Visual fixture**: Fixed the Settings-only test clock and random source so the live topbar latency and in-memory pairing PIN cannot differ between baseline capture and verification; the global 200-pixel threshold remains unchanged.

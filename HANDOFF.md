@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Dedicated SSE transport driver
+
+- **Async ownership**: Extracted EventSource creation, token-mint single-flight protection, generation cancellation, deadline renewal, error-window fallback, reconnect backoff, and transport/retry signals into `SseDriverService`; `TelemetryService` now owns only telemetry-domain event handling and polling coordination.
+- **Contract coverage**: Added focused driver tests for typed event forwarding, in-flight cancellation, one-use token renewal, fourth-error polling fallback, visible retry deadlines, and cancellation of scheduled reconnects while retaining the existing telemetry session-state tests.
+- **Verification**: Focused SSE/telemetry Vitest passes 10/10; full source-integrity, contrast, and Angular unit suite passes 183/183; production build and generated-monolith round-trip pass with the existing 2.51 MB bundle warning.
+
 ### 2026-07-17 - Sandbox API service extraction
 
 - **API boundary**: Moved the static-PWA/demo operator auth, session lifecycle, reports, preflight, defaults, and fallback payload emulator out of `ApiService` into `SandboxApiService`; the extracted service depends directly on `SessionStore` and never injects `ApiService`.

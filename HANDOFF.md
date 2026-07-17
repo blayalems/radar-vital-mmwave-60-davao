@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Sandbox API service extraction
+
+- **API boundary**: Moved the static-PWA/demo operator auth, session lifecycle, reports, preflight, defaults, and fallback payload emulator out of `ApiService` into `SandboxApiService`; the extracted service depends directly on `SessionStore` and never injects `ApiService`.
+- **Contract/storage parity**: Preserved public response aliases and payload shapes, sandbox start/stop behavior, report scorecards, lockout/session auth behavior, and the `demo:`-only operator profile/session storage boundary while `ApiService` retains live/native transport.
+- **Verification**: Focused sandbox/API/source/auth Vitest 36/36; full source-integrity, contrast, and web unit suite 179/179; Angular production build and generated-monolith round-trip pass with the existing 2.51 MB bundle warning.
+
 ### 2026-07-17 - Frontend source-mode policy boundary
 
 - **Source ownership**: Added `SourceModeService` as the signal-policy owner for live, manual demo, automatic demo, and trainer-sandbox transitions using only `UiStore`/`SessionStore`; `StateService` keeps read/delegation compatibility while Settings, pairing, keyboard/command actions, telemetry fallback, topbar provenance, and API detection use the focused boundary directly.

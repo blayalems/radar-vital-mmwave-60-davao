@@ -186,6 +186,14 @@ mat-card-header {
   padding: 1.25rem 1.25rem 0.5rem 1.25rem;
 }
 
+/* Palette-level card-header styling intentionally normalizes icon/title
+   typography, but its zero inline padding must not pull Settings avatars
+   against the clipped card edge. Keep the header aligned with card content. */
+.settings-card > mat-card-header {
+  column-gap: 0.75rem;
+  padding: 1.25rem 1.25rem 0.5rem !important;
+}
+
 mat-card-title {
   font-size: 1.15rem !important;
   font-weight: 600 !important;
@@ -260,6 +268,10 @@ mat-button-toggle {
 @media (max-width: 768px) {
   :host {
     padding: 12px;
+  }
+
+  .settings-card > mat-card-header {
+    padding: 1rem 1rem 0.5rem !important;
   }
 
   .settings-header {

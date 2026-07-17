@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Settings card header spacing correction
+
+- **Root cause**: The palette-level Material card rule zeroed every header's inline padding with higher specificity, placing Settings icon tiles directly against the rounded card clip despite the component's intended 20 px inset.
+- **Responsive fix**: Restored explicit icon/title/content alignment at 20 px on desktop and 16 px on narrow layouts while retaining the shared 12 px icon-to-title rhythm.
+- **Regression gate**: Added browser geometry assertions for the visually reordered Appearance and Source mode cards so both icon tiles remain inset and their titles stay separated.
+
 ### 2026-07-17 - Route lazy boundaries and measured bundle budget
 
 - **Lazy routing**: Converted Connect, Layout, Home, and Live from eager imports to `loadComponent` boundaries, completing the route-level split already used by Report, Help, and Settings without changing guards, redirects, or route URLs.

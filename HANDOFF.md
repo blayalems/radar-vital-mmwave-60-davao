@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Visual refresh expression correction
+
+- **Workflow parser**: Quoted the two `REFRESH_REASON` expressions so YAML does not interpret the `#75` fallback text as an inline comment and reject the workflow before job creation.
+- **Verification**: `actionlint` validates the corrected workflow; the failed bootstrap run created no job and changed no baselines.
+
 ### 2026-07-17 - Windows visual baseline refresh bootstrap
 
 - **Refresh workflow**: Added a one-shot PR #75 branch trigger, exact obsolete-snapshot cleanup, a same-commit runtime HANDOFF entry, and a seven-day artifact fallback to the existing Windows visual-baseline maintenance workflow.

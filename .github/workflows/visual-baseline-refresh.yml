@@ -98,7 +98,7 @@ jobs:
       - name: Record baseline handoff
         shell: pwsh
         env:
-          REFRESH_REASON: ${{ inputs.reason || 'PR #75 inherited v17 baseline refresh' }}
+          REFRESH_REASON: "${{ inputs.reason || 'PR #75 inherited v17 baseline refresh' }}"
         run: |
           $path = 'HANDOFF.md'
           $content = [System.IO.File]::ReadAllText($path)
@@ -140,7 +140,7 @@ jobs:
       - name: Commit and push refreshed baselines
         shell: bash
         env:
-          REFRESH_REASON: ${{ inputs.reason || 'PR #75 inherited v17 baseline refresh' }}
+          REFRESH_REASON: "${{ inputs.reason || 'PR #75 inherited v17 baseline refresh' }}"
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

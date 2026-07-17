@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Deterministic Settings visual capture
+
+- **Visual fixture**: Fixed the Settings-only test clock and random source so the live topbar latency and in-memory pairing PIN cannot differ between baseline capture and verification; the global 200-pixel threshold remains unchanged.
+- **Refresh diagnostics**: Baseline and Playwright failure artifacts now upload even when the clean verification pass fails.
+- **Verification**: The first Windows refresh regenerated all snapshots, removed the four obsolete HC files, and reproduced 94/96 cases; only dark/night desktop Settings differed by 384-473 dynamic pixels. Focused system-Chrome capture/verify passed 2/2 before the deterministic fixture was added.
+
 ### 2026-07-17 - Visual refresh expression correction
 
 - **Workflow parser**: Quoted the two `REFRESH_REASON` expressions so YAML does not interpret the `#75` fallback text as an inline comment and reject the workflow before job creation.

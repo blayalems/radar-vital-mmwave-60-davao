@@ -128,11 +128,13 @@ jobs:
           )
 
       - name: Upload refreshed baseline artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: windows-visual-baselines-${{ github.run_id }}
           path: |
             tests/visual/**/*-win32.png
+            test-results/**
             HANDOFF.md
           if-no-files-found: error
           retention-days: 7

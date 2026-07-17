@@ -12,13 +12,6 @@ on:
         description: 'Why the baselines are being refreshed (recorded in the commit message)'
         required: true
         type: string
-  # Temporary PR #75 bootstrap trigger. Remove this block after the Windows
-  # runner has pushed the refreshed snapshots.
-  push:
-    branches:
-      - codex/cross-stack-audit-hardening
-    paths:
-      - '.github/workflows/visual-baseline-refresh.yml'
 
 jobs:
   refresh:

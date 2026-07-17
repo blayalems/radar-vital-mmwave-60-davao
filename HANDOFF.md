@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Visual refresh bootstrap retirement
+
+- **Workflow scope**: Removed the one-shot PR #75 push trigger after the Windows runner regenerated, verified, committed, and pushed all 80 active baselines; the guarded manual refresh workflow and failure artifacts remain available for intentional future UI changes.
+- **Verification**: The bootstrap job completed 96/96 visual cases on its clean second pass and deleted exactly the four obsolete high-contrast Live snapshots.
+
 ### 2026-07-17 - Tablet Simple-view smoke contract
 
 - **Navigation contract**: Aligned the iPad Simple/zen-mode smoke assertion with the shipped responsive shell: the desktop rail is removed and bottom navigation remains available through the 600–1023 px tablet band.

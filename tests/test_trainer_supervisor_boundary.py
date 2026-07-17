@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 from rvt_trainer import monolith
 from rvt_trainer.session import SessionSupervisor
 from rvt_trainer.session import supervisor as service
@@ -31,6 +34,34 @@ def test_legacy_lock_and_stop_marker_helpers_are_service_aliases():
 
     for name in names:
         assert getattr(monolith, name) is getattr(service, name)
+
+
+def test_monolith_has_no_duplicate_supervisor_or_marker_implementations():
+    source = Path(monolith.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    top_level_definitions = {
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+
+    assert "_SessionSupervisor" not in top_level_definitions
+    for name in (
+        "_check_stale_session_lock",
+        "_clear_supervisor_stop_request",
+        "_consume_supervisor_stop_request",
+        "_lock_path",
+        "_read_session_lock",
+        "_release_session_lock",
+        "_release_session_lock_if_owned",
+        "_same_session_dir",
+        "_session_is_active",
+        "_session_marker_owned_by",
+        "_supervisor_stop_path",
+        "_write_session_lock",
+        "_write_supervisor_stop_request",
+    ):
+        assert name not in top_level_definitions
 
 
 def test_direct_service_import_keeps_idempotent_stop_schema(tmp_path):

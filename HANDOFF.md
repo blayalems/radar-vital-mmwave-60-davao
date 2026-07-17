@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Monolith lifecycle duplicate removal
+
+- **Single implementation**: Removed the inactive supervisor and session-lock/stop-marker copies from `rvt_trainer.monolith`; historical names remain direct imports from `rvt_trainer.session.supervisor`.
+- **Boundary check**: Added an AST-level source-integrity assertion that the monolith cannot redefine the extracted class or lifecycle helpers while preserving old/new import identity.
+- **Verification**: Supervisor boundary, session-isolation, and control-server lifecycle suites pass 46/46; trainer compileall, CLI help, and `git diff --check` pass.
+
 ### 2026-07-17 - Grouped control-API route registry
 
 - **Route boundaries**: Added typed registries grouped by auth, sessions, telemetry, reports, and static delivery; exact and parameterized routes now expose one source of truth for method, group, and authorization policy.

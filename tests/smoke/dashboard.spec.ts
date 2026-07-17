@@ -494,6 +494,34 @@ test.describe('Dashboard smoke', () => {
     }
   });
 
+  test('keeps compact Live controls touch-sized without horizontal overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/live');
+
+    const targets = page.locator([
+      '.demo-banner-action',
+      '.command-actions .cmd-btn',
+      '.live-mode-segment .mat-button-toggle-button',
+      '.quick-tags-toolbar .tag-btn'
+    ].join(','));
+    const boxes = await targets.evaluateAll(elements => elements.map(element => {
+      const rect = element.getBoundingClientRect();
+      return {
+        label: element.getAttribute('aria-label') || element.textContent?.trim() || element.tagName,
+        width: rect.width,
+        height: rect.height
+      };
+    }));
+
+    expect(boxes.length).toBeGreaterThanOrEqual(10);
+    for (const box of boxes) {
+      expect(box.width, `${box.label} width`).toBeGreaterThanOrEqual(44);
+      expect(box.height, `${box.label} height`).toBeGreaterThanOrEqual(44);
+    }
+    await expectNoHorizontalOverflow(page);
+  });
+
   test('renders desktop topbar controls without duplicate surfaces or selection indicators', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await seedDemoMode(page);

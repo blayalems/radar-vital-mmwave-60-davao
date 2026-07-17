@@ -49,6 +49,11 @@ backend shutdown semantics need an explicit analysis policy.
 | WEB-06 | High | Privacy/PWA | The service worker caches navigation URLs including `?pair=PIN`; issue diagnostics can include raw `ctl.error` text. | Follow-up PR 1: canonical shell cache key and category-only/sanitized control errors. |
 | WEB-07 | Medium-high | Authentication | Arbitrary absolute `/api/` URLs can receive trainer auth headers because trust is path-based rather than exact-origin-based. | Follow-up PR 1: exact configured-origin policy with explicit native-loopback handling and exfiltration tests. |
 | WEB-08 | Medium | Accessibility | Interactive KPI cards use status/live-region semantics, causing ambiguous actions and possible 1 Hz screen-reader chatter. | Follow-up PR 2 with the Live component split: button semantics and one debounced aggregate status channel. |
+| WEB-09 | Medium | Settings/accessibility | The Text Scale slider was a `0 x 0` flex item inside a column row, so its absolute thumb covered the valid `100%` output and the input had no accessible name. | Fixed in the browser-audit follow-up: a full-width control row, percentage formatter, accessible name, and geometry regression. |
+| WEB-10 | Medium | Mobile accessibility | The mobile demo exit action measured 20 px high, Live actions/mode controls measured 40 px, and quick tags measured 32-36 px. | Fixed in the browser-audit follow-up with scoped 44 px mobile targets and a no-overflow regression. |
+| WEB-11 | Medium | Visual trust | Home can show populated demo KPIs while the Radar Trend surface appears empty, which can read as a stalled stream. | Follow-up PR 2: render an honest warming/no-samples state from the real trend-buffer state. |
+| WEB-12 | Medium | Mobile hierarchy | Demo provenance, page chrome, recording actions, and fixed navigation leave little first-screen room for Live KPIs at 390 x 844. | Follow-up PR 2: characterize and compact/collapse the status/action header without hiding source provenance or Stop. |
+| WEB-13 | Low | Discoverability | The desktop Live snapshot FAB is visually unlabeled and appears to duplicate nearby snapshot/bookmark actions. | Follow-up PR 2: verify its unique purpose, tooltip, focus behavior, and placement before retaining or removing it. |
 | BE-01 | High | Session lifecycle | `_SessionSupervisor.start()` created `live_dashboard.json`, immediately saw that same file, and returned success before checking whether the child had exited. | Fixed here: supervisor placeholder is marked, written before spawn, ignored for readiness, and child exit is checked first. |
 | BE-02 | High | Auth integrity | An authenticated profile-create request could replace a corrupt profile DB with a new one-profile database despite the loader's fail-closed contract. | Fixed here: every auth mutation returns `503 OPERATOR_STORE_UNAVAILABLE` and preserves the original bytes. |
 | BE-03 | High | Shutdown | `_ControlServer.stop()` closes HTTP but does not stop/reap an active detached session child, leaving recording and stale current-session state behind. | Follow-up PR 1 after deciding whether server-shutdown sessions auto-analyse. |
@@ -57,6 +62,32 @@ backend shutdown semantics need an explicit analysis policy.
 | FW-03 | High | LCD recovery | Successful runtime rescans do not restore `lcdConnected`; failed probes can leave allocation state inconsistent before placement-new reconstruction. | Follow-up firmware/bench PR: one idempotent attach/teardown owner and connect-fail-reconnect fixture. |
 | BUILD-01 | High | Reproducibility | Root `npx esbuild` was floating and bundling failure silently fell back to an unresolved Angular entry chunk. | Fixed here with exact `esbuild` dependency, JS API use, and fatal build failure. |
 | DEP-01 | High | Supply chain | The baseline audit reported Angular production advisories, vulnerable build transitive packages, and pytest `PYSEC-2026-1845`. | Fixed here; both npm trees and the Python requirements audit are expected to report zero after verification. |
+
+## Browser walkthrough evidence
+
+The frontend audit used the installed Chrome browser against the locally served
+self-contained dashboard. It captured the same seeded demo/operator state at
+1440 x 1000 and 390 x 844 across Home, Live Simple, Live Advanced, Report,
+Settings, Home mobile, and Live mobile.
+
+- No audited route introduced horizontal document overflow at either width.
+- Before the fix, the Settings Text Scale row measured 313 x 94 while the
+  slider host measured 0 x 0; the thumb overlapped the `100%` output. After the
+  fix, the slider measures 233 x 48 and the separate 52 px output no longer
+  overlaps.
+- On mobile, the demo exit action, primary Live actions, both mode controls,
+  and every quick tag now measure at least 44 x 44. The post-fix 390 px capture
+  still has no horizontal overflow.
+- Home/Live/Report/Settings remain visually consistent with the existing
+  Material 3 palette, demo provenance is persistent, Stop remains prominent,
+  and the Report summary remains easy to scan.
+- The automated clipped-text probe over-reported Material icon ligatures and
+  scroll dimensions. Those entries were not treated as bugs without matching
+  screenshot evidence.
+
+The browser regressions live in `tests/smoke/dashboard.spec.ts` and
+`tests/smoke/settings-cards.spec.ts`; both focused tests pass in installed
+Chrome.
 
 ## Refactoring plan
 

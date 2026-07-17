@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Chrome-audited Settings and mobile touch-target fixes
+
+- **Settings**: Fixed the Text Scale slider's `0 x 0` flex collapse and percentage overlap with a full-width control row; added a percentage `displayWith` formatter, accessible slider name, semantic output, and Playwright geometry/state regression.
+- **Mobile Live/demo**: Restored a 28 px compact desktop demo action and raised the mobile demo action, primary Live actions, Simple/Advanced controls, and quick tags to 44 px without horizontal overflow.
+- **Browser evidence/verification**: Documented the seven-view Chrome walkthrough and deferred visual findings in `docs/cross-stack-audit-plan-2026-07.md`; post-fix captures confirm the Settings slider at 233 x 48 and targeted mobile controls at least 44 x 44. Focused installed-Chrome smoke 2/2, `npm run test:unit:web` 170/170, `npm run build:check`, and `git diff --check` pass; the existing 2.51 MB initial-bundle warning remains.
+
 ### 2026-07-17 - Cross-stack audit hardening and staged refactor plan
 
 - **Frontend safety/telemetry**: Centralized manual, automatic, and trainer-sandbox source truth; blocked simulated-source entry during real recordings; kept real Stop requests on the trainer; made SSE token minting single-flight/cancellable and rotated the one-use stream token on the 12 h warning without clearing session state.

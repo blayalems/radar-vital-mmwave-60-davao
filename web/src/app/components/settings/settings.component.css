@@ -388,6 +388,24 @@ mat-button-toggle {
   flex: 1;
 }
 
+.text-scale-control {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.text-scale-control .audio-slider {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+.text-scale-control .audio-label {
+  flex: 0 0 auto;
+  min-width: 3.25rem;
+}
+
 .audio-volume-icon {
   color: var(--md-sys-color-on-surface-variant, #a4a4ac);
 }

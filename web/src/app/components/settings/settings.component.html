@@ -325,10 +325,17 @@
               <span class="row-title">Text Scale</span>
               <span class="row-description">Increase dashboard text without hiding telemetry controls.</span>
             </div>
-            <mat-slider min="0.9" max="1.25" step="0.05" discrete class="audio-slider">
-              <input matSliderThumb [value]="state.fontScale()" (valueChange)="state.fontScale.set($event)">
-            </mat-slider>
-            <span class="audio-label">{{ Math.round(state.fontScale() * 100) }}%</span>
+            <div class="text-scale-control">
+              <mat-slider min="0.9" max="1.25" step="0.05" discrete class="audio-slider" [displayWith]="formatFontScale">
+                <input
+                  id="textScaleSlider"
+                  matSliderThumb
+                  aria-label="Text scale"
+                  [value]="state.fontScale()"
+                  (valueChange)="state.fontScale.set($event)">
+              </mat-slider>
+              <output class="audio-label" for="textScaleSlider">{{ formatFontScale(state.fontScale()) }}</output>
+            </div>
           </div>
 
           <div class="settings-row block-row">

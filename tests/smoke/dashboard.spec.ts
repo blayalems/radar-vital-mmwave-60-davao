@@ -432,6 +432,44 @@ test.describe('Dashboard smoke', () => {
     expect(Math.min(...graphHeights)).toBeGreaterThanOrEqual(40);
   });
 
+  test('labels zero-only trend history as no valid samples', async ({ page }) => {
+    await page.route('**/api/events/subscribe**', route => route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      headers: { 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+      body: 'event: ping\ndata: {"ok":true}\n\n'
+    }));
+    await page.route('**/api/status', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        active_session: { session_id: 'session-empty-trend', subject: 'Trend QA' }
+      })
+    }));
+    await page.route('**/api/session/current/live_dashboard.json**', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        meta: { status: 'running', session_id: 'session-empty-trend', elapsed_s: 3, remaining_s: 27 },
+        radar: { reported_hr: 0, reported_rr: 0 },
+        ble: {},
+        faults: [],
+        events: [],
+        series: { reported_hr: [0, 0, 0], reported_rr: [0, 0, 0] }
+      })
+    }));
+
+    await gotoDashboardRoute(page, '/live');
+    await enterLiveAdvanced(page);
+    await page.getByRole('tab', { name: 'HR funnel' }).click();
+
+    const trend = page.locator('trend-canvas [data-sample-state="empty"]').first();
+    await expect(trend).toBeVisible();
+    await expect(trend.getByText('No trend samples yet')).toBeVisible();
+    await expect(trend.locator('canvas')).toHaveAttribute('aria-label', /No trend samples yet/);
+  });
+
   test('keeps primary navigation available in simple view and collapses the desktop rail', async ({ page }) => {
     if ((page.viewportSize()?.width || 0) >= 1024) {
       await page.setViewportSize({ width: 1280, height: 720 });

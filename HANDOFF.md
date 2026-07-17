@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Honest Live trend sample states
+
+- **Empty/warm-up truth**: Trend canvases now visibly distinguish no valid samples, bounded warm-up progress, and ready history instead of presenting an empty threshold grid as if a trace existed.
+- **Accessibility**: Canvas names include the current empty or warming state without adding another live region, while ready charts keep their existing metric and ghost-session description.
+- **Coverage**: Added focused policy tests for empty, warming, ready, configurable-minimum, invalid-count, and standby-zero behavior plus a desktop/Pixel browser journey that proves zero-only HR history renders the honest empty state; 195 web unit tests and the generated-dashboard round trip pass.
+
 ### 2026-07-17 - Semantic Live KPI controls and aggregate status
 
 - **Control semantics**: Replaced four clickable Live KPI `div` surfaces and duplicate keyboard activation handlers with native buttons, preserved pointer reordering, and added Alt+Arrow keyboard reordering with position-aware descriptions and visible focus.

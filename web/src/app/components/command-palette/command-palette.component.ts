@@ -19,6 +19,7 @@ import { IssueReportService } from '../../services/issue-report.service';
 import { AlertsDialogComponent } from '../alerts-dialog/alerts-dialog.component';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 import { CommandPinningService } from '../../services/command-pinning.service';
+import { SourceModeService } from '../../services/source-mode.service';
 
 type CommandGroup = 'Navigate' | 'Live Session' | 'Source' | 'Appearance' | 'Export' | 'Support';
 
@@ -53,6 +54,7 @@ interface PaletteCommand {
 export class CommandPaletteComponent {
   private readonly state = inject(StateService);
   private readonly api = inject(ApiService);
+  private readonly sourceMode = inject(SourceModeService);
   private readonly firstRun = inject(FirstRunService);
   private readonly installPrompt = inject(InstallPromptService);
   private readonly issueReport = inject(IssueReportService);
@@ -555,7 +557,7 @@ export class CommandPaletteComponent {
 
   private async toggleDemo(): Promise<void> {
     const enabled = !this.state.demoMode();
-    if (!this.state.trySetDemoMode(enabled)) {
+    if (!this.sourceMode.setManualDemo(enabled)) {
       this.snackBar.open(
         'Stop the live session before switching to simulated data.',
         'Dismiss',

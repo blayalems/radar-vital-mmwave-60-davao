@@ -5,6 +5,7 @@ import { StateService } from './state.service';
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
 import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
+import { SourceModeService } from './source-mode.service';
 
 @Injectable({
   providedIn: 'root',
@@ -14,6 +15,7 @@ export class TelemetryService {
   private api = inject(ApiService);
   private audio = inject(AudioService);
   private auth = inject(AuthService);
+  private sourceMode = inject(SourceModeService);
 
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -153,7 +155,7 @@ export class TelemetryService {
         this.scheduleNextPoll(1000);
       } else {
         this.emitAlert(`Live connection unavailable: ${message}`, 'critical');
-        if (this.state.autoDemoOnDisconnect() && this.state.trySetAutoDemoActive(true)) {
+        if (this.state.autoDemoOnDisconnect() && this.sourceMode.setAutomaticDemoActive(true)) {
           this.scheduleNextPoll(0);
         } else {
           this.httpPollFailures++;

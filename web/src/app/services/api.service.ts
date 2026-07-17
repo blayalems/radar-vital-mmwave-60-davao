@@ -15,6 +15,7 @@ import {
 } from '../models/rvt.models';
 import { PRODUCT_VERSION } from './app-meta';
 import { StateService } from './state.service';
+import { SourceModeService } from './source-mode.service';
 import { API_BASE_KEY, SERVER_URL_KEY, TOKEN_KEY, OPERATOR_TOKEN_KEY, SANDBOX_OPERATOR_PROFILES_KEY } from './rvt-storage-keys';
 
 interface NativeHttpPlugin {
@@ -51,6 +52,7 @@ const SANDBOX_OPERATOR_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 })
 export class ApiService {
   private state = inject(StateService);
+  private sourceMode = inject(SourceModeService);
   private http = inject(HttpClient);
 
   private readonly API_BASE_KEY = API_BASE_KEY;
@@ -191,19 +193,7 @@ export class ApiService {
   }
 
   async request<T = unknown>(path: string, init?: RequestInit, bypassSandbox = false, timeoutMs = 10000): Promise<T> {
-    const sandboxRequested = (
-      this.state.autoDemoActive()
-      || this.state.demoMode()
-      || (this.state.ctlOn() && this.state.ctlStatus()?.mode === 'sandbox')
-    );
-    const activeSessionId = this.state.currentSessionId() || '';
-    const protectsRealSessionStop = this.state.sessionActive()
-      && this.state.ctlStatus()?.mode !== 'sandbox'
-      && !activeSessionId.startsWith('sandbox_')
-      && String(path).split('?', 1)[0] === '/api/session/stop';
-    const isSandbox = !bypassSandbox && sandboxRequested && !protectsRealSessionStop;
-
-    if (isSandbox && path.startsWith('/api/')) {
+    if (this.sourceMode.shouldUseSandboxApi(path, bypassSandbox)) {
       return this.sandboxApiJson(path, init) as T;
     }
 
@@ -310,12 +300,7 @@ export class ApiService {
       );
       if (attempt !== this.connectionAttempt) return false;
 
-      this.state.ctlOn.set(true);
-      this.state.autoDemoActive.set(false);
-      this.state.ctlStatus.set({ ...r, mode: r.mode === 'sandbox' ? 'sandbox' : 'live' });
-      const activeSession = r.active_session;
-      this.state.sessionActive.set(!!activeSession);
-      this.state.currentSessionId.set(activeSession?.session_id || null);
+      this.sourceMode.applyTrainerStatus(r);
       return true;
     } catch (error: unknown) {
       if (attempt !== this.connectionAttempt) return false;
@@ -329,13 +314,7 @@ export class ApiService {
         message.includes('LAN pair token') ||
         message.includes('pair token')
       ) {
-        this.state.ctlOn.set(true);
-        this.state.autoDemoActive.set(false);
-        this.state.ctlStatus.set({
-          ok: true,
-          mode: 'live',
-          reason: 'unauthenticated'
-        });
+        this.sourceMode.markAuthenticationRequired();
         return false;
       }
       this.enableSandboxControlMode(message);
@@ -358,25 +337,10 @@ export class ApiService {
 
   enableSandboxControlMode(reason: string): boolean {
     this.connectionAttempt++;
-    if (!this.state.trySetAutoDemoActive(true)) {
-      this.state.ctlOn.set(true);
-      this.state.ctlStatus.update(status => ({
-        ...(status ?? {}),
-        ok: false,
-        mode: 'live',
-        reason
-      }));
+    if (!this.sourceMode.enterAutomaticDemo(reason)) {
       this.connectionLoading.set(false);
       return false;
     }
-    this.state.ctlOn.set(true);
-    this.state.sessionActive.set(false);
-    this.state.ctlStopPending.set(false);
-    this.state.ctlStatus.set({
-      ok: true,
-      mode: 'sandbox',
-      reason
-    });
     this.sandboxLoadSessions();
     this.connectionLoading.set(false);
     return true;

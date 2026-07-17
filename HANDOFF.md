@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Frontend source-mode policy boundary
+
+- **Source ownership**: Added `SourceModeService` as the signal-policy owner for live, manual demo, automatic demo, and trainer-sandbox transitions using only `UiStore`/`SessionStore`; `StateService` keeps read/delegation compatibility while Settings, pairing, keyboard/command actions, telemetry fallback, topbar provenance, and API detection use the focused boundary directly.
+- **Safety**: Centralized real-session transition guards and sandbox-routing policy so a real `/api/session/stop` continues to use trainer transport even if stale demo state is present; demo/live persistence scopes remain derived without effect-based state propagation.
+- **Verification**: Clean root/web installs; focused source/state/API/telemetry Vitest 33/33; full source-integrity, contrast, and web unit suite 175/175; Angular production build and generated-monolith round-trip pass with the existing 2.51 MB bundle warning.
+
 ### 2026-07-17 - Visual refresh expression correction
 
 - **Workflow parser**: Quoted the two `REFRESH_REASON` expressions so YAML does not interpret the `#75` fallback text as an inline comment and reject the workflow before job creation.

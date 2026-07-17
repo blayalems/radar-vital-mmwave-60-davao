@@ -13,6 +13,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
+import { SourceModeService } from '../../services/source-mode.service';
 
 @Component({
   selector: 'app-connect-wizard',
@@ -110,6 +111,7 @@ export class ConnectWizardComponent implements OnDestroy {
   private readonly state = inject(StateService);
   private readonly api = inject(ApiService);
   private readonly serverLifecycle = inject(ServerLifecycleService);
+  private readonly sourceMode = inject(SourceModeService);
   private readonly router = inject(Router);
 
   loading = signal(false);
@@ -129,13 +131,10 @@ export class ConnectWizardComponent implements OnDestroy {
   }
 
   demoNow() {
-    if (!this.state.trySetDemoMode(true)) {
+    if (!this.sourceMode.setManualDemo(true)) {
       this.error.set('Stop the live session before switching to simulated data.');
       return;
     }
-    try {
-      localStorage.setItem('rvt-demo-mode', '1');
-    } catch (_) {}
     this.serverLifecycle.setServerAddress('http://127.0.0.1:8765');
     this.state.triggerHaptic('tap');
     void this.router.navigate(['/live']);
@@ -237,7 +236,7 @@ export class ConnectWizardComponent implements OnDestroy {
     this.loading.set(true);
     this.error.set(null);
     try {
-      this.state.demoMode.set(false);
+      this.sourceMode.setManualDemo(false);
       try {
         localStorage.removeItem('rvt-demo-mode');
       } catch (_) {}
@@ -249,7 +248,7 @@ export class ConnectWizardComponent implements OnDestroy {
       // auto-demo/sandbox control mode after the initial same-origin /api/status
       // probe failed. Clear it and re-detect against the freshly paired trainer
       // so /live serves real /api/* calls instead of the sandbox mock.
-      this.state.autoDemoActive.set(false);
+      this.sourceMode.setAutomaticDemoActive(false);
       await this.api.detectControlMode();
 
       this.state.triggerHaptic('success');

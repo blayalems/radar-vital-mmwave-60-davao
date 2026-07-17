@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Mobile operator smoke synchronization
+
+- **Operator journey**: Replaced synthetic create-profile clicks with enabled, actionable clicks that explicitly await both the profile-create and automatic-login responses before asserting dialog transitions; extended only this multi-stage lockout journey to a 120-second budget.
+- **CI/browser evidence**: The final PR #75 matrix passed 331/332 cases; its sole iPhone failure waited on the switch dialog while the test had no synchronization with the two-request create-and-login operation. The patched exact iPhone WebKit journey passes 1/1, including both operator switches and the five-attempt lockout, in 1.4 minutes.
+
 ### 2026-07-17 - Visual refresh bootstrap retirement
 
 - **Workflow scope**: Removed the one-shot PR #75 push trigger after the Windows runner regenerated, verified, committed, and pushed all 80 active baselines; the guarded manual refresh workflow and failure artifacts remain available for intentional future UI changes.

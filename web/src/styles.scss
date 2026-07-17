@@ -1190,6 +1190,23 @@ html[data-palette] body app-topbar .topbar-actions .tb-more mat-icon {
   color: inherit !important;
 }
 
+/* The imported legacy mobile shell only recognizes its old `.tb-overflow`
+   control and therefore hides Angular's real `.tb-more` menu trigger. Keep the
+   single overflow action reachable on phones; alerts, theme, lock, operator
+   switching, and command search are available inside this menu. */
+@media (max-width: 760px) {
+  html[data-palette] body[data-view] app-topbar .topbar .topbar-actions > .tb-more {
+    align-items: center !important;
+    display: inline-flex !important;
+    flex: 0 0 44px !important;
+    height: 44px !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+    min-width: 44px !important;
+    width: 44px !important;
+  }
+}
+
 /* ---- v17 eyebrow: muted uppercase, never the primary/brand blue. */
 html[data-palette] body app-topbar .crumb-eyebrow {
   color: var(--md-sys-color-on-surface-variant) !important;

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Playwright contract alignment and mobile console recovery
+
+- **Mobile console actions**: Restored the 44 px Angular `.tb-more` overflow trigger on phone layouts where the imported legacy shell only allowlisted `.tb-overflow`, making command search, profile lock, and operator switching visibly reachable again instead of test-only DOM dispatches.
+- **Smoke contract alignment**: Installed Connect status stubs before bootstrap, pinned trainer-sandbox provenance, `Sweet spot` placement, active-session demo guards, granular readiness gates, report session chips, current Settings cards/search, stale-state punctuation, and stable Material mobile interactions.
+- **Verification**: The fresh desktop/Pixel system-Chrome matrix reached 20/22 before exposing the hidden mobile trigger; after the production CSS rebuild, the two failing Pixel operator/PIN journeys passed 2/2 and command-menu search rechecked 1/1. `npm run build:web` and monolith round-trip passed with the known 2.51 MB warning; all 332 smoke cases discover; source-integrity, contrast, and `git diff --check` pass.
+
 ### 2026-07-17 - Chrome-audited Settings and mobile touch-target fixes
 
 - **Settings**: Fixed the Text Scale slider's `0 x 0` flex collapse and percentage overlap with a full-width control row; added a percentage `displayWith` formatter, accessible slider name, semantic output, and Playwright geometry/state regression.

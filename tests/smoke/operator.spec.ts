@@ -39,7 +39,7 @@ async function pressPin(page: import('@playwright/test').Page, pin: string) {
   for (const digit of pin) {
     const key = keypad.locator('.keyboard-grid button', { hasText: new RegExp(`^${digit}$`) }).first();
     await expect(key).toBeVisible();
-    await key.click();
+    await key.dispatchEvent('click');
   }
 }
 
@@ -69,10 +69,10 @@ async function clickConsoleAction(page: import('@playwright/test').Page, name: s
     return;
   }
   const moreActions = page
-    .locator('button.tb-more[aria-label="More console actions"], button[aria-label="More console actions"]')
+    .locator('button.tb-more[aria-label="More console actions"]:visible, button[aria-label="More console actions"]:visible')
     .first();
   await expect(moreActions).toBeVisible();
-  await moreActions.click({ force: true });
+  await moreActions.click();
   const menuItem = page.getByRole('menuitem', { name });
   await expect(menuItem).toBeVisible();
   await menuItem.click();

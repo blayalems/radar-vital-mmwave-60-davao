@@ -45,8 +45,24 @@ async function pressOnboardingPin(page: import('@playwright/test').Page, pin: st
 /** Press digits on a reset-flow inline keyboard. */
 async function pressResetPin(page: import('@playwright/test').Page, pin: string) {
   for (const digit of pin) {
-    await page.locator('.reset-flow .keyboard-grid button', { hasText: new RegExp(`^${digit}$`) }).dispatchEvent('click');
+    const key = page.locator('.reset-flow .keyboard-grid button', { hasText: new RegExp(`^${digit}$`) }).first();
+    await expect(key).toBeVisible();
+    await key.dispatchEvent('click');
   }
+}
+
+async function lockProfile(page: import('@playwright/test').Page) {
+  const direct = page.getByRole('button', { name: /Lock profile/i }).first();
+  if (await direct.isVisible().catch(() => false)) {
+    await direct.dispatchEvent('click');
+    return;
+  }
+  const moreActions = page.locator('button.tb-more[aria-label="More console actions"]:visible');
+  await expect(moreActions).toBeVisible();
+  await moreActions.click();
+  const menuItem = page.getByRole('menuitem', { name: /Lock profile/i });
+  await expect(menuItem).toBeVisible();
+  await menuItem.click();
 }
 
 test.describe('PIN recovery code flow', () => {
@@ -104,13 +120,7 @@ test.describe('PIN recovery code flow', () => {
 
     // --- 3. Lock ---
     // Use the "Lock profile" action
-    const lockBtn = page.getByRole('button', { name: /Lock profile/i }).first();
-    if (await lockBtn.isVisible().catch(() => false)) {
-      await lockBtn.dispatchEvent('click');
-    } else {
-      await page.getByRole('button', { name: 'More console actions' }).click();
-      await page.getByRole('menuitem', { name: /Lock profile/i }).click();
-    }
+    await lockProfile(page);
 
     await expect(page.locator('section.idle-lock-overlay')).toBeVisible();
     await expect(page.locator('.pin-entry-screen')).toBeVisible();
@@ -154,13 +164,7 @@ test.describe('PIN recovery code flow', () => {
 
     // --- 7. Verify old PIN no longer works ---
     // Lock again
-    const lockBtn2 = page.getByRole('button', { name: /Lock profile/i }).first();
-    if (await lockBtn2.isVisible().catch(() => false)) {
-      await lockBtn2.dispatchEvent('click');
-    } else {
-      await page.getByRole('button', { name: 'More console actions' }).click();
-      await page.getByRole('menuitem', { name: /Lock profile/i }).click();
-    }
+    await lockProfile(page);
     await expect(page.locator('section.idle-lock-overlay')).toBeVisible();
 
     // Old code (original) should be rejected

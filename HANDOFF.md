@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Session supervisor package boundary
+
+- **Lifecycle extraction**: Moved active session locking, marker ownership, start/stop/reap policy, and supervisor state into `rvt_trainer.session.supervisor`; `rvt_trainer.monolith` retains its historical underscored imports.
+- **Compatibility**: New and legacy imports resolve to the same supervisor class/functions, while existing monkeypatch seams for PID checks and auto-analysis remain supported.
+- **Verification**: Supervisor boundary, session-isolation, and control-server lifecycle suites pass 45/45; trainer compileall, CLI help, and `git diff --check` pass.
+
 ### 2026-07-17 - Trainer common response and persistence helpers
 
 - **Shared helpers**: Extracted NaN-safe JSON encoding, atomic JSON persistence/readback, structured API errors, and bounded process waits into `rvt_trainer.api.common` while preserving the monolith function names as compatibility imports.

@@ -6877,6 +6877,24 @@ class _SessionSupervisor:
             return {"session_id": Path(self.session_dir).name, "session_dir": self.session_dir, "pid": self.proc.pid, "started_at": self.started_at, "elapsed_s": elapsed, "remaining_s": remaining, "params": self.params}
 
 
+from rvt_trainer.session.supervisor import (  # noqa: E402
+    SessionSupervisor as _SessionSupervisor,
+    _check_stale_session_lock,
+    _clear_supervisor_stop_request,
+    _consume_supervisor_stop_request,
+    _lock_path,
+    _read_session_lock,
+    _release_session_lock,
+    _release_session_lock_if_owned,
+    _same_session_dir,
+    _session_is_active,
+    _session_marker_owned_by,
+    _supervisor_stop_path,
+    _write_session_lock,
+    _write_supervisor_stop_request,
+)
+
+
 def _effective_defaults(sessions_root: str) -> Dict[str, object]:
     defaults = {
         "radar_port": DEFAULT_RADAR_PORT,

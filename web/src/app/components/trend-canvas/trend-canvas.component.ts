@@ -3,6 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { StateService } from '../../services/state.service';
 import { ChartAnnotation } from '../../models/rvt.models';
+import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
 
 @Component({
   selector: 'trend-canvas',
@@ -32,6 +33,7 @@ import { ChartAnnotation } from '../../models/rvt.models';
 })
 export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
   protected readonly state = inject(StateService);
+  private readonly renderScheduler = inject(ChartRenderSchedulerService);
 
   // Inputs
   data = input<number[]>([]);
@@ -71,7 +73,6 @@ export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
     return endIdx - startIdx + 1;
   });
 
-  private animeFrameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
   // Touch gesture state
@@ -107,9 +108,7 @@ export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    if (this.animeFrameId !== null) {
-      cancelAnimationFrame(this.animeFrameId);
-    }
+    this.renderScheduler.cancel(this);
     this.resizeObserver?.disconnect();
   }
 
@@ -248,11 +247,12 @@ export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   requestDraw(): void {
-    if (document.visibilityState === 'hidden' || this.animeFrameId !== null) return;
-    this.animeFrameId = requestAnimationFrame(() => {
-      this.animeFrameId = null;
-      this.draw();
-    });
+    this.renderScheduler.request(
+      this,
+      () => this.draw(),
+      () => this.renderScheduler.canvasVisible(this.canvasRef?.nativeElement),
+      100
+    );
   }
 
   private draw() {

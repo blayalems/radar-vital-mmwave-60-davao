@@ -24,6 +24,7 @@ import { BluetoothService } from '../../services/bluetooth.service';
 import { InstallPromptService } from '../../services/install-prompt.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { I18nService } from '../../services/i18n.service';
+import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
 import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
 
@@ -104,16 +105,17 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly renderScheduler = inject(ChartRenderSchedulerService);
 
   @ViewChild('radarCanvas', { static: false }) radarCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('trendCanvas', { static: false }) trendCanvas!: ElementRef<HTMLCanvasElement>;
 
-  private animeFrameId: number | null = null;
   private canvasCtx: CanvasRenderingContext2D | null = null;
   private trendCtx: CanvasRenderingContext2D | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private viewReady = false;
-  private readonly onVisibilityChange = () => this.requestCanvasDraw();
+  private readonly sparklineRenderOwner = {};
+  private sparklineQueueTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     effect(() => {
@@ -124,7 +126,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.sessionItems();
       this.state.sessionNotes();
       this.requestCanvasDraw();
-      setTimeout(() => void this.drawAllSparklines(), 150);
+      this.scheduleSessionSparklines();
     });
   }
 
@@ -220,16 +222,14 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       if (this.radarCanvas) this.resizeObserver.observe(this.radarCanvas.nativeElement);
       if (this.trendCanvas) this.resizeObserver.observe(this.trendCanvas.nativeElement);
     }
-    document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.requestCanvasDraw();
   }
 
   ngOnDestroy() {
-    if (this.animeFrameId) {
-      cancelAnimationFrame(this.animeFrameId);
-    }
+    this.renderScheduler.cancel(this);
+    this.renderScheduler.cancel(this.sparklineRenderOwner);
+    if (this.sparklineQueueTimer) clearTimeout(this.sparklineQueueTimer);
     this.resizeObserver?.disconnect();
-    document.removeEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   async refreshDefaults() {
@@ -537,7 +537,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   setSessionFilter(filter: 'all' | 'pass' | 'warn' | 'fail' | 'tagged') {
     this.sessionFilter = filter;
     this.state.triggerHaptic('tap');
-    setTimeout(() => void this.drawAllSparklines(), 150);
+    this.scheduleSessionSparklines();
   }
 
   getFilteredSessions(): SessionRecord[] {
@@ -605,6 +605,20 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private sparklineCache: Record<string, number[]> = {};
+
+  private scheduleSessionSparklines(): void {
+    if (this.sparklineQueueTimer) clearTimeout(this.sparklineQueueTimer);
+    this.sparklineQueueTimer = setTimeout(() => {
+      this.sparklineQueueTimer = null;
+      this.renderScheduler.request(
+        this.sparklineRenderOwner,
+        () => void this.drawAllSparklines(),
+        () => Array.from(document.querySelectorAll<HTMLCanvasElement>('canvas.session-micro-sparkline'))
+          .some(canvas => this.renderScheduler.canvasVisible(canvas)),
+        150
+      );
+    }, 150);
+  }
 
   async drawAllSparklines(): Promise<void> {
     if (typeof document === 'undefined') return;
@@ -744,12 +758,17 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // --- Premium Canvas Drawing Animations ---
   private requestCanvasDraw(): void {
-    if (!this.viewReady || document.visibilityState === 'hidden' || this.animeFrameId !== null) return;
-    this.animeFrameId = requestAnimationFrame(() => {
-      this.animeFrameId = null;
-      this.animateRadarCanvas();
-      this.animateTrendCanvas();
-    });
+    if (!this.viewReady) return;
+    this.renderScheduler.request(
+      this,
+      () => {
+        this.animateRadarCanvas();
+        this.animateTrendCanvas();
+      },
+      () => [this.radarCanvas, this.trendCanvas]
+        .some(ref => this.renderScheduler.canvasVisible(ref?.nativeElement)),
+      100
+    );
   }
 
   private animateRadarCanvas() {

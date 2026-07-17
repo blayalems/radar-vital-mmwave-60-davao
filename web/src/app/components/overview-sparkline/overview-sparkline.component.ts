@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, effect, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, effect, inject, input } from '@angular/core';
+import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
 
 @Component({
   selector: 'overview-sparkline',
@@ -12,6 +13,8 @@ import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, AfterViewIni
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class OverviewSparklineComponent implements AfterViewInit, OnDestroy {
+  private readonly renderScheduler = inject(ChartRenderSchedulerService);
+
   // Inputs
   data = input<number[]>([]);
   color = input<string>('rgba(0, 164, 150, 0.8)');
@@ -23,7 +26,6 @@ export class OverviewSparklineComponent implements AfterViewInit, OnDestroy {
     return this.canvasRef.nativeElement;
   }
 
-  private animeFrameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
   constructor() {
@@ -45,18 +47,17 @@ export class OverviewSparklineComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    if (this.animeFrameId !== null) {
-      cancelAnimationFrame(this.animeFrameId);
-    }
+    this.renderScheduler.cancel(this);
     this.resizeObserver?.disconnect();
   }
 
   requestDraw(): void {
-    if (document.visibilityState === 'hidden' || this.animeFrameId !== null) return;
-    this.animeFrameId = requestAnimationFrame(() => {
-      this.animeFrameId = null;
-      this.draw();
-    });
+    this.renderScheduler.request(
+      this,
+      () => this.draw(),
+      () => this.renderScheduler.canvasVisible(this.canvasRef?.nativeElement),
+      100
+    );
   }
 
   private draw() {

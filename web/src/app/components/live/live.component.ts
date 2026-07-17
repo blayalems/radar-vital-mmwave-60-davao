@@ -31,6 +31,7 @@ import { AudioService } from '../../services/audio.service';
 import { UndoService } from '../../services/undo.service';
 import { AnnotationService } from '../../services/annotation.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
+import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
 import { ChartAnnotation, SnapshotRecord } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 import { ChartDataTableComponent } from '../chart-data-table/chart-data-table.component';
@@ -93,6 +94,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly snackBar = inject(MatSnackBar);
   protected readonly undoService = inject(UndoService);
   protected readonly annotationService = inject(AnnotationService);
+  private readonly renderScheduler = inject(ChartRenderSchedulerService);
 
   protected readonly Math = Math;
   protected readonly NaN = Number.NaN;
@@ -170,10 +172,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly ghostHrData = signal<number[]>([]);
   protected readonly ghostRrData = signal<number[]>([]);
 
-  private animeFrameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private viewReady = false;
-  private readonly onVisibilityChange = () => this.requestCanvasDraw();
   
   // Local active tab selector
   activeTabIndex = 0;
@@ -254,16 +254,12 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         this.targetCanvas, this.baCanvas
       ].filter((ref): ref is ElementRef<HTMLCanvasElement> => !!ref).forEach(ref => this.resizeObserver?.observe(ref.nativeElement));
     }
-    document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.requestCanvasDraw();
   }
 
   ngOnDestroy() {
-    if (this.animeFrameId !== null) {
-      cancelAnimationFrame(this.animeFrameId);
-    }
+    this.renderScheduler.cancel(this);
     this.resizeObserver?.disconnect();
-    document.removeEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   onTabChange(event: MatTabChangeEvent) {
@@ -1262,12 +1258,17 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // --- Real-time Waveforms & Trends Canvas plots ---
   protected requestCanvasDraw(): void {
-    if (!this.viewReady || document.visibilityState === 'hidden' || this.animeFrameId !== null) return;
-    this.animeFrameId = requestAnimationFrame(() => {
-      this.animeFrameId = null;
-      this.drawTargetPosition();
-      this.drawBlandAltman();
-    });
+    if (!this.viewReady) return;
+    this.renderScheduler.request(
+      this,
+      () => {
+        this.drawTargetPosition();
+        this.drawBlandAltman();
+      },
+      () => this.activeTabIndex === 0 && [this.targetCanvas, this.baCanvas]
+        .some(ref => this.renderScheduler.canvasVisible(ref?.nativeElement)),
+      100
+    );
   }
 
   private drawTargetPosition(): void {

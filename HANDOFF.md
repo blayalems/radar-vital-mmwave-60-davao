@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Shared visible-chart render scheduler
+
+- **Render ownership**: Added one coalescing `ChartRenderSchedulerService` with per-owner rate limits, cancellation, document-visibility gating, and zero-size/hidden-canvas suppression; migrated Home radar/session sparklines, Live overview/analysis canvases, wave/trend canvases, KPI sparklines, and the KPI zoom dialog off independent animation-frame queues.
+- **Hidden-tab behavior**: Reactive updates can remain pending without repainting a hidden Material tab, while tab/resize/visibility changes request the latest frame; component teardown removes every pending owner and deferred session-sparkline request.
+- **Verification**: Scheduler tests pass 3/3 and full source-integrity, contrast, and Angular unit gates pass 186/186; production build and generated-monolith round-trip pass with the existing initial-bundle warning (2.52 MB before the planned lazy-boundary budget slice).
+
 ### 2026-07-17 - Dedicated SSE transport driver
 
 - **Async ownership**: Extracted EventSource creation, token-mint single-flight protection, generation cancellation, deadline renewal, error-window fallback, reconnect backoff, and transport/retry signals into `SseDriverService`; `TelemetryService` now owns only telemetry-domain event handling and polling coordination.

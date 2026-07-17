@@ -135,18 +135,22 @@
 
         <!-- KPI METRICS SUMMARY BOARD -->
         <div class="kpi-grid">
-          <p class="sr-only" role="alert" aria-atomic="true">{{ liveAlertAnnouncement() }}</p>
+          <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ liveStatusAnnouncement() }}</p>
           @for (kpi of kpiOrder(); track kpi) {
             @if (kpi === 'hr') {
               <!-- HEART RATE CARD -->
-              <div class="kpi-metric-card kpi-hr cursor-pointer" role="status" tabindex="0"
+              <button type="button" class="kpi-metric-card kpi-hr cursor-pointer"
                    (click)="openKpiZoomDialog('hr')"
-                   (keydown.enter)="openKpiZoomDialog('hr')"
-                   (keydown.space)="openKpiZoomDialog('hr')"
+                   (keydown)="onKpiKeydown($event, 'hr')"
                    (pointerdown)="onKpiDragStart($event, 'hr')"
                    (pointermove)="onKpiDragMove($event)"
                    (pointerup)="onKpiDragEnd($event)"
-                   aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Heart rate (click to zoom, drag to reorder)', 'reported_hr', 'beats per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > 0 && (state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
+                   (pointercancel)="onKpiDragEnd($event)"
+                   aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                   [attr.aria-label]="kpiControlLabel('Heart rate', 'reported_hr', 'beats per minute')"
+                   [attr.aria-description]="kpiReorderDescription('hr')"
+                   [attr.title]="kpiButtonTitle('hr')"
+                   [class.alert-low]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > 0 && (state.lastPayload()?.radar?.reported_hr ?? NaN) < state.kpiThresholds().hrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_hr ?? NaN) > state.kpiThresholds().hrHigh">
                 <div class="kpi-card-header">
                   <span>Heart rate</span>
                   @if (hrConfidencePct() !== null) {
@@ -174,19 +178,23 @@
                 <div class="kpi-card-footer">
                   Ref oximeter: {{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : 'no reference' }}
                 </div>
-              </div>
+              </button>
             }
 
             @if (kpi === 'rr') {
               <!-- RESPIRATORY RATE CARD -->
-              <div class="kpi-metric-card kpi-rr cursor-pointer" role="status" tabindex="0"
+              <button type="button" class="kpi-metric-card kpi-rr cursor-pointer"
                    (click)="openKpiZoomDialog('rr')"
-                   (keydown.enter)="openKpiZoomDialog('rr')"
-                   (keydown.space)="openKpiZoomDialog('rr')"
+                   (keydown)="onKpiKeydown($event, 'rr')"
                    (pointerdown)="onKpiDragStart($event, 'rr')"
                    (pointermove)="onKpiDragMove($event)"
                    (pointerup)="onKpiDragEnd($event)"
-                   aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Respiration (click to zoom, drag to reorder)', 'reported_rr', 'breaths per minute')" [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > 0 && (state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
+                   (pointercancel)="onKpiDragEnd($event)"
+                   aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                   [attr.aria-label]="kpiControlLabel('Respiration', 'reported_rr', 'breaths per minute')"
+                   [attr.aria-description]="kpiReorderDescription('rr')"
+                   [attr.title]="kpiButtonTitle('rr')"
+                   [class.alert-low]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > 0 && (state.lastPayload()?.radar?.reported_rr ?? NaN) < state.kpiThresholds().rrLow" [class.alert-high]="(state.lastPayload()?.radar?.reported_rr ?? NaN) > state.kpiThresholds().rrHigh">
                 <div class="kpi-card-header">
                   <span>Respiration</span>
                   @if (rrConfidencePct() !== null) {
@@ -214,19 +222,22 @@
                 <div class="kpi-card-footer">
                   Ref oximeter: {{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : 'no reference' }}
                 </div>
-              </div>
+              </button>
             }
 
             @if (kpi === 'fps' && !state.zenMode()) {
               <!-- FRAME RATE CARD -->
-              <div class="kpi-metric-card cursor-pointer" role="status" tabindex="0"
+              <button type="button" class="kpi-metric-card cursor-pointer"
                    (click)="openKpiZoomDialog('fps')"
-                   (keydown.enter)="openKpiZoomDialog('fps')"
-                   (keydown.space)="openKpiZoomDialog('fps')"
+                   (keydown)="onKpiKeydown($event, 'fps')"
                    (pointerdown)="onKpiDragStart($event, 'fps')"
                    (pointermove)="onKpiDragMove($event)"
                    (pointerup)="onKpiDragEnd($event)"
-                   aria-live="polite" aria-atomic="true" [attr.aria-label]="frameRateLabel() + ' Click to zoom, drag to reorder.'">
+                   (pointercancel)="onKpiDragEnd($event)"
+                   aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                   [attr.aria-label]="frameRateControlLabel()"
+                   [attr.aria-description]="kpiReorderDescription('fps')"
+                   [attr.title]="kpiButtonTitle('fps')">
                 <div class="kpi-card-header">
                   <span>Frame rate</span>
                   <div class="kpi-header-icons">
@@ -242,19 +253,22 @@
                   <overview-sparkline [data]="state.spark().fps" color="var(--md-sys-color-primary, #36618e)" [ariaLabel]="frameRateLabel() + ' Recent trend chart.'"></overview-sparkline>
                 </div>
                 <div class="kpi-card-footer">DSP loop speed</div>
-              </div>
+              </button>
             }
 
             @if (kpi === 'dist' && !state.zenMode()) {
               <!-- RANGE DISTANCE CARD -->
-              <div class="kpi-metric-card cursor-pointer" role="status" tabindex="0"
+              <button type="button" class="kpi-metric-card cursor-pointer"
                    (click)="openKpiZoomDialog('dist')"
-                   (keydown.enter)="openKpiZoomDialog('dist')"
-                   (keydown.space)="openKpiZoomDialog('dist')"
+                   (keydown)="onKpiKeydown($event, 'dist')"
                    (pointerdown)="onKpiDragStart($event, 'dist')"
                    (pointermove)="onKpiDragMove($event)"
                    (pointerup)="onKpiDragEnd($event)"
-                   aria-live="polite" aria-atomic="true" [attr.aria-label]="readingLabel('Target range (click to zoom, drag to reorder)', 'distance_cm', 'centimetres')">
+                   (pointercancel)="onKpiDragEnd($event)"
+                   aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                   [attr.aria-label]="targetRangeControlLabel()"
+                   [attr.aria-description]="kpiReorderDescription('dist')"
+                   [attr.title]="kpiButtonTitle('dist')">
                 <div class="kpi-card-header">
                   <span>Target range</span>
                   <div class="kpi-header-icons">
@@ -270,7 +284,7 @@
                   <overview-sparkline [data]="state.spark().dist" color="var(--md-sys-color-primary, #36618e)" [ariaLabel]="chartLabel('Target range recent trend', 'distance_cm', 'centimetres')"></overview-sparkline>
                 </div>
                 <div class="kpi-card-footer">Placement distance</div>
-              </div>
+              </button>
             }
           }
         </div>

@@ -292,6 +292,7 @@
 .kpi-metric-card {
   display: flex;
   flex-direction: column;
+  width: 100%;
   min-height: 0;
   padding: 18px;
   border-radius: var(--rv-r1, 22px);
@@ -300,6 +301,11 @@
   box-shadow: none;
   position: relative;
   overflow: hidden;
+  appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
   transition: transform var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
              border-color var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
              box-shadow var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));

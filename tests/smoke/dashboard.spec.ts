@@ -372,10 +372,18 @@ test.describe('Dashboard smoke', () => {
 
     await page.evaluate(() => localStorage.setItem('rvt-demo-mode', '1'));
     await gotoDashboardRoute(page, '/live');
-    await expect(page.locator('.kpi-hr')).toHaveAttribute('role', 'status');
-    await expect(page.locator('.kpi-hr')).toHaveAttribute('aria-live', 'polite');
+    const heartRateKpi = page.locator('.kpi-hr');
+    await expect(heartRateKpi).toHaveJSProperty('tagName', 'BUTTON');
+    await expect(heartRateKpi).not.toHaveAttribute('aria-live', /.+/);
+    await expect(heartRateKpi).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowLeft Alt+ArrowRight');
     await expect(page.locator('.kpi-hr canvas')).toHaveAttribute('role', 'img');
-    await expect(page.locator('app-live [role="alert"]')).toHaveCount(1);
+    await expect(page.locator('.kpi-grid > [role="status"][aria-live="polite"]')).toHaveCount(1);
+    await expect(page.locator('.kpi-grid > [role="alert"]')).toHaveCount(0);
+
+    await heartRateKpi.focus();
+    await page.keyboard.press('Alt+ArrowRight');
+    await expect(page.locator('.kpi-grid .kpi-metric-card').first()).toHaveClass(/kpi-rr/);
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('rvt-kpi-order'))).toContain('["rr","hr"');
 
     const notes = page.locator('textarea.notes-textarea');
     await notes.focus();

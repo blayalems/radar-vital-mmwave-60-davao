@@ -35,6 +35,7 @@ import { ChartRenderSchedulerService } from '../../services/chart-render-schedul
 import { ChartAnnotation, SnapshotRecord } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 import { ChartDataTableComponent } from '../chart-data-table/chart-data-table.component';
+import { describeLiveStatus, LiveStatusDescription } from './live-status';
 
 type BlandAltmanMetric = 'hr' | 'rr';
 
@@ -84,6 +85,8 @@ interface BiasBucket {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
+  private static readonly LIVE_STATUS_DEBOUNCE_MS = 1500;
+
   protected readonly state = inject(StateService);
   protected readonly api = inject(ApiService);
   protected readonly telemetry = inject(TelemetryService);
@@ -140,6 +143,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly splitScreenActive = signal(false);
   protected readonly paneBTabIndex = signal<number>(2);
   protected readonly kpiOrder = signal<string[]>(['hr', 'rr', 'fps', 'dist']);
+  protected readonly liveStatusAnnouncement = signal('');
+  private announcedLiveStatusKey = '';
+  private pendingLiveStatusKey = '';
+  private liveStatusTimer: ReturnType<typeof setTimeout> | null = null;
   private draggedKpi: string | null = null;
   private dragStartX = 0;
   protected readonly baMetric = signal<BlandAltmanMetric>('hr');
@@ -227,6 +234,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     });
 
     effect(() => {
+      this.scheduleLiveStatusAnnouncement(this.currentLiveStatus());
+    });
+
+    effect(() => {
       const sid = this.state.currentSessionId();
       this.baHrPairs.length = 0;
       this.baRrPairs.length = 0;
@@ -260,6 +271,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnDestroy() {
     this.renderScheduler.cancel(this);
     this.resizeObserver?.disconnect();
+    if (this.liveStatusTimer !== null) clearTimeout(this.liveStatusTimer);
   }
 
   onTabChange(event: MatTabChangeEvent) {
@@ -361,19 +373,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     if (!this.draggedKpi) return;
     const deltaX = event.clientX - this.dragStartX;
     if (Math.abs(deltaX) > 80) { // threshold to swap
-      const order = [...this.kpiOrder()];
-      const idx = order.indexOf(this.draggedKpi);
-      if (idx !== -1) {
-        const targetIdx = deltaX > 0 ? idx + 1 : idx - 1;
-        if (targetIdx >= 0 && targetIdx < order.length) {
-          [order[idx], order[targetIdx]] = [order[targetIdx], order[idx]];
-          this.kpiOrder.set(order);
-          this.dragStartX = event.clientX;
-          try {
-            localStorage.setItem('rvt-kpi-order', JSON.stringify(order));
-          } catch (_) {}
-          this.state.triggerHaptic('tap');
-        }
+      if (this.moveKpi(this.draggedKpi, deltaX > 0 ? 1 : -1)) {
+        this.dragStartX = event.clientX;
       }
     }
   }
@@ -386,6 +387,41 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         target.releasePointerCapture(event.pointerId);
       } catch (_) {}
     }
+  }
+
+  onKpiKeydown(event: KeyboardEvent, kpi: string): void {
+    if (!event.altKey || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+    event.preventDefault();
+    if (this.moveKpi(kpi, event.key === 'ArrowRight' ? 1 : -1)) {
+      this.snackBar.open(`${this.kpiName(kpi)} card moved ${event.key === 'ArrowRight' ? 'right' : 'left'}.`, 'Dismiss', {
+        duration: 2200
+      });
+    }
+  }
+
+  private moveKpi(kpi: string, direction: -1 | 1): boolean {
+    const order = [...this.kpiOrder()];
+    const index = order.indexOf(kpi);
+    const targetIndex = index + direction;
+    if (index === -1 || targetIndex < 0 || targetIndex >= order.length) return false;
+
+    [order[index], order[targetIndex]] = [order[targetIndex], order[index]];
+    this.kpiOrder.set(order);
+    try {
+      localStorage.setItem('rvt-kpi-order', JSON.stringify(order));
+    } catch (_) {}
+    this.state.triggerHaptic('tap');
+    return true;
+  }
+
+  private kpiName(kpi: string): string {
+    const names: Record<string, string> = {
+      hr: 'Heart rate',
+      rr: 'Respiration',
+      fps: 'Frame rate',
+      dist: 'Target range'
+    };
+    return names[kpi] || 'KPI';
   }
 
   hasBleRef(): boolean {
@@ -943,19 +979,69 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     return id ? `Ghost ${id} (${count} samples)` : `Ghost session (${count} samples)`;
   }
 
-  liveAlertAnnouncement(): string {
-    const alerts: string[] = [];
+  private currentLiveStatus(): LiveStatusDescription {
     const thresholds = this.state.kpiThresholds();
-    const hr = this.metricNumber('reported_hr');
-    const rr = this.metricNumber('reported_rr');
-    if (this.state.telemetryStale()) alerts.push('Live telemetry is stale. Do not treat displayed values as current.');
-    if (hr !== null && (hr < thresholds.hrLow || hr > thresholds.hrHigh)) {
-      alerts.push(`Heart rate outside threshold at ${Math.round(hr)} beats per minute.`);
+    return describeLiveStatus({
+      stale: this.state.telemetryStale(),
+      heartRate: this.metricNumber('reported_hr'),
+      respirationRate: this.metricNumber('reported_rr'),
+      heartRateLow: thresholds.hrLow,
+      heartRateHigh: thresholds.hrHigh,
+      respirationRateLow: thresholds.rrLow,
+      respirationRateHigh: thresholds.rrHigh
+    });
+  }
+
+  private scheduleLiveStatusAnnouncement(status: LiveStatusDescription): void {
+    if (status.key === this.announcedLiveStatusKey) {
+      if (this.liveStatusTimer !== null) clearTimeout(this.liveStatusTimer);
+      this.liveStatusTimer = null;
+      this.pendingLiveStatusKey = '';
+      return;
     }
-    if (rr !== null && (rr < thresholds.rrLow || rr > thresholds.rrHigh)) {
-      alerts.push(`Respiration outside threshold at ${Math.round(rr)} breaths per minute.`);
-    }
-    return alerts.join(' ');
+    if (status.key === this.pendingLiveStatusKey) return;
+
+    if (this.liveStatusTimer !== null) clearTimeout(this.liveStatusTimer);
+    this.pendingLiveStatusKey = status.key;
+    this.liveStatusTimer = setTimeout(() => {
+      const current = this.currentLiveStatus();
+      this.liveStatusTimer = null;
+      if (current.key !== this.pendingLiveStatusKey) {
+        this.pendingLiveStatusKey = '';
+        return;
+      }
+      this.announcedLiveStatusKey = current.key;
+      this.pendingLiveStatusKey = '';
+      this.liveStatusAnnouncement.set(current.message);
+    }, LiveComponent.LIVE_STATUS_DEBOUNCE_MS);
+  }
+
+  protected kpiControlLabel(label: string, key: string, unit: string): string {
+    const reading = this.readingLabel(label, key, unit);
+    return `${reading} Activate to zoom.`;
+  }
+
+  protected frameRateControlLabel(): string {
+    return `${this.frameRateLabel()} Activate to zoom.`;
+  }
+
+  protected targetRangeControlLabel(): string {
+    return this.kpiControlLabel('Target range', 'distance_cm', 'centimetres');
+  }
+
+  protected kpiPositionLabel(kpi: string): string {
+    const position = this.kpiOrder().indexOf(kpi) + 1;
+    if (position <= 0) return '';
+    return `Position ${position} of ${this.kpiOrder().length}.`;
+  }
+
+  protected kpiReorderDescription(kpi: string): string {
+    const position = this.kpiPositionLabel(kpi);
+    return `${position} Hold Alt and press Left or Right Arrow to reorder.`;
+  }
+
+  protected kpiButtonTitle(kpi: string): string {
+    return `${this.kpiName(kpi)}: activate to zoom; drag or use Alt+Left/Right to reorder.`;
   }
 
   metricLabel(key: string): string {

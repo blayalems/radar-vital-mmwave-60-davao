@@ -963,6 +963,11 @@ app-live .live-tabs-group .mat-mdc-tab .mat-mdc-tab-ripple {
   outline: 2px solid var(--md-sys-color-primary, #6750a4) !important;
 }
 
+app-live .kpi-metric-card:focus-visible {
+  outline: 3px solid var(--md-sys-color-primary, #36618e);
+  outline-offset: 3px;
+}
+
 .mat-mdc-flat-button.mat-tonal-button[color="warn"] {
   background-color: var(--md-sys-color-error-container, #f9dedc) !important;
   color: var(--md-sys-color-on-error-container, #410e0b) !important;

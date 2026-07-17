@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Semantic Live KPI controls and aggregate status
+
+- **Control semantics**: Replaced four clickable Live KPI `div` surfaces and duplicate keyboard activation handlers with native buttons, preserved pointer reordering, and added Alt+Arrow keyboard reordering with position-aware descriptions and visible focus.
+- **Announcement policy**: Replaced per-card live regions and raw-value alert chatter with one 1.5-second debounced status channel keyed by stale/available/threshold bands; standby zeroes now announce as waiting rather than low.
+- **Coverage**: Added pure status-policy tests proving in-band telemetry churn keeps one announcement key while threshold, availability, and stale transitions remain distinguishable; full source/contrast/unit gates pass 190/190, the updated desktop/Pixel browser journey passes 2/2, and the production build is warning-free.
+
 ### 2026-07-17 - Settings card header spacing correction
 
 - **Root cause**: The palette-level Material card rule zeroed every header's inline padding with higher specificity, placing Settings icon tiles directly against the rounded card clip despite the component's intended 20 px inset.

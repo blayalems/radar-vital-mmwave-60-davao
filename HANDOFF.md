@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Preflight request ownership
+
+- **Latest-request gate**: Hardware preflight now snapshots radar/BLE inputs, applies only the newest generation, and leaves the shared running gate set until that generation settles; automatic defaults and serial discovery finish before the initial check.
+- **Start integrity**: Session Start captures the complete click-time payload and cancels if any submitted setup value changes while the fresh preflight is pending; stale or failed checks cannot enable Start.
+- **Verification**: Home helper/race coverage passes 9/9; the Angular production build and `npm run build:check` pass with the existing 2.51 MB initial-bundle warning.
+
 ### 2026-07-17 - Report request ownership
 
 - **Race closure**: Added independent primary-session and comparison load epochs so late A responses cannot overwrite a newer B selection or reattach an obsolete comparison overlay.

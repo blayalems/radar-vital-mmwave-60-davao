@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Trainer common response and persistence helpers
+
+- **Shared helpers**: Extracted NaN-safe JSON encoding, atomic JSON persistence/readback, structured API errors, and bounded process waits into `rvt_trainer.api.common` while preserving the monolith function names as compatibility imports.
+- **Characterization**: Added direct old/new import parity and serialization/atomic-write/process-timeout tests so packaged callers keep the existing schema and error behavior.
+- **Verification**: Shared-helper, supervisor, operator-auth, and security-API suites pass 43/43; trainer compileall and `git diff --check` pass.
+
 ### 2026-07-17 - Session shutdown ownership and bounded reap
 
 - **Supervisor lifecycle**: Serialized start/stop/current transitions behind a closeable gate; parent-driven stops now suppress child inline analysis, reap with bounded interrupt/terminate/kill waits, clear only owned markers, and retain truthful state when reaping fails.

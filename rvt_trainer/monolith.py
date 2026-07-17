@@ -79,6 +79,15 @@ import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
+from rvt_trainer.api.common import (
+    api_error as _api_error,
+    atomic_write_json as save_json,
+    json_safe_response as _json_safe_response,
+    nan_safe,
+    read_json_if_exists as _read_json_if_exists,
+    wait_for_process_exit as _wait_for_process_exit,
+)
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -667,36 +676,6 @@ def bytes_to_c_array(blob: bytes, var_name: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def nan_safe(obj):
-    if isinstance(obj, dict):
-        return {k: nan_safe(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [nan_safe(v) for v in obj]
-    if isinstance(obj, tuple):
-        return [nan_safe(v) for v in obj]
-    if isinstance(obj, (np.floating, float)):
-        return float(obj) if np.isfinite(obj) else None
-    if isinstance(obj, (np.integer, int)):
-        return int(obj)
-    return obj
-
-
-def save_json(obj: Dict, path: str):
-    abs_path = os.path.abspath(path)
-    out_dir = os.path.dirname(abs_path) or os.getcwd()
-    os.makedirs(out_dir, exist_ok=True)
-    fd, tmp_path = tempfile.mkstemp(prefix=".codex-json-", suffix=".tmp", dir=out_dir)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(nan_safe(obj), f, indent=2, allow_nan=False)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, abs_path)
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-
 def write_text_report(path: str, info: Dict):
     with open(path, "w", encoding="utf-8") as f:
         f.write(f"RADAR VITAL TRAINER REPORT v{VERSION}\n")
@@ -746,16 +725,6 @@ def _terminate_subprocess(proc: subprocess.Popen, label: str, timeout_s: float =
             proc.kill()
         except Exception:
             pass
-
-
-def _read_json_if_exists(path: str) -> Optional[Dict]:
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return None
 
 
 def _dashboard_analysis_payload(session_dir: str) -> Optional[Dict[str, object]]:
@@ -4513,25 +4482,6 @@ def _report_stamp() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
 
 
-def _json_safe_response(obj) -> bytes:
-    def clean(v):
-        if isinstance(v, bool) or v is None or isinstance(v, str):
-            return v
-        if isinstance(v, dict):
-            return {k: clean(val) for k, val in v.items()}
-        if isinstance(v, (list, tuple)):
-            return [clean(val) for val in v]
-        if isinstance(v, (np.floating, float)):
-            # Coerce NaN *and* ±Inf to null: json.dumps with the default
-            # allow_nan=True would otherwise emit bare `NaN`/`Infinity` tokens,
-            # which are invalid JSON and break strict client parsers.
-            return float(v) if np.isfinite(v) else None
-        if isinstance(v, (np.integer, int)):
-            return int(v)
-        return v
-    return json.dumps(clean(obj), ensure_ascii=False, allow_nan=False).encode("utf-8")
-
-
 def _pid_alive(pid) -> bool:
     try:
         pid_i = int(pid)
@@ -6815,18 +6765,7 @@ class _SessionSupervisor:
             self._reset_runtime_state()
         raise TimeoutError("live_dashboard.json did not appear before timeout")
 
-    @staticmethod
-    def _wait_for_exit(proc, timeout_s: float) -> bool:
-        try:
-            proc.wait(timeout=max(0.0, float(timeout_s)))
-            return True
-        except subprocess.TimeoutExpired:
-            return False
-        except Exception:
-            try:
-                return proc.poll() is not None
-            except Exception:
-                return False
+    _wait_for_exit = staticmethod(_wait_for_process_exit)
 
     def stop(
         self,
@@ -7822,13 +7761,10 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 no_active = message == "no active session"
                 self._send_json(
                     404 if no_active else 500,
-                    {
-                        "ok": False,
-                        "error": {
-                            "code": "NO_ACTIVE_SESSION" if no_active else "SESSION_STOP_FAILED",
-                            "message": message,
-                        },
-                    },
+                    _api_error(
+                        "NO_ACTIVE_SESSION" if no_active else "SESSION_STOP_FAILED",
+                        message,
+                    ),
                 )
             return
         if path == "/api/session/annotate":

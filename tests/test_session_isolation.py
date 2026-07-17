@@ -1,11 +1,21 @@
 import os
 import json
+import subprocess
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
-from rvt_trainer.monolith import _SessionSupervisor, _session_is_active, _next_session_dir, save_json, _latest_live_dashboard_payload
+from rvt_trainer.monolith import (
+    _SessionSupervisor,
+    _consume_supervisor_stop_request,
+    _latest_live_dashboard_payload,
+    _next_session_dir,
+    _session_is_active,
+    _supervisor_stop_path,
+    _write_supervisor_stop_request,
+    save_json,
+)
 
 @pytest.fixture
 def temp_sessions_root(tmp_path):
@@ -165,6 +175,203 @@ def test_session_clean_stop_isolation(mock_popen, mock_pid_alive, temp_sessions_
     res2 = supervisor.start(timeout_s=1.0)
     assert res2["session_id"] == "s02"
     assert (temp_sessions_root / "current_session.json").exists()
+
+
+def _prime_supervisor(supervisor, sessions_root, proc):
+    session_dir = sessions_root / "s01"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    supervisor.proc = proc
+    supervisor.session_dir = str(session_dir)
+    supervisor.started_at = "2026-07-17T00:00:00Z"
+    supervisor.started_monotonic = time.monotonic()
+    supervisor.params = {"duration_s": 60}
+    supervisor._write_current()
+    save_json(
+        {
+            "pid": proc.pid,
+            "session_dir": str(session_dir),
+            "started_at": supervisor.started_at,
+        },
+        str(sessions_root / ".session.lock"),
+    )
+    return session_dir
+
+
+@patch("rvt_trainer.monolith._spawn_auto_analyse")
+def test_supervisor_graceful_stop_reaps_before_cleanup_and_analysis(
+    mock_auto_analyse,
+    temp_sessions_root,
+):
+    proc = MagicMock()
+    proc.pid = 12345
+    proc.poll.return_value = None
+    proc.wait.return_value = 0
+    supervisor = _SessionSupervisor(str(temp_sessions_root))
+    session_dir = _prime_supervisor(supervisor, temp_sessions_root, proc)
+
+    def assert_clean_then_analyse(path, reason):
+        assert path == str(session_dir)
+        assert reason == "user_request"
+        assert supervisor.proc is None
+        assert not (temp_sessions_root / "current_session.json").exists()
+        assert not (temp_sessions_root / ".session.lock").exists()
+        assert not _supervisor_stop_path(session_dir).exists()
+        return {"status": "started"}
+
+    mock_auto_analyse.side_effect = assert_clean_then_analyse
+
+    result = supervisor.stop()
+
+    proc.send_signal.assert_called_once()
+    proc.wait.assert_called_once_with(timeout=supervisor._stop_grace_s)
+    proc.terminate.assert_not_called()
+    proc.kill.assert_not_called()
+    mock_auto_analyse.assert_called_once_with(str(session_dir), reason="user_request")
+    assert result["session_id"] == "s01"
+    assert result["auto_analyse"] == {"status": "started"}
+
+
+@patch("rvt_trainer.monolith._spawn_auto_analyse")
+def test_supervisor_stop_escalates_through_terminate_and_kill(
+    mock_auto_analyse,
+    temp_sessions_root,
+):
+    proc = MagicMock()
+    proc.pid = 12345
+    proc.poll.return_value = None
+    proc.wait.side_effect = [
+        subprocess.TimeoutExpired("session", 10.0),
+        subprocess.TimeoutExpired("session", 3.0),
+        0,
+    ]
+    supervisor = _SessionSupervisor(str(temp_sessions_root))
+    _prime_supervisor(supervisor, temp_sessions_root, proc)
+
+    result = supervisor.stop(reason="server_shutdown", auto_analyse=False)
+
+    assert [call.kwargs["timeout"] for call in proc.wait.call_args_list] == [
+        supervisor._stop_grace_s,
+        supervisor._terminate_grace_s,
+        supervisor._kill_grace_s,
+    ]
+    proc.terminate.assert_called_once_with()
+    proc.kill.assert_called_once_with()
+    mock_auto_analyse.assert_not_called()
+    assert result["reason"] == "server_shutdown"
+    assert result["auto_analyse"] is None
+    assert supervisor.proc is None
+
+
+@patch("rvt_trainer.monolith._spawn_auto_analyse")
+def test_supervisor_failed_reap_preserves_truthful_state_and_markers(
+    mock_auto_analyse,
+    temp_sessions_root,
+):
+    proc = MagicMock()
+    proc.pid = 12345
+    proc.poll.return_value = None
+    proc.wait.side_effect = subprocess.TimeoutExpired("session", 1.0)
+    supervisor = _SessionSupervisor(str(temp_sessions_root))
+    session_dir = _prime_supervisor(supervisor, temp_sessions_root, proc)
+
+    with pytest.raises(RuntimeError, match="SESSION_STOP_FAILED"):
+        supervisor.stop()
+
+    assert supervisor.proc is proc
+    assert supervisor.session_dir == str(session_dir)
+    assert (temp_sessions_root / "current_session.json").exists()
+    assert (temp_sessions_root / ".session.lock").exists()
+    assert _supervisor_stop_path(session_dir).exists()
+    mock_auto_analyse.assert_not_called()
+
+
+@patch("rvt_trainer.monolith._spawn_auto_analyse")
+def test_supervisor_preserves_marker_replaced_by_another_owner(
+    mock_auto_analyse,
+    temp_sessions_root,
+):
+    proc = MagicMock()
+    proc.pid = 12345
+    proc.poll.return_value = None
+    supervisor = _SessionSupervisor(str(temp_sessions_root))
+    session_dir = _prime_supervisor(supervisor, temp_sessions_root, proc)
+    other_dir = temp_sessions_root / "s02"
+
+    def replace_current_marker(timeout):
+        save_json(
+            {
+                "pid": 99999,
+                "session_dir": str(other_dir),
+                "started_at": "2026-07-17T00:01:00Z",
+            },
+            str(temp_sessions_root / "current_session.json"),
+        )
+        return 0
+
+    proc.wait.side_effect = replace_current_marker
+
+    with pytest.raises(RuntimeError, match="SESSION_CLEANUP_CONFLICT"):
+        supervisor.stop()
+
+    marker = json.loads(
+        (temp_sessions_root / "current_session.json").read_text(encoding="utf-8")
+    )
+    assert marker["pid"] == 99999
+    assert marker["session_dir"] == str(other_dir)
+    assert supervisor.proc is None
+    assert not (temp_sessions_root / ".session.lock").exists()
+    assert not _supervisor_stop_path(session_dir).exists()
+    mock_auto_analyse.assert_not_called()
+
+
+@patch("subprocess.Popen")
+def test_supervisor_close_gate_blocks_new_starts_and_missing_stop_is_idempotent(
+    mock_popen,
+    temp_sessions_root,
+):
+    supervisor = _SessionSupervisor(str(temp_sessions_root))
+    supervisor.close_start_gate()
+
+    with pytest.raises(RuntimeError, match="SUPERVISOR_CLOSING"):
+        supervisor.start(timeout_s=0.01)
+
+    first = supervisor.stop(
+        reason="server_shutdown",
+        auto_analyse=False,
+        missing_ok=True,
+    )
+    second = supervisor.stop(
+        reason="server_shutdown",
+        auto_analyse=False,
+        missing_ok=True,
+    )
+
+    mock_popen.assert_not_called()
+    assert first["already_stopped"] is True
+    assert second["already_stopped"] is True
+
+
+def test_supervisor_stop_marker_suppresses_only_parent_driven_exit(
+    temp_sessions_root,
+):
+    session_dir = temp_sessions_root / "s01"
+    session_dir.mkdir()
+
+    assert _consume_supervisor_stop_request(str(session_dir)) is None
+
+    request = _write_supervisor_stop_request(
+        str(session_dir),
+        reason="server_shutdown",
+        session_pid=12345,
+        auto_analyse=False,
+    )
+    consumed = _consume_supervisor_stop_request(str(session_dir))
+
+    assert consumed == request
+    assert bool(consumed["suppress_inline_auto_analyse"]) is True
+    assert bool(consumed["parent_auto_analyse"]) is False
+    assert not _supervisor_stop_path(session_dir).exists()
+
 
 def test_session_data_and_notes_isolation(temp_sessions_root):
     # Test file system isolation of session data files

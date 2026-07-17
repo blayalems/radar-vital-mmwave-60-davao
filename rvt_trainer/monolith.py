@@ -4586,6 +4586,92 @@ def _release_session_lock(sessions_root: str) -> None:
         pass
 
 
+def _same_session_dir(left: object, right: object) -> bool:
+    if not left or not right:
+        return False
+    try:
+        return os.path.normcase(os.path.abspath(str(left))) == os.path.normcase(os.path.abspath(str(right)))
+    except Exception:
+        return False
+
+
+def _session_marker_owned_by(data: object, pid: object, session_dir: object) -> bool:
+    if not isinstance(data, dict) or not _same_session_dir(data.get("session_dir"), session_dir):
+        return False
+    try:
+        return int(data.get("pid")) == int(pid)
+    except Exception:
+        return False
+
+
+def _release_session_lock_if_owned(sessions_root: str, pid: object, session_dir: object) -> bool:
+    path = _lock_path(sessions_root)
+    if not path.exists():
+        return True
+    data = _read_session_lock(sessions_root)
+    if not _session_marker_owned_by(data, pid, session_dir):
+        return False
+    try:
+        path.unlink()
+        return True
+    except FileNotFoundError:
+        return True
+
+
+def _supervisor_stop_path(session_dir: object) -> Path:
+    return Path(str(session_dir)) / ".supervisor-stop.json"
+
+
+def _write_supervisor_stop_request(
+    session_dir: str,
+    *,
+    reason: str,
+    session_pid: int,
+    auto_analyse: bool,
+) -> Dict[str, object]:
+    request = {
+        "schema_version": CONTROL_API_SCHEMA_VERSION,
+        "request_id": secrets.token_hex(12),
+        "requested_at": _iso_now(),
+        "reason": str(reason),
+        "session_dir": os.path.abspath(session_dir),
+        "session_pid": int(session_pid),
+        "supervisor_pid": os.getpid(),
+        # The detached child normally analyses inline. A parent-driven stop
+        # suppresses that path so exactly one owner decides whether analysis
+        # starts after the child has been reaped and its markers are clean.
+        "suppress_inline_auto_analyse": True,
+        "parent_auto_analyse": bool(auto_analyse),
+    }
+    save_json(request, str(_supervisor_stop_path(session_dir)))
+    return request
+
+
+def _consume_supervisor_stop_request(session_dir: str) -> Optional[Dict[str, object]]:
+    path = _supervisor_stop_path(session_dir)
+    data = _read_json_if_exists(str(path))
+    if path.exists():
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+    return data if isinstance(data, dict) else None
+
+
+def _clear_supervisor_stop_request(session_dir: str, request_id: object) -> bool:
+    path = _supervisor_stop_path(session_dir)
+    if not path.exists():
+        return True
+    data = _read_json_if_exists(str(path))
+    if not isinstance(data, dict) or str(data.get("request_id") or "") != str(request_id or ""):
+        return False
+    try:
+        path.unlink()
+        return True
+    except FileNotFoundError:
+        return True
+
+
 def _check_stale_session_lock(sessions_root: str) -> bool:
     data = _read_session_lock(sessions_root)
     if not data:
@@ -6557,12 +6643,16 @@ class _SessionSupervisor:
     def __init__(self, sessions_root: str = "sessions"):
         self.sessions_root = os.path.abspath(sessions_root)
         os.makedirs(self.sessions_root, exist_ok=True)
+        self._lifecycle_lock = threading.RLock()
+        self._closing = False
         self.proc = None
         self.session_dir = None
         self.started_at = None
         self.started_monotonic = None
         self.params = {}
         self._stop_grace_s = 10.0
+        self._terminate_grace_s = 3.0
+        self._kill_grace_s = 2.0
 
     def _current_path(self) -> Path:
         return Path(self.sessions_root) / "current_session.json"
@@ -6570,15 +6660,34 @@ class _SessionSupervisor:
     def _write_current(self):
         save_json({"session_id": Path(self.session_dir).name, "session_dir": self.session_dir, "pid": self.proc.pid, "started_at": self.started_at, "params": self.params}, str(self._current_path()))
 
-    def _clear_current(self):
+    def _clear_current(self, pid: object = None, session_dir: object = None) -> bool:
+        path = self._current_path()
+        if not path.exists():
+            return True
+        if pid is not None or session_dir is not None:
+            data = self._read_current()
+            if not _session_marker_owned_by(data, pid, session_dir):
+                return False
         try:
-            self._current_path().unlink()
+            path.unlink()
+            return True
         except FileNotFoundError:
-            pass
+            return True
 
     def _read_current(self):
         data = _read_json_if_exists(str(self._current_path()))
         return data if isinstance(data, dict) else None
+
+    def _reset_runtime_state(self):
+        self.proc = None
+        self.session_dir = None
+        self.started_at = None
+        self.started_monotonic = None
+        self.params = {}
+
+    def close_start_gate(self):
+        with self._lifecycle_lock:
+            self._closing = True
 
     def _write_starting_live_payload(self, duration_s=None):
         session_id = Path(self.session_dir).name
@@ -6614,14 +6723,31 @@ class _SessionSupervisor:
         save_json(payload, str(Path(self.session_dir) / "dashboard.json"))
 
     def _poll(self):
-        if self.proc is not None and self.proc.poll() is not None:
-            self._clear_current()
-            self.proc = None
-            return True
-        return False
+        with self._lifecycle_lock:
+            if self.proc is not None and self.proc.poll() is not None:
+                proc = self.proc
+                session_dir = self.session_dir
+                self._clear_current(pid=proc.pid, session_dir=session_dir)
+                self._reset_runtime_state()
+                return True
+            return False
 
     def start(self, duration_s=None, radar_port=DEFAULT_RADAR_PORT, ble_address=DEFAULT_BLE_ADDRESS,
               ble_profile="ailink_oximeter", timeout_s: float = 30.0, **kwargs):
+        with self._lifecycle_lock:
+            if self._closing:
+                raise RuntimeError("SUPERVISOR_CLOSING: session starts are disabled")
+            return self._start_locked(
+                duration_s=duration_s,
+                radar_port=radar_port,
+                ble_address=ble_address,
+                ble_profile=ble_profile,
+                timeout_s=timeout_s,
+                **kwargs,
+            )
+
+    def _start_locked(self, duration_s=None, radar_port=DEFAULT_RADAR_PORT, ble_address=DEFAULT_BLE_ADDRESS,
+                      ble_profile="ailink_oximeter", timeout_s: float = 30.0, **kwargs):
         self._poll()
         if self.proc is not None and self.proc.poll() is None:
             raise RuntimeError("SESSION_IN_PROGRESS: active session already running")
@@ -6663,8 +6789,9 @@ class _SessionSupervisor:
         deadline = time.monotonic() + float(timeout_s)
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
-                self._clear_current()
-                self.proc = None
+                proc = self.proc
+                self._clear_current(pid=proc.pid, session_dir=self.session_dir)
+                self._reset_runtime_state()
                 raise RuntimeError("SPAWN_ERROR: session exited before live_dashboard.json appeared")
             live_payload = _read_json_if_exists(str(live))
             if isinstance(live_payload, dict) and not live_payload.get("_supervisor_placeholder"):
@@ -6680,56 +6807,135 @@ class _SessionSupervisor:
             except Exception:
                 pass
         finally:
-            self._clear_current()
-            self.proc = None
+            proc = self.proc
+            self._clear_current(
+                pid=getattr(proc, "pid", None),
+                session_dir=self.session_dir,
+            )
+            self._reset_runtime_state()
         raise TimeoutError("live_dashboard.json did not appear before timeout")
 
-    def stop(self, reason: str = "user_request"):
-        if self.proc is None:
-            raise RuntimeError("no active session")
-        sig = getattr(signal, "CTRL_BREAK_EVENT", signal.SIGINT)
+    @staticmethod
+    def _wait_for_exit(proc, timeout_s: float) -> bool:
         try:
-            self.proc.send_signal(sig)
+            proc.wait(timeout=max(0.0, float(timeout_s)))
+            return True
+        except subprocess.TimeoutExpired:
+            return False
         except Exception:
             try:
-                self.proc.send_signal(signal.SIGINT)
+                return proc.poll() is not None
             except Exception:
-                pass
-        deadline = time.monotonic() + float(self._stop_grace_s)
-        while time.monotonic() < deadline:
-            if self.proc.poll() is not None:
-                break
-            time.sleep(0.02)
-        if self.proc.poll() is None:
-            self.proc.terminate()
-        try:
-            self.proc.wait(timeout=0.1)
-        except Exception:
-            pass
-        stopped_session_dir = self.session_dir
-        self._clear_current()
-        auto = _spawn_auto_analyse(stopped_session_dir, reason=reason) if stopped_session_dir else None
-        return _schema_wrap({"session_id": Path(stopped_session_dir or "").name, "stopped_at": _iso_now(), "reason": reason, "auto_analyse": auto})
+                return False
+
+    def stop(
+        self,
+        reason: str = "user_request",
+        *,
+        auto_analyse: bool = True,
+        missing_ok: bool = False,
+    ):
+        with self._lifecycle_lock:
+            if self.proc is None:
+                if not missing_ok:
+                    raise RuntimeError("no active session")
+                return _schema_wrap({
+                    "session_id": "",
+                    "stopped_at": _iso_now(),
+                    "reason": reason,
+                    "auto_analyse": None,
+                    "already_stopped": True,
+                })
+
+            proc = self.proc
+            stopped_session_dir = str(self.session_dir or "")
+            request = _write_supervisor_stop_request(
+                stopped_session_dir,
+                reason=reason,
+                session_pid=proc.pid,
+                auto_analyse=auto_analyse,
+            )
+            exited = proc.poll() is not None
+            if not exited:
+                sig = getattr(signal, "CTRL_BREAK_EVENT", signal.SIGINT)
+                try:
+                    proc.send_signal(sig)
+                except Exception:
+                    try:
+                        proc.send_signal(signal.SIGINT)
+                    except Exception:
+                        pass
+                exited = self._wait_for_exit(proc, self._stop_grace_s)
+            if not exited:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
+                exited = self._wait_for_exit(proc, self._terminate_grace_s)
+            if not exited:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                exited = self._wait_for_exit(proc, self._kill_grace_s)
+            if not exited:
+                raise RuntimeError(
+                    f"SESSION_STOP_FAILED: child process {proc.pid} could not be reaped; "
+                    "session markers were preserved"
+                )
+
+            current_clean = self._clear_current(pid=proc.pid, session_dir=stopped_session_dir)
+            lock_clean = _release_session_lock_if_owned(
+                self.sessions_root,
+                pid=proc.pid,
+                session_dir=stopped_session_dir,
+            )
+            request_clean = _clear_supervisor_stop_request(
+                stopped_session_dir,
+                request.get("request_id"),
+            )
+            self._reset_runtime_state()
+            if not (current_clean and lock_clean and request_clean):
+                raise RuntimeError(
+                    "SESSION_CLEANUP_CONFLICT: stopped child was reaped, but a marker "
+                    "owned by another session was preserved"
+                )
+
+            auto = (
+                _spawn_auto_analyse(stopped_session_dir, reason=reason)
+                if auto_analyse and stopped_session_dir
+                else None
+            )
+            return _schema_wrap({
+                "session_id": Path(stopped_session_dir).name,
+                "stopped_at": _iso_now(),
+                "reason": reason,
+                "auto_analyse": auto,
+            })
 
     def current(self) -> Optional[Dict[str, object]]:
-        self._poll()
-        if self.proc is None:
-            data = self._read_current()
-            if data and _pid_alive(data.get("pid")):
-                return data
-            if data:
-                self._clear_current()
-            lock = _read_session_lock(self.sessions_root)
-            if lock and _pid_alive(lock.get("pid")):
-                return {"session_id": Path(str(lock.get("session_dir", ""))).name, "session_dir": lock.get("session_dir"), "pid": lock.get("pid"), "started_at": lock.get("started_at"), "external": True}
-            return None
-        elapsed = max(0.0, time.monotonic() - float(self.started_monotonic or time.monotonic()))
-        duration = self.params.get("duration_s")
-        try:
-            remaining = max(0.0, float(duration) - elapsed) if duration is not None else None
-        except Exception:
-            remaining = None
-        return {"session_id": Path(self.session_dir).name, "session_dir": self.session_dir, "pid": self.proc.pid, "started_at": self.started_at, "elapsed_s": elapsed, "remaining_s": remaining, "params": self.params}
+        with self._lifecycle_lock:
+            self._poll()
+            if self.proc is None:
+                data = self._read_current()
+                if data and _pid_alive(data.get("pid")):
+                    return data
+                if data:
+                    self._clear_current(
+                        pid=data.get("pid"),
+                        session_dir=data.get("session_dir"),
+                    )
+                lock = _read_session_lock(self.sessions_root)
+                if lock and _pid_alive(lock.get("pid")):
+                    return {"session_id": Path(str(lock.get("session_dir", ""))).name, "session_dir": lock.get("session_dir"), "pid": lock.get("pid"), "started_at": lock.get("started_at"), "external": True}
+                return None
+            elapsed = max(0.0, time.monotonic() - float(self.started_monotonic or time.monotonic()))
+            duration = self.params.get("duration_s")
+            try:
+                remaining = max(0.0, float(duration) - elapsed) if duration is not None else None
+            except Exception:
+                remaining = None
+            return {"session_id": Path(self.session_dir).name, "session_dir": self.session_dir, "pid": self.proc.pid, "started_at": self.started_at, "elapsed_s": elapsed, "remaining_s": remaining, "params": self.params}
 
 
 def _effective_defaults(sessions_root: str) -> Dict[str, object]:
@@ -7612,7 +7818,18 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             try:
                 self._send_json(200, self.server.supervisor.stop(reason=str(body.get("reason", "user_request"))))
             except RuntimeError as e:
-                self._send_json(404, {"ok": False, "error": {"code": "NO_ACTIVE_SESSION", "message": str(e)}})
+                message = str(e)
+                no_active = message == "no active session"
+                self._send_json(
+                    404 if no_active else 500,
+                    {
+                        "ok": False,
+                        "error": {
+                            "code": "NO_ACTIVE_SESSION" if no_active else "SESSION_STOP_FAILED",
+                            "message": message,
+                        },
+                    },
+                )
             return
         if path == "/api/session/annotate":
             cur = self.server.supervisor.current()
@@ -7824,7 +8041,11 @@ class _ControlServer:
         self.sentinel = Path(self.sessions_root).parent / "control_server.json"
         save_json({"pid": os.getpid(), "port": self.httpd.server_port, "origin": origin, "started_at": self.httpd.started_at}, str(self.sentinel))
         _append_trainer_log(f"[CONTROL] server started on {host}:{self.httpd.server_port}")
+        self._lifecycle_lock = threading.RLock()
         self._serving = False
+        self._http_closed = False
+        self._stopped = False
+        self.thread = None
         original_serve_forever = self.httpd.serve_forever
         original_shutdown = self.httpd.shutdown
 
@@ -7848,12 +8069,51 @@ class _ControlServer:
         self.httpd.shutdown = _shutdown_with_cleanup
 
     def start(self):
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
-        self.thread.start()
+        with self._lifecycle_lock:
+            if self._http_closed or self._stopped:
+                raise RuntimeError("CONTROL_SERVER_CLOSED: server cannot be restarted")
+            if self.thread is not None and self.thread.is_alive():
+                return
+            self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+            self.thread.start()
 
     def stop(self):
-        self.httpd.shutdown()
-        self.httpd.server_close()
+        with self._lifecycle_lock:
+            if self._stopped:
+                return
+
+            # Close the start gate before the HTTP accept loop so an in-flight
+            # request either finishes under the supervisor lock or observes a
+            # deterministic SUPERVISOR_CLOSING error.
+            self.supervisor.close_start_gate()
+            shutdown_error = None
+            supervisor_error = None
+            try:
+                if not self._http_closed:
+                    try:
+                        self.httpd.shutdown()
+                    except Exception as exc:
+                        shutdown_error = exc
+                try:
+                    self.supervisor.stop(
+                        reason="server_shutdown",
+                        auto_analyse=False,
+                        missing_ok=True,
+                    )
+                except Exception as exc:
+                    supervisor_error = exc
+            finally:
+                if not self._http_closed:
+                    try:
+                        self.httpd.server_close()
+                    finally:
+                        self._http_closed = True
+
+            if supervisor_error is not None:
+                raise supervisor_error
+            if shutdown_error is not None:
+                raise shutdown_error
+            self._stopped = True
 
 
 def _start_control_server(args):
@@ -9328,6 +9588,7 @@ def cmd_session(args):
             _render_live_dashboard(session_dir, start_t, args.duration_s, radar_tracker, ref_tracker, raw_tracker,
                                    recent_events, event_lock, f"stopped ({stop_reason})", analysis_summary=_dashboard_analysis_payload(session_dir))
 
+    supervisor_stop_request = _consume_supervisor_stop_request(session_dir)
     radar_rows = csv_data_row_count(radar_out)
     ref_rows = csv_data_row_count(ref_out)
     radar_paths = [radar_out] if radar_rows > 0 else []
@@ -9343,6 +9604,22 @@ def cmd_session(args):
         return
     if ref_rows <= 0:
         warn("BLE reference CSV was not created or has no data rows; saved radar-only session and skipped paired analyse.")
+        _write_session_manifest(session_dir, radar_paths, ref_paths, analysis_dir, None)
+        if dashboard_server is not None:
+            dashboard_server.stop()
+        if lock_acquired:
+            _release_session_lock(lock_root)
+            lock_acquired = False
+        return
+
+    if (
+        isinstance(supervisor_stop_request, dict)
+        and bool(supervisor_stop_request.get("suppress_inline_auto_analyse"))
+    ):
+        warn(
+            "Inline auto analyse suppressed for a supervisor-owned stop; "
+            "the parent will apply the requested post-reap policy."
+        )
         _write_session_manifest(session_dir, radar_paths, ref_paths, analysis_dir, None)
         if dashboard_server is not None:
             dashboard_server.stop()

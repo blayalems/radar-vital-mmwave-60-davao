@@ -87,6 +87,13 @@ python3 radar_vital_trainer_v12_for_v16_0.py serve --bind lan
 
 Tokens live in the trainer's memory only — re-pair after every trainer restart.
 
+An explicit `/api/session/stop` first lets the detached capture child flush and
+exit, escalates through bounded terminate/kill waits if needed, and only then
+may enqueue eligible paired analysis. Stopping the control server uses the same
+bounded reap but never starts analysis; already-captured files are preserved.
+If the child cannot be reaped, its current-session markers remain intact and
+the stop reports a failure instead of advertising an idle trainer.
+
 For TLS, pass `--tls` (auto-generates a self-signed cert under `.rvt_tls/`, which is git-ignored). HSTS is **not** sent under self-signed certs; pass `--tls-trusted` only when serving a CA-signed cert.
 
 ---

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Session shutdown ownership and bounded reap
+
+- **Supervisor lifecycle**: Serialized start/stop/current transitions behind a closeable gate; parent-driven stops now suppress child inline analysis, reap with bounded interrupt/terminate/kill waits, clear only owned markers, and retain truthful state when reaping fails.
+- **Server shutdown policy**: Control-server shutdown closes the start gate, stops HTTP acceptance, reaps the detached capture child idempotently, preserves captured files, and never launches analysis; explicit user Stop may analyse only after successful cleanup.
+- **Verification**: Focused session-isolation and control-server lifecycle suites pass 42/42; trainer monolith `py_compile` passes.
+
 ### 2026-07-17 - Visual refresh expression correction
 
 - **Workflow parser**: Quoted the two `REFRESH_REASON` expressions so YAML does not interpret the `#75` fallback text as an inline comment and reject the workflow before job creation.

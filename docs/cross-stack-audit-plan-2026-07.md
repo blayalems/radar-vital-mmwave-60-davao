@@ -56,7 +56,7 @@ backend shutdown semantics need an explicit analysis policy.
 | WEB-13 | Low | Discoverability | The desktop Live snapshot FAB is visually unlabeled and appears to duplicate nearby snapshot/bookmark actions. | Follow-up PR 2: verify its unique purpose, tooltip, focus behavior, and placement before retaining or removing it. |
 | BE-01 | High | Session lifecycle | `_SessionSupervisor.start()` created `live_dashboard.json`, immediately saw that same file, and returned success before checking whether the child had exited. | Fixed here: supervisor placeholder is marked, written before spawn, ignored for readiness, and child exit is checked first. |
 | BE-02 | High | Auth integrity | An authenticated profile-create request could replace a corrupt profile DB with a new one-profile database despite the loader's fail-closed contract. | Fixed here: every auth mutation returns `503 OPERATOR_STORE_UNAVAILABLE` and preserves the original bytes. |
-| BE-03 | High | Shutdown | `_ControlServer.stop()` closes HTTP but does not stop/reap an active detached session child, leaving recording and stale current-session state behind. | Follow-up PR 1 after deciding whether server-shutdown sessions auto-analyse. |
+| BE-03 | High | Shutdown | `_ControlServer.stop()` closed HTTP but did not stop/reap an active detached session child, leaving recording and stale current-session state behind. | Fixed in follow-up PR 1: shutdown closes the start gate, preserves captured files, performs a bounded reap, retains truthful markers on terminal failure, and never launches analysis. |
 | FW-01 | High | Loop timing | Radar recovery invoked a blocking firmware-version window with `delay(25)` for up to 400 ms, consuming loop time and potentially parser frames. | Fixed here: optional metadata is probed once per normal parser pump without waiting. |
 | FW-02 | High | Presence FSM | Valid absent packets can refresh a timestamp later treated as presence evidence; the derived FSM result is then written back into raw evidence, potentially latching presence indefinitely. | Follow-up firmware/bench PR: separate raw, derived, and published presence state; replay present-to-absent packets. |
 | FW-03 | High | LCD recovery | Successful runtime rescans do not restore `lcdConnected`; failed probes can leave allocation state inconsistent before placement-new reconstruction. | Follow-up firmware/bench PR: one idempotent attach/teardown owner and connect-fail-reconnect fixture. |
@@ -100,7 +100,8 @@ decomposition.
    - snapshot the current supervisor state;
    - request a graceful stop with a bounded terminate/kill fallback;
    - clear current markers idempotently; and
-   - explicitly decide/document whether `server_shutdown` launches analysis.
+   - `server_shutdown` preserves captured files but never launches analysis;
+     explicit user stop may analyse only after a successful reap and cleanup.
 2. Report uses independent monotonically increasing epochs for primary and
    comparison loads. Saves capture session ID, note, and sign-off before the
    request and update visible state only if the same session is still selected.

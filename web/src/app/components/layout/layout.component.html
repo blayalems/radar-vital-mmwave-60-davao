@@ -77,13 +77,17 @@
   <mat-sidenav-content class="main-wrapper" [class.settings-view]="state.currentView() === 'settings'">
     <!-- DEMO BANNER — v17 places it inside the main column, so the rail keeps
          its full height while demo mode is on. -->
-    <div id="demoBanner" role="alert" aria-live="assertive" [hidden]="!state.demoMode() && !state.autoDemoActive()">
+    <div id="demoBanner" role="alert" aria-live="assertive" [hidden]="!state.demoSourceActive()">
       <span class="material-symbols-rounded" aria-hidden="true">warning</span>
-      <span class="demo-banner-text">DEMO MODE — simulated vitals only.</span>
-      <button type="button" class="demo-banner-action" (click)="exitDemoMode()">
-        <span class="material-symbols-rounded" aria-hidden="true">link</span>
-        <span>Exit demo &amp; reconnect</span>
-      </button>
+      @if (state.ctlStatus()?.mode === 'sandbox') {
+        <span class="demo-banner-text">TRAINER SANDBOX — restart the trainer without <code>--sandbox</code> for live data.</span>
+      } @else {
+        <span class="demo-banner-text">DEMO MODE — simulated vitals only.</span>
+        <button type="button" class="demo-banner-action" (click)="exitDemoMode()">
+          <span class="material-symbols-rounded" aria-hidden="true">link</span>
+          <span>Exit demo &amp; reconnect</span>
+        </button>
+      }
     </div>
 
     <app-topbar></app-topbar>

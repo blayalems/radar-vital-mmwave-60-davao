@@ -26,16 +26,6 @@
               {
                 "glob": "**/*",
                 "input": "public"
-              },
-              {
-                "glob": "**/*",
-                "input": "../assets",
-                "output": "assets"
-              },
-              {
-                "glob": "**/*",
-                "input": "../assets/fonts",
-                "output": "fonts"
               }
             ],
             "styles": [

@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Cross-stack audit hardening and staged refactor plan
+
+- **Frontend safety/telemetry**: Centralized manual, automatic, and trainer-sandbox source truth; blocked simulated-source entry during real recordings; kept real Stop requests on the trainer; made SSE token minting single-flight/cancellable and rotated the one-use stream token on the 12 h warning without clearing session state.
+- **Backend integrity**: Session start now ignores its supervisor-owned placeholder and checks child exit before readiness; profile mutations return `503 OPERATOR_STORE_UNAVAILABLE` without changing a corrupt operator DB.
+- **Firmware/build/dependencies**: Replaced the recovery-time 400 ms firmware-version wait with a nonblocking parser probe; pinned/fail-closed esbuild bundling; updated Angular/pytest security floors; retained the 222-column order and `ENABLE_BLE false`.
+- **Audit plan**: Added `docs/cross-stack-audit-plan-2026-07.md` with prioritized frontend/backend/firmware findings and four characterization-first follow-up PRs.
+- **Verification**: `python -m pytest -q` 326 passed/1 skipped; Python compileall + CLI help pending final handoff; `npm run test:unit:web` 170/170; root/web `npm audit --audit-level=low` clean; `pip-audit -r requirements.txt -r requirements-v12.txt` clean; `npm run build:check` clean. Angular retains the existing 2.51 MB initial-bundle warning. Playwright browser capture and Arduino compile are pending because their local browser/toolchain binaries are not installed.
+
 ### 2026-07-05 - PR72 README/docs contract sync
 
 - **Docs sync**: Updated README, AGENTS, CONTRIBUTING, changelog, milestones, operator quickstart, physical acceptance, wiki install/troubleshooting pages, audit ledger, packaged help schema, firmware header comments, demo preflight copy, and smoke fixture wording to reflect PR71/PR72 behavior: v16.4 firmware, v15.2 222-column CSV, packaged AiLink BLE sidecar capture, radar-only fallback, persistent preflight, inferred session metadata, PR72 data-audit checks, and module firmware readback.

@@ -57,6 +57,38 @@ describe('ApiService', () => {
     expect(state.ctlStatus()?.mode).toBe('sandbox');
   });
 
+  it('preserves a real active session when sandbox fallback is requested', () => {
+    state.ctlStatus.set({ ok: true, mode: 'live' });
+    state.sessionActive.set(true);
+    state.currentSessionId.set('session-live-1');
+
+    expect(service.enableSandboxControlMode('Connection timed out')).toBe(false);
+    expect(state.autoDemoActive()).toBe(false);
+    expect(state.sessionActive()).toBe(true);
+    expect(state.currentSessionId()).toBe('session-live-1');
+    expect(state.ctlStatus()).toMatchObject({
+      ok: false,
+      mode: 'live',
+      reason: 'Connection timed out'
+    });
+  });
+
+  it('never sandbox-routes Stop for a real active session', async () => {
+    state.ctlStatus.set({ ok: true, mode: 'live' });
+    state.sessionActive.set(true);
+    state.currentSessionId.set('session-live-1');
+    // Defense in depth for stale UI code or restored preferences that bypass
+    // the guarded source-mode setter.
+    state.demoMode.set(true);
+
+    const pending = service.request<{ ok: boolean }>('/api/session/stop', { method: 'POST' });
+    const request = httpMock.expectOne('/api/session/stop');
+    expect(state.sessionActive()).toBe(true);
+    request.flush({ ok: true });
+
+    await expect(pending).resolves.toEqual({ ok: true });
+  });
+
   it('should serve mock defaults in sandbox mode', async () => {
     service.enableSandboxControlMode('Sandbox mode');
     const defaults = await service.request<{ sandbox: boolean }>('/api/defaults');

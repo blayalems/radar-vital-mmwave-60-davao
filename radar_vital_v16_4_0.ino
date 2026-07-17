@@ -3017,6 +3017,19 @@ static void pollModuleFirmwareVersionWindow(unsigned long windowMs) {
   }
 }
 
+static void pollModuleFirmwareVersionNonBlocking() {
+  if (fwVersionCheckedThisBoot) return;
+  if (tryReadModuleFirmwareVersion()) return;
+
+  // The DSP loop must never wait for optional metadata. Keep probing after a
+  // UART recovery and report the miss once without delaying live telemetry.
+  static bool fwVersionUnreadWarned = false;
+  if (!fwVersionUnreadWarned && millis() > 30000UL) {
+    fwVersionUnreadWarned = true;
+    Serial.println("[FW_VER] WARN: module firmware version still unread after 30 s; module_fw_valid stays 0");
+  }
+}
+
 static void v13_pollSpatialFrames(unsigned long now) {
   bool pointCloudHit = mmWave.getPeopleCountingPointCloud(lastPointCloud);
   bool targetInfoHit = mmWave.getPeopleCountingTargetInfo(lastTargetInfo);
@@ -3025,21 +3038,6 @@ static void v13_pollSpatialFrames(unsigned long now) {
 
   lastPointCloudValid = (lastPointCloudRxMs > 0UL) && (safeElapsedMs(now, lastPointCloudRxMs) <= POINT_CLOUD_FRESH_MS);
   lastTargetInfoValid = (lastTargetInfoRxMs > 0UL) && (safeElapsedMs(now, lastTargetInfoRxMs) <= TARGET_INFO_FRESH_MS);
-
-  if (!fwVersionCheckedThisBoot) {
-    if (!tryReadModuleFirmwareVersion()) {
-      // v16.4 audit A9: the runtime read stays passive - the Seeed library
-      // only surfaces the version once the module happens to emit it. The
-      // active boot-window poll lives in setup()/radar recovery; if both
-      // missed the TLV the failure is announced once per boot so a session
-      // with an unidentified module is visible in the serial log.
-      static bool fwVersionUnreadWarned = false;
-      if (!fwVersionUnreadWarned && millis() > 30000UL) {
-        fwVersionUnreadWarned = true;
-        Serial.println("[FW_VER] WARN: module firmware version still unread after 30 s; module_fw_valid stays 0");
-      }
-    }
-  }
 
   numDetectedTargets = lastTargetInfoValid ? (int)lastTargetInfo.targets.size() : -1;
   multiTargetDetected = (numDetectedTargets > 1);
@@ -4525,6 +4523,7 @@ void loop() {
   hrGateReason = HR_GATE_NO_AUTO;
   rrGateReason = RR_GATE_NO_AUTO;
   bool newData=mmWave.update(5);
+  pollModuleFirmwareVersionNonBlocking();
   bool badRadarPacketThisFrame = false;
   bool goodRadarPacketThisFrame = false;
   bool freshDistanceSampleThisFrame = false;
@@ -6122,8 +6121,8 @@ void loop() {
     mmWave.begin(&mmWaveSerial);
     if (!moduleVersionValid) {
       // Module link was just re-initialized; the version TLV may re-arrive.
+      // The regular parser pump above will probe it without blocking the loop.
       fwVersionCheckedThisBoot = false;
-      pollModuleFirmwareVersionWindow(400UL);
     }
     radarWatchdogStartMs = now;
     lastRadarPacketMs = 0;

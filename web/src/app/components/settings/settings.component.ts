@@ -258,7 +258,14 @@ export class SettingsComponent {
   }
 
   async setDemoMode(enabled: boolean): Promise<void> {
-    this.state.demoMode.set(enabled);
+    if (!this.state.trySetDemoMode(enabled)) {
+      this.snackBar.open(
+        'Stop the live session before switching to simulated data.',
+        'Dismiss',
+        { duration: 4000 }
+      );
+      return;
+    }
     if (!enabled) await this.reconnectTrainer();
   }
 

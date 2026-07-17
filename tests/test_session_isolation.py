@@ -55,7 +55,7 @@ def test_active_session_locking_isolation(mock_popen, mock_pid_alive, temp_sessi
 
 @patch("rvt_trainer.monolith._pid_alive")
 @patch("subprocess.Popen")
-def test_supervisor_writes_starting_live_payload_before_child_dashboard_ready(mock_popen, mock_pid_alive, temp_sessions_root):
+def test_supervisor_placeholder_does_not_report_child_ready(mock_popen, mock_pid_alive, temp_sessions_root):
     mock_proc = MagicMock()
     mock_proc.pid = 12345
     mock_proc.poll.return_value = None
@@ -63,9 +63,9 @@ def test_supervisor_writes_starting_live_payload_before_child_dashboard_ready(mo
     mock_pid_alive.return_value = True
 
     supervisor = _SessionSupervisor(str(temp_sessions_root))
-    res = supervisor.start(duration_s=60, radar_port="COM7", timeout_s=0.1)
+    with pytest.raises(TimeoutError):
+        supervisor.start(duration_s=60, radar_port="COM7", timeout_s=0.05)
 
-    assert res["session_id"] == "s01"
     argv = mock_popen.call_args.args[0]
     assert "--dashboard-port" in argv
     assert argv[argv.index("--dashboard-port") + 1] == "0"
@@ -75,6 +75,25 @@ def test_supervisor_writes_starting_live_payload_before_child_dashboard_ready(mo
     assert payload["meta"]["status"] == "starting"
     assert payload["meta"]["remaining_s"] == 60.0
     assert payload["radar"]["rows"] == 0
+    assert bool(payload["_supervisor_placeholder"]) is True
+    assert not (temp_sessions_root / "current_session.json").exists()
+
+
+@patch("rvt_trainer.monolith._pid_alive")
+@patch("subprocess.Popen")
+def test_supervisor_rejects_exited_child_even_when_placeholder_exists(mock_popen, mock_pid_alive, temp_sessions_root):
+    mock_proc = MagicMock()
+    mock_proc.pid = 12345
+    mock_proc.poll.return_value = 1
+    mock_popen.return_value = mock_proc
+    mock_pid_alive.return_value = False
+
+    supervisor = _SessionSupervisor(str(temp_sessions_root))
+    with pytest.raises(RuntimeError, match="SPAWN_ERROR"):
+        supervisor.start(timeout_s=0.1)
+
+    assert supervisor.proc is None
+    assert not (temp_sessions_root / "current_session.json").exists()
 
 def test_latest_live_dashboard_payload_marks_stale_active_payload_as_waiting(temp_sessions_root):
     s01 = temp_sessions_root / "s01"

@@ -29,7 +29,7 @@ import secrets
 import threading
 import time
 import unicodedata
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger("rvt_trainer.auth")
 
@@ -242,6 +242,19 @@ def save_operator_profiles(sessions_root: str, data: dict):
             raise IOError(f"Failed to persist operator profiles: {e2}") from e
 
 
+def _operator_store_unavailable(db: dict) -> Optional[Tuple[int, dict]]:
+    """Return a fail-closed API response for a present but unreadable profile DB."""
+    if not db.get("_load_error"):
+        return None
+    return 503, {
+        "ok": False,
+        "error": {
+            "code": "OPERATOR_STORE_UNAVAILABLE",
+            "message": "Operator profile storage is unavailable; the existing file was preserved.",
+        },
+    }
+
+
 def hash_pin(pin: str, salt: str, iterations: int = 200000) -> str:
     """Hash the PIN using PBKDF2 with HMAC-SHA256."""
     h = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt.encode("utf-8"), iterations)
@@ -284,6 +297,9 @@ def login_operator(server, operator_id: str, pin: str) -> Tuple[int, dict]:
                 server.sse_tokens.pop(t, None)
 
         db = load_operator_profiles(server.sessions_root)
+        store_error = _operator_store_unavailable(db)
+        if store_error:
+            return store_error
         profiles = db.get("profiles", {})
         if operator_id not in profiles:
             return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid operator ID or PIN"}}
@@ -406,6 +422,9 @@ def create_operator_profile(server, body: dict) -> Tuple[int, dict]:
 
     with _OPERATOR_LOCK:
         db = load_operator_profiles(server.sessions_root)
+        store_error = _operator_store_unavailable(db)
+        if store_error:
+            return store_error
         profiles = db.get("profiles", {})
 
         operator_id = f"op_{secrets.token_hex(4)}"
@@ -527,6 +546,9 @@ def reset_pin_with_recovery(server, operator_id: str, recovery_code: str, new_pi
             return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "new_pin must be exactly 6 digits"}}
 
         db = load_operator_profiles(server.sessions_root)
+        store_error = _operator_store_unavailable(db)
+        if store_error:
+            return store_error
         profiles = db.get("profiles", {})
         if operator_id not in profiles:
             return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid operator ID"}}
@@ -639,6 +661,9 @@ def host_reset_pin(server, operator_id: str, new_pin: str) -> Tuple[int, dict]:
             return 400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "new_pin must be exactly 6 digits"}}
 
         db = load_operator_profiles(server.sessions_root)
+        store_error = _operator_store_unavailable(db)
+        if store_error:
+            return store_error
         profiles = db.get("profiles", {})
         if operator_id not in profiles:
             return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid operator ID"}}

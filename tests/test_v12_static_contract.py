@@ -67,7 +67,7 @@ def test_dashboard_pwa_contract():
     assert "/api/events/subscribe" in telemetry
     assert "new EventSource" in telemetry
     assert "document.documentElement.dataset['theme']" in state
-    assert "this.state.demoMode() || this.state.autoDemoActive()" in telemetry
+    assert "this.state.demoSourceActive()" in telemetry
     assert "PersistenceService" in state
     assert "indexedDB" in text(ROOT / "web" / "src" / "app" / "services" / "persistence.service.ts")
     # M3 three-tier navigation: bottom nav <600px, collapsed icon rail
@@ -296,6 +296,11 @@ def test_firmware_new_audit_requirements():
 
     # 5. Legacy alias cleanup
     assert "// REMOVE at v17 — use RLS_LAMBDA_HR_BASE directly" in ino
+
+    # 6. Radar-link recovery must not pause the DSP/telemetry loop while
+    # waiting for optional module-version metadata.
+    assert "pollModuleFirmwareVersionNonBlocking();" in ino
+    assert "pollModuleFirmwareVersionWindow(400UL)" not in ino
 
 
 def test_native_ble_commands_allowlist_reference_gatt_profile():

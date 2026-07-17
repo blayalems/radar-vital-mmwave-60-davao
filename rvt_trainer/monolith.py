@@ -6592,6 +6592,7 @@ class _SessionSupervisor:
             "schema_version": LIVE_EVENT_SCHEMA_VERSION,
             "revision": int(time.time() * 1000),
             "session_id": session_id,
+            "_supervisor_placeholder": True,
             "meta": {
                 "status": "starting",
                 "session_id": session_id,
@@ -6648,22 +6649,26 @@ class _SessionSupervisor:
         if duration_s is not None:
             argv += ["--duration-s", str(duration_s)]
         creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
+        # Write the operator-visible starting state before spawning. A fast
+        # child must be allowed to replace it; writing this after Popen could
+        # overwrite the child's first real dashboard payload.
+        self._write_starting_live_payload(duration_s=duration_s)
         self.proc = subprocess.Popen(argv, creationflags=creationflags)
         self.started_at = _iso_now()
         self.started_monotonic = time.monotonic()
         self.params = {"duration_s": duration_s, "radar_port": radar_port, "ble_address": ble_address, "ble_profile": ble_profile}
         self.params.update({k: v for k, v in kwargs.items() if v not in (None, "")})
         self._write_current()
-        self._write_starting_live_payload(duration_s=duration_s)
         live = Path(self.session_dir) / "live_dashboard.json"
         deadline = time.monotonic() + float(timeout_s)
         while time.monotonic() < deadline:
-            if live.exists():
-                return {"session_id": Path(self.session_dir).name, "session_dir": self.session_dir, "pid": self.proc.pid, "started_at": self.started_at}
             if self.proc.poll() is not None:
                 self._clear_current()
                 self.proc = None
                 raise RuntimeError("SPAWN_ERROR: session exited before live_dashboard.json appeared")
+            live_payload = _read_json_if_exists(str(live))
+            if isinstance(live_payload, dict) and not live_payload.get("_supervisor_placeholder"):
+                return {"session_id": Path(self.session_dir).name, "session_dir": self.session_dir, "pid": self.proc.pid, "started_at": self.started_at}
             time.sleep(0.02)
         try:
             self.proc.terminate()

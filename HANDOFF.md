@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Grouped control-API route registry
+
+- **Route boundaries**: Added typed registries grouped by auth, sessions, telemetry, reports, and static delivery; exact and parameterized routes now expose one source of truth for method, group, and authorization policy.
+- **Authorization dispatch**: Replaced duplicated public/discovery/SSE path classification in `_ControlHandler` with registry lookups while retaining bootstrap, LAN pairing, loopback, and one-use SSE semantics.
+- **Characterization**: Added table-driven exact/parameterized route coverage and authorization tests, including unknown-API fail-closed behavior, valid operator sessions, and consumed one-use SSE tokens.
+- **Verification**: Route-registry, operator-auth, audit-remediation, SSE lifecycle/stream, and security-API suites pass 89/89; trainer compileall, CLI help, and `git diff --check` pass.
+
 ### 2026-07-17 - Session supervisor package boundary
 
 - **Lifecycle extraction**: Moved active session locking, marker ownership, start/stop/reap policy, and supervisor state into `rvt_trainer.session.supervisor`; `rvt_trainer.monolith` retains its historical underscored imports.

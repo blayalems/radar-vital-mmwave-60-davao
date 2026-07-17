@@ -87,6 +87,10 @@ from rvt_trainer.api.common import (
     read_json_if_exists as _read_json_if_exists,
     wait_for_process_exit as _wait_for_process_exit,
 )
+from rvt_trainer.api.route_registry import (
+    AuthPolicy as _RouteAuthPolicy,
+    authorization_for as _route_authorization_for,
+)
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -7017,19 +7021,15 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         # Keep static test contract happy: WWW-Authenticate RVT-Token
         parsed = urlparse(self.path)
         path = parsed.path
+        route_auth = _route_authorization_for(self.command, path)
 
         # 1. Bypass public endpoints
-        if path in {
-            "/api/health",
-            "/api/version",
-            "/api/update/manifest",
-            "/api/help/schema",
-        }:
+        if route_auth == _RouteAuthPolicy.PUBLIC:
             return True
 
         # 2. Extract authorization token
         token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if getattr(self, "headers", None) else "").strip()
-        is_sse_path = (path in {"/api/session/events", "/api/events/subscribe"}) or (path.startswith("/api/sessions/") and path.endswith("/events"))
+        is_sse_path = route_auth == _RouteAuthPolicy.SSE
         if not token and is_sse_path:
             q = parse_qs(parsed.query)
             token = (q.get("token") or [""])[-1].strip()
@@ -7043,23 +7043,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         is_bootstrap = (len(profiles) == 0) and not db.get("_load_error")
 
         # 4. Check if it is a Discovery endpoint
-        is_discovery = False
-        if path == "/api/server-info" and self.command == "GET":
-            is_discovery = True
-        elif path == "/api/native-pairing-info" and self.command == "GET":
-            is_discovery = True
-        elif path == "/api/operator-profiles" and self.command == "GET":
-            is_discovery = True
-        elif path == "/api/auth/login" and self.command == "POST":
-            is_discovery = True
-        elif path == "/api/operator-profiles" and self.command == "POST" and is_bootstrap:
-            is_discovery = True
-        elif path == "/api/auth/reset-pin" and self.command == "POST":
-            # Accessible without session token — recovery code replaces auth
-            is_discovery = True
-        elif path == "/api/auth/host-reset" and self.command == "POST":
-            # Accessible without session token — loopback check in handler replaces auth
-            is_discovery = True
+        is_discovery = route_auth in {
+            _RouteAuthPolicy.DISCOVERY,
+            _RouteAuthPolicy.RECOVERY,
+            _RouteAuthPolicy.LOOPBACK,
+        } or (
+            route_auth == _RouteAuthPolicy.BOOTSTRAP
+            and is_bootstrap
+        )
 
         # 4b. Loopback-only native bootstrap: the EXE shell reads pairing details
         # over 127.0.0.1 with no pairing token (tokens belong to phones). The route
@@ -7077,7 +7068,6 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         # iteration"). Hold-time is kept to plain dict ops only — no I/O.
         is_real_valid_operator = False
         is_valid_sse = False
-        is_sse_path = (path in {"/api/session/events", "/api/events/subscribe"}) or (path.startswith("/api/sessions/") and path.endswith("/events"))
         with _OPERATOR_LOCK:
             if token and hasattr(self.server, "operator_sessions") and token in self.server.operator_sessions:
                 session = self.server.operator_sessions[token]
@@ -7106,7 +7096,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         # own WebView holds none after a share-mode sidecar restart. Sensitive
         # endpoints below still require a valid operator session, and same-machine
         # callers already have filesystem access to everything the API serves.
-        if path == "/api/auth/host-reset" and self.command == "POST":
+        if route_auth == _RouteAuthPolicy.LOOPBACK:
             return True
 
         if getattr(self.server, "bind_mode", "local") == "lan" and client_host not in {"127.0.0.1", "::1", "localhost"}:
@@ -7239,12 +7229,11 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_bytes(200, target.read_bytes(), _content_type_for_asset(target), cache_control="public, max-age=31536000, immutable")
             return
-        public_api_paths = {
-            "/api/health",
-            "/api/version",
-            "/api/update/manifest",
-        }
-        if path.startswith("/api/") and path not in public_api_paths and not self._require_control_auth():
+        if (
+            path.startswith("/api/")
+            and _route_authorization_for("GET", path) != _RouteAuthPolicy.PUBLIC
+            and not self._require_control_auth()
+        ):
             return
         if path == "/api/update/manifest":
             with _manifest_cache_lock:

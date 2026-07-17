@@ -17,6 +17,7 @@ SW_UPDATE = ROOT / "web" / "src" / "app" / "services" / "sw-update.service.ts"
 STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
+TRAINER_ROUTE_REGISTRY = ROOT / "rvt_trainer" / "api" / "route_registry"
 FW = ROOT / "radar_vital_v16_4_0.ino"
 SW = ROOT / "assets" / "sw.js"
 STYLES = ROOT / "web" / "src" / "styles.scss"
@@ -218,6 +219,10 @@ def test_dark_inverse_hc_owns_angular_home_surfaces():
 
 def test_trainer_routes_and_security_contract():
     py = text(TRAINER_MONOLITH)
+    route_py = "\n".join(
+        text(path)
+        for path in sorted(TRAINER_ROUTE_REGISTRY.glob("*.py"))
+    )
     compile(py, str(TRAINER_MONOLITH), "exec")
     for route in [
         "/manifest.webmanifest",
@@ -228,8 +233,9 @@ def test_trainer_routes_and_security_contract():
         "/api/serial/ports",
         "/pair",
     ]:
-        assert route in py
-    assert 'path == "/rvt-sw.js"' in py
+        assert route in route_py
+    assert "/rvt-sw.js" in route_py
+    assert 'route_name == "legacy_service_worker"' in py
     assert '"application/javascript; charset=utf-8"' in py
     assert "LEGACY_SW_TOMBSTONE_NOT_FOUND" in py
     assert "SERVICE_WORKER_TOMBSTONE_REMOVED" not in py
@@ -249,7 +255,9 @@ def test_trainer_routes_and_security_contract():
     assert ".rvt_tls" in static_py and "target.relative_to(private_root)" in static_py
     
     assert "_qr_png_bytes" in py
-    assert '"/api/sessions/") and path.endswith("/signoff")' in py
+    assert "/api/sessions/*/signoff" in route_py
+    assert 'route_name == "session_signoff_get"' in py
+    assert 'route_name == "session_signoff_put"' in py
     assert 'public resource not found' in py
     assert "return super().do_GET()" not in py
 

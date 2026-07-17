@@ -90,6 +90,7 @@ from rvt_trainer.api.common import (
 from rvt_trainer.api.route_registry import (
     AuthPolicy as _RouteAuthPolicy,
     authorization_for as _route_authorization_for,
+    match_route as _match_route,
 )
 
 import warnings
@@ -6759,31 +6760,33 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         path = parsed.path
-        if path == "/rvt-sw.js":
+        route_spec = _match_route("GET", path)
+        route_name = route_spec.name if route_spec is not None else None
+        if route_name == "legacy_service_worker":
             sw_path = _assets_root() / "rvt-sw.js"
             if sw_path.exists():
                 self._send_bytes(200, sw_path.read_bytes(), "application/javascript; charset=utf-8", cache_control="no-cache")
             else:
                 self._send_json(404, {"ok": False, "error": {"code": "LEGACY_SW_TOMBSTONE_NOT_FOUND", "message": "assets/rvt-sw.js is missing"}})
             return
-        if path == "/sw.js":
+        if route_name == "service_worker":
             sw_path = _assets_root() / "sw.js"
             if sw_path.exists():
                 self._send_bytes(200, sw_path.read_bytes(), "application/javascript; charset=utf-8", cache_control="no-cache")
             else:
                 self._send_json(404, {"ok": False, "error": {"code": "SW_NOT_FOUND", "message": "assets/sw.js is missing"}})
             return
-        if path == "/manifest.webmanifest":
+        if route_name == "manifest":
             data = json.dumps(_manifest_payload(self.server), separators=(",", ":"), ensure_ascii=False).encode("utf-8")
             self._send_bytes(200, data, "application/manifest+json; charset=utf-8", cache_control="no-cache")
             return
-        if path == "/about":
+        if route_name == "about":
             self._send_bytes(200, _support_matrix_html(self.server).encode("utf-8"), "text/html; charset=utf-8", cache_control="no-store")
             return
-        if path == "/pair":
+        if route_name == "pair":
             self._send_bytes(200, _pair_page_html(self.server).encode("utf-8"), "text/html; charset=utf-8", cache_control="no-store")
             return
-        if path.startswith("/icons/") or path.startswith("/lib/") or path.startswith("/fonts/"):
+        if route_name in {"icons", "libraries", "fonts"}:
             target = _safe_asset_path(path)
             if not target:
                 self._send_json(404, {"ok": False, "error": {"code": "ASSET_NOT_FOUND", "message": "asset not found"}})
@@ -6796,7 +6799,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             and not self._require_control_auth()
         ):
             return
-        if path == "/api/update/manifest":
+        if route_name == "update_manifest":
             with _manifest_cache_lock:
                 now = time.time()
                 if _manifest_cache["data"] is not None and now - _manifest_cache["ts"] < 300:
@@ -6812,7 +6815,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     self._send_json(502, {"ok": False, "error": {"code": "PROXY_ERROR", "message": f"Failed to fetch update manifest: {str(e)}"}} )
             return
-        if path == "/api/auth/validate":
+        if route_name == "auth_validate":
             token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if getattr(self, "headers", None) else "").strip()
             with _OPERATOR_LOCK:
                 sess = self.server.operator_sessions.get(token) if (token and hasattr(self.server, "operator_sessions")) else None
@@ -6835,14 +6838,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     "operator": None
                 })
             return
-        if path == "/api/health":
+        if route_name == "health":
             t0 = time.perf_counter()
             payload = {"ok": True, "t": int(time.time() * 1000), "version": VERSION, "latency_ms": round((time.perf_counter() - t0) * 1000, 3)}
             if getattr(self.server, "bind_mode", "local") != "lan":
                 payload.update({"feature_flags": FEATURE_FLAGS, "metrics": _system_metrics(self.server.sessions_root)})
             self._send_json(200, payload)
             return
-        if path == "/api/version":
+        if route_name == "version":
             self._send_json(200, {
                 "trainer": VERSION,
                 "firmware_expected": FIRMWARE_VERSION_EXPECTED,
@@ -6862,15 +6865,15 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "update_manifest_url": UPDATE_MANIFEST_URL
             })
             return
-        if path == "/api/ble/scan":
+        if route_name == "ble_scan":
             q = parse_qs(parsed.query)
             timeout_s = float((q.get("timeout_s") or ["3"])[-1] or 3)
             self._send_json(200, _scan_ble_devices_payload(timeout_s=timeout_s))
             return
-        if path == "/api/subject-profiles":
+        if route_name == "subject_profiles":
             self._send_json(200, _load_subject_profiles(self.server.sessions_root))
             return
-        if path == "/api/operator-profiles":
+        if route_name == "operator_profiles_get":
             db = _load_operator_profiles(self.server.sessions_root)
             profiles_list = []
             for op_id, prof in db.get("profiles", {}).items():
@@ -6884,7 +6887,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "profiles": profiles_list
             })
             return
-        if path == "/api/server-info":
+        if route_name == "server_info":
             payload = {
                 "ok": True,
                 "origin": _advertised_origin(self.server),
@@ -6898,7 +6901,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             }
             self._send_json(200, payload, cache_control="no-store")
             return
-        if path == "/api/native-pairing-info":
+        if route_name == "native_pairing_info":
             client_host = str(self.client_address[0] if self.client_address else "")
             if client_host not in {"127.0.0.1", "::1", "localhost"}:
                 self._send_json(403, {"ok": False, "error": {"code": "LOOPBACK_ONLY", "message": "native pairing info is loopback-only"}}, cache_control="no-store")
@@ -6922,44 +6925,44 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     pass  # QR stays optional; the textual pairing link is always present
             self._send_json(200, pairing_payload, cache_control="no-store")
             return
-        if path == "/api/session/events" or path == "/api/events/subscribe":
+        if route_name in {"session_events", "events_subscribe"}:
             self._send_sse()
             return
-        if path.startswith("/api/sessions/") and path.endswith("/events"):
+        if route_name == "recorded_session_events":
             sid = unquote(path.split("/")[3])
             self._send_sse(session_id_hint=sid)
             return
-        if path == "/api/trainer/log":
+        if route_name == "trainer_log":
             self._send_json(200, {"ok": True, "lines": list(_TRAINER_LOG)[-200:]})
             return
-        if path == "/api/status":
+        if route_name == "status":
             active = {"session_id": "mock", "session_dir": "", "mock": True, "started_at": self.server.started_at} if getattr(self.server, "mock", False) else self.server.supervisor.current()
             self._send_json(200, {"ok": True, "trainer_version": VERSION, "dashboard_version": DASHBOARD_VERSION, "firmware_expected": FIRMWARE_VERSION_EXPECTED, "control_server_started_at": self.server.started_at, "active_session": active, "feature_flags": FEATURE_FLAGS})
             return
-        if path == "/api/defaults":
+        if route_name == "defaults":
             self._send_json(200, _effective_defaults(self.server.sessions_root))
             return
-        if path == "/api/serial/ports":
+        if route_name == "serial_ports":
             self._send_json(200, _serial_ports_payload(str(_effective_defaults(self.server.sessions_root).get("radar_port", DEFAULT_RADAR_PORT))))
             return
-        if path == "/api/preflight":
+        if route_name == "preflight_all":
             q = {k: v[-1] for k, v in parse_qs(parsed.query).items() if v}
             include = q.pop("include", None)
             if include:
                 q["include"] = [x.strip() for x in str(include).split(",") if x.strip()]
             self._send_json(200, _run_preflight_all(sessions_root=self.server.sessions_root, **q))
             return
-        if path == "/api/help/schema":
+        if route_name == "help_schema":
             self._send_json(200, HELP_SCHEMA)
             return
-        if path == "/api/session/current":
+        if route_name == "session_current":
             if getattr(self.server, "mock", False):
                 self._send_json(200, {"session_id": "mock", "session_dir": "", "mock": True, "started_at": self.server.started_at})
                 return
             cur = self.server.supervisor.current()
             self._send_json(200 if cur else 404, cur or {"ok": False, "error": {"code": "NO_ACTIVE_SESSION", "message": "no active session"}})
             return
-        if path == "/api/session/current/live_dashboard.json":
+        if route_name == "session_live_dashboard":
             if getattr(self.server, "mock", False):
                 self._send_json(200, _mock_live_payload())
                 return
@@ -6981,7 +6984,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     payload["meta"] = meta
                 self._send_json(200, payload)
             return
-        if path == "/api/session/buffer":
+        if route_name == "session_buffer":
             q = parse_qs(parsed.query)
             seconds = int((q.get("seconds") or ["60"])[-1] or 60)
             if getattr(self.server, "mock", False):
@@ -6995,10 +6998,10 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             payload = _read_json_if_exists(str(live_path)) if live_path.exists() else None
             self._send_json(200 if payload else 404, {"ok": bool(payload), "schema_version": LIVE_EVENT_SCHEMA_VERSION, "session_id": cur.get("session_id"), "buffer_s": seconds, "payload": payload})
             return
-        if path == "/api/sessions":
+        if route_name == "sessions_list":
             self._send_json(200, {"root": self.server.sessions_root, "items": _scan_sessions_root(self.server.sessions_root)})
             return
-        if path.startswith("/api/sessions/") and "/files/" in path:
+        if route_name == "session_files":
             parts = path.split("/")
             sid = unquote(parts[3]) if len(parts) > 3 else ""
             rel = unquote(path.split("/files/", 1)[1]) if "/files/" in path else ""
@@ -7018,7 +7021,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_bytes(200, target.read_bytes(), mimetypes.guess_type(str(target))[0] or "application/octet-stream")
             return
-        if path.startswith("/api/sessions/") and path.endswith("/annotations"):
+        if route_name == "session_annotations_get":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7027,7 +7030,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json(200, _load_session_annotations_payload(root, sid))
             return
-        if path.startswith("/api/sessions/") and path.endswith("/notes"):
+        if route_name == "session_notes_get":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7048,7 +7051,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "notes": notes,
             })
             return
-        if path.startswith("/api/sessions/") and path.endswith("/signoff"):
+        if route_name == "session_signoff_get":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7066,14 +7069,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "updated_at": existing.get("updated_at"),
             })
             return
-        if path.startswith("/api/sessions/") and path.endswith("/summary"):
+        if route_name == "session_summary":
             sid = unquote(path.split("/")[3])
             try:
                 self._send_json(200, _load_session_summary(str(_session_path(self.server.sessions_root, sid))))
             except Exception:
                 self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": "session not found"}})
             return
-        if path.startswith("/api/sessions/") and path.endswith("/data"):
+        if route_name == "session_data":
             sid = unquote(path.split("/")[3])
             points = int((parse_qs(parsed.query).get("points") or ["1000"])[-1] or 1000)
             try:
@@ -7081,7 +7084,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": str(e)}})
             return
-        if path.startswith("/api/sessions/") and path.endswith("/compare"):
+        if route_name == "session_compare":
             sid = unquote(path.split("/")[3])
             try:
                 _session_path(self.server.sessions_root, sid)
@@ -7090,7 +7093,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json(200, _compare_session_payload(self.server.sessions_root, sid))
             return
-        if path.startswith("/api/sessions/") and path.endswith("/analyse/status"):
+        if route_name == "session_analysis_status":
             sid = unquote(path.split("/")[3])
             try:
                 _session_path(self.server.sessions_root, sid)
@@ -7099,7 +7102,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json(200, _analysis_job_status(self.server.sessions_root, sid))
             return
-        if path.startswith("/api/sessions/") and path.endswith("/training/status"):
+        if route_name == "session_training_status":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7134,7 +7137,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "updated_at": _iso_now(),
             })
             return
-        if path.startswith("/api/sessions/") and path.endswith("/predict"):
+        if route_name == "session_predict":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7145,7 +7148,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             found = next((p for p in candidates if p.exists()), None)
             self._send_json(200, {"ok": bool(found), "session_id": sid, "summary": (_read_json_if_exists(str(found)) if found else None), "path": str(found) if found else None})
             return
-        if path == "/api/report/export":
+        if route_name == "report_export":
             sid = (parse_qs(parsed.query).get("session") or [""])[-1]
             if not sid:
                 self._send_json(400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "session query parameter is required"}})
@@ -7160,10 +7163,20 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self._send_json(404, {"ok": False, "error": "not_found"})
             return
         dashboard_routes = {f"/{str(name)}" for name in _DASHBOARD_HTML_FALLBACK_NAMES}
-        if path in ("/", "/index.html", "/connect", "/dashboard", "/live", "/home", "/settings", "/report", "/help"):
+        if route_name in {
+            "shell_root",
+            "shell_index",
+            "shell_connect",
+            "shell_dashboard",
+            "shell_live",
+            "shell_home",
+            "shell_settings",
+            "shell_report",
+            "shell_help",
+        }:
             self.path = f"/{_DASHBOARD_HTML_NAME}"
             path = f"/{_DASHBOARD_HTML_NAME}"
-        if path == "/live_dashboard.html":
+        if route_name == "legacy_live_dashboard":
             self.path = f"/{_DASHBOARD_HTML_NAME}"
             path = f"/{_DASHBOARD_HTML_NAME}"
         if path in dashboard_routes:
@@ -7194,25 +7207,27 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if self._reject_untrusted():
             return
         path = urlparse(self.path).path
+        route_spec = _match_route("POST", path)
+        route_name = route_spec.name if route_spec is not None else None
         body = self._read_body()
         if body is None:
             return
-        if path == "/api/auth/exchange":
+        if route_name == "auth_exchange":
             client_ip = (self.client_address[0] if self.client_address else "") or "unknown"
             status, payload = _exchange_pair_pin(self.server, str(body.get("pin") or ""), client_ip)
             self._send_json(status, payload, cache_control="no-store")
             return
         if path.startswith("/api/") and not self._require_control_auth():
             return
-        if path == "/api/operator-profiles":
+        if route_name == "operator_profiles_create":
             status, payload = _create_operator_profile(self.server, body)
             self._send_json(status, payload)
             return
-        if path == "/api/auth/login":
+        if route_name == "auth_login":
             status, payload = _login_operator(self.server, str(body.get("operator_id") or ""), str(body.get("pin") or ""))
             self._send_json(status, payload)
             return
-        if path == "/api/auth/logout":
+        if route_name == "auth_logout":
             token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if getattr(self, "headers", None) else "").strip()
             if not token:
                 token = (parse_qs(urlparse(self.path).query).get("token") or [""])[-1].strip()
@@ -7228,7 +7243,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     _invalidate_operator_sse_tokens(self.server, operator_id)
             self._send_json(200, {"ok": True})
             return
-        if path == "/api/auth/sse-token":
+        if route_name == "auth_sse_token":
             token = secrets.token_urlsafe(24)
             # Bind the SSE token to the requesting operator so session
             # invalidation (reset / host-reset / logout) can also drop it.
@@ -7249,7 +7264,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 }
             self._send_json(200, {"sse_token": token})
             return
-        if path == "/api/auth/reset-pin":
+        if route_name == "auth_reset_pin":
             status, payload = _reset_pin_with_recovery(
                 self.server,
                 str(body.get("operator_id") or ""),
@@ -7258,7 +7273,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             )
             self._send_json(status, payload, cache_control="no-store")
             return
-        if path == "/api/auth/host-reset":
+        if route_name == "auth_host_reset":
             client_host = str(self.client_address[0] if self.client_address else "")
             if client_host not in {"127.0.0.1", "::1", "localhost"}:
                 self._send_json(403, {"ok": False, "error": {"code": "LOOPBACK_ONLY", "message": "host-reset is loopback-only"}}, cache_control="no-store")
@@ -7270,20 +7285,20 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             )
             self._send_json(status, payload, cache_control="no-store")
             return
-        if path == "/api/defaults":
+        if route_name == "defaults":
             current = _effective_defaults(self.server.sessions_root)
             current.update({k: v for k, v in body.items() if k in current})
             save_json(current, str(Path(self.server.sessions_root) / ".user_defaults.json"))
             self._send_json(200, current)
             return
-        if path.startswith("/api/preflight/"):
+        if route_name == "preflight_one":
             check_id = path.rsplit("/", 1)[-1]
             if check_id in {"serial_port_probe", "ble_device_probe"} and self.server.supervisor.current():
                 self._send_json(409, {"ok": False, "error": {"code": "SESSION_IN_PROGRESS", "message": "hardware preflight is blocked while a session is active"}})
                 return
             self._send_json(200, _run_preflight_check(check_id, sessions_root=self.server.sessions_root, **body))
             return
-        if path == "/api/session/start":
+        if route_name == "session_start":
             radar_port = str(body.get("radar_port") or DEFAULT_RADAR_PORT).strip() or DEFAULT_RADAR_PORT
             if str(radar_port).strip().lower() in {"auto", "autodetect", "auto-detect"}:
                 radar_port = _auto_detect_radar_port(DEFAULT_RADAR_PORT)
@@ -7321,7 +7336,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             except TimeoutError as e:
                 self._send_json(500, {"ok": False, "error": {"code": "SPAWN_TIMEOUT", "message": str(e)}})
             return
-        if path == "/api/session/stop":
+        if route_name == "session_stop":
             try:
                 self._send_json(200, self.server.supervisor.stop(reason=str(body.get("reason", "user_request"))))
             except RuntimeError as e:
@@ -7335,7 +7350,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     ),
                 )
             return
-        if path == "/api/session/annotate":
+        if route_name == "session_annotate":
             cur = self.server.supervisor.current()
             if not cur:
                 self._send_json(404, {"ok": False, "error": {"code": "NO_ACTIVE_SESSION", "message": "no active session"}})
@@ -7354,7 +7369,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             save_json(existing, str(notes_path))
             self._send_json(200, {"ok": True, "entry": entry})
             return
-        if path == "/api/session/annotations":
+        if route_name == "session_annotations":
             cur = self.server.supervisor.current()
             if not cur:
                 self._send_json(404, {"ok": False, "error": {"code": "NO_ACTIVE_SESSION", "message": "no active session"}})
@@ -7367,7 +7382,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             entry = _upsert_session_annotation(session_dir, session_id, chart_key, annotation, action=action)
             self._send_json(200, {"ok": True, "entry": entry, "action": action})
             return
-        if path.startswith("/api/sessions/") and path.endswith("/analyse"):
+        if route_name == "session_analyse":
             sid = unquote(path.split("/")[3])
             try:
                 self._send_json(200, _rerun_session_analysis(str(_session_path(self.server.sessions_root, sid))))
@@ -7385,10 +7400,12 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if not self._require_control_auth():
             return
         path = urlparse(self.path).path
+        route_spec = _match_route("PUT", path)
+        route_name = route_spec.name if route_spec is not None else None
         body = self._read_body()
         if body is None:
             return
-        if path.startswith("/api/sessions/") and path.endswith("/notes"):
+        if route_name == "session_notes_put":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7408,7 +7425,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             save_json(existing, str(notes_path))
             self._send_json(200, existing)
             return
-        if path.startswith("/api/sessions/") and path.endswith("/signoff"):
+        if route_name == "session_signoff_put":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7433,7 +7450,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             save_json(signoff, str(root / "session_signoff.json"))
             self._send_json(200, signoff)
             return
-        if path.startswith("/api/sessions/") and path.endswith("/tags"):
+        if route_name == "session_tags":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7461,7 +7478,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if not self._require_control_auth():
             return
         path = urlparse(self.path).path
-        if path.startswith("/api/sessions/"):
+        route_spec = _match_route("DELETE", path)
+        route_name = route_spec.name if route_spec is not None else None
+        if route_name == "session_delete":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)

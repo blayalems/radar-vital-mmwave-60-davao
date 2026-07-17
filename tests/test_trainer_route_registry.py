@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import ast
+import inspect
+import textwrap
 from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -54,6 +57,49 @@ def test_registry_entries_are_unique_and_match_their_own_pattern():
         sample = spec.pattern.replace("*", "s01", 1).replace("*", "file.json")
         for method in spec.methods:
             assert spec.matches(method, sample)
+
+
+def test_http_dispatch_uses_registry_names_instead_of_route_pattern_copies():
+    source = "\n".join(
+        textwrap.dedent(inspect.getsource(getattr(_ControlHandler, method)))
+        for method in ("do_GET", "do_POST", "do_PUT", "do_DELETE")
+    )
+    tree = ast.parse(source)
+    dispatched_names = set()
+    path_prefixes = []
+
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Compare)
+            and isinstance(node.left, ast.Name)
+            and node.left.id == "route_name"
+        ):
+            for candidate in node.comparators:
+                if isinstance(candidate, ast.Constant) and isinstance(candidate.value, str):
+                    dispatched_names.add(candidate.value)
+                elif isinstance(candidate, (ast.List, ast.Set, ast.Tuple)):
+                    dispatched_names.update(
+                        element.value
+                        for element in candidate.elts
+                        if isinstance(element, ast.Constant)
+                        and isinstance(element.value, str)
+                    )
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"startswith", "endswith"}
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "path"
+        ):
+            path_prefixes.extend(
+                argument.value
+                for argument in node.args
+                if isinstance(argument, ast.Constant)
+                and isinstance(argument.value, str)
+            )
+
+    assert dispatched_names == {spec.name for spec in ROUTES}
+    assert set(path_prefixes) == {"/api/"}
 
 
 def test_unknown_api_routes_fail_closed_but_unknown_static_paths_stay_public():

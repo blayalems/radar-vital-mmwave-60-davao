@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Registry-owned HTTP request selection
+
+- **Dispatch ownership**: All GET/POST/PUT/DELETE route branches now select stable names returned by the grouped route registry; API/static path patterns are no longer duplicated across the handler cascade.
+- **Contract migration**: Updated static packaging checks to read route declarations from `rvt_trainer.api.route_registry`, with an AST guard proving every registered name reaches HTTP dispatch and only the generic fail-closed `/api/` prefix remains.
+- **Verification**: Route, operator-auth, security, static, SSE, and packaging suites pass 108/108 with one expected skip; trainer compileall, CLI help, and `git diff --check` pass.
+
 ### 2026-07-17 - Monolith lifecycle duplicate removal
 
 - **Single implementation**: Removed the inactive supervisor and session-lock/stop-marker copies from `rvt_trainer.monolith`; historical names remain direct imports from `rvt_trainer.session.supervisor`.

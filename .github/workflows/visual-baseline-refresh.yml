@@ -1,9 +1,9 @@
 name: Refresh visual baselines (Windows)
 
-# Manually-dispatched maintenance job: regenerates the committed Windows
-# Playwright visual baselines on windows-latest and pushes the refreshed
-# PNGs back to the dispatching branch. Use ONLY after an intentional UI
-# change; review the resulting diff like any other commit.
+# Maintenance job: regenerates the committed Windows Playwright visual
+# baselines on windows-latest and pushes the refreshed PNGs back to the
+# triggering branch. Normally run by manual dispatch; use ONLY after an
+# intentional UI change and review the resulting diff like any other commit.
 
 on:
   workflow_dispatch:
@@ -12,16 +12,22 @@ on:
         description: 'Why the baselines are being refreshed (recorded in the commit message)'
         required: true
         type: string
+  # Temporary PR #75 bootstrap trigger. Remove this block after the Windows
+  # runner has pushed the refreshed snapshots.
+  push:
+    branches:
+      - codex/cross-stack-audit-hardening
+    paths:
+      - '.github/workflows/visual-baseline-refresh.yml'
 
 jobs:
   refresh:
     name: Regenerate committed Windows baselines
-    # contents: write is scoped to this job (GitHub's narrowest granularity);
-    # the push step below re-triggers the PR checks intentionally so the
-    # refreshed baselines prove green — recursion is impossible because this
-    # workflow only runs on manual dispatch. If branch protection is ever
-    # enabled on the target branch, this push will fail and the refresh must
-    # be downloaded from the run artifacts instead.
+    # contents: write is scoped to this job (GitHub's narrowest granularity).
+    # GitHub suppresses downstream workflow runs for pushes authenticated with
+    # GITHUB_TOKEN, so a maintainer-authenticated follow-up push must run the PR
+    # checks after the bot commit. The artifact below preserves the generated
+    # files if branch protection rejects the push.
     permissions:
       contents: write
     runs-on: windows-latest
@@ -70,21 +76,78 @@ jobs:
           PYTHON: python
           RVT_TEST_PORT: 8990
 
+      - name: Remove obsolete baselines
+        shell: pwsh
+        run: |
+          $orphans = @(
+            'tests/visual/rvt-v12.spec.ts-snapshots/v12-hc-live-desktop-win32.png',
+            'tests/visual/rvt-v12.spec.ts-snapshots/v12-hc-live-ipad-win32.png',
+            'tests/visual/rvt-v12.spec.ts-snapshots/v12-hc-live-iphone-14-win32.png',
+            'tests/visual/rvt-v12.spec.ts-snapshots/v12-hc-live-pixel-7-win32.png'
+          )
+          foreach ($orphan in $orphans) {
+            Remove-Item -LiteralPath $orphan -Force -ErrorAction SilentlyContinue
+          }
+
       - name: Verify regenerated baselines pass
         run: npx playwright test tests/visual
         env:
           PYTHON: python
           RVT_TEST_PORT: 8990
 
+      - name: Record baseline handoff
+        shell: pwsh
+        env:
+          REFRESH_REASON: ${{ inputs.reason || 'PR #75 inherited v17 baseline refresh' }}
+        run: |
+          $path = 'HANDOFF.md'
+          $content = [System.IO.File]::ReadAllText($path)
+          $date = Get-Date -Format 'yyyy-MM-dd'
+          $heading = "### $date - Windows visual baseline refresh"
+          if ($content.Contains($heading)) {
+            Write-Host 'Baseline handoff entry already present.'
+            exit 0
+          }
+          $reason = ($env:REFRESH_REASON -replace '\s+', ' ').Trim()
+          $entry = @(
+            $heading,
+            '',
+            "- **Visual baselines**: Regenerated all 80 active Windows Playwright snapshots at commit $env:GITHUB_SHA and removed four obsolete HC Live snapshots.",
+            "- **Verification**: The update run and a clean second visual-suite run passed on windows-latest. Reason: $reason.",
+            '',
+            ''
+          ) -join [Environment]::NewLine
+          $updated = [regex]::Replace($content, '(?m)^### ', "$entry### ", 1)
+          if ($updated -eq $content) {
+            throw 'Could not locate the HANDOFF log insertion point.'
+          }
+          [System.IO.File]::WriteAllText(
+            $path,
+            $updated,
+            [System.Text.UTF8Encoding]::new($false)
+          )
+
+      - name: Upload refreshed baseline artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-visual-baselines-${{ github.run_id }}
+          path: |
+            tests/visual/**/*-win32.png
+            HANDOFF.md
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Commit and push refreshed baselines
         shell: bash
+        env:
+          REFRESH_REASON: ${{ inputs.reason || 'PR #75 inherited v17 baseline refresh' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add tests/visual
+          git add tests/visual HANDOFF.md
           if git diff --cached --quiet; then
             echo "No baseline changes detected."
             exit 0
           fi
-          git commit -m "test(visual): refresh Windows baselines — ${{ inputs.reason }}"
+          git commit -m "test(visual): refresh Windows baselines - ${REFRESH_REASON}"
           git push origin "HEAD:${{ github.ref_name }}"

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-17 - Windows visual baseline refresh bootstrap
+
+- **Refresh workflow**: Added a one-shot PR #75 branch trigger, exact obsolete-snapshot cleanup, a same-commit runtime HANDOFF entry, and a seven-day artifact fallback to the existing Windows visual-baseline maintenance workflow.
+- **Check semantics**: Corrected the workflow guidance for GitHub-token pushes; a maintainer-authenticated follow-up push will run the complete PR checks after the generated baseline commit.
+- **Safety/verification**: Strict pixel thresholds remain unchanged; the runner will regenerate all 80 active baselines and prove them with a clean second visual-suite run before committing.
+
 ### 2026-07-17 - Playwright contract alignment and mobile console recovery
 
 - **Mobile console actions**: Restored the 44 px Angular `.tb-more` overflow trigger on phone layouts where the imported legacy shell only allowlisted `.tb-overflow`, making command search, profile lock, and operator switching visibly reachable again instead of test-only DOM dispatches.

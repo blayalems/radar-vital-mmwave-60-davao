@@ -150,6 +150,15 @@ test.describe('v12 dashboard visual baseline', () => {
             };
           }, { stabilizeHomeTelemetry });
         }
+        if (view === 'settings') {
+          // Settings includes the measured trainer round-trip in the shared
+          // topbar and an in-memory LAN PIN. Both are valid runtime values but
+          // must not make capture and verification produce different pixels.
+          await page.addInitScript(() => {
+            Date.now = () => 1_700_000_000_000;
+            Math.random = () => 0.123456789;
+          });
+        }
 
         await page.addInitScript(({ theme }) => {
           localStorage.setItem('rvt-theme', theme);

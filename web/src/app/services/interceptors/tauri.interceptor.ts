@@ -1,6 +1,11 @@
 import { HttpInterceptorFn, HttpResponse, HttpErrorResponse } from '@angular/common/http';
 import { from } from 'rxjs';
 import { API_BASE_KEY, SERVER_URL_KEY } from '../rvt-storage-keys';
+import {
+  isLoopbackHttpOrigin,
+  isTrustedTrainerApiTarget,
+  normalizeHttpOrigin
+} from '../api-target-policy';
 
 let cachedBase: string | null = null;
 let cachedLocalOrigin: string | null = null;
@@ -22,36 +27,6 @@ interface NativeTrainerStatus {
   origin?: string | null;
   error?: string | null;
   sessions_root?: string | null;
-}
-
-function isApiUrl(value: string): boolean {
-  if (value.startsWith('/api/')) return true;
-  try {
-    const parsed = new URL(value, 'http://rvt.local');
-    return /^https?:$/.test(parsed.protocol) && parsed.pathname.startsWith('/api/');
-  } catch (_) {
-    return false;
-  }
-}
-
-function normalizeHttpOrigin(value: string): string {
-  const raw = String(value || '').trim().replace(/\/+$/, '');
-  if (!raw) return '';
-  try {
-    const u = new URL(raw, window.location.href);
-    return /^https?:$/.test(u.protocol) ? u.origin : '';
-  } catch (_) {
-    return '';
-  }
-}
-
-function isLoopbackOrigin(origin: string): boolean {
-  try {
-    const host = new URL(origin).hostname.toLowerCase();
-    return host === '127.0.0.1' || host === 'localhost' || host === '::1';
-  } catch (_) {
-    return false;
-  }
 }
 
 function clearLocalCache(): void {
@@ -79,7 +54,7 @@ function explicitStoredOrigin(): string {
     // Dynamic bundled sidecar origins must not survive process restarts. Treat
     // loopback values from older builds as stale and let Rust provide the fresh
     // per-launch sidecar origin through native_trainer_status.
-    if (stored && isLoopbackOrigin(stored)) {
+    if (stored && isLoopbackHttpOrigin(stored)) {
       localStorage.removeItem(API_BASE_KEY);
       localStorage.removeItem(SERVER_URL_KEY);
       return '';
@@ -130,7 +105,12 @@ export const rvtTauriInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
-  if (!isApiUrl(req.url)) {
+  if (!isTrustedTrainerApiTarget(req.url, explicitStoredOrigin(), {
+    // Old bundled-sidecar URLs can remain in an in-flight request while the
+    // sidecar restarts on a new port. They are safe only here: this interceptor
+    // re-resolves them and Rust pins the request to the newly paired origin.
+    allowTauriLoopback: true
+  })) {
     return next(req);
   }
 

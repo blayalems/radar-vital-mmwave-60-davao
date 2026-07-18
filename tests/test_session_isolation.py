@@ -89,6 +89,27 @@ def test_supervisor_placeholder_does_not_report_child_ready(mock_popen, mock_pid
     assert not (temp_sessions_root / "current_session.json").exists()
 
 
+def test_live_payload_replacement_never_exposes_partial_json(temp_sessions_root):
+    live = temp_sessions_root / "live_dashboard.json"
+    save_json({"revision": 1, "_supervisor_placeholder": True}, str(live))
+    original_dump = json.dump
+    observed_target_payloads = []
+
+    def inspect_target_while_temp_file_is_written(obj, handle, *args, **kwargs):
+        observed_target_payloads.append(json.loads(live.read_text(encoding="utf-8")))
+        return original_dump(obj, handle, *args, **kwargs)
+
+    with patch("rvt_trainer.monolith.json.dump", side_effect=inspect_target_while_temp_file_is_written):
+        save_json({"revision": 2, "radar": {"rows": 1}}, str(live))
+
+    assert observed_target_payloads == [{"revision": 1, "_supervisor_placeholder": True}]
+    assert json.loads(live.read_text(encoding="utf-8")) == {
+        "revision": 2,
+        "radar": {"rows": 1},
+    }
+    assert not list(temp_sessions_root.glob(".codex-json-*.tmp"))
+
+
 @patch("rvt_trainer.monolith._pid_alive")
 @patch("subprocess.Popen")
 def test_supervisor_rejects_exited_child_even_when_placeholder_exists(mock_popen, mock_pid_alive, temp_sessions_root):

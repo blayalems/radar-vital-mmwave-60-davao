@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Compact mobile Live status and actions
+
+- **First-screen hierarchy**: Mobile Live keeps the persistent demo provenance and prominent Stop action while arranging Pause, Snapshot, and Stop in one touch-sized row and keeping the Simple/Advanced selector on one row.
+- **Coverage**: The 390 x 844 browser geometry contract caps the command strip and mode selector heights, requires the first KPI before 500 px, preserves 44 px targets, and checks provenance, Stop visibility, and horizontal containment.
+
 ### 2026-07-18 - Remove redundant Live snapshot FAB
 
 - **Single clear action path**: Removed the fixed bottom-right snapshot FAB and its orphaned styling; snapshot capture remains available in the command strip, target-tracking card, and Snaps tab without covering Live content or duplicating the primary desktop action.

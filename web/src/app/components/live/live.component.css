@@ -1756,6 +1756,46 @@
   }
 }
 
+@media (max-width: 760px) {
+  .command-strip-card {
+    padding: 10px;
+  }
+
+  .command-strip-inner {
+    gap: 10px;
+  }
+
+  .session-timer-group {
+    width: 100%;
+  }
+
+  .command-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .command-actions button {
+    width: auto;
+    min-width: 0;
+    padding-inline: 8px;
+  }
+
+  .live-mode-toolbar {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .live-mode-segment {
+    display: flex;
+  }
+
+  .live-mode-segment mat-button-toggle {
+    flex: 1 1 0;
+    width: auto;
+  }
+}
+
 /* ---- Time-segmented SQI ribbons (v11 parity) ---- */
 .sqi-ribbon {
   display: flex;

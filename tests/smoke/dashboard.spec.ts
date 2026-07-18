@@ -545,6 +545,28 @@ test.describe('Dashboard smoke', () => {
     await seedDemoMode(page);
     await gotoDashboardRoute(page, '/live');
 
+    const headerGeometry = await page.evaluate(() => {
+      const rect = (selector: string) => {
+        const box = document.querySelector(selector)?.getBoundingClientRect();
+        return box ? { top: box.top, bottom: box.bottom, width: box.width, height: box.height } : null;
+      };
+      return {
+        banner: rect('#demoBanner'),
+        topbar: rect('.topbar'),
+        command: rect('.command-strip-card'),
+        timer: rect('.session-timer-group'),
+        chips: rect('.signal-status-chips'),
+        actions: rect('.command-actions'),
+        mode: rect('.live-mode-toolbar'),
+        firstKpi: rect('.kpi-metric-card')
+      };
+    });
+    expect(headerGeometry.banner?.height, 'demo provenance remains visible').toBeGreaterThan(0);
+    expect(headerGeometry.command?.height, 'Live status/actions stay compact').toBeLessThanOrEqual(170);
+    expect(headerGeometry.mode?.height, 'mode selector stays on one compact row').toBeLessThanOrEqual(56);
+    expect(headerGeometry.firstKpi?.top, 'first KPI remains in the mobile first-screen hierarchy').toBeLessThan(500);
+    await expect(page.getByRole('button', { name: 'Stop Session' })).toBeVisible();
+
     const targets = page.locator([
       '.demo-banner-action',
       '.command-actions .cmd-btn',

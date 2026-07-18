@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - De-identified issue diagnostics
+
+- **Control summary**: Issue previews and generated URLs now allowlist control status fields, normalize mode/latency, and replace raw error/reason/message text with a non-reversible failure category.
+- **Alert recency**: Diagnostic alert history is explicitly sorted newest-first before selecting five entries; messages remain excluded and unknown source strings collapse to `other`.
+- **Verification**: Issue-report coverage passes 33/33; the Angular production build and `npm run build:check` pass with the existing 2.52 MB initial-bundle warning.
+
 ### 2026-07-18 - Canonical navigation cache privacy
 
 - **Service worker**: Angular navigations now write and read one scope-qualified `index.html` cache key instead of raw route/query URLs; the cache namespace bump removes existing route and pairing-PIN entries.

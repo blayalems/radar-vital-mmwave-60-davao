@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Report request coordinator boundary
+
+- **Async ownership**: Moved primary-session and comparison epochs, six-endpoint report hydration, notes persistence, and validation sign-off transport into `ReportRequestCoordinator`; the component now owns only selected-view state and rendering.
+- **Race preservation**: Stale primary and comparison responses resolve as superseded results, while immutable save payloads remain bound to their captured session IDs.
+- **Verification**: Focused Report request-ownership coverage passes 4/4 after extraction.
+
 ### 2026-07-18 - Stack frontend boundaries on lifecycle closure
 
 - **Integration**: Combined the frontend source/service/tab boundary work with the lifecycle, request-race, cache, diagnostics, and exact-origin credential closure so follow-up refactors inherit the hardened behavior.

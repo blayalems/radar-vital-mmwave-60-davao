@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Fold-local model preprocessing
+
+- **Leakage closure**: Leave-one-session-out evaluation now selects features, fits imputation, and expands missingness flags inside each training fold before transforming its holdout session; both model families inherit the same fold-local contract.
+
 ### 2026-07-18 - Model-family operating guide
 
 - **Documentation**: Added the gradient-boosting-first workflow, guarded CNN commands, causal-window contract, validation order, artifact compatibility, and an explicit boundary between host training, TinyML experiments, and deployed firmware inference.

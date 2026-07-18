@@ -1,4 +1,5 @@
 import builtins
+import inspect
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,11 @@ from rvt_trainer.modeling import (
     MODEL_FAMILY_GRADIENT_BOOSTING,
     build_causal_windows,
 )
-from rvt_trainer.monolith import build_parser, fit_cnn_target_model
+from rvt_trainer.monolith import (
+    _run_loso_evaluation,
+    build_parser,
+    fit_cnn_target_model,
+)
 
 
 def test_causal_windows_are_left_padded_and_session_bounded():
@@ -112,3 +117,11 @@ def test_cnn_refuses_starved_dataset_before_loading_tensorflow():
             Cnn1DConfig(window_size=8),
             min_valid_windows=500,
         )
+
+
+def test_loso_preprocessing_is_fit_inside_each_training_fold():
+    source = inspect.getsource(_run_loso_evaluation)
+    assert "pick_feature_columns(" in source
+    assert "prepare_feature_matrix(" in source
+    assert "fold_impute_values" in source
+    assert "fold_missing_flag_cols" in source

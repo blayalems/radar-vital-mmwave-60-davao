@@ -13191,8 +13191,7 @@ def cmd_analyse(args):
     print(f"[OUT] Analysis outputs saved to {args.out}")
     return summary
 
-def _run_loso_evaluation(base_df: pd.DataFrame, args, feature_cols, impute_values, missing_flag_cols,
-                         expanded_feature_cols, params, available_targets):
+def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets):
     session_ids = list(dict.fromkeys(base_df["session_id"].tolist()))
     if len(session_ids) < 3:
         return {"enabled": False, "reason": "need at least 3 sessions"}
@@ -13206,12 +13205,40 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, feature_cols, impute_value
         loo_train_df = validity_masks(engineer_temporal_features(loo_train_base, feature_mode=args.feature_mode))
         loo_stop_df = validity_masks(engineer_temporal_features(loo_stop_base, feature_mode=args.feature_mode))
         loo_eval_df = validity_masks(engineer_temporal_features(eval_base, feature_mode=args.feature_mode))
-        X_train = transform_feature_matrix(loo_train_df, feature_cols, impute_values, missing_flag_cols)
-        X_train = X_train.reindex(columns=expanded_feature_cols, fill_value=0.0).astype(np.float32)
-        X_stop = transform_feature_matrix(loo_stop_df, feature_cols, impute_values, missing_flag_cols)
-        X_stop = X_stop.reindex(columns=expanded_feature_cols, fill_value=0.0).astype(np.float32)
-        X_eval = transform_feature_matrix(loo_eval_df, feature_cols, impute_values, missing_flag_cols)
-        X_eval = X_eval.reindex(columns=expanded_feature_cols, fill_value=0.0).astype(np.float32)
+        fold_feature_cols = pick_feature_columns(
+            loo_train_df,
+            feature_mode=args.feature_mode,
+            max_nan_frac=args.max_nan_frac,
+            min_variance=args.min_variance,
+            allow_policy_features=bool(getattr(args, "allow_policy_features", False)),
+        )
+        if not fold_feature_cols:
+            folds.append({
+                "holdout_session": holdout,
+                "skipped": True,
+                "reason": "no numeric features selected from the fold training sessions",
+            })
+            continue
+        assert_ml_feature_schema(
+            fold_feature_cols,
+            allow_policy_features=bool(getattr(args, "allow_policy_features", False)),
+        )
+        X_train, X_stop, fold_impute_values, fold_missing_flag_cols = prepare_feature_matrix(
+            loo_train_df,
+            loo_stop_df,
+            fold_feature_cols,
+        )
+        fold_expanded_feature_cols = list(X_train.columns)
+        X_eval = transform_feature_matrix(
+            loo_eval_df,
+            fold_feature_cols,
+            fold_impute_values,
+            fold_missing_flag_cols,
+        )
+        X_eval = X_eval.reindex(
+            columns=fold_expanded_feature_cols,
+            fill_value=0.0,
+        ).astype(np.float32)
         model_hr = model_rr = None
         if "hr" in available_targets and loo_train_df.get("hr_valid_for_eval", pd.Series(False, index=loo_train_df.index)).fillna(False).sum() >= 20:
             model_hr, _ = fit_selected_target_model(
@@ -13584,7 +13611,7 @@ def cmd_train(args):
         }
         save_json(embedded_info, os.path.join(args.out, "embedded_export_summary.json"))
 
-    loo_eval = _run_loso_evaluation(base_df, args, feature_cols, impute_values, missing_flag_cols, expanded_feature_cols, params, available_targets) \
+    loo_eval = _run_loso_evaluation(base_df, args, params, available_targets) \
         if getattr(args, "loo_eval", False) else {"enabled": False}
 
     summary = {

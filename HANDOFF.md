@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Persistent fallback under SSE driver ownership
+
+- **Stack integration**: Ported the audit-base polling-only threshold into `SseDriverService`; driver cancellation preserves fallback, explicit reconnect/re-auth resets it, and no retry deadline or EventSource is created while polling-only.
+- **Verification**: Focused SSE-driver, telemetry, and diagnostic-privacy tests pass 45/45; the Angular production build passes.
+
 ### 2026-07-18 - Live Overview boundary contract
 
 - **Partial extraction checkpoint**: Defined the complete typed Overview-tab view-model surface, including KPI interactions, confidence/readiness projections, notes/tags, snapshot capture, and Bland-Altman state, before moving the template into its standalone component.
@@ -95,7 +100,16 @@
 - **Source ownership**: Added `SourceModeService` as the signal-policy owner for live, manual demo, automatic demo, and trainer-sandbox transitions using only `UiStore`/`SessionStore`; `StateService` keeps read/delegation compatibility while Settings, pairing, keyboard/command actions, telemetry fallback, topbar provenance, and API detection use the focused boundary directly.
 - **Safety**: Centralized real-session transition guards and sandbox-routing policy so a real `/api/session/stop` continues to use trainer transport even if stale demo state is present; demo/live persistence scopes remain derived without effect-based state propagation.
 - **Verification**: Clean root/web installs; focused source/state/API/telemetry Vitest 33/33; full source-integrity, contrast, and web unit suite 175/175; Angular production build and generated-monolith round-trip pass with the existing 2.51 MB bundle warning.
+### 2026-07-18 - Linearize lifecycle stack on audit base
 
+- **PR topology**: Merged the current `codex/cross-stack-audit-hardening` head so PR #75 is now an actual ancestor of PR #77 rather than a divergent sibling, preventing avoidable merge noise downstream.
+
+### 2026-07-18 - Review closure for diagnostics and shell caching
+
+- **Diagnostic categories**: Authentication terms now require complete word matches, so `repairing` and `spinlock` cannot be mislabeled while real pairing/token failures remain categorized.
+- **PIN redaction**: Pairing query and named-field sanitizers redact 3-8 digit PINs while leaving unrelated short numeric diagnostics intact.
+- **Offline shell integrity**: Online route responses are returned normally but never stored as the canonical shell; cache refreshes fetch `index.html` explicitly before replacing the one navigation cache key.
+- **Coverage**: Added false-positive error-category cases and executable route-versus-shell cache assertions.
 ### 2026-07-18 - Integrate lifecycle, race, and privacy closure
 
 - **Stacked closure**: Combined bounded session shutdown ownership with report/preflight request gates, canonical navigation caching, de-identified issue diagnostics, and exact-origin trainer credential policy.
@@ -136,6 +150,24 @@
 - **Race closure**: Added independent primary-session and comparison load epochs so late A responses cannot overwrite a newer B selection or reattach an obsolete comparison overlay.
 - **Immutable saves**: Notes and validation sign-offs now capture the target session and submitted values before awaiting transport; sign-off responses update the captured session without replacing a newly selected form.
 - **Verification**: Deferred A/B unit coverage passes 4/4; the Angular production build and `npm run build:check` pass with the existing 2.51 MB initial-bundle warning.
+### 2026-07-18 - Headerless visual handoff support
+
+- **Visual refresh automation**: The Windows baseline workflow now appends its handoff entry when `HANDOFF.md` is empty or contains no existing dated headings instead of reporting success without recording the refresh.
+- **Coverage**: Added a workflow contract guard for the headerless-log fallback.
+
+### 2026-07-18 - Persistent SSE polling fallback
+
+- **Transport fallback**: Crossing the SSE error-window threshold now enters an explicit polling-only state instead of scheduling another EventSource attempt; only manual reconnect or re-authentication clears the state.
+- **Coverage**: Added a threshold test proving repeated `startSse` calls cannot reopen a stream during fallback and manual reconnect restores SSE eligibility.
+### 2026-07-18 - Atomic dashboard readiness proof
+
+- **Reviewer follow-up**: Confirmed every supervisor and trainer dashboard payload uses `save_json`, which fsyncs a same-directory temporary file and publishes it with `os.replace`; readiness therefore cannot observe a half-written first payload.
+- **Regression gate**: Added a test that inspects the existing placeholder while the replacement temporary file is being serialized, then proves the complete new JSON appears only after replacement and no temporary file remains.
+
+### 2026-07-17 - Mobile operator smoke synchronization
+
+- **Operator journey**: Replaced synthetic create-profile clicks with enabled, actionable clicks that explicitly await both the profile-create and automatic-login responses before asserting dialog transitions; extended only this multi-stage lockout journey to a 120-second budget.
+- **CI/browser evidence**: The final PR #75 matrix passed 331/332 cases; its sole iPhone failure waited on the switch dialog while the test had no synchronization with the two-request create-and-login operation. The patched exact iPhone WebKit journey passes 1/1, including both operator switches and the five-attempt lockout, in 1.4 minutes.
 
 ### 2026-07-17 - Visual refresh bootstrap retirement
 

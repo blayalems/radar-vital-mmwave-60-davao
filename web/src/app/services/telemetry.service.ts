@@ -60,7 +60,7 @@ export class TelemetryService {
   }
 
   reconnect(): void {
-    this.stopSse();
+    this.sseDriver.reset();
     this.clearPollTimer();
     this.httpPollFailures = 0;
     if (!this.running) {

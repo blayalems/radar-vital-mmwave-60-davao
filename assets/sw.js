@@ -64,7 +64,13 @@ function isAppShellRequest(url) {
   return APP_SHELL_PATHS.has(relativePath);
 }
 
-async function networkFirst(request, timeoutMs = 2000, cacheKey = request, fallbackKeys = []) {
+async function networkFirst(
+  request,
+  timeoutMs = 2000,
+  cacheKey = request,
+  fallbackKeys = [],
+  cacheRefreshRequest = null
+) {
   const cache = await caches.open(CACHE);
   let timeoutId = 0;
   const timeout = new Promise((_, reject) => {
@@ -73,7 +79,21 @@ async function networkFirst(request, timeoutMs = 2000, cacheKey = request, fallb
   try {
     const response = await Promise.race([fetch(request), timeout]);
     clearTimeout(timeoutId);
-    if (response && response.ok && cacheKey) cache.put(cacheKey, response.clone()).catch(() => {});
+    if (response && response.ok && cacheKey) {
+      if (cacheRefreshRequest) {
+        // Route responses are returned to the online navigation, but only the
+        // canonical dashboard response may replace the offline shell.
+        try {
+          const shell = await fetch(cacheRefreshRequest);
+          if (shell && shell.ok) await cache.put(cacheKey, shell.clone());
+        } catch (_) {
+          // Keep the successful route response even when refreshing the
+          // canonical offline shell fails.
+        }
+      } else {
+        cache.put(cacheKey, response.clone()).catch(() => {});
+      }
+    }
     return response;
   } catch (_) {
     clearTimeout(timeoutId);
@@ -110,7 +130,13 @@ self.addEventListener('fetch', event => {
     return;
   }
   if (isAppShellRequest(url)) {
-    event.respondWith(networkFirst(request, 2000, NAVIGATION_CACHE_KEY, [NAVIGATION_MONOLITH_KEY]));
+    event.respondWith(networkFirst(
+      request,
+      2000,
+      NAVIGATION_CACHE_KEY,
+      [NAVIGATION_MONOLITH_KEY],
+      DASHBOARD
+    ));
     return;
   }
   if (request.mode === 'navigate') {

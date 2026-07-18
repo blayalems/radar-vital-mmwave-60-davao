@@ -8,6 +8,7 @@ import { AudioService } from './audio.service';
 import { AuthService } from './auth.service';
 import { PersistenceService } from './persistence.service';
 import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
+import { SseDriverService } from './sse-driver.service';
 
 let mockEventSourceInstance: MockEventSource | null = null;
 let mockEventSourceInstances: MockEventSource[] = [];
@@ -214,6 +215,30 @@ describe('TelemetryService', () => {
     expect(mockEventSourceInstances[1].url).toContain('sse-token-2');
     expect(state.sessionActive()).toBe(true);
     expect(state.currentSessionId()).toBe('session-live-1');
+  });
+
+  it('stays polling-only after the SSE failure threshold until manual reconnect', async () => {
+    service = TestBed.inject(TelemetryService);
+    await settle();
+    const failedSource = mockEventSourceInstances.at(-1)!;
+
+    failedSource.onerror?.();
+    failedSource.onerror?.();
+    failedSource.onerror?.();
+    failedSource.onerror?.();
+    await settle();
+
+    expect(failedSource.closed).toBe(true);
+    expect(TestBed.inject(SseDriverService).isPollingOnly()).toBe(true);
+    const instancesAfterFallback = mockEventSourceInstances.length;
+
+    await (service as any).startSse();
+    expect(mockEventSourceInstances).toHaveLength(instancesAfterFallback);
+
+    service.reconnect();
+    await settle();
+    expect(TestBed.inject(SseDriverService).isPollingOnly()).toBe(false);
+    expect(mockEventSourceInstances).toHaveLength(instancesAfterFallback + 1);
   });
 });
 

@@ -112,7 +112,12 @@ jobs:
           ) -join [Environment]::NewLine
           $updated = [regex]::Replace($content, '(?m)^### ', "$entry### ", 1)
           if ($updated -eq $content) {
-            throw 'Could not locate the HANDOFF log insertion point.'
+            $separator = if ([string]::IsNullOrWhiteSpace($content)) {
+              ''
+            } else {
+              [Environment]::NewLine + [Environment]::NewLine
+            }
+            $updated = $content.TrimEnd() + $separator + $entry.TrimEnd() + [Environment]::NewLine
           }
           [System.IO.File]::WriteAllText(
             $path,

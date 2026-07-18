@@ -28,6 +28,7 @@ export class SseDriverService {
   private connecting = false;
   private reconnectAttempts = 0;
   private recentErrors: number[] = [];
+  private pollingOnly = false;
 
   private readonly transportStateSignal = signal<SseTransportState>('idle');
   readonly transportState = this.transportStateSignal.asReadonly();
@@ -38,12 +39,17 @@ export class SseDriverService {
     return this.transportStateSignal() === 'connected';
   }
 
+  isPollingOnly(): boolean {
+    return this.pollingOnly;
+  }
+
   async connect(config?: SseDriverConfig): Promise<void> {
     if (config && (this.source || this.connecting || this.reconnectTimer)) return;
     if (config) this.config = config;
     const activeConfig = this.config;
     if (
       !activeConfig
+      || this.pollingOnly
       || typeof EventSource === 'undefined'
       || !activeConfig.canConnect()
       || this.source
@@ -97,6 +103,11 @@ export class SseDriverService {
     this.cancel();
     this.config = config;
     if (config) void this.connect();
+  }
+
+  reset(): void {
+    this.pollingOnly = false;
+    this.cancel();
   }
 
   cancel(): void {
@@ -157,16 +168,18 @@ export class SseDriverService {
       if (this.recentErrors.length <= 3) return;
 
       console.warn('SSE failure threshold reached. Falling back to polling.');
+      this.pollingOnly = true;
       this.closeSource();
+      this.clearReconnectTimer();
+      this.nextRetryAtMsSignal.set(null);
       this.transportStateSignal.set('idle');
       config.onEvent({ type: 'fallback', reason: 'error_threshold' });
-      this.scheduleReconnect();
     };
   }
 
   private scheduleReconnect(): void {
     const config = this.config;
-    if (!config || !config.canConnect()) {
+    if (this.pollingOnly || !config || !config.canConnect()) {
       this.transportStateSignal.set('idle');
       return;
     }

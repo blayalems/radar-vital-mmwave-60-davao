@@ -167,6 +167,15 @@ def test_workflow_firmware_paths_resolve():
     assert checked > 0, "expected at least one firmware path filter to validate"
 
 
+def test_visual_baseline_handoff_supports_empty_or_headerless_log():
+    workflow = (
+        ROOT / ".github" / "workflows" / "visual-baseline-refresh.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "$content.TrimEnd() + $separator + $entry.TrimEnd()" in workflow
+    assert "throw 'Could not locate the HANDOFF log insertion point.'" not in workflow
+
+
 # --------------------------------------------------------------------------- #
 # Wave 2 — fail-closed operator profile DB
 # --------------------------------------------------------------------------- #

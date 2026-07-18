@@ -99,9 +99,8 @@ describe('SseDriverService', () => {
     expect(sources[1].url).toContain('stream-token-2');
   });
 
-  it('falls back after the fourth error and exposes a cancellable retry deadline', async () => {
+  it('stays polling-only after the fourth error until explicitly reset', async () => {
     vi.useFakeTimers();
-    vi.spyOn(Math, 'random').mockReturnValue(0.5);
     await driver.connect(makeConfig(async () => ''));
     const source = sources[0];
     source.onopen?.();
@@ -112,14 +111,18 @@ describe('SseDriverService', () => {
     source.onerror?.();
 
     expect(source.closed).toBe(true);
-    expect(driver.transportState()).toBe('backoff');
-    expect(driver.nextRetryAtMs()).toBe(Date.now() + 15_000);
+    expect(driver.transportState()).toBe('idle');
+    expect(driver.isPollingOnly()).toBe(true);
+    expect(driver.nextRetryAtMs()).toBeNull();
     expect(events.at(-1)).toEqual({ type: 'fallback', reason: 'error_threshold' });
 
-    driver.cancel();
-    vi.advanceTimersByTime(15_000);
+    await driver.connect();
     expect(sources).toHaveLength(1);
-    expect(driver.nextRetryAtMs()).toBeNull();
+
+    driver.reset();
+    await driver.connect();
+    expect(driver.isPollingOnly()).toBe(false);
+    expect(sources).toHaveLength(2);
   });
 
   function makeConfig(mintToken: () => Promise<string>): SseDriverConfig {

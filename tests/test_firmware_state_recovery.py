@@ -97,6 +97,28 @@ class _LcdLifecycleModel:
             self.successful_recoveries += 1
 
 
+@dataclass
+class _FirmwareVersionCaptureModel:
+    state: str = "idle"
+    deadline_ms: int = 0
+    version_valid: bool = False
+
+    def arm(self, now_ms: int, window_ms: int) -> None:
+        self.state = "armed"
+        self.deadline_ms = now_ms + window_ms
+
+    def service(self, now_ms: int, *, version_available: bool) -> None:
+        if self.state != "armed":
+            return
+        if version_available:
+            self.version_valid = True
+            self.state = "captured"
+            self.deadline_ms = 0
+        elif now_ms >= self.deadline_ms:
+            self.state = "expired"
+            self.deadline_ms = 0
+
+
 def test_packet_presence_debounce_does_not_refresh_on_absence():
     source = _firmware()
     model = _PacketPresenceModel(
@@ -237,3 +259,69 @@ def test_firmware_lcd_lifecycle_has_one_owner_and_truthful_counter():
     assert 'lcdDetach(now, true, "runtime_probe_failed");' in source
     for lifecycle_body in (detach, attach, scan, reinit):
         assert "delay(" not in lifecycle_body
+
+
+def test_firmware_version_capture_is_bounded_and_rearmable():
+    capture = _FirmwareVersionCaptureModel()
+    assert capture.state == "idle"
+
+    capture.arm(1_000, 1_500)
+    capture.service(2_499, version_available=False)
+    assert capture.state == "armed"
+    capture.service(2_500, version_available=False)
+    assert capture.state == "expired"
+    assert not capture.version_valid
+
+    capture.arm(3_000, 1_500)
+    capture.service(3_200, version_available=True)
+    assert capture.state == "captured"
+    assert capture.version_valid
+
+    # A parser restart always rearms capture, but expiration does not erase a
+    # previously observed module identity.
+    capture.arm(4_000, 1_500)
+    assert capture.state == "armed"
+    capture.service(5_500, version_available=False)
+    assert capture.state == "expired"
+    assert capture.version_valid
+
+
+def test_firmware_version_capture_state_machine_never_waits():
+    source = _firmware()
+    arm = _function_body(
+        source,
+        "static void armModuleFirmwareVersionCapture(unsigned long now)",
+    )
+    service = _function_body(
+        source,
+        "static void serviceModuleFirmwareVersionCapture(unsigned long now)",
+    )
+    setup_pump = _function_body(
+        source,
+        "static void pumpModuleFirmwareVersionCaptureDuringSetup()",
+    )
+    setup = _function_body(source, "void setup()")
+    loop = _function_body(source, "void loop()")
+
+    for state in ("IDLE", "ARMED", "CAPTURED", "EXPIRED"):
+        assert f"MODULE_FW_CAPTURE_{state}" in source
+    assert "MODULE_FW_CAPTURE_WINDOW_MS = 1500UL" in source
+    assert "moduleFwCaptureState = MODULE_FW_CAPTURE_ARMED;" in arm
+    assert "moduleFwCaptureDeadlineMs = now + MODULE_FW_CAPTURE_WINDOW_MS;" in arm
+    assert "moduleFwCaptureState = MODULE_FW_CAPTURE_CAPTURED;" in service
+    assert "moduleFwCaptureState = MODULE_FW_CAPTURE_EXPIRED;" in service
+
+    assert "mmWave.update(5);" not in service
+    assert "mmWave.update(5);" in setup_pump
+    for state_machine_body in (arm, service, setup_pump):
+        assert "while (" not in state_machine_body
+        assert "delay(" not in state_machine_body
+
+    assert source.count("mmWave.begin(&mmWaveSerial);") == 2
+    assert source.count("armModuleFirmwareVersionCapture(") == 3
+    assert "pumpModuleFirmwareVersionCaptureDuringSetup();" in setup
+    assert "pumpModuleFirmwareVersionCaptureDuringSetup();" not in loop
+    assert "serviceModuleFirmwareVersionCapture(now);" in source
+    assert "pollModuleFirmwareVersionWindow" not in source
+    assert "pollModuleFirmwareVersionNonBlocking" not in source
+    assert "fwVersionCheckedThisBoot" not in source

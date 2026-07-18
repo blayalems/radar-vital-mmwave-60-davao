@@ -592,7 +592,15 @@ static int spatialSource = 0; // 0=none, 1=target_info, 2=point_cloud_fallback
 static unsigned long spatialFreshAgeMs = 999999UL;
 static FirmwareInfo moduleVersion;
 static bool moduleVersionValid = false;
-static bool fwVersionCheckedThisBoot = false;
+enum ModuleFirmwareCaptureState : uint8_t {
+  MODULE_FW_CAPTURE_IDLE = 0,
+  MODULE_FW_CAPTURE_ARMED,
+  MODULE_FW_CAPTURE_CAPTURED,
+  MODULE_FW_CAPTURE_EXPIRED
+};
+static ModuleFirmwareCaptureState moduleFwCaptureState = MODULE_FW_CAPTURE_IDLE;
+static unsigned long moduleFwCaptureDeadlineMs = 0UL;
+static const unsigned long MODULE_FW_CAPTURE_WINDOW_MS = 1500UL;
 static unsigned long lastPointCloudRxMs = 0UL;
 static unsigned long lastTargetInfoRxMs = 0UL;
 static bool useDirectRawHR = false;
@@ -3044,7 +3052,6 @@ static bool tryReadModuleFirmwareVersion() {
   if (!mmWave.getFirmwareInfo(fwTmp)) return false;
   moduleVersion = fwTmp;
   moduleVersionValid = true;
-  fwVersionCheckedThisBoot = true;
   Serial.printf("[FW_VER] Module: %u.%u.%u.%u\n",
                 moduleVersion.firmware_verson.project_name,
                 moduleVersion.firmware_verson.major_version,
@@ -3053,27 +3060,32 @@ static bool tryReadModuleFirmwareVersion() {
   return true;
 }
 
-static void pollModuleFirmwareVersionWindow(unsigned long windowMs) {
-  unsigned long pollStartMs = millis();
-  while (!moduleVersionValid && (millis() - pollStartMs) < windowMs) {
-    mmWave.update(5);
-    if (tryReadModuleFirmwareVersion()) break;
-    wdtReset();
-    delay(25);
+static void armModuleFirmwareVersionCapture(unsigned long now) {
+  moduleFwCaptureState = MODULE_FW_CAPTURE_ARMED;
+  moduleFwCaptureDeadlineMs = now + MODULE_FW_CAPTURE_WINDOW_MS;
+}
+
+static void serviceModuleFirmwareVersionCapture(unsigned long now) {
+  if (moduleFwCaptureState != MODULE_FW_CAPTURE_ARMED) return;
+  if (tryReadModuleFirmwareVersion()) {
+    moduleFwCaptureState = MODULE_FW_CAPTURE_CAPTURED;
+    moduleFwCaptureDeadlineMs = 0UL;
+    return;
+  }
+
+  if ((int32_t)(now - moduleFwCaptureDeadlineMs) >= 0) {
+    moduleFwCaptureState = MODULE_FW_CAPTURE_EXPIRED;
+    moduleFwCaptureDeadlineMs = 0UL;
+    Serial.printf("[FW_VER] WARN: capture window expired; module_fw_valid=%d\n",
+                  (int)moduleVersionValid);
   }
 }
 
-static void pollModuleFirmwareVersionNonBlocking() {
-  if (fwVersionCheckedThisBoot) return;
-  if (tryReadModuleFirmwareVersion()) return;
-
-  // The DSP loop must never wait for optional metadata. Keep probing after a
-  // UART recovery and report the miss once without delaying live telemetry.
-  static bool fwVersionUnreadWarned = false;
-  if (!fwVersionUnreadWarned && millis() > 30000UL) {
-    fwVersionUnreadWarned = true;
-    Serial.println("[FW_VER] WARN: module firmware version still unread after 30 s; module_fw_valid stays 0");
-  }
+static void pumpModuleFirmwareVersionCaptureDuringSetup() {
+  if (moduleFwCaptureState != MODULE_FW_CAPTURE_ARMED) return;
+  mmWave.update(5);
+  serviceModuleFirmwareVersionCapture(millis());
+  wdtReset();
 }
 
 static void v13_pollSpatialFrames(unsigned long now) {
@@ -4418,14 +4430,16 @@ void setup() {
   mmWaveSerial.setRxBufferSize(MMWAVE_RX_BUFFER_SIZE);
 #endif
   mmWaveSerial.begin(115200); mmWave.begin(&mmWaveSerial);
-  // PR72 session-data audit: catch the module's boot-window firmware-version
-  // TLV now, while it is in flight (module_fw_valid was 0 in s07-s11 because
-  // the first read happened long after boot).
-  pollModuleFirmwareVersionWindow(1500UL);
+  // Module metadata is captured by a bounded state machine. Setup-only sensor
+  // stabilization and splash delays remain below, with single parser pumps
+  // around them so the boot TLV is observed without a polling loop.
+  armModuleFirmwareVersionCapture(millis());
+  pumpModuleFirmwareVersionCaptureDuringSetup();
   lastPointCloud.targets.reserve(MAX_TARGET_NUM);
   lastTargetInfo.targets.reserve(MAX_TARGET_NUM);
 
   scanForLCD(false);
+  pumpModuleFirmwareVersionCaptureDuringSetup();
 
   int initStep=0; const int totalSteps=6;
 
@@ -4437,7 +4451,7 @@ void setup() {
   pixel.setPixelColor(0,pixel.Color(40,0,40)); pixel.show();
   mlxReady=mlx.begin();
   Serial.printf("[SENSOR] MLX90614: %s\n",mlxReady?"OK":"Not found");
-  delay(100); wdtReset();
+  delay(100); pumpModuleFirmwareVersionCaptureDuringSetup(); wdtReset();
 
   if (lcdConnected) renderInitScreen(++initStep,totalSteps,"Light");
   pixel.setPixelColor(0,pixel.Color(40,40,0));
@@ -4445,7 +4459,7 @@ void setup() {
   bh1750Ready=false; bh1750Addr=0;
   tryInitBH1750();
   if (bh1750Ready) { Serial.printf("[SENSOR] BH1750: OK at 0x%02X\n",bh1750Addr);
-    delay(180); i2cSafeReadLux(millis());
+    delay(180); pumpModuleFirmwareVersionCaptureDuringSetup(); i2cSafeReadLux(millis());
   }
   else Serial.println("[SENSOR] BH1750: Not found");
   wdtReset();
@@ -4488,11 +4502,13 @@ void setup() {
     buzzerEnabled=prefs.getBool("buzzer",true); buzzerSilentMode=prefs.getBool("silent",false);
     prefs.end();
   }
+  pumpModuleFirmwareVersionCaptureDuringSetup();
   wdtReset();
 
   if (buzzerEnabled && !buzzerSilentMode) {
       buzzerOn(); delay(50); buzzerOff();
   }
+  pumpModuleFirmwareVersionCaptureDuringSetup();
 
   if (lcdConnected) renderInitScreen(++initStep,totalSteps,"Radar");
   pixel.setPixelColor(0,pixel.Color(0,60,0)); pixel.show();
@@ -4509,9 +4525,14 @@ void setup() {
     char statusLine[21];
     snprintf(statusLine,sizeof(statusLine),"T:%s L:%s B:%s",mlxReady?"OK":"--",bh1750Ready?"OK":"--",buzzerEnabled?"ON":"--");
     lcdPrintCentered(2,statusLine); lcdPrintCentered(3,"Starting...");
-    for (int i=0;i<12;i++) { delay(100); wdtReset(); }
+    for (int i=0;i<12;i++) {
+      delay(100);
+      pumpModuleFirmwareVersionCaptureDuringSetup();
+      wdtReset();
+    }
     lcdPtr->clear(); prevDispState=DISP_NONE; lastDisplay=0;
   }
+  pumpModuleFirmwareVersionCaptureDuringSetup();
   buzzerPlay(BUZZ_STARTUP);
 
   { esp_task_wdt_config_t wdt_config={}; wdt_config.timeout_ms=8000;
@@ -4589,7 +4610,7 @@ void loop() {
   hrGateReason = HR_GATE_NO_AUTO;
   rrGateReason = RR_GATE_NO_AUTO;
   bool newData=mmWave.update(5);
-  pollModuleFirmwareVersionNonBlocking();
+  serviceModuleFirmwareVersionCapture(now);
   bool badRadarPacketThisFrame = false;
   bool goodRadarPacketThisFrame = false;
   bool freshDistanceSampleThisFrame = false;
@@ -6158,11 +6179,9 @@ void loop() {
     mmWaveSerial.setRxBufferSize(MMWAVE_RX_BUFFER_SIZE);
     mmWaveSerial.begin(115200);
     mmWave.begin(&mmWaveSerial);
-    if (!moduleVersionValid) {
-      // Module link was just re-initialized; the version TLV may re-arrive.
-      // The regular parser pump above will probe it without blocking the loop.
-      fwVersionCheckedThisBoot = false;
-    }
+    // Every parser restart gets one bounded, nonblocking metadata window.
+    // The normal mmWave.update() call services it on subsequent loop ticks.
+    armModuleFirmwareVersionCapture(millis());
     radarWatchdogStartMs = now;
     lastRadarPacketMs = 0;
     consecutiveBadRadar = BAD_RADAR_LIMIT - 1;

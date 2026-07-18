@@ -297,10 +297,13 @@ def test_firmware_new_audit_requirements():
     # 5. Legacy alias cleanup
     assert "// REMOVE at v17 — use RLS_LAMBDA_HR_BASE directly" in ino
 
-    # 6. Radar-link recovery must not pause the DSP/telemetry loop while
-    # waiting for optional module-version metadata.
-    assert "pollModuleFirmwareVersionNonBlocking();" in ino
-    assert "pollModuleFirmwareVersionWindow(400UL)" not in ino
+    # 6. Firmware-version capture is a bounded nonblocking state machine,
+    # re-armed after each parser begin and serviced after the normal update.
+    assert "serviceModuleFirmwareVersionCapture(now);" in ino
+    assert ino.count("armModuleFirmwareVersionCapture(") == 3
+    assert "MODULE_FW_CAPTURE_EXPIRED" in ino
+    assert "pollModuleFirmwareVersionWindow" not in ino
+    assert "pollModuleFirmwareVersionNonBlocking" not in ino
 
 
 def test_native_ble_commands_allowlist_reference_gatt_profile():

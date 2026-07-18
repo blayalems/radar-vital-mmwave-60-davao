@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Firmware-version capture state machine
+
+- **Bounded capture**: Replaced the blocking boot poll and unbounded boolean probe with explicit `idle`, `armed`, `captured`, and `expired` states; each `mmWave.begin()` arms a 1.5 s deadline, and recovery expiration retains any previously captured module identity.
+- **Loop timing**: The live loop services capture only after its normal parser update and performs no extra parser pump, wait loop, or metadata delay; single parser pumps around existing setup-only hardware/splash waits preserve the module boot-TLV opportunity.
+- **Verification**: Firmware recovery host/static tests passed 6/6; focused BLE/default, nonblocking recovery, frozen 222-column serial, and power/thermal invariant tests passed 4/4; `git diff --check` passed. Arduino CLI is not installed in this worktree environment.
+
 ### 2026-07-18 - Firmware LCD lifecycle recovery
 
 - **Lifecycle ownership**: Replaced the duplicated boot/runtime placement-new paths with idempotent attach/detach helpers that always destroy an allocated LCD object before clearing its pointer and restore `lcdConnected`, address, character cache, and display state together.

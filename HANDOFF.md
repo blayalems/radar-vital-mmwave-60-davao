@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Canonical navigation cache privacy
+
+- **Service worker**: Angular navigations now write and read one scope-qualified `index.html` cache key instead of raw route/query URLs; the cache namespace bump removes existing route and pairing-PIN entries.
+- **Non-shell pages**: Pairing and support navigations remain network-only so a PIN-rendered response can neither enter Cache Storage nor replace the offline application shell.
+- **Verification**: Executable online/offline/pairing cache coverage passes 3/3, `node --check assets/sw.js` passes, and `npm run build:check` passes with the existing 2.51 MB initial-bundle warning.
+
 ### 2026-07-17 - Preflight request ownership
 
 - **Latest-request gate**: Hardware preflight now snapshots radar/BLE inputs, applies only the newest generation, and leaves the shared running gate set until that generation settles; automatic defaults and serial discovery finish before the initial check.

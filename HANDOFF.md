@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Preflight request coordinator boundary
+
+- **Async ownership**: Moved hardware-setup fingerprinting, newest-generation arbitration, aggregate/single-check transport, and valid-snapshot ownership into `PreflightRequestCoordinator`; Home now maps coordinator outcomes into view signals and haptics.
+- **Concurrency contract**: Superseded requests cannot clear the shared running gate while the newest request is pending, and setup-changed responses remain visibly stale instead of enabling Start.
+- **Verification**: Focused Home preflight request-ownership coverage passes 4/4 after extraction.
+
 ### 2026-07-18 - Report request coordinator boundary
 
 - **Async ownership**: Moved primary-session and comparison epochs, six-endpoint report hydration, notes persistence, and validation sign-off transport into `ReportRequestCoordinator`; the component now owns only selected-view state and rendering.

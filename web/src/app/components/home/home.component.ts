@@ -27,10 +27,15 @@ import { I18nService } from '../../services/i18n.service';
 import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
 import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload, SetupState } from '../../models/rvt.models';
+import {
+  PreflightRequestCoordinator,
+  PreflightSetup,
+  preflightSetupFingerprint
+} from './preflight-request-coordinator.service';
+export { preflightSetupFingerprint } from './preflight-request-coordinator.service';
 
 const FALLBACK_RADAR_PORT = 'COM10';
 const DEFAULT_RADAR_PORT_CHOICES = ['COM7', FALLBACK_RADAR_PORT, 'COM3', 'COM4', 'COM11', 'COM12', '/dev/ttyUSB0', '/dev/ttyUSB1'];
-const PREFLIGHT_REQUEST_TIMEOUT_MS = 30000;
 const START_BLOCKING_PREFLIGHT_IDS = new Set([
   'serial_port_list',
   'session_folder_writable',
@@ -38,8 +43,6 @@ const START_BLOCKING_PREFLIGHT_IDS = new Set([
   'schema_hash_consistency',
   'clock_monotonic_sanity'
 ]);
-
-type PreflightSetup = Pick<SetupState, 'radar_port' | 'ble_address'>;
 
 interface SessionStartPayload {
   duration_s: number;
@@ -52,13 +55,6 @@ interface SessionStartPayload {
   ble_profile: string;
   skip_countdown: boolean;
   advanced: { notify_char: string };
-}
-
-export function preflightSetupFingerprint(setup: PreflightSetup): string {
-  return JSON.stringify([
-    String(setup.radar_port || '').trim(),
-    String(setup.ble_address || '').trim()
-  ]);
 }
 
 export function mergeRadarPortChoices(...groups: Array<Array<string | undefined> | undefined>): string[] {
@@ -128,6 +124,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
   private readonly renderScheduler = inject(ChartRenderSchedulerService);
+  private readonly preflightRequests = inject(PreflightRequestCoordinator);
 
   @ViewChild('radarCanvas', { static: false }) radarCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('trendCanvas', { static: false }) trendCanvas!: ElementRef<HTMLCanvasElement>;
@@ -139,8 +136,6 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly sparklineRenderOwner = {};
   private sparklineQueueTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly onVisibilityChange = () => this.requestCanvasDraw();
-  private preflightGeneration = 0;
-  private lastPreflightFingerprint = '';
 
   constructor() {
     effect(() => {
@@ -454,92 +449,64 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   async runPreflight(): Promise<boolean> {
-    const generation = ++this.preflightGeneration;
     const setup = this.capturePreflightSetup();
-    const fingerprint = preflightSetupFingerprint(setup);
-    this.lastPreflightFingerprint = '';
     this.state.preflightRunning.set(true);
     this.preflightError = '';
+    let superseded = false;
     try {
-      const query = new URLSearchParams({
-        port: setup.radar_port,
-        address: setup.ble_address
-      });
-      const resp = await this.api.request<{ checks?: PreflightCheck[] }>(
-        `/api/preflight?${query.toString()}`,
-        undefined,
-        false,
-        PREFLIGHT_REQUEST_TIMEOUT_MS
-      );
-      if (generation !== this.preflightGeneration) return false;
-      if (fingerprint !== this.currentPreflightFingerprint()) {
+      const result = await this.preflightRequests.runAll(setup, () => this.currentPreflightFingerprint());
+      if (result.status === 'superseded') {
+        superseded = true;
+        return false;
+      }
+      if (result.status === 'stale') {
         this.preflightError = 'Setup changed while checks were running. Run preflight again for the current radar and BLE selection.';
         return false;
       }
-      if (resp && Array.isArray(resp.checks)) {
-        this.state.preflightChecks.set(resp.checks);
+      if (result.status === 'applied') {
+        this.state.preflightChecks.set(result.checks);
         this.state.preflightUpdatedAtMs.set(Date.now());
-        this.lastPreflightFingerprint = fingerprint;
         return true;
       }
-      this.preflightError = 'Preflight returned no hardware checks.';
-      return false;
-    } catch (error: unknown) {
-      if (generation === this.preflightGeneration && fingerprint === this.currentPreflightFingerprint()) {
-        const message = error instanceof Error ? error.message : 'Preflight unavailable.';
-        this.preflightError = message === 'Request timeout'
-          ? 'Preflight timed out while probing hardware. Re-run the checks; Start only blocks on collection, storage, schema, and clock failures.'
-          : message;
-      }
+      this.preflightError = result.status === 'empty'
+        ? 'Preflight returned no hardware checks.'
+        : result.message;
       return false;
     } finally {
-      if (generation === this.preflightGeneration) {
-        this.state.preflightRunning.set(false);
-      }
+      if (!superseded) this.state.preflightRunning.set(false);
     }
   }
 
   async runSingleCheck(checkId: string) {
-    const generation = ++this.preflightGeneration;
     const setup = this.capturePreflightSetup();
-    const fingerprint = preflightSetupFingerprint(setup);
-    const canPreserveSnapshot = this.lastPreflightFingerprint === fingerprint;
-    this.lastPreflightFingerprint = '';
     this.state.preflightRunning.set(true);
     this.preflightError = '';
     this.state.triggerHaptic('tap');
+    let superseded = false;
     try {
-      const resp = await this.api.request<PreflightCheck | { check?: PreflightCheck }>(`/api/preflight/${checkId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          port: setup.radar_port,
-          address: setup.ble_address
-        })
-      });
-      if (generation !== this.preflightGeneration || fingerprint !== this.currentPreflightFingerprint()) return;
-      const check = 'check' in resp && resp.check ? resp.check : resp as PreflightCheck;
+      const result = await this.preflightRequests.runSingle(checkId, setup, () => this.currentPreflightFingerprint());
+      if (result.status === 'superseded') {
+        superseded = true;
+        return;
+      }
+      if (result.status === 'stale') return;
+      if (result.status === 'error') {
+        this.preflightError = result.message;
+        this.state.triggerHaptic('reject');
+        return;
+      }
+      const check = result.check;
       if (check && check.id) {
         this.state.preflightChecks.set(this.preflightChecks.map(c => c.id === checkId ? check : c));
         this.state.preflightUpdatedAtMs.set(Date.now());
-        if (canPreserveSnapshot) {
-          this.lastPreflightFingerprint = fingerprint;
-        }
         if (check.status === 'good') {
           this.state.triggerHaptic('success');
         } else {
           this.state.triggerHaptic('warn');
         }
       }
-    } catch (error: unknown) {
-      if (generation === this.preflightGeneration && fingerprint === this.currentPreflightFingerprint()) {
-        this.preflightError = error instanceof Error ? error.message : 'Preflight check unavailable.';
-        this.state.triggerHaptic('reject');
-      }
     } finally {
-      if (generation === this.preflightGeneration) {
-        this.state.preflightRunning.set(false);
-      }
+      if (!superseded) this.state.preflightRunning.set(false);
     }
   }
 
@@ -559,7 +526,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   preflightProgressLabel(): string {
     if (this.isPreflightRunning) return this.preflightChecks.length ? 'Refreshing hardware checks...' : 'Running hardware checks...';
-    if (this.preflightChecks.length && this.lastPreflightFingerprint !== this.currentPreflightFingerprint()) {
+    if (this.preflightChecks.length && this.preflightRequests.lastValidFingerprint !== this.currentPreflightFingerprint()) {
       return 'Setup changed — run checks again';
     }
     const updatedAt = this.state.preflightUpdatedAtMs();
@@ -577,7 +544,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   canStartSession(): boolean {
     return !this.isPreflightRunning
-      && this.lastPreflightFingerprint === this.currentPreflightFingerprint()
+      && this.preflightRequests.lastValidFingerprint === this.currentPreflightFingerprint()
       && this.preflightChecks.length > 0
       && !this.hasBlockingPreflightFailure();
   }

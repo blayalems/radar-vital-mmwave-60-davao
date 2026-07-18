@@ -60,7 +60,16 @@
 - **Shared helpers**: Extracted NaN-safe JSON encoding, atomic JSON persistence/readback, structured API errors, and bounded process waits into `rvt_trainer.api.common` while preserving the monolith function names as compatibility imports.
 - **Characterization**: Added direct old/new import parity and serialization/atomic-write/process-timeout tests so packaged callers keep the existing schema and error behavior.
 - **Verification**: Shared-helper, supervisor, operator-auth, and security-API suites pass 43/43; trainer compileall and `git diff --check` pass.
+### 2026-07-18 - Linearize lifecycle stack on audit base
 
+- **PR topology**: Merged the current `codex/cross-stack-audit-hardening` head so PR #75 is now an actual ancestor of PR #77 rather than a divergent sibling, preventing avoidable merge noise downstream.
+
+### 2026-07-18 - Review closure for diagnostics and shell caching
+
+- **Diagnostic categories**: Authentication terms now require complete word matches, so `repairing` and `spinlock` cannot be mislabeled while real pairing/token failures remain categorized.
+- **PIN redaction**: Pairing query and named-field sanitizers redact 3-8 digit PINs while leaving unrelated short numeric diagnostics intact.
+- **Offline shell integrity**: Online route responses are returned normally but never stored as the canonical shell; cache refreshes fetch `index.html` explicitly before replacing the one navigation cache key.
+- **Coverage**: Added false-positive error-category cases and executable route-versus-shell cache assertions.
 ### 2026-07-18 - Integrate lifecycle, race, and privacy closure
 
 - **Stacked closure**: Combined bounded session shutdown ownership with report/preflight request gates, canonical navigation caching, de-identified issue diagnostics, and exact-origin trainer credential policy.
@@ -101,6 +110,24 @@
 - **Race closure**: Added independent primary-session and comparison load epochs so late A responses cannot overwrite a newer B selection or reattach an obsolete comparison overlay.
 - **Immutable saves**: Notes and validation sign-offs now capture the target session and submitted values before awaiting transport; sign-off responses update the captured session without replacing a newly selected form.
 - **Verification**: Deferred A/B unit coverage passes 4/4; the Angular production build and `npm run build:check` pass with the existing 2.51 MB initial-bundle warning.
+### 2026-07-18 - Headerless visual handoff support
+
+- **Visual refresh automation**: The Windows baseline workflow now appends its handoff entry when `HANDOFF.md` is empty or contains no existing dated headings instead of reporting success without recording the refresh.
+- **Coverage**: Added a workflow contract guard for the headerless-log fallback.
+
+### 2026-07-18 - Persistent SSE polling fallback
+
+- **Transport fallback**: Crossing the SSE error-window threshold now enters an explicit polling-only state instead of scheduling another EventSource attempt; only manual reconnect or re-authentication clears the state.
+- **Coverage**: Added a threshold test proving repeated `startSse` calls cannot reopen a stream during fallback and manual reconnect restores SSE eligibility.
+### 2026-07-18 - Atomic dashboard readiness proof
+
+- **Reviewer follow-up**: Confirmed every supervisor and trainer dashboard payload uses `save_json`, which fsyncs a same-directory temporary file and publishes it with `os.replace`; readiness therefore cannot observe a half-written first payload.
+- **Regression gate**: Added a test that inspects the existing placeholder while the replacement temporary file is being serialized, then proves the complete new JSON appears only after replacement and no temporary file remains.
+
+### 2026-07-17 - Mobile operator smoke synchronization
+
+- **Operator journey**: Replaced synthetic create-profile clicks with enabled, actionable clicks that explicitly await both the profile-create and automatic-login responses before asserting dialog transitions; extended only this multi-stage lockout journey to a 120-second budget.
+- **CI/browser evidence**: The final PR #75 matrix passed 331/332 cases; its sole iPhone failure waited on the switch dialog while the test had no synchronization with the two-request create-and-login operation. The patched exact iPhone WebKit journey passes 1/1, including both operator switches and the five-attempt lockout, in 1.4 minutes.
 
 ### 2026-07-17 - Visual refresh bootstrap retirement
 

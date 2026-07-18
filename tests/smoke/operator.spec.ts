@@ -78,6 +78,23 @@ async function clickConsoleAction(page: import('@playwright/test').Page, name: s
   await menuItem.click();
 }
 
+async function createOperatorAndWait(
+  page: import('@playwright/test').Page,
+  buttonName: 'Create Profile' | 'Create and switch'
+) {
+  const createResponse = page.waitForResponse(response =>
+    response.url().endsWith('/api/operator-profiles') && response.request().method() === 'POST'
+  );
+  const loginResponse = page.waitForResponse(response =>
+    response.url().endsWith('/api/auth/login') && response.request().method() === 'POST'
+  );
+  const submit = page.getByRole('button', { name: buttonName });
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  expect((await createResponse).ok()).toBe(true);
+  expect((await loginResponse).ok()).toBe(true);
+}
+
 test.describe('Operator profile and lock system', () => {
   test.use({ serviceWorkers: 'block' });
 
@@ -96,6 +113,8 @@ test.describe('Operator profile and lock system', () => {
   });
 
   test('onboards, locks, unlocks, and switches operators', async ({ page }) => {
+    test.setTimeout(120_000);
+
     // 1. Load the page - should show onboarding since profiles are empty
     page.on('console', msg => {
       console.log(`[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`);
@@ -122,8 +141,9 @@ test.describe('Operator profile and lock system', () => {
     await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^5$/ }).dispatchEvent('click');
     await page.locator('.onboarding-flow .keyboard-grid button', { hasText: /^6$/ }).dispatchEvent('click');
 
-    // Create profile
-    await page.getByRole('button', { name: 'Create Profile' }).dispatchEvent('click');
+    // Create profile and wait for both backend phases before asserting the
+    // dialog transition. Mobile WebKit can otherwise outrun create + login.
+    await createOperatorAndWait(page, 'Create Profile');
 
     // Verify lock screen is gone and operator is set
     await expect(page.locator('section.idle-lock-overlay')).not.toBeVisible();
@@ -139,7 +159,7 @@ test.describe('Operator profile and lock system', () => {
     await page.getByLabel('Display name').fill('John Connor');
     await page.getByLabel('Initials').fill('JC');
     await page.getByLabel('6-digit PIN').fill('567890');
-    await page.getByRole('button', { name: 'Create and switch' }).dispatchEvent('click');
+    await createOperatorAndWait(page, 'Create and switch');
     await expect(page.locator('app-switch-operator-dialog')).not.toBeVisible();
     await expect(page.locator('.operator-badge .status-txt')).toHaveText('John Connor');
 

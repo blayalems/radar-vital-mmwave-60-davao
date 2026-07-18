@@ -83,12 +83,16 @@ function createHarness(fetchImpl, cached = new Map()) {
 }
 
 test('online Angular routes cache only the canonical shell key', async () => {
-  const harness = createHarness(async () => response('online'));
+  const harness = createHarness(async request =>
+    response(typeof request === 'string' && request === './index.html' ? 'canonical shell' : 'online route')
+  );
   const sensitiveRoute = `${scope}report?pair=123456&subject=P-001`;
 
-  await harness.dispatch(sensitiveRoute);
+  const result = await harness.dispatch(sensitiveRoute);
 
+  assert.equal(result.label, 'online route');
   assert.equal(harness.fetched[0].url, sensitiveRoute);
+  assert.equal(harness.fetched[1], './index.html');
   assert.deepEqual(harness.cachePuts, [canonicalShell]);
   assert.equal(harness.cachePuts.some(key => key.includes('pair=') || key.includes('/report')), false);
 });

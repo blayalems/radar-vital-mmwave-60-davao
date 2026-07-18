@@ -84,15 +84,16 @@ def test_dashboard_pwa_contract():
 
 def test_service_worker_contract():
     sw = text(SW)
-    # Cache version bumped v12.0.5 -> v12.0.6 (kept in the v12 lineage) so the
-    # activate handler purges stale pre-redesign shells and re-precaches the
-    # self-hosted icon/UI fonts — fixes icons rendering as ligature text on
-    # already-cached PWA clients.
-    assert "rvt-shell-v12.0.6" in sw
+    # Cache version stays in the v12 lineage and is bumped whenever cached shell
+    # semantics change so activate removes stale entries from older workers.
+    assert "rvt-shell-v12.0.7" in sw
     assert "text/event-stream" in sw
     assert "SKIP_WAITING" in sw
     assert "SW_UPDATED" in sw
     assert "request.mode === 'navigate'" in sw
+    assert "NAVIGATION_CACHE_KEY" in sw
+    assert "networkFirst(request, 2000, NAVIGATION_CACHE_KEY" in sw
+    assert "Pairing/support pages are network-only" in sw
     assert "/api/session/current/live_dashboard.json" in sw
     assert "/fonts/material-symbols-rounded.woff2" in sw
 
@@ -136,7 +137,7 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
         "rvt-subject-profiles-v12.0",
     ]:
         assert schema_id in trainer
-    assert "rvt-shell-v12.0.6" in sw
+    assert "rvt-shell-v12.0.7" in sw
     assert "rvt-shell-v16" not in sw
 
 

@@ -25,7 +25,7 @@ import { InstallPromptService } from '../../services/install-prompt.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { I18nService } from '../../services/i18n.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
-import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
+import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload, SetupState } from '../../models/rvt.models';
 
 const FALLBACK_RADAR_PORT = 'COM10';
 const DEFAULT_RADAR_PORT_CHOICES = ['COM7', FALLBACK_RADAR_PORT, 'COM3', 'COM4', 'COM11', 'COM12', '/dev/ttyUSB0', '/dev/ttyUSB1'];
@@ -37,6 +37,28 @@ const START_BLOCKING_PREFLIGHT_IDS = new Set([
   'schema_hash_consistency',
   'clock_monotonic_sanity'
 ]);
+
+type PreflightSetup = Pick<SetupState, 'radar_port' | 'ble_address'>;
+
+interface SessionStartPayload {
+  duration_s: number;
+  radar_port: string;
+  ble_address: string;
+  subject_label: string;
+  operator_label: string;
+  station_label: string;
+  subject_profile_id: string;
+  ble_profile: string;
+  skip_countdown: boolean;
+  advanced: { notify_char: string };
+}
+
+export function preflightSetupFingerprint(setup: PreflightSetup): string {
+  return JSON.stringify([
+    String(setup.radar_port || '').trim(),
+    String(setup.ble_address || '').trim()
+  ]);
+}
 
 export function mergeRadarPortChoices(...groups: Array<Array<string | undefined> | undefined>): string[] {
   const seen = new Set<string>();
@@ -114,6 +136,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   private resizeObserver: ResizeObserver | null = null;
   private viewReady = false;
   private readonly onVisibilityChange = () => this.requestCanvasDraw();
+  private preflightGeneration = 0;
+  private lastPreflightFingerprint = '';
 
   constructor() {
     effect(() => {
@@ -167,11 +191,13 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         return;
       }
     }
-    this.refreshDefaults();
-    this.loadSubjectProfiles();
-    this.loadSessions();
-    this.runPreflight();
-    void this.scanSerialPorts();
+    await Promise.all([
+      this.refreshDefaults(),
+      this.loadSubjectProfiles(),
+      this.loadSessions()
+    ]);
+    await this.scanSerialPorts(false);
+    await this.runPreflight();
   }
 
   protected async installApp(): Promise<void> {
@@ -275,7 +301,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   onFormChange() {
-    this.runPreflight();
+    void this.runPreflight();
   }
 
   updateSetup<K extends keyof ReturnType<StateService['setup']>>(key: K, value: ReturnType<StateService['setup']>[K]): void {
@@ -300,7 +326,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  async scanSerialPorts() {
+  async scanSerialPorts(refreshPreflightAfterChange = true) {
+    const setupBefore = this.currentPreflightFingerprint();
     this.isScanningPorts = true;
     this.state.triggerHaptic('tap');
     try {
@@ -322,6 +349,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.triggerHaptic('warn');
     } finally {
       this.isScanningPorts = false;
+      if (refreshPreflightAfterChange && setupBefore !== this.currentPreflightFingerprint()) {
+        void this.runPreflight();
+      }
     }
   }
 
@@ -343,7 +373,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       } else if (this.bluetooth.isSupported() && !this.state.demoMode()) {
         const dev = await this.bluetooth.requestDevice();
         if (dev && dev.name) {
-          this.state.setup.update(s => ({ ...s, ble_address: dev.id || dev.name || '' }));
+          const address = dev.id || dev.name || '';
+          this.state.setup.update(s => ({ ...s, ble_address: address }));
+          void this.runPreflight();
         }
       } else {
         this.bleDevices = [
@@ -420,13 +452,17 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  async runPreflight() {
+  async runPreflight(): Promise<boolean> {
+    const generation = ++this.preflightGeneration;
+    const setup = this.capturePreflightSetup();
+    const fingerprint = preflightSetupFingerprint(setup);
+    this.lastPreflightFingerprint = '';
     this.state.preflightRunning.set(true);
     this.preflightError = '';
     try {
       const query = new URLSearchParams({
-        port: this.state.setup().radar_port,
-        address: this.state.setup().ble_address
+        port: setup.radar_port,
+        address: setup.ble_address
       });
       const resp = await this.api.request<{ checks?: PreflightCheck[] }>(
         `/api/preflight?${query.toString()}`,
@@ -434,43 +470,75 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         false,
         PREFLIGHT_REQUEST_TIMEOUT_MS
       );
+      if (generation !== this.preflightGeneration) return false;
+      if (fingerprint !== this.currentPreflightFingerprint()) {
+        this.preflightError = 'Setup changed while checks were running. Run preflight again for the current radar and BLE selection.';
+        return false;
+      }
       if (resp && Array.isArray(resp.checks)) {
         this.state.preflightChecks.set(resp.checks);
         this.state.preflightUpdatedAtMs.set(Date.now());
+        this.lastPreflightFingerprint = fingerprint;
+        return true;
       }
+      this.preflightError = 'Preflight returned no hardware checks.';
+      return false;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Preflight unavailable.';
-      this.preflightError = message === 'Request timeout'
-        ? 'Preflight timed out while probing hardware. Re-run the checks; Start only blocks on collection, storage, schema, and clock failures.'
-        : message;
+      if (generation === this.preflightGeneration && fingerprint === this.currentPreflightFingerprint()) {
+        const message = error instanceof Error ? error.message : 'Preflight unavailable.';
+        this.preflightError = message === 'Request timeout'
+          ? 'Preflight timed out while probing hardware. Re-run the checks; Start only blocks on collection, storage, schema, and clock failures.'
+          : message;
+      }
+      return false;
     } finally {
-      this.state.preflightRunning.set(false);
+      if (generation === this.preflightGeneration) {
+        this.state.preflightRunning.set(false);
+      }
     }
   }
 
   async runSingleCheck(checkId: string) {
+    const generation = ++this.preflightGeneration;
+    const setup = this.capturePreflightSetup();
+    const fingerprint = preflightSetupFingerprint(setup);
+    const canPreserveSnapshot = this.lastPreflightFingerprint === fingerprint;
+    this.lastPreflightFingerprint = '';
+    this.state.preflightRunning.set(true);
+    this.preflightError = '';
     this.state.triggerHaptic('tap');
     try {
       const resp = await this.api.request<PreflightCheck | { check?: PreflightCheck }>(`/api/preflight/${checkId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          port: this.state.setup().radar_port,
-          address: this.state.setup().ble_address
+          port: setup.radar_port,
+          address: setup.ble_address
         })
       });
+      if (generation !== this.preflightGeneration || fingerprint !== this.currentPreflightFingerprint()) return;
       const check = 'check' in resp && resp.check ? resp.check : resp as PreflightCheck;
       if (check && check.id) {
         this.state.preflightChecks.set(this.preflightChecks.map(c => c.id === checkId ? check : c));
         this.state.preflightUpdatedAtMs.set(Date.now());
+        if (canPreserveSnapshot) {
+          this.lastPreflightFingerprint = fingerprint;
+        }
         if (check.status === 'good') {
           this.state.triggerHaptic('success');
         } else {
           this.state.triggerHaptic('warn');
         }
       }
-    } catch (_) {
-      this.state.triggerHaptic('reject');
+    } catch (error: unknown) {
+      if (generation === this.preflightGeneration && fingerprint === this.currentPreflightFingerprint()) {
+        this.preflightError = error instanceof Error ? error.message : 'Preflight check unavailable.';
+        this.state.triggerHaptic('reject');
+      }
+    } finally {
+      if (generation === this.preflightGeneration) {
+        this.state.preflightRunning.set(false);
+      }
     }
   }
 
@@ -490,6 +558,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   preflightProgressLabel(): string {
     if (this.isPreflightRunning) return this.preflightChecks.length ? 'Refreshing hardware checks...' : 'Running hardware checks...';
+    if (this.preflightChecks.length && this.lastPreflightFingerprint !== this.currentPreflightFingerprint()) {
+      return 'Setup changed — run checks again';
+    }
     const updatedAt = this.state.preflightUpdatedAtMs();
     return updatedAt ? `Last checked ${new Date(updatedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : 'Not checked yet';
   }
@@ -504,7 +575,10 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   canStartSession(): boolean {
-    return !this.isPreflightRunning && this.preflightChecks.length > 0 && !this.hasBlockingPreflightFailure();
+    return !this.isPreflightRunning
+      && this.lastPreflightFingerprint === this.currentPreflightFingerprint()
+      && this.preflightChecks.length > 0
+      && !this.hasBlockingPreflightFailure();
   }
 
   protected checkPasses(check: PreflightCheck): boolean {
@@ -695,25 +769,20 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   async startSession() {
     this.state.triggerHaptic('sessionStart');
     this.isStartingSession = true;
+    const payload = this.captureSessionStartPayload();
+    const setupFingerprint = JSON.stringify(payload);
     try {
-      await this.runPreflight();
-      if (!this.canStartSession()) {
+      const preflightReady = await this.runPreflight();
+      if (setupFingerprint !== JSON.stringify(this.captureSessionStartPayload())) {
+        this.snackBar.open('Start cancelled: setup changed while preflight was running. Review the current settings and try again.', 'Dismiss', { duration: 7000 });
+        this.state.triggerHaptic('reject');
+        return;
+      }
+      if (!preflightReady || !this.canStartSession()) {
         this.snackBar.open('Start blocked: resolve failed preflight checks first.', 'Dismiss', { duration: 7000 });
         return;
       }
-      const payload = {
-        duration_s: this.selectedDuration,
-        radar_port: this.state.setup().radar_port,
-        ble_address: this.state.setup().ble_address,
-        subject_label: this.state.setup().subject_label,
-        operator_label: this.state.setup().operator_label,
-        station_label: this.state.setup().station_label,
-        subject_profile_id: this.state.setup().subject_profile_id,
-        ble_profile: this.state.setup().ble_profile,
-        skip_countdown: this.state.setup().skip_countdown,
-        advanced: { notify_char: this.state.setup().notify_char }
-      };
-      
+
       const r = await this.api.request<SessionRecord>('/api/session/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -734,6 +803,34 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     } finally {
       this.isStartingSession = false;
     }
+  }
+
+  private capturePreflightSetup(): PreflightSetup {
+    const setup = this.state.setup();
+    return {
+      radar_port: setup.radar_port,
+      ble_address: setup.ble_address
+    };
+  }
+
+  private currentPreflightFingerprint(): string {
+    return preflightSetupFingerprint(this.state.setup());
+  }
+
+  private captureSessionStartPayload(): SessionStartPayload {
+    const setup = this.state.setup();
+    return {
+      duration_s: this.selectedDuration,
+      radar_port: setup.radar_port,
+      ble_address: setup.ble_address,
+      subject_label: setup.subject_label,
+      operator_label: setup.operator_label,
+      station_label: setup.station_label,
+      subject_profile_id: setup.subject_profile_id,
+      ble_profile: setup.ble_profile,
+      skip_countdown: setup.skip_countdown,
+      advanced: { notify_char: setup.notify_char }
+    };
   }
 
   reviewSession(sessionId: string) {

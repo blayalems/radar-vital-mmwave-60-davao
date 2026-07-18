@@ -170,6 +170,20 @@ Acceptance:
 - route authorization is table-tested; and
 - process, file, and HTTP cleanup is idempotent.
 
+Implementation status (completed 2026-07-18):
+
+- Session lifecycle and marker ownership now have one implementation in
+  `rvt_trainer.session.supervisor`, with monolith aliases kept for compatibility.
+- Five typed registries own auth, sessions, telemetry, reports, and static
+  routes; the HTTP handler dispatches by registered names and unknown API paths
+  remain operator-authenticated and fail closed.
+- Shared JSON/error/atomic-write/process-wait helpers live in
+  `rvt_trainer.api.common`, preserving historical import and final-path
+  replacement semantics.
+- Characterization covers old/new imports, route authorization, auth/profile
+  persistence, single-use SSE tokens, static assets, session cleanup, CLI, and
+  packaging contracts.
+
 ### PR 4 — Firmware state ownership and recovery
 
 Risk: high; requires XIAO ESP32-C6 + MR60BHA2 bench validation. Keep the

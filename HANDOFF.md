@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Backend service-boundary PR closure
+
+- **Developer contract**: Documented supervisor, grouped route-registry, shared-helper, monolith-shim, and packaged-entrypoint ownership; marked the staged PR 3 audit plan complete.
+- **Full verification**: Python suite passes 367/367 with two expected environment skips; clean root/web installs report zero vulnerabilities; Angular build round-trip and source/contrast checks pass; web unit tests pass 170/170; docs/packaging/version contracts pass 22/22 with one expected skip; trainer compileall, CLI help, and `git diff --check` pass.
+- **Browser note**: Local Playwright Chromium extraction stalled after download, so the four-device smoke matrix remains for GitHub CI; focused route/auth/security/static/SSE/packaging coverage already passes 108/108 with one expected skip.
+
 ### 2026-07-18 - Atomic writer compatibility closure
 
 - **Path semantics**: Restored historical `save_json` behavior by normalizing absolute paths without resolving the final symlink, so atomic replacement updates the named path rather than an unrelated link target.

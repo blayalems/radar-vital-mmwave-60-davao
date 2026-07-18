@@ -75,7 +75,7 @@ python3 radar_vital_trainer_v12_for_v16_0.py serve --bind lan
 
 `--bind lan` generates a six-digit PIN (five-minute TTL, single-use), prints the pairing page URL, and supplies a QR link encoding `http://<lan-ip>:8765/?pair=<PIN>`. The public `/api/server-info` route is metadata-only and does not serve a QR image or expose the PIN. The Windows EXE Settings card reads PIN details through the native bridge from loopback-only `/api/native-pairing-info`; phone/APK/PWA clients use the printed QR, `/pair`, or manual PIN entry. The Angular Settings view keeps the issued `X-RVT-Auth` token in session storage only. Five invalid PIN exchanges from one client within a minute trigger a one-minute pairing cooldown; reopen the pairing flow after the cooldown or mint a new PIN if an operator mistyped repeatedly. Protected session APIs also require an operator session token after bootstrap on local and LAN serves.
 
-| Endpoint set | Auth | Routes (verified against `rvt_trainer/monolith.py`) |
+| Endpoint set | Auth | Routes (owned by `rvt_trainer.api.route_registry`) |
 |---|---|---|
 | Bootstrap/public | None | shell assets, `/pair`, `/api/health`, `/api/version`, `/api/update/manifest`, `/api/server-info`, `/api/auth/exchange`, `/api/help/schema` |
 | EXE native loopback bootstrap | Loopback-only native bridge | `/api/native-pairing-info` (GET; `?format=qr` adds `qr_png_base64` in LAN bind) |
@@ -84,6 +84,18 @@ python3 radar_vital_trainer_v12_for_v16_0.py serve --bind lan
 | Host PIN reset | Loopback-only (127.0.0.1 / ::1); no token | `/api/auth/host-reset` (POST — body: `{operator_id, new_pin}`; 403 from any non-loopback address; re-mints recovery code; use for legacy profiles or when recovery code is lost) |
 | Physiological / session / hardware | `X-RVT-Auth` operator token after bootstrap | `/api/status`, `/api/events/subscribe`, `/api/session/events`, `/api/session/current`, `/api/session/current/live_dashboard.json`, `/api/session/buffer`, `/api/sessions`, `/api/sessions/<id>/summary`, `/api/sessions/<id>/data`, `/api/sessions/<id>/notes` (GET), `/api/sessions/<id>/signoff` (GET), `/api/sessions/<id>/annotations` (GET), `/api/sessions/<id>/compare`, `/api/sessions/<id>/analyse/status`, `/api/sessions/<id>/training/status`, `/api/sessions/<id>/predict`, `/api/sessions/<id>/files/<rel>`, `/api/ble/scan`, `/api/serial/ports`, `/api/preflight`, `/api/preflight/<id>` (single-check rerun), `/api/trainer/log`, `/api/report/export` |
 | Control / mutation | `X-RVT-Auth` operator token after bootstrap | `/api/session/start` (POST), `/api/session/stop` (POST), `/api/session/annotate` (POST), `/api/session/annotations` (POST), `/api/sessions/<id>/notes` (PUT), `/api/sessions/<id>/signoff` (PUT), `/api/sessions/<id>/tags` (PUT), `/api/sessions/<id>/analyse` (POST — rerun; returns `radar_only` status when reference CSV/BLE data is absent), `/api/sessions/<id>` (DELETE — soft-trashes to `.trash/`) |
+
+Backend service ownership is split without changing the public entrypoint:
+
+- `rvt_trainer.session.SessionSupervisor` owns capture-process start, stop,
+  reap, session locks, and stop markers.
+- `rvt_trainer.api.route_registry` owns route names, methods, groups, and
+  authorization policies; the compatibility handler dispatches by those names.
+- `rvt_trainer.api.common` owns strict JSON responses, stable API errors,
+  atomic JSON persistence, and bounded process waits.
+- `rvt_trainer.monolith` retains historical import aliases while downstream
+  callers migrate; `python -m rvt_trainer` and the root trainer script remain
+  equivalent packaged entrypoints.
 
 Tokens live in the trainer's memory only — re-pair after every trainer restart.
 

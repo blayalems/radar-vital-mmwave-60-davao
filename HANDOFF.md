@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - HTTP error status regression proof
+
+- **Route dispatch contract**: Added an end-to-end control-server test proving a route that uses the shared `api_error` envelope still emits HTTP 500 through `_send_json`, closing the reported 200-on-failure concern without changing the stable payload helper.
+
 ### 2026-07-18 - Atomic JSON permission preservation
 
 - **Persistence compatibility**: Same-directory atomic JSON replacement now carries forward an existing target mode and applies `0644` to new files, preventing `mkstemp`'s private mode from making shared dashboard artifacts unreadable on POSIX.

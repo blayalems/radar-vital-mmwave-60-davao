@@ -618,7 +618,7 @@ bool bh1750Ready = false;
 uint8_t bh1750Addr = 0x5C;
 float luxLevel = 300.0f;
 
-static uint8_t lcdObjBuf[sizeof(LiquidCrystal_I2C)] __attribute__((aligned(4)));
+alignas(LiquidCrystal_I2C) static uint8_t lcdObjBuf[sizeof(LiquidCrystal_I2C)];
 static bool lcdObjAllocated = false;
 static uint32_t lastLedColor = 0xFFFFFFFF;
 static uint8_t lcdRowCache[LCD_ROWS][LCD_COLS];
@@ -1244,20 +1244,20 @@ static bool i2cSafeReadMLX(unsigned long now, float& amb, float& obj) {
 
 bool scanForLCD(bool recovery) {
   Wire.setTimeOut(50);
+  bool attached = false;
   uint8_t candidates[] = { 0x27, 0x3F, 0x20, 0x21, 0x22, 0x24, 0x25, 0x26 };
   for (int i = 0; i < (int)(sizeof(candidates)/sizeof(candidates[0])); i++) {
     wdtReset(); uint8_t addr = candidates[i];
     if (addr == 0x23 || addr == 0x5C) continue;
     if (bh1750Ready && addr == bh1750Addr) continue;
     if (probeI2C(addr)) {
-      bool attached = lcdAttach(addr, millis(), recovery);
-      Wire.setTimeOut(100);
-      return attached;
+      attached = lcdAttach(addr, millis(), recovery);
+      break;
     }
   }
-  periphBackoffFailure(lcdBackoff, millis());
   Wire.setTimeOut(100);
-  return false;
+  if (!attached) periphBackoffFailure(lcdBackoff, millis());
+  return attached;
 }
 
 // =========================================================================
@@ -6192,7 +6192,8 @@ void loop() {
   wasMotion=inMotion;
 
   bool ambientEvidenceLatched = lastAmbientJumpMs > 0 && (safeElapsedMs(now, lastAmbientJumpMs) < AMBIENT_EVIDENCE_HOLD_MS);
-  bool radarPresenceEvidence = radarIsPresent && isPresenceFreshAt(now);
+  bool radarPacketExpired = lastRadarPresencePacketMs > 0 && !isPresenceFreshAt(now);
+  bool radarPresenceEvidence = radarIsPresent && !radarPacketExpired;
   bool radarEvidence = newData && (rawHRValid || rawRRValid);
   bool dspPresenceEvidence = lastTrustedVitalMs > 0 && (safeElapsedMs(now, lastTrustedVitalMs) < DSP_PRESENCE_EVIDENCE_MS);
   bool livePhaseEvidence = (lastLivePhaseMs > 0) && (safeElapsedMs(now, lastLivePhaseMs) < LIVE_PHASE_HOLD_MS) &&
@@ -6282,6 +6283,20 @@ void loop() {
     bool tickWeakEvidence = latchedWeakEvidence || weakPresenceEvidence;
     latchedStrongEvidence = false;
     latchedWeakEvidence = false;
+
+    if (radarPacketExpired) {
+      tickStrongEvidence = false;
+      tickWeakEvidence = false;
+      bool wasDetected = presenceState == PRESENCE_PRESENT ||
+                         presenceState == PRESENCE_SILENT_HOLD ||
+                         presenceState == PRESENCE_LEAVING;
+      if (presenceState != PRESENCE_ABSENT) {
+        enterPresenceState(PRESENCE_ABSENT, now, "radar_packet_stale");
+        if (wasDetected) handlePersonLeft(now, "radar_packet_stale");
+      }
+      falsePresenceStartMs = 0;
+      falsePresenceAbsenceScore = 0;
+    }
 
     bool exitLivePhaseEvidence = livePhaseEvidence && (phaseLivenessScore >= FALSE_PRESENCE_PHASE_MIN) && !currentStaticReflector;
     bool hardNoPresenceEvidence = !radarIsPresent && !radarEvidence && !radarPresenceEvidence &&

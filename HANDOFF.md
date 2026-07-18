@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Firmware alignment and stale-packet closure
+
+- **LCD/I2C safety**: Placement storage now uses type-derived C++ alignment, while LCD scanning restores the normal I2C timeout through one exit path on success and failure.
+- **Presence safety**: An expired radar packet stream globally clears active/entering presence states before the FSM switch and suppresses stale latched evidence from immediately re-entering.
+- **Coverage**: Added source-contract checks for storage alignment, single timeout restoration/return, and the stale-packet transition ordering.
+
 ### 2026-07-18 - Firmware-version capture state machine
 
 - **Bounded capture**: Replaced the blocking boot poll and unbounded boolean probe with explicit `idle`, `armed`, `captured`, and `expired` states; each `mmWave.begin()` arms a 1.5 s deadline, and recovery expiration retains any previously captured module identity.

@@ -163,7 +163,7 @@ def test_firmware_presence_layers_have_one_way_ownership():
 
     assert (
         "bool radarPresenceEvidence = radarIsPresent && "
-        "isPresenceFreshAt(now);"
+        "!radarPacketExpired;"
     ) in source
     assert "hardNoPresenceEvidence = !radarIsPresent &&" in source
     assert "fsm_fallback" not in source
@@ -251,6 +251,10 @@ def test_firmware_lcd_lifecycle_has_one_owner_and_truthful_counter():
 
     assert "lcdAttach(addr, millis(), recovery)" in scan
     assert "return attached;" in scan
+    assert source.count("alignas(LiquidCrystal_I2C) static uint8_t lcdObjBuf") == 1
+    assert scan.count("Wire.setTimeOut(50);") == 1
+    assert scan.count("Wire.setTimeOut(100);") == 1
+    assert scan.count("return ") == 1
     assert source.count("new (lcdObjBuf) LiquidCrystal_I2C") == 1
     assert "lcdConnected=scanForLCD" not in source
     assert "lcdConnected = scanForLCD" not in source
@@ -259,6 +263,23 @@ def test_firmware_lcd_lifecycle_has_one_owner_and_truthful_counter():
     assert 'lcdDetach(now, true, "runtime_probe_failed");' in source
     for lifecycle_body in (detach, attach, scan, reinit):
         assert "delay(" not in lifecycle_body
+
+
+def test_presence_fsm_globally_exits_when_radar_packets_expire():
+    source = _firmware()
+    loop = _function_body(source, "void loop()")
+
+    guard = loop.index("if (radarPacketExpired) {")
+    transition = loop.index(
+        'enterPresenceState(PRESENCE_ABSENT, now, "radar_packet_stale");'
+    )
+    state_switch = loop.index("switch (presenceState) {", guard)
+
+    assert "lastRadarPresencePacketMs > 0 && !isPresenceFreshAt(now)" in loop
+    assert "tickStrongEvidence = false;" in loop[guard:state_switch]
+    assert "tickWeakEvidence = false;" in loop[guard:state_switch]
+    assert 'handlePersonLeft(now, "radar_packet_stale");' in loop[guard:state_switch]
+    assert guard < transition < state_switch
 
 
 def test_firmware_version_capture_is_bounded_and_rearmable():

@@ -1,6 +1,19 @@
-const CACHE = 'rvt-shell-v12.0.6';
+const CACHE = 'rvt-shell-v12.0.7';
 const DASHBOARD = './index.html';
 const MONOLITH = './radar_vital_live_dashboard_v12_for_v16_0.html';
+const NAVIGATION_CACHE_KEY = new URL(DASHBOARD, self.registration.scope).href;
+const NAVIGATION_MONOLITH_KEY = new URL(MONOLITH, self.registration.scope).href;
+const APP_SHELL_PATHS = new Set([
+  '',
+  'connect',
+  'home',
+  'live',
+  'report',
+  'help',
+  'settings',
+  'index.html',
+  'radar_vital_live_dashboard_v12_for_v16_0.html'
+]);
 const PRECACHE = [
   DASHBOARD,
   MONOLITH,
@@ -42,7 +55,16 @@ self.addEventListener('activate', event => {
   })());
 });
 
-async function networkFirst(request, timeoutMs = 2000, shellFallback = false) {
+function isAppShellRequest(url) {
+  const scope = new URL(self.registration.scope);
+  if (url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return false;
+  const relativePath = url.pathname
+    .slice(scope.pathname.length)
+    .replace(/^\/+|\/+$/g, '');
+  return APP_SHELL_PATHS.has(relativePath);
+}
+
+async function networkFirst(request, timeoutMs = 2000, cacheKey = request, fallbackKeys = []) {
   const cache = await caches.open(CACHE);
   let timeoutId = 0;
   const timeout = new Promise((_, reject) => {
@@ -51,14 +73,15 @@ async function networkFirst(request, timeoutMs = 2000, shellFallback = false) {
   try {
     const response = await Promise.race([fetch(request), timeout]);
     clearTimeout(timeoutId);
-    if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
+    if (response && response.ok && cacheKey) cache.put(cacheKey, response.clone()).catch(() => {});
     return response;
   } catch (_) {
     clearTimeout(timeoutId);
-    const cached = await cache.match(request)
-      || (shellFallback ? await cache.match(DASHBOARD) : null)
-      || (shellFallback ? await cache.match(MONOLITH) : null);
-    if (cached) return cached;
+    for (const candidate of [cacheKey, ...fallbackKeys]) {
+      if (!candidate) continue;
+      const cached = await cache.match(candidate);
+      if (cached) return cached;
+    }
     throw _;
   }
 }
@@ -86,13 +109,14 @@ self.addEventListener('fetch', event => {
   if (url.pathname.includes('/api/')) {
     return;
   }
-  if (
-    request.mode === 'navigate'
-    || url.pathname.endsWith('/')
-    || url.pathname.endsWith('/radar_vital_live_dashboard_v12_for_v16_0.html')
-    || url.pathname.endsWith('/index.html')
-  ) {
-    event.respondWith(networkFirst(request, 2000, true));
+  if (isAppShellRequest(url)) {
+    event.respondWith(networkFirst(request, 2000, NAVIGATION_CACHE_KEY, [NAVIGATION_MONOLITH_KEY]));
+    return;
+  }
+  if (request.mode === 'navigate') {
+    // Pairing/support pages are network-only. In particular, never replace the
+    // canonical app shell with a response rendered from a URL carrying a PIN.
+    event.respondWith(fetch(request));
     return;
   }
   if (url.pathname.endsWith('/manifest.webmanifest')) {

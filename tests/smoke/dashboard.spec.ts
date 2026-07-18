@@ -528,11 +528,11 @@ test.describe('Dashboard smoke', () => {
           mainRect.left <= railRect.right + 1;
       })).toBe(true);
     } else if (viewportWidth >= 600) {
-      // Tablet band (600–1023px, e.g. iPad): the rail rides in its collapsed
-      // icon form and the bottom nav stays hidden. (Bottom nav is reserved for
-      // the compact <600 breakpoint.)
-      await expect(page.locator('.rail')).toBeVisible();
-      await expect(page.locator('.bottom-nav')).toBeHidden();
+      // Tablet band (600–1023px, e.g. iPad): Simple/zen mode removes the
+      // desktop rail and restores bottom navigation so primary routes remain
+      // reachable without reintroducing the desktop shell.
+      await expect(page.locator('.rail')).toBeHidden();
+      await expect(page.locator('.bottom-nav')).toBeVisible();
       await expectNoHorizontalOverflow(page);
     } else {
       await expect(page.locator('.bottom-nav')).toBeVisible();

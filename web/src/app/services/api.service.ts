@@ -14,6 +14,11 @@ import { StateService } from './state.service';
 import { SourceModeService } from './source-mode.service';
 import { SandboxApiService } from './sandbox-api.service';
 import { API_BASE_KEY, SERVER_URL_KEY, TOKEN_KEY, OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
+import {
+  isTrustedTrainerApiTarget,
+  normalizeHttpOrigin,
+  resolveTrainerRequestTarget
+} from './api-target-policy';
 
 interface NativeHttpPlugin {
   request(options: {
@@ -82,11 +87,7 @@ export class ApiService {
   currentApiBase(): string {
     try {
       const storedBase = localStorage.getItem(this.API_BASE_KEY) || localStorage.getItem(SERVER_URL_KEY);
-      const raw = String(storedBase || '').trim().replace(/\/+$/, '');
-      if (!raw) return '';
-      const u = new URL(raw, window.location.href);
-      if (!/^https?:$/.test(u.protocol)) return '';
-      return u.origin;
+      return normalizeHttpOrigin(storedBase || '');
     } catch (_) {
       return '';
     }
@@ -94,15 +95,7 @@ export class ApiService {
 
   setApiBase(value: string): string {
     const raw = String(value || '').trim().replace(/\/+$/, '');
-    let normalized = '';
-    try {
-      if (raw) {
-        const u = new URL(raw, window.location.href);
-        if (/^https?:$/.test(u.protocol)) {
-          normalized = u.origin;
-        }
-      }
-    } catch (_) {}
+    const normalized = normalizeHttpOrigin(raw);
 
     try {
       if (normalized) {
@@ -187,7 +180,8 @@ export class ApiService {
     }
 
     const base = this.currentApiBase();
-    const target = /^[a-z][a-z0-9+.-]*:\/\//i.test(String(path)) ? String(path) : base + String(path);
+    const target = resolveTrainerRequestTarget(path, base);
+    const trustedTarget = isTrustedTrainerApiTarget(path, base);
     const method = String(init?.method || 'GET').toUpperCase();
 
     const cap = (window as Window & { Capacitor?: CapacitorBridge }).Capacitor;
@@ -196,7 +190,12 @@ export class ApiService {
       try {
         const headers = new Headers(init?.headers || {});
         const tok = this.authToken();
-        if (tok) headers.set('X-RVT-Auth', tok);
+        if (trustedTarget && tok) {
+          headers.set('X-RVT-Auth', tok);
+        } else if (!trustedTarget) {
+          headers.delete('X-RVT-Auth');
+          headers.delete('Authorization');
+        }
         const headerObj: Record<string, string> = {};
         headers.forEach((v, k) => { headerObj[k] = v; });
 
@@ -222,8 +221,10 @@ export class ApiService {
     try {
       let httpHeaders = new HttpHeaders(init?.headers as any || {});
       const tok = this.authToken();
-      if (tok && !httpHeaders.has('X-RVT-Auth')) {
+      if (trustedTarget && tok && !httpHeaders.has('X-RVT-Auth')) {
         httpHeaders = httpHeaders.set('X-RVT-Auth', tok);
+      } else if (!trustedTarget) {
+        httpHeaders = httpHeaders.delete('X-RVT-Auth').delete('Authorization');
       }
       const body = init?.body;
       const response = this.http.request<T>(method, target, {
@@ -243,18 +244,26 @@ export class ApiService {
 
   async download(path: string, filename: string): Promise<void> {
     const base = this.currentApiBase();
-    const target = /^[a-z][a-z0-9+.-]*:\/\//i.test(path) ? path : base + path;
+    const target = resolveTrainerRequestTarget(path, base);
+    const trustedTarget = isTrustedTrainerApiTarget(path, base);
     const headers = new Headers();
     const token = this.authToken();
-    if (token) {
+    if (trustedTarget && token) {
       headers.set('X-RVT-Auth', token);
       headers.set('Authorization', `Bearer ${token}`);
     }
     const tauri = (window as Window & { __TAURI__?: TauriBridge }).__TAURI__?.core;
-    if (tauri?.invoke && base) {
+    if (tauri?.invoke && base && trustedTarget) {
+      const parsedTarget = new URL(target);
       const response = await this.withTimeout(
         tauri.invoke<{ status: number; body_base64: string; content_type: string }>('native_download', {
-          request: { origin: base, path, method: 'GET', headers: Object.fromEntries(headers.entries()), body: null }
+          request: {
+            origin: parsedTarget.origin,
+            path: parsedTarget.pathname + parsedTarget.search,
+            method: 'GET',
+            headers: Object.fromEntries(headers.entries()),
+            body: null
+          }
         }),
         10000,
         'Download timeout'

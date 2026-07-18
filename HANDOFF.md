@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Stack frontend boundaries on lifecycle closure
+
+- **Integration**: Combined the frontend source/service/tab boundary work with the lifecycle, request-race, cache, diagnostics, and exact-origin credential closure so follow-up refactors inherit the hardened behavior.
+- **Generated artifact**: Rebuilt the root dashboard from the merged Angular sources rather than resolving generated output by hand.
+
 ### 2026-07-18 - Extract Live waveform and funnel tabs
 
 - **Tab boundaries**: Moved Waves, HR funnel, and RR funnel into typed standalone OnPush presentation components while the Live container retains telemetry, annotation, export, and historical-session workflows.
@@ -74,6 +79,63 @@
 - **Source ownership**: Added `SourceModeService` as the signal-policy owner for live, manual demo, automatic demo, and trainer-sandbox transitions using only `UiStore`/`SessionStore`; `StateService` keeps read/delegation compatibility while Settings, pairing, keyboard/command actions, telemetry fallback, topbar provenance, and API detection use the focused boundary directly.
 - **Safety**: Centralized real-session transition guards and sandbox-routing policy so a real `/api/session/stop` continues to use trainer transport even if stale demo state is present; demo/live persistence scopes remain derived without effect-based state propagation.
 - **Verification**: Clean root/web installs; focused source/state/API/telemetry Vitest 33/33; full source-integrity, contrast, and web unit suite 175/175; Angular production build and generated-monolith round-trip pass with the existing 2.51 MB bundle warning.
+
+### 2026-07-18 - Integrate lifecycle, race, and privacy closure
+
+- **Stacked closure**: Combined bounded session shutdown ownership with report/preflight request gates, canonical navigation caching, de-identified issue diagnostics, and exact-origin trainer credential policy.
+- **Scope**: This branch is the consolidated PR base for subsequent frontend and backend follow-ups; all source commits remain individually reviewable below the merge.
+
+### 2026-07-17 - Session shutdown ownership and bounded reap
+
+- **Supervisor lifecycle**: Serialized start/stop/current transitions behind a closeable gate; parent-driven stops now suppress child inline analysis, reap with bounded interrupt/terminate/kill waits, clear only owned markers, and retain truthful state when reaping fails.
+- **Server shutdown policy**: Control-server shutdown closes the start gate, stops HTTP acceptance, reaps the detached capture child idempotently, preserves captured files, and never launches analysis; explicit user Stop may analyse only after successful cleanup.
+- **Verification**: Focused session-isolation and control-server lifecycle suites pass 42/42; trainer monolith `py_compile` passes.
+
+### 2026-07-18 - Exact-origin trainer authentication
+
+- **Credential boundary**: Browser, Capacitor, and download requests now attach trainer credentials only to relative trainer APIs or absolute API URLs on the exact configured origin; caller-supplied trainer headers are removed from untrusted destinations.
+- **Native routing**: Tauri no longer captures arbitrary absolute `/api/` URLs, while its restart-safe exception remains limited to HTTP loopback API URLs that are re-resolved and pinned by the native paired-origin transport.
+- **Verification**: Focused API/auth/Tauri coverage passes 24/24, including hostile absolute URLs and origin-prefix lookalikes; the Angular production build and `npm run build:check` pass with the existing 2.52 MB initial-bundle warning.
+
+### 2026-07-18 - De-identified issue diagnostics
+
+- **Control summary**: Issue previews and generated URLs now allowlist control status fields, normalize mode/latency, and replace raw error/reason/message text with a non-reversible failure category.
+- **Alert recency**: Diagnostic alert history is explicitly sorted newest-first before selecting five entries; messages remain excluded and unknown source strings collapse to `other`.
+- **Verification**: Issue-report coverage passes 33/33; the Angular production build and `npm run build:check` pass with the existing 2.52 MB initial-bundle warning.
+
+### 2026-07-18 - Canonical navigation cache privacy
+
+- **Service worker**: Angular navigations now write and read one scope-qualified `index.html` cache key instead of raw route/query URLs; the cache namespace bump removes existing route and pairing-PIN entries.
+- **Non-shell pages**: Pairing and support navigations remain network-only so a PIN-rendered response can neither enter Cache Storage nor replace the offline application shell.
+- **Verification**: Executable online/offline/pairing cache coverage passes 3/3, `node --check assets/sw.js` passes, and `npm run build:check` passes with the existing 2.51 MB initial-bundle warning.
+
+### 2026-07-17 - Preflight request ownership
+
+- **Latest-request gate**: Hardware preflight now snapshots radar/BLE inputs, applies only the newest generation, and leaves the shared running gate set until that generation settles; automatic defaults and serial discovery finish before the initial check.
+- **Start integrity**: Session Start captures the complete click-time payload and cancels if any submitted setup value changes while the fresh preflight is pending; stale or failed checks cannot enable Start.
+- **Verification**: Home helper/race coverage passes 9/9; the Angular production build and `npm run build:check` pass with the existing 2.51 MB initial-bundle warning.
+
+### 2026-07-17 - Report request ownership
+
+- **Race closure**: Added independent primary-session and comparison load epochs so late A responses cannot overwrite a newer B selection or reattach an obsolete comparison overlay.
+- **Immutable saves**: Notes and validation sign-offs now capture the target session and submitted values before awaiting transport; sign-off responses update the captured session without replacing a newly selected form.
+- **Verification**: Deferred A/B unit coverage passes 4/4; the Angular production build and `npm run build:check` pass with the existing 2.51 MB initial-bundle warning.
+
+### 2026-07-17 - Visual refresh bootstrap retirement
+
+- **Workflow scope**: Removed the one-shot PR #75 push trigger after the Windows runner regenerated, verified, committed, and pushed all 80 active baselines; the guarded manual refresh workflow and failure artifacts remain available for intentional future UI changes.
+- **Verification**: The bootstrap job completed 96/96 visual cases on its clean second pass and deleted exactly the four obsolete high-contrast Live snapshots.
+
+### 2026-07-17 - Tablet Simple-view smoke contract
+
+- **Navigation contract**: Aligned the iPad Simple/zen-mode smoke assertion with the shipped responsive shell: the desktop rail is removed and bottom navigation remains available through the 600–1023 px tablet band.
+- **Browser evidence**: The full PR smoke run passed 331/332 cases; its only failure was the superseded assertion expecting the hidden rail while the rendered bottom navigation correctly preserved primary routes.
+
+### 2026-07-17 - Deterministic Settings visual capture
+
+- **Visual fixture**: Fixed the Settings-only test clock and random source so the live topbar latency and in-memory pairing PIN cannot differ between baseline capture and verification; the global 200-pixel threshold remains unchanged.
+- **Refresh diagnostics**: Baseline and Playwright failure artifacts now upload even when the clean verification pass fails.
+- **Verification**: The first Windows refresh regenerated all snapshots, removed the four obsolete HC files, and reproduced 94/96 cases; only dark/night desktop Settings differed by 384-473 dynamic pixels. Focused system-Chrome capture/verify passed 2/2 before the deterministic fixture was added.
 
 ### 2026-07-17 - Visual refresh expression correction
 

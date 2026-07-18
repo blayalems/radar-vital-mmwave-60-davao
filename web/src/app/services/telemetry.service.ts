@@ -24,6 +24,7 @@ export class TelemetryService {
   private running = false;
   private sse: EventSource | null = null;
   private sseMode = false;
+  private pollingOnly = false;
   private sseErrors: number[] = [];
   private httpPollFailures = 0;
   private demoT = 0;
@@ -70,6 +71,7 @@ export class TelemetryService {
     this.clearPollTimer();
     this.clearReconnectTimer();
     this.sseReconnectAttempts = 0;
+    this.pollingOnly = false;
     this.httpPollFailures = 0;
     if (!this.running) {
       this.running = true;
@@ -172,6 +174,7 @@ export class TelemetryService {
     if (this.isTauriNative()) return;
     if (this.state.demoSourceActive()) return;
     if (!this.running) return;
+    if (this.pollingOnly) return;
     // Token minting is asynchronous. Keep it single-flight so rapid auth,
     // reconnect, and mode-change signals cannot leak orphan EventSources.
     if (this.sse || this.sseConnecting) return;
@@ -259,9 +262,11 @@ export class TelemetryService {
         this.sseErrors.push(now);
         if (this.sseErrors.length > 3) {
           console.warn('SSE failure threshold reached. Falling back to polling.');
+          this.pollingOnly = true;
           this.stopSse();
           this.scheduleNextPoll(0);
-          this.scheduleSseReconnect();
+          this.clearReconnectTimer();
+          this.nextRetryAtMs.set(null);
         }
       };
     } catch (e) {
@@ -335,7 +340,7 @@ export class TelemetryService {
   }
 
   private scheduleSseReconnect() {
-    if (!this.running) return;
+    if (!this.running || this.pollingOnly) return;
     this.clearReconnectTimer();
     const backoffSeconds = this.sseReconnectAttempts === 0 ? 15 : this.sseReconnectAttempts === 1 ? 30 : 60;
     const jitterMs = Math.floor(Math.random() * 2000) - 1000;

@@ -56,7 +56,15 @@
 - **Race closure**: Added independent primary-session and comparison load epochs so late A responses cannot overwrite a newer B selection or reattach an obsolete comparison overlay.
 - **Immutable saves**: Notes and validation sign-offs now capture the target session and submitted values before awaiting transport; sign-off responses update the captured session without replacing a newly selected form.
 - **Verification**: Deferred A/B unit coverage passes 4/4; the Angular production build and `npm run build:check` pass with the existing 2.51 MB initial-bundle warning.
+### 2026-07-18 - Headerless visual handoff support
 
+- **Visual refresh automation**: The Windows baseline workflow now appends its handoff entry when `HANDOFF.md` is empty or contains no existing dated headings instead of reporting success without recording the refresh.
+- **Coverage**: Added a workflow contract guard for the headerless-log fallback.
+
+### 2026-07-18 - Persistent SSE polling fallback
+
+- **Transport fallback**: Crossing the SSE error-window threshold now enters an explicit polling-only state instead of scheduling another EventSource attempt; only manual reconnect or re-authentication clears the state.
+- **Coverage**: Added a threshold test proving repeated `startSse` calls cannot reopen a stream during fallback and manual reconnect restores SSE eligibility.
 ### 2026-07-18 - Atomic dashboard readiness proof
 
 - **Reviewer follow-up**: Confirmed every supervisor and trainer dashboard payload uses `save_json`, which fsyncs a same-directory temporary file and publishes it with `os.replace`; readiness therefore cannot observe a half-written first payload.

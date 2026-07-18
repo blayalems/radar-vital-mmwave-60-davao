@@ -11,6 +11,69 @@ export interface LiveBiasBucket {
   readonly width: number;
 }
 
+export interface LiveBlandAltmanStats {
+  readonly meanDiff: number;
+  readonly lo: number;
+  readonly hi: number;
+  readonly exceeds: boolean;
+  readonly unit: string;
+  readonly thresh: number;
+}
+
+export interface LiveOverviewTabViewModel {
+  readonly state: StateService;
+  readonly kpiOrder: Signal<string[]>;
+  readonly liveStatusAnnouncement: Signal<string>;
+  readonly baMetric: WritableSignal<'hr' | 'rr'>;
+  readonly baStats: Signal<LiveBlandAltmanStats | null>;
+  readonly sessionNotes: () => string;
+  readonly customTag: () => string;
+  readonly setCustomTag: (value: string) => void;
+  readonly openKpiZoomDialog: (metric: 'hr' | 'rr' | 'fps' | 'dist') => void;
+  readonly onKpiKeydown: (event: KeyboardEvent, kpi: string) => void;
+  readonly onKpiDragStart: (event: PointerEvent, kpi: string) => void;
+  readonly onKpiDragMove: (event: PointerEvent) => void;
+  readonly onKpiDragEnd: (event: PointerEvent) => void;
+  readonly kpiControlLabel: (label: string, key: string, unit: string) => string;
+  readonly kpiReorderDescription: (kpi: string) => string;
+  readonly kpiButtonTitle: (kpi: string) => string;
+  readonly hrConfidencePct: Signal<number | null>;
+  readonly hrConfidenceSource: Signal<string>;
+  readonly rrConfidencePct: Signal<number | null>;
+  readonly rrConfidenceSource: Signal<string>;
+  readonly hrHolding: Signal<boolean>;
+  readonly rrHolding: Signal<boolean>;
+  readonly hrValueDisplay: () => string;
+  readonly rrValueDisplay: () => string;
+  readonly chartLabel: (label: string, key: string, unit: string) => string;
+  readonly frameRateControlLabel: () => string;
+  readonly frameRateLabel: () => string;
+  readonly computedFps: Signal<string>;
+  readonly targetRangeControlLabel: () => string;
+  readonly targetRangeDisplay: () => string;
+  readonly targetZoneLabel: () => string;
+  readonly targetZoneTone: () => 'ok' | 'warn' | 'muted';
+  readonly signalQualityDisplay: () => string;
+  readonly signalQualitySub: () => string;
+  readonly signalQualityTone: () => 'ok' | 'warn' | 'muted';
+  readonly motionActive: Signal<boolean>;
+  readonly motionSummary: () => string;
+  readonly motionSub: () => string;
+  readonly exportSessionNotes: () => void;
+  readonly saveSessionNotes: (value: string) => void;
+  readonly addQuickTag: (tag: string) => void;
+  readonly recordObservation: () => Promise<void>;
+  readonly addCustomTag: () => void;
+  readonly captureSnapshot: () => void;
+  readonly metricState: (key: string) => 'Yes' | 'No' | '--';
+  readonly metricLabel: (key: string) => string;
+  readonly metricText: (key: string, decimals?: number, suffix?: string) => string;
+  readonly hasBleRef: () => boolean;
+  readonly baChartAriaLabel: () => string;
+  readonly requestCanvasDraw: () => void;
+  readonly formatFault: (fault: string | Record<string, unknown>) => string;
+}
+
 interface LiveChartTabViewModel {
   readonly state: StateService;
   readonly seriesNumbers: (...keys: string[]) => number[];

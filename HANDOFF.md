@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Live Overview boundary contract
+
+- **Partial extraction checkpoint**: Defined the complete typed Overview-tab view-model surface, including KPI interactions, confidence/readiness projections, notes/tags, snapshot capture, and Bland-Altman state, before moving the template into its standalone component.
+
 ### 2026-07-18 - Preflight request coordinator boundary
 
 - **Async ownership**: Moved hardware-setup fingerprinting, newest-generation arbitration, aggregate/single-check transport, and valid-snapshot ownership into `PreflightRequestCoordinator`; Home now maps coordinator outcomes into view signals and haptics.

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Firmware LCD lifecycle recovery
+
+- **Lifecycle ownership**: Replaced the duplicated boot/runtime placement-new paths with idempotent attach/detach helpers that always destroy an allocated LCD object before clearing its pointer and restore `lcdConnected`, address, character cache, and display state together.
+- **Recovery truthfulness**: Runtime probe failure now detaches once and enters bounded backoff; a successful rescan marks the display connected and increments `lcd_reinit_count` exactly once, while boot discovery and repeated same-address attach calls do not inflate the counter.
+- **Verification**: Firmware recovery host/static tests passed 4/4; focused BLE/default, nonblocking recovery, frozen 222-column serial, and power/thermal invariant tests passed 4/4; `git diff --check` passed and no `delay()` call was added. Arduino CLI is not installed in this worktree environment.
+
 ### 2026-07-18 - Firmware one-way presence ownership
 
 - **Presence pipeline**: Centralized the module raw snapshot, positive-evidence timestamp, debounce scores, and debounced flag under one packet-owned updater; negative packets no longer refresh positive evidence, and the derived FSM no longer writes raw/debounced state or scores back upstream.

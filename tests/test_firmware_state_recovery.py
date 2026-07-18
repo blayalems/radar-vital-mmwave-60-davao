@@ -66,6 +66,37 @@ class _PacketPresenceModel:
             self.debounced = False
 
 
+@dataclass
+class _LcdLifecycleModel:
+    connected: bool = False
+    allocated: bool = False
+    pointer: bool = False
+    address: int = 0
+    successful_recoveries: int = 0
+
+    def detach(self) -> None:
+        self.pointer = False
+        self.allocated = False
+        self.connected = False
+        self.address = 0
+
+    def attach(self, address: int, *, recovery: bool) -> None:
+        if (
+            self.connected
+            and self.allocated
+            and self.pointer
+            and self.address == address
+        ):
+            return
+        self.detach()
+        self.pointer = True
+        self.allocated = True
+        self.connected = True
+        self.address = address
+        if recovery:
+            self.successful_recoveries += 1
+
+
 def test_packet_presence_debounce_does_not_refresh_on_absence():
     source = _firmware()
     model = _PacketPresenceModel(
@@ -136,3 +167,73 @@ def test_firmware_presence_layers_have_one_way_ownership():
     assert "humanDetected = false;" in skip_dsp
     assert "radarIsPresent =" not in skip_dsp
     assert "radarIsPresentRaw =" not in skip_dsp
+
+
+def test_lcd_lifecycle_is_idempotent_and_counts_only_recovery():
+    lcd = _LcdLifecycleModel()
+
+    lcd.attach(0x27, recovery=False)
+    assert (lcd.connected, lcd.allocated, lcd.pointer, lcd.address) == (
+        True,
+        True,
+        True,
+        0x27,
+    )
+    assert lcd.successful_recoveries == 0
+
+    # Reattaching the live object is a no-op rather than reconstruction.
+    lcd.attach(0x27, recovery=True)
+    assert lcd.successful_recoveries == 0
+
+    lcd.detach()
+    lcd.detach()
+    assert (lcd.connected, lcd.allocated, lcd.pointer, lcd.address) == (
+        False,
+        False,
+        False,
+        0,
+    )
+
+    lcd.attach(0x27, recovery=True)
+    assert lcd.connected
+    assert lcd.successful_recoveries == 1
+    lcd.attach(0x27, recovery=True)
+    assert lcd.successful_recoveries == 1
+
+
+def test_firmware_lcd_lifecycle_has_one_owner_and_truthful_counter():
+    source = _firmware()
+    detach = _function_body(
+        source,
+        "static void lcdDetach(unsigned long now, bool scheduleRetry, const char* reason)",
+    )
+    attach = _function_body(
+        source,
+        "static bool lcdAttach(uint8_t addr, unsigned long now, bool recovery)",
+    )
+    scan = _function_body(source, "bool scanForLCD(bool recovery)")
+    reinit = _function_body(source, "void lcdReInit()")
+
+    assert "allocatedObject->~LiquidCrystal_I2C();" in detach
+    assert "lcdPtr = nullptr;" in detach
+    assert "lcdObjAllocated = false;" in detach
+    assert "lcdConnected = false;" in detach
+    assert "if (scheduleRetry && wasAttached)" in detach
+
+    assert "lcdDetach(now, false, nullptr);" in attach
+    assert "lcdPtr = new (lcdObjBuf) LiquidCrystal_I2C" in attach
+    assert "lcdObjAllocated = true;" in attach
+    assert "lcdConnected = true;" in attach
+    assert "if (recovery) diagLcdReinitCount++;" in attach
+    assert source.count("diagLcdReinitCount++") == 1
+
+    assert "lcdAttach(addr, millis(), recovery)" in scan
+    assert "return attached;" in scan
+    assert source.count("new (lcdObjBuf) LiquidCrystal_I2C") == 1
+    assert "lcdConnected=scanForLCD" not in source
+    assert "lcdConnected = scanForLCD" not in source
+    assert "scanForLCD(false);" in source
+    assert "scanForLCD(true);" in source
+    assert 'lcdDetach(now, true, "runtime_probe_failed");' in source
+    for lifecycle_body in (detach, attach, scan, reinit):
+        assert "delay(" not in lifecycle_body

@@ -321,7 +321,7 @@ void checkHRAlerts(float hr, bool hrValid);
 void i2cRecover(); void resetVitals(); void lcdCreateChars();
 float autocorr(float* buf, int n, int lag);
 static inline unsigned long safeElapsedMs(unsigned long now, unsigned long since);
-bool scanForLCD(); static bool probeI2C(uint8_t addr);
+bool scanForLCD(bool recovery = false); static bool probeI2C(uint8_t addr);
 static bool tryInitBH1750();
 static bool i2cSafeReadLux(unsigned long now);
 static bool i2cSafeReadMLX(unsigned long now, float& amb, float& obj);
@@ -329,6 +329,7 @@ static void updateChipThermal(unsigned long now);
 static void updatePowerSave(unsigned long now, bool presenceVote);
 static void updateLcdBacklightFromLux();
 extern unsigned long lastMlxRetry;
+extern unsigned long lastDisplay;
 void detectSpectral(float* buf, int n, float fs, float fmin, float fmax, float& outFreq, float& outMag);
 bool detectLowestSpectralFundamental(float* buf, int n, float fs, float fmin, float fmax, float& outBpm, float& outConf, float anchorBpm = 0.0f);
 static inline float heartPQIWeight(float pqi);
@@ -1111,27 +1112,79 @@ void i2cRecover() {
   Wire.begin(SDA, SCL); Wire.setTimeOut(100); wdtReset();
 }
 
-void lcdReInit() {
-  if (!lcdPtr) return;
-  diagLcdReinitCount++;
-  if (!probeI2C(lcdAddr)) {
-    i2cRecover();
-    if (!probeI2C(lcdAddr)) {
-      lcdConnected = false;
-      invalidateLcdRowCache();
-      periphBackoffFailure(lcdBackoff, millis());
-      return;
-    }
-  }
-  lcdPtr->init(); lcdPtr->backlight();
-  invalidateLcdRowCache();
-  customCharsValid = false; lcdCreateChars();
-  prevDispState = DISP_NONE; lastLedColor = 0xFFFFFFFF;
-  periphBackoffSuccess(lcdBackoff, millis());
-}
-
 static bool probeI2C(uint8_t addr) {
   Wire.beginTransmission(addr); return (Wire.endTransmission() == 0);
+}
+
+static LiquidCrystal_I2C* lcdObjectFromStorage() {
+  return reinterpret_cast<LiquidCrystal_I2C*>(lcdObjBuf);
+}
+
+static void lcdDetach(unsigned long now, bool scheduleRetry, const char* reason) {
+  bool wasAttached = lcdConnected || lcdObjAllocated || lcdPtr != nullptr;
+  if (lcdObjAllocated) {
+    LiquidCrystal_I2C* allocatedObject = lcdPtr ? lcdPtr : lcdObjectFromStorage();
+    allocatedObject->~LiquidCrystal_I2C();
+  }
+
+  lcdPtr = nullptr;
+  lcdObjAllocated = false;
+  lcdConnected = false;
+  lcdAddr = 0;
+  customCharsValid = false;
+  heartAnimFrame = false;
+  animPending = false;
+  hrVisibleOnVitalsScreen = false;
+  lcdBacklightDimmed = false;
+  invalidateLcdRowCache();
+  prevDispState = DISP_NONE;
+  lastDisplay = 0;
+  lastLcdRescanMs = now;
+
+  if (scheduleRetry && wasAttached) periphBackoffFailure(lcdBackoff, now);
+  if (wasAttached && reason) Serial.printf("[LCD] Detached: %s\n", reason);
+}
+
+static bool lcdAttach(uint8_t addr, unsigned long now, bool recovery) {
+  if (lcdConnected && lcdObjAllocated && lcdPtr && lcdAddr == addr) {
+    return true;
+  }
+
+  lcdDetach(now, false, nullptr);
+  lcdPtr = new (lcdObjBuf) LiquidCrystal_I2C(addr, LCD_COLS, LCD_ROWS);
+  lcdObjAllocated = true;
+  lcdAddr = addr;
+  lcdPtr->init();
+  lcdPtr->backlight();
+  lcdConnected = true;
+  lcdBacklightDimmed = false;
+  invalidateLcdRowCache();
+  customCharsValid = false;
+  lcdCreateChars();
+  prevDispState = DISP_NONE;
+  lastDisplay = 0;
+  lastLedColor = 0xFFFFFFFF;
+  periphBackoffSuccess(lcdBackoff, now);
+  if (recovery) diagLcdReinitCount++;
+  Serial.printf("[LCD] %s 0x%02X\n", recovery ? "Recovered" : "Found", addr);
+  return true;
+}
+
+void lcdReInit() {
+  unsigned long now = millis();
+  if (!lcdConnected || !lcdObjAllocated || !lcdPtr || lcdAddr == 0) {
+    lcdDetach(now, false, "inconsistent_state");
+    return;
+  }
+
+  uint8_t addr = lcdAddr;
+  if (!probeI2C(addr)) {
+    lcdDetach(now, true, "reinit_probe_failed");
+    return;
+  }
+
+  lcdDetach(now, false, nullptr);
+  lcdAttach(addr, now, true);
 }
 
 
@@ -1181,31 +1234,22 @@ static bool i2cSafeReadMLX(unsigned long now, float& amb, float& obj) {
   return false;
 }
 
-bool scanForLCD() {
+bool scanForLCD(bool recovery) {
   Wire.setTimeOut(50);
   uint8_t candidates[] = { 0x27, 0x3F, 0x20, 0x21, 0x22, 0x24, 0x25, 0x26 };
-  bool found = false;
   for (int i = 0; i < (int)(sizeof(candidates)/sizeof(candidates[0])); i++) {
     wdtReset(); uint8_t addr = candidates[i];
     if (addr == 0x23 || addr == 0x5C) continue;
     if (bh1750Ready && addr == bh1750Addr) continue;
-    Wire.beginTransmission(addr);
-    if (Wire.endTransmission() == 0) {
-      if (lcdObjAllocated && lcdPtr) { lcdPtr->~LiquidCrystal_I2C();
-        lcdPtr = nullptr; lcdObjAllocated = false; }
-      lcdPtr = new (lcdObjBuf) LiquidCrystal_I2C(addr, 20, 4);
-      lcdObjAllocated = true;
-      lcdPtr->init(); lcdPtr->backlight();
-      invalidateLcdRowCache();
-      customCharsValid = false; lcdCreateChars();
-      lcdAddr = addr; prevDispState = DISP_NONE;
-      Serial.printf("[LCD] Found 0x%02X\n", addr);
-      periphBackoffSuccess(lcdBackoff, millis());
-      found = true; break;
+    if (probeI2C(addr)) {
+      bool attached = lcdAttach(addr, millis(), recovery);
+      Wire.setTimeOut(100);
+      return attached;
     }
   }
-  if (!found) periphBackoffFailure(lcdBackoff, millis());
-  Wire.setTimeOut(100); return found;
+  periphBackoffFailure(lcdBackoff, millis());
+  Wire.setTimeOut(100);
+  return false;
 }
 
 // =========================================================================
@@ -4381,22 +4425,7 @@ void setup() {
   lastPointCloud.targets.reserve(MAX_TARGET_NUM);
   lastTargetInfo.targets.reserve(MAX_TARGET_NUM);
 
-  Wire.setTimeOut(50);
-  uint8_t quickScanAddrs[]={0x27,0x3F};
-  for (int i=0;i<2;i++) {
-    wdtReset();
-    Wire.beginTransmission(quickScanAddrs[i]);
-    if (Wire.endTransmission()==0) {
-      if (lcdObjAllocated&&lcdPtr) { lcdPtr->~LiquidCrystal_I2C();
-        lcdPtr=nullptr; lcdObjAllocated=false; }
-      lcdPtr=new(lcdObjBuf) LiquidCrystal_I2C(quickScanAddrs[i],20,4);
-      lcdObjAllocated=true; lcdPtr->init(); lcdPtr->backlight();
-      invalidateLcdRowCache();
-      customCharsValid=false; lcdCreateChars();
-      lcdAddr=quickScanAddrs[i]; lcdConnected=true; break;
-    }
-  }
-  Wire.setTimeOut(100);
+  scanForLCD(false);
 
   int initStep=0; const int totalSteps=6;
 
@@ -4423,7 +4452,7 @@ void setup() {
 
   if (lcdConnected) renderInitScreen(++initStep,totalSteps,"Display");
   else { pixel.setPixelColor(0,pixel.Color(0,60,60));
-    pixel.show(); lcdConnected=scanForLCD(); initStep++;
+    pixel.show(); initStep++;
   }
   Serial.printf("[SENSOR] LCD: %s\n",lcdConnected?"OK":"Not found"); wdtReset();
 
@@ -6933,17 +6962,14 @@ void loop() {
 
   // =========================================================================
 
-  if (!lcdConnected && periphBackoffReady(lcdBackoff, now)) {
+  if (!lcdConnected && periphBackoffReady(lcdBackoff, now) && !radarSerialBacklogged()) {
     lastLcdRescanMs = now;
-    if (scanForLCD()) { prevDispState = DISP_NONE; lastDisplay = 0; }
+    scanForLCD(true);
   }
 
   if (lcdConnected&&now-lastDisplay>=DISPLAY_INTERVAL && !radarSerialBacklogged()) {
     if (!probeI2C(lcdAddr)) {
-      lcdConnected = false;
-      lcdPtr = nullptr;
-      invalidateLcdRowCache();
-      lastLcdRescanMs = now;
+      lcdDetach(now, true, "runtime_probe_failed");
     } else {
       lastDisplay=now;
     if (dispState!=DISP_CALIB_RESULT&&dispState!=DISP_WELCOME&&dispState!=DISP_GOODBYE) {

@@ -92,6 +92,14 @@ from rvt_trainer.api.route_registry import (
     authorization_for as _route_authorization_for,
     match_route as _match_route,
 )
+from rvt_trainer.modeling import (
+    Cnn1DConfig,
+    Keras1DCNNRegressor,
+    MODEL_FAMILIES,
+    MODEL_FAMILY_CNN_1D,
+    MODEL_FAMILY_GRADIENT_BOOSTING,
+    build_causal_windows,
+)
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -12392,6 +12400,19 @@ def resolve_model_params(args) -> Dict[str, float]:
     }
 
 
+def resolve_cnn_config(args) -> Cnn1DConfig:
+    return Cnn1DConfig(
+        window_size=int(getattr(args, "cnn_window_size", 32)),
+        filters=int(getattr(args, "cnn_filters", 32)),
+        kernel_size=int(getattr(args, "cnn_kernel_size", 5)),
+        dropout=float(getattr(args, "cnn_dropout", 0.20)),
+        learning_rate=float(getattr(args, "cnn_learning_rate", 1e-3)),
+        epochs=int(getattr(args, "cnn_epochs", 100)),
+        batch_size=int(getattr(args, "cnn_batch_size", 64)),
+        patience=int(getattr(args, "cnn_patience", 12)),
+    )
+
+
 def build_model(random_state, params, n_estimators):
     return GradientBoostingRegressor(
         n_estimators=int(n_estimators), max_depth=int(params["max_depth"]),
@@ -12470,6 +12491,128 @@ def fit_target_model(
     return fit(build_model(random_state, params, int(params["n_estimators"]))), meta
 
 
+def fit_cnn_target_model(
+    df_train,
+    df_val,
+    target,
+    X_train_all,
+    X_val_all,
+    config,
+    random_state=42,
+    sample_weight_mode="none",
+    min_valid_windows=500,
+    allow_small_dataset=False,
+):
+    valid_col = f"{target}_valid_for_eval"
+    ref_col = f"ref_{target}"
+    train_mask = df_train[valid_col].fillna(False).to_numpy(dtype=bool)
+    val_mask = df_val[valid_col].fillna(False).to_numpy(dtype=bool)
+    train_rows = df_train.loc[train_mask].copy()
+    val_rows = df_val.loc[val_mask].copy()
+    required_rows = 20 if allow_small_dataset else max(20, int(min_valid_windows))
+    if len(train_rows) < required_rows:
+        override = (
+            " Pass --allow-small-cnn-dataset only for an explicitly labelled "
+            "overfit/feasibility experiment."
+            if not allow_small_dataset
+            else ""
+        )
+        raise ValueError(
+            f"Not enough valid {target.upper()} windows for cnn_1d "
+            f"({len(train_rows)} available, {required_rows} required). "
+            "Fix upstream publish coverage or keep --model-family gradient_boosting."
+            + override
+        )
+
+    train_sessions = (
+        df_train["session_id"].to_numpy(dtype=object)
+        if "session_id" in df_train
+        else np.repeat("train", len(df_train))
+    )
+    val_sessions = (
+        df_val["session_id"].to_numpy(dtype=object)
+        if "session_id" in df_val
+        else np.repeat("validation", len(df_val))
+    )
+    train_windows, train_endpoints = build_causal_windows(
+        X_train_all.to_numpy(dtype=np.float32),
+        train_sessions,
+        config.window_size,
+        endpoint_mask=train_mask,
+    )
+    val_windows, val_endpoints = build_causal_windows(
+        X_val_all.to_numpy(dtype=np.float32),
+        val_sessions,
+        config.window_size,
+        endpoint_mask=val_mask,
+    )
+    y_train = df_train.iloc[train_endpoints][ref_col].to_numpy(dtype=np.float32)
+    y_val = df_val.iloc[val_endpoints][ref_col].to_numpy(dtype=np.float32)
+    weights = get_sample_weights(train_rows, target, sample_weight_mode)
+    model = Keras1DCNNRegressor(config=config, random_state=random_state)
+    validation_data = (val_windows, y_val) if len(val_windows) >= 10 else None
+    model.fit(
+        train_windows,
+        y_train,
+        validation_data=validation_data,
+        sample_weight=weights,
+    )
+    trained_epochs = max((len(values) for values in model.history_.values()), default=0)
+    best_val_rmse = float("nan")
+    if len(val_windows):
+        val_pred = model.predict_windows(val_windows)
+        best_val_rmse = float(np.sqrt(mean_squared_error(y_val, val_pred)))
+    meta = {
+        "model_family": MODEL_FAMILY_CNN_1D,
+        "train_rows": int(len(train_rows)),
+        "val_rows": int(len(val_rows)),
+        "window_size": int(config.window_size),
+        "input_channels": int(X_train_all.shape[1]),
+        "trained_epochs": int(trained_epochs),
+        "best_val_rmse": best_val_rmse,
+        "used_early_stopping": validation_data is not None,
+    }
+    return model, meta
+
+
+def fit_selected_target_model(
+    df_train,
+    df_val,
+    target,
+    X_train_all,
+    X_val_all,
+    params,
+    args,
+    random_state,
+):
+    model_family = getattr(args, "model_family", MODEL_FAMILY_GRADIENT_BOOSTING)
+    if model_family == MODEL_FAMILY_CNN_1D:
+        return fit_cnn_target_model(
+            df_train,
+            df_val,
+            target,
+            X_train_all,
+            X_val_all,
+            config=resolve_cnn_config(args),
+            random_state=random_state,
+            sample_weight_mode=args.sample_weight_mode,
+            min_valid_windows=int(getattr(args, "cnn_min_valid_windows", 500)),
+            allow_small_dataset=bool(getattr(args, "allow_small_cnn_dataset", False)),
+        )
+    return fit_target_model(
+        df_train,
+        df_val,
+        target,
+        X_train_all,
+        X_val_all,
+        params=params,
+        random_state=random_state,
+        sample_weight_mode=args.sample_weight_mode,
+        use_early_stopping=not args.disable_early_stopping,
+        early_stop_strategy=args.early_stop_strategy,
+    )
+
+
 def apply_causal_slew_limit(df, col, max_delta_per_s):
     if max_delta_per_s is None or not np.isfinite(max_delta_per_s) or max_delta_per_s <= 0:
         return df
@@ -12500,12 +12643,22 @@ def add_predictions(df, X_all, model_hr=None, model_rr=None, hr_slew_limit=None,
     df = df.copy()
     X  = X_all.to_numpy(dtype=np.float32)
     if model_hr is not None:
-        df["pred_hr"] = np.clip(model_hr.predict(X), HR_RANGE[0], HR_RANGE[1])
+        raw_hr = (
+            model_hr.predict_aligned(df, X_all)
+            if hasattr(model_hr, "predict_aligned")
+            else model_hr.predict(X)
+        )
+        df["pred_hr"] = np.clip(raw_hr, HR_RANGE[0], HR_RANGE[1])
         df = apply_causal_slew_limit(df, "pred_hr", hr_slew_limit)
     else:
         df["pred_hr"] = np.nan
     if model_rr is not None:
-        df["pred_rr"] = np.clip(model_rr.predict(X), RR_RANGE[0], RR_RANGE[1])
+        raw_rr = (
+            model_rr.predict_aligned(df, X_all)
+            if hasattr(model_rr, "predict_aligned")
+            else model_rr.predict(X)
+        )
+        df["pred_rr"] = np.clip(raw_rr, RR_RANGE[0], RR_RANGE[1])
         df = apply_causal_slew_limit(df, "pred_rr", rr_slew_limit)
     else:
         df["pred_rr"] = np.nan
@@ -12681,6 +12834,8 @@ def cmd_predict(args):
                               pred_col="pred_rr", enabled=not args.no_plots)
     summary = {
         "version": VERSION,
+        "model_family": pre.get("model_family", MODEL_FAMILY_GRADIENT_BOOSTING),
+        "sequence": pre.get("sequence"),
         "rows": int(len(pred_df)),
         "sessions": list(dict.fromkeys(pred_df["session_id"].tolist())),
         "feature_mode": feature_mode,
@@ -13059,15 +13214,13 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, feature_cols, impute_value
         X_eval = X_eval.reindex(columns=expanded_feature_cols, fill_value=0.0).astype(np.float32)
         model_hr = model_rr = None
         if "hr" in available_targets and loo_train_df.get("hr_valid_for_eval", pd.Series(False, index=loo_train_df.index)).fillna(False).sum() >= 20:
-            model_hr, _ = fit_target_model(loo_train_df, loo_stop_df, "hr", X_train, X_stop, params=params,
-                                           random_state=args.random_state + i, sample_weight_mode=args.sample_weight_mode,
-                                           use_early_stopping=not args.disable_early_stopping,
-                                           early_stop_strategy=args.early_stop_strategy)
+            model_hr, _ = fit_selected_target_model(
+                loo_train_df, loo_stop_df, "hr", X_train, X_stop,
+                params=params, args=args, random_state=args.random_state + i)
         if "rr" in available_targets and loo_train_df.get("rr_valid_for_eval", pd.Series(False, index=loo_train_df.index)).fillna(False).sum() >= 20:
-            model_rr, _ = fit_target_model(loo_train_df, loo_stop_df, "rr", X_train, X_stop, params=params,
-                                           random_state=args.random_state + 100 + i, sample_weight_mode=args.sample_weight_mode,
-                                           use_early_stopping=not args.disable_early_stopping,
-                                           early_stop_strategy=args.early_stop_strategy)
+            model_rr, _ = fit_selected_target_model(
+                loo_train_df, loo_stop_df, "rr", X_train, X_stop,
+                params=params, args=args, random_state=args.random_state + 100 + i)
         pred = add_predictions(loo_eval_df, X_eval, model_hr=model_hr, model_rr=model_rr,
                                hr_slew_limit=args.slew_limit_hr_per_s, rr_slew_limit=args.slew_limit_rr_per_s)
         fold = {"holdout_session": holdout}
@@ -13096,8 +13249,14 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, feature_cols, impute_value
 def cmd_train(args):
     os.makedirs(args.out, exist_ok=True)
     progress_path = os.path.join(args.out, "training_progress.json")
+    model_family = getattr(args, "model_family", MODEL_FAMILY_GRADIENT_BOOSTING)
     target_label = ",".join(getattr(args, "targets", ["hr", "rr"]))
-    n_estimators_total = int(getattr(args, "n_estimators", 0) or 0)
+    progress_units_per_target = (
+        int(getattr(args, "cnn_epochs", 0) or 0)
+        if model_family == MODEL_FAMILY_CNN_1D
+        else int(getattr(args, "n_estimators", 0) or 0)
+    )
+    n_estimators_total = progress_units_per_target
     started_at = _iso_now()
     save_json({
         "schema_version": TRAINING_PROGRESS_SCHEMA_VERSION,
@@ -13110,6 +13269,8 @@ def cmd_train(args):
         "elapsed_s": 0.0,
         "started_at": started_at,
         "updated_at": started_at,
+        "model_family": model_family,
+        "progress_unit": "epochs" if model_family == MODEL_FAMILY_CNN_1D else "estimators",
     }, progress_path)
     train_started_t = time.monotonic()
     def _write_training_progress(status="running", n_done=0, train_loss=None, val_loss=None, **extra):
@@ -13124,6 +13285,8 @@ def cmd_train(args):
             "elapsed_s": round(time.monotonic() - train_started_t, 3),
             "started_at": started_at,
             "updated_at": _iso_now(),
+            "model_family": model_family,
+            "progress_unit": "epochs" if model_family == MODEL_FAMILY_CNN_1D else "estimators",
         }
         payload.update(extra)
         save_json(payload, progress_path)
@@ -13183,7 +13346,7 @@ def cmd_train(args):
             f"Requested={requested_targets}, skipped={skipped_targets}")
     if skipped_targets:
         warn(f"Skipping targets without enough valid reference rows: {skipped_targets}")
-    n_estimators_total = int(getattr(args, "n_estimators", 0) or 0) * max(1, len(available_targets))
+    n_estimators_total = progress_units_per_target * max(1, len(available_targets))
     _write_training_progress(status="running", n_done=0, phase="training_targets")
 
     feature_cols = pick_feature_columns(
@@ -13220,7 +13383,6 @@ def cmd_train(args):
             warn(msg)
 
     params = resolve_model_params(args)
-    use_es = not args.disable_early_stopping
     model_hr = None
     model_rr = None
     hr_fit_meta = {"skipped": True}
@@ -13228,18 +13390,28 @@ def cmd_train(args):
     n_estimators_done = 0
 
     if "hr" in available_targets:
-        model_hr, hr_fit_meta = fit_target_model(
-            train_df, stop_df, "hr", X_train_all, X_stop_all, params=params,
-            random_state=args.random_state, sample_weight_mode=args.sample_weight_mode,
-            use_early_stopping=use_es, early_stop_strategy=args.early_stop_strategy)
-        n_estimators_done += int(hr_fit_meta.get("best_n_estimators", params.get("n_estimators", 0)) or 0)
+        model_hr, hr_fit_meta = fit_selected_target_model(
+            train_df, stop_df, "hr", X_train_all, X_stop_all,
+            params=params, args=args, random_state=args.random_state)
+        n_estimators_done += int(
+            hr_fit_meta.get(
+                "trained_epochs",
+                hr_fit_meta.get("best_n_estimators", params.get("n_estimators", 0)),
+            )
+            or 0
+        )
         _write_training_progress(status="running", n_done=n_estimators_done, phase="trained_hr", val_loss=hr_fit_meta.get("best_val_rmse"))
     if "rr" in available_targets:
-        model_rr, rr_fit_meta = fit_target_model(
-            train_df, stop_df, "rr", X_train_all, X_stop_all, params=params,
-            random_state=args.random_state + 1, sample_weight_mode=args.sample_weight_mode,
-            use_early_stopping=use_es, early_stop_strategy=args.early_stop_strategy)
-        n_estimators_done += int(rr_fit_meta.get("best_n_estimators", params.get("n_estimators", 0)) or 0)
+        model_rr, rr_fit_meta = fit_selected_target_model(
+            train_df, stop_df, "rr", X_train_all, X_stop_all,
+            params=params, args=args, random_state=args.random_state + 1)
+        n_estimators_done += int(
+            rr_fit_meta.get(
+                "trained_epochs",
+                rr_fit_meta.get("best_n_estimators", params.get("n_estimators", 0)),
+            )
+            or 0
+        )
         _write_training_progress(status="running", n_done=n_estimators_done, phase="trained_rr", val_loss=rr_fit_meta.get("best_val_rmse"))
 
     train_pred = add_predictions(train_df, X_train_all, model_hr=model_hr, model_rr=model_rr,
@@ -13295,6 +13467,21 @@ def cmd_train(args):
             print("\n[RR model test]\n  skipped")
 
     feature_manifest = {
+        "model_family": model_family,
+        "sequence": (
+            resolve_cnn_config(args).as_dict()
+            if model_family == MODEL_FAMILY_CNN_1D
+            else None
+        ),
+        "cnn_training_policy": (
+            {
+                "minimum_valid_windows": int(args.cnn_min_valid_windows),
+                "small_dataset_override": bool(args.allow_small_cnn_dataset),
+                "status": "experimental",
+            }
+            if model_family == MODEL_FAMILY_CNN_1D
+            else None
+        ),
         "feature_mode": args.feature_mode,
         "feature_engineering_version": FEATURE_ENGINEERING_VERSION,
         "feature_schema_version": FEATURE_SCHEMA_VERSION,
@@ -13320,6 +13507,21 @@ def cmd_train(args):
     with open(os.path.join(args.out, "preprocessor.pkl"), "wb") as f:
         pickle.dump({
             "version": VERSION, "feature_mode": args.feature_mode,
+            "model_family": model_family,
+            "sequence": (
+                resolve_cnn_config(args).as_dict()
+                if model_family == MODEL_FAMILY_CNN_1D
+                else None
+            ),
+            "cnn_training_policy": (
+                {
+                    "minimum_valid_windows": int(args.cnn_min_valid_windows),
+                    "small_dataset_override": bool(args.allow_small_cnn_dataset),
+                    "status": "experimental",
+                }
+                if model_family == MODEL_FAMILY_CNN_1D
+                else None
+            ),
             "feature_engineering_version": FEATURE_ENGINEERING_VERSION,
             "feature_schema_version": FEATURE_SCHEMA_VERSION,
             "feature_schema_hash": feature_schema_hash(),
@@ -13338,12 +13540,12 @@ def cmd_train(args):
     # the .pkl files so the digests cover the exact bytes on disk. Verified by
     # _verify_model_dir before any pickle.load at predict time (audit item D4).
     _write_model_manifest(args.out)
-    if model_hr is not None:
+    if model_hr is not None and hasattr(model_hr, "feature_importances_"):
         save_feature_importance(model_hr, expanded_feature_cols,
                                 os.path.join(args.out, "feature_importance_hr.csv"))
         save_feature_importance_plot(model_hr, expanded_feature_cols,
                                      os.path.join(args.out, "feature_importance_hr.png"))
-    if model_rr is not None:
+    if model_rr is not None and hasattr(model_rr, "feature_importances_"):
         save_feature_importance(model_rr, expanded_feature_cols,
                                 os.path.join(args.out, "feature_importance_rr.csv"))
         save_feature_importance_plot(model_rr, expanded_feature_cols,
@@ -13387,6 +13589,21 @@ def cmd_train(args):
 
     summary = {
         "version": VERSION, "split": split_info,
+        "model_family": model_family,
+        "cnn_config": (
+            resolve_cnn_config(args).as_dict()
+            if model_family == MODEL_FAMILY_CNN_1D
+            else None
+        ),
+        "cnn_training_policy": (
+            {
+                "minimum_valid_windows": int(args.cnn_min_valid_windows),
+                "small_dataset_override": bool(args.allow_small_cnn_dataset),
+                "status": "experimental",
+            }
+            if model_family == MODEL_FAMILY_CNN_1D
+            else None
+        ),
         "alignment": {
             "tolerance_s": args.tolerance_s, "merge_direction": args.merge_direction,
             "auto_align_start": bool(args.auto_align_start),
@@ -13395,7 +13612,12 @@ def cmd_train(args):
             "heart_fft_window_s": args.heart_fft_window_s,
             "breath_fft_window_s": args.breath_fft_window_s,
         },
-        "model_params": params, "feature_manifest": feature_manifest,
+        "model_params": (
+            resolve_cnn_config(args).as_dict()
+            if model_family == MODEL_FAMILY_CNN_1D
+            else params
+        ),
+        "feature_manifest": feature_manifest,
         "train_valid_counts": {
             "hr_valid_train_rows": valid_counts["hr"],
             "rr_valid_train_rows": valid_counts["rr"],
@@ -14527,8 +14749,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     # -- train -----------------------------------------------------------------
     p_tr = sub.add_parser("train",
-        help="train HR and RR GBM correction models (only after gate passes)")
+        help="train HR/RR correction models with gradient boosting or an optional 1-D CNN")
     add_common(p_tr)
+    p_tr.add_argument(
+        "--model-family",
+        choices=MODEL_FAMILIES,
+        default=MODEL_FAMILY_GRADIENT_BOOSTING,
+        help="estimator family (default: gradient_boosting; cnn_1d requires TensorFlow)",
+    )
     p_tr.add_argument("--val-ratio",         type=float, default=0.2)
     p_tr.add_argument("--three-way-split",   action="store_true")
     p_tr.add_argument("--early-stop-ratio",  type=float, default=0.15)
@@ -14544,6 +14772,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_tr.add_argument("--max-depth",         type=int,   default=3)
     p_tr.add_argument("--learning-rate",     type=float, default=0.04)
     p_tr.add_argument("--subsample",         type=float, default=0.8)
+    p_tr.add_argument("--cnn-window-size",   type=int, default=32,
+                      help="causal samples per 1-D CNN input window")
+    p_tr.add_argument("--cnn-filters",       type=int, default=32)
+    p_tr.add_argument("--cnn-kernel-size",   type=int, default=5)
+    p_tr.add_argument("--cnn-dropout",       type=float, default=0.20)
+    p_tr.add_argument("--cnn-learning-rate", type=float, default=1e-3)
+    p_tr.add_argument("--cnn-epochs",        type=int, default=100)
+    p_tr.add_argument("--cnn-batch-size",    type=int, default=64)
+    p_tr.add_argument("--cnn-patience",      type=int, default=12)
+    p_tr.add_argument("--cnn-min-valid-windows", type=int, default=500,
+                      help="minimum valid endpoint windows per target before CNN training")
+    p_tr.add_argument("--allow-small-cnn-dataset", action="store_true",
+                      help="research-only override for CNN feasibility/overfit experiments")
     p_tr.add_argument("--max-nan-frac",      type=float, default=0.70)
     p_tr.add_argument("--min-variance",      type=float, default=1e-8)
     p_tr.add_argument("--min-samples-per-feature", type=int, default=10)

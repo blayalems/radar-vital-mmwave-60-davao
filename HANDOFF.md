@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Optional 1-D CNN training path
+
+- **Model choice**: Gradient boosting remains the default; `--model-family cnn_1d` enables an optional TensorFlow-backed causal sequence model without making TensorFlow a base dependency.
+- **Leakage and feasibility guards**: CNN windows are left-padded, causal, and bounded by contiguous session IDs; training requires 500 valid endpoint windows per target by default and labels any small-dataset override as experimental.
+- **Artifact compatibility**: The CNN wrapper serializes architecture, normalization, and weights through the existing signed pickle manifest, while prediction and training summaries record the selected family and sequence policy.
+
 ### 2026-07-18 - HTTP error status regression proof
 
 - **Route dispatch contract**: Added an end-to-end control-server test proving a route that uses the shared `api_error` envelope still emits HTTP 500 through `_send_json`, closing the reported 200-on-failure concern without changing the stable payload helper.

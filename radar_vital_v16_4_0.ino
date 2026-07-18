@@ -710,7 +710,9 @@ static int lastCalibPct = -1;
 static unsigned long lastHRUpdateMs = 0;
 static unsigned long lastRRUpdateMs = 0;
 static unsigned long lastDistanceUpdateMs = 0;
-static unsigned long lastPresenceUpdateMs = 0;
+// Last positive module-presence packet. This timestamp belongs to the raw
+// packet layer; the derived presence FSM must never refresh it.
+static unsigned long lastRadarPresencePacketMs = 0;
 static unsigned long lastPhaseDataMs = 0;
 static unsigned long lastValidRateMs=0;
 static unsigned long lastTrustedVitalMs = 0;
@@ -1705,7 +1707,7 @@ static void applyEscalationRewarm(unsigned long now);
 bool isHRFresh() { return lastHRUpdateMs>0 && (millis()-lastHRUpdateMs<HR_STALE_MS); }
 bool isRRFresh() { return lastRRUpdateMs>0 && (millis()-lastRRUpdateMs<RR_STALE_MS); }
 bool isDistanceFresh() { return lastDistanceUpdateMs>0 && (millis()-lastDistanceUpdateMs<DISTANCE_STALE_MS); }
-bool isPresenceFresh() { return lastPresenceUpdateMs>0 && (millis()-lastPresenceUpdateMs<PRESENCE_STALE_MS); }
+bool isPresenceFresh() { return lastRadarPresencePacketMs>0 && (millis()-lastRadarPresencePacketMs<PRESENCE_STALE_MS); }
 
 bool isPhaseFresh() {
   return lastPhaseDataMs > 0 && (millis() - lastPhaseDataMs < PHASE_FRESH_REQ_MS);
@@ -3146,6 +3148,41 @@ static int v13_presenceBoostAbsent() {
   return boost;
 }
 
+// Single owner for the module's packet-level presence snapshot, debounce
+// scores, and debounced result. Data flows from raw packet -> debounce -> FSM;
+// the derived FSM intentionally has no write-back path into these fields.
+static void updateRadarPacketPresence(bool rawPresent, unsigned long now) {
+  radarIsPresentRaw = rawPresent;
+  if (rawPresent) {
+    lastRadarPresencePacketMs = now;
+    radarPresentScore = min((int)RAW_PRESENT_VOTES,
+                            (int)radarPresentScore + v13_presenceBoostPresent());
+    radarAbsentScore = 0;
+  } else {
+    radarAbsentScore = min((int)RAW_ABSENT_VOTES,
+                           (int)radarAbsentScore + v13_presenceBoostAbsent());
+    radarPresentScore = 0;
+  }
+
+  if (!radarIsPresent && radarPresentScore >= RAW_PRESENT_VOTES) {
+    radarIsPresent = true;
+    if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
+      lastPresenceDebugLogMs = now;
+      Serial.printf("[RADAR_PRES] packet_confirm present | raw=%d pScore=%u aScore=%u human=%d pv=%d av=%d dist=%.2f\n",
+                    (int)rawPresent, (unsigned)radarPresentScore, (unsigned)radarAbsentScore,
+                    (int)humanDetected, presentVotes, absentVotes, lastGoodDistance);
+    }
+  } else if (radarIsPresent && radarAbsentScore >= RAW_ABSENT_VOTES) {
+    radarIsPresent = false;
+    if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
+      lastPresenceDebugLogMs = now;
+      Serial.printf("[RADAR_PRES] packet_confirm absent | raw=%d pScore=%u aScore=%u human=%d pv=%d av=%d dist=%.2f\n",
+                    (int)rawPresent, (unsigned)radarPresentScore, (unsigned)radarAbsentScore,
+                    (int)humanDetected, presentVotes, absentVotes, lastGoodDistance);
+    }
+  }
+}
+
 static bool v13_motionDetected(float dhSigned, float db, bool roughMotion) {
   bool energyMotion = motionDetected(dhSigned, db) || roughMotion;
   if (lastTargetInfoValid || lastPointCloudValid) return dopplerMotionDetected || (energyMotion && (int)maxDopplerAbs >= DOPPLER_SUBTLE_THRESHOLD_INDEX);
@@ -3289,7 +3326,7 @@ void resetVitals() {
   lastValidDisplayRRMs = 0;
   lastValidDisplayRR = 0.0f;
   rrHoldAgreementCount = 0;
-  lastHRUpdateMs=0; lastRRUpdateMs=0; lastDistanceUpdateMs=0; lastPresenceUpdateMs=0;
+  lastHRUpdateMs=0; lastRRUpdateMs=0; lastDistanceUpdateMs=0; lastRadarPresencePacketMs=0;
   lastHRDisplayedMs=0; lastDisplayedHR=0;
   lastValidPublishHRMs = 0UL;
   lastValidPublishHR = 0.0f;
@@ -3409,7 +3446,7 @@ static inline bool isDistanceFreshAt(unsigned long now) {
   return lastDistanceUpdateMs > 0 && (safeElapsedMs(now, lastDistanceUpdateMs) < DISTANCE_STALE_MS);
 }
 static inline bool isPresenceFreshAt(unsigned long now) {
-  return lastPresenceUpdateMs > 0 && (safeElapsedMs(now, lastPresenceUpdateMs) < PRESENCE_STALE_MS);
+  return lastRadarPresencePacketMs > 0 && (safeElapsedMs(now, lastRadarPresencePacketMs) < PRESENCE_STALE_MS);
 }
 static inline bool isPhaseFreshAt(unsigned long now) {
   return lastPhaseDataMs > 0 && (safeElapsedMs(now, lastPhaseDataMs) < PHASE_FRESH_REQ_MS);
@@ -4585,7 +4622,6 @@ void loop() {
     bool hrOk=mmWave.getHeartRate(rawHR);
     bool rrOk=mmWave.getBreathRate(rawRR);
     bool radarIsPresentInstant=mmWave.isHumanDetected();
-    radarIsPresentRaw = radarIsPresentInstant;
     bool distOk=mmWave.getDistance(radarDistance);
     v13_pollSpatialFrames(now);
     if (distOk && radarDistance > 1.0f) {
@@ -4594,7 +4630,6 @@ void loop() {
         radarDistance = 0.0f;
         distOk = false;
         radarIsPresentInstant = false;
-        radarIsPresentRaw = false;
         numDetectedTargets = 0;
       }
     }
@@ -4625,32 +4660,7 @@ void loop() {
       rrSeedLastRaw = NAN;
     }
 
-    if (radarIsPresentInstant) {
-      radarPresentScore = min((int)RAW_PRESENT_VOTES, (int)radarPresentScore + v13_presenceBoostPresent());
-      radarAbsentScore = 0;
-    } else {
-      radarAbsentScore = min((int)RAW_ABSENT_VOTES, (int)radarAbsentScore + v13_presenceBoostAbsent());
-      radarPresentScore = 0;
-    }
-    if (!radarIsPresent && radarPresentScore >= RAW_PRESENT_VOTES) {
-      radarIsPresent = true;
-      if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
-        lastPresenceDebugLogMs = now;
-        Serial.printf("[RADAR_PRES] raw_confirm present | inst=%d pScore=%u aScore=%u human=%d pv=%d av=%d dist=%.2f\n",
-                      (int)radarIsPresentInstant, (unsigned)radarPresentScore, (unsigned)radarAbsentScore,
-                      (int)humanDetected, presentVotes, absentVotes, lastGoodDistance);
-      }
-    } else if (radarIsPresent && radarAbsentScore >= RAW_ABSENT_VOTES) {
-      radarIsPresent = false;
-      if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
-        lastPresenceDebugLogMs = now;
-        Serial.printf("[RADAR_PRES] raw_confirm absent | inst=%d pScore=%u aScore=%u human=%d pv=%d av=%d dist=%.2f\n",
-                      (int)radarIsPresentInstant, (unsigned)radarPresentScore, (unsigned)radarAbsentScore,
-                      (int)humanDetected, presentVotes, absentVotes, lastGoodDistance);
-      }
-    }
-
-    if (radarIsPresent) lastPresenceUpdateMs=now;
+    updateRadarPacketPresence(radarIsPresentInstant, now);
     if (distOk&&radarDistance>1.0f) {
       lastDistanceUpdateMs=now;
       lastGoodDistance=radarDistance;
@@ -6134,7 +6144,7 @@ void loop() {
   wasMotion=inMotion;
 
   bool ambientEvidenceLatched = lastAmbientJumpMs > 0 && (safeElapsedMs(now, lastAmbientJumpMs) < AMBIENT_EVIDENCE_HOLD_MS);
-  bool radarPresenceEvidence = lastPresenceUpdateMs > 0 && (safeElapsedMs(now, lastPresenceUpdateMs) < RADAR_PRESENCE_EVIDENCE_MS);
+  bool radarPresenceEvidence = radarIsPresent && isPresenceFreshAt(now);
   bool radarEvidence = newData && (rawHRValid || rawRRValid);
   bool dspPresenceEvidence = lastTrustedVitalMs > 0 && (safeElapsedMs(now, lastTrustedVitalMs) < DSP_PRESENCE_EVIDENCE_MS);
   bool livePhaseEvidence = (lastLivePhaseMs > 0) && (safeElapsedMs(now, lastLivePhaseMs) < LIVE_PHASE_HOLD_MS) &&
@@ -6226,7 +6236,7 @@ void loop() {
     latchedWeakEvidence = false;
 
     bool exitLivePhaseEvidence = livePhaseEvidence && (phaseLivenessScore >= FALSE_PRESENCE_PHASE_MIN) && !currentStaticReflector;
-    bool hardNoPresenceEvidence = !radarIsPresentRaw && !radarEvidence && !radarPresenceEvidence &&
+    bool hardNoPresenceEvidence = !radarIsPresent && !radarEvidence && !radarPresenceEvidence &&
                                   !dspPresenceEvidence && !weakDistanceEvidence &&
                                   !rawHRValid && !rawRRValid && !exitLivePhaseEvidence;
     if (presenceState == PRESENCE_PRESENT || presenceState == PRESENCE_SILENT_HOLD || presenceState == PRESENCE_LEAVING) {
@@ -6371,27 +6381,8 @@ void loop() {
                    presenceState == PRESENCE_SILENT_HOLD ||
                    presenceState == PRESENCE_LEAVING);
 
-  // Claude P0-A fallback: if the higher-level presence FSM is confidently present,
-  // force radarIsPresent to confirm so downstream publication logic can see it.
-  if (!radarIsPresent && humanDetected && presentVotes >= 3) {
-    radarIsPresent = true;
-    radarPresentScore = (radarPresentScore > RAW_PRESENT_VOTES) ? radarPresentScore : RAW_PRESENT_VOTES;
-    radarAbsentScore = 0;
-    lastPresenceUpdateMs = now;
-    if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
-      lastPresenceDebugLogMs = now;
-      Serial.printf("[RADAR_PRES] fsm_fallback present | human=%d pv=%d av=%d state=%s dist=%.2f\n",
-                    (int)humanDetected, presentVotes, absentVotes, presenceStateName(presenceState), lastGoodDistance);
-    }
-  } else if (radarIsPresent && !humanDetected && absentVotes >= 3) {
-    radarIsPresent = false;
-    radarAbsentScore = (radarAbsentScore > 3) ? radarAbsentScore : 3;
-    if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
-      lastPresenceDebugLogMs = now;
-      Serial.printf("[RADAR_PRES] fsm_fallback absent | human=%d pv=%d av=%d state=%s dist=%.2f\n",
-                    (int)humanDetected, presentVotes, absentVotes, presenceStateName(presenceState), lastGoodDistance);
-    }
-  }
+  // The FSM projects humanDetected for downstream UI/logging only. Packet-level
+  // raw/debounced state remains exclusively owned by updateRadarPacketPresence().
   // Preserve lastGoodDistance across brief absence so weak-distance evidence and
   // distance-based stabilization can recover cleanly on re-entry.
 
@@ -6472,8 +6463,6 @@ void loop() {
       enterPresenceState(PRESENCE_ABSENT, now, "skipdsp_starved");
       handlePersonLeft(now, "skipdsp_starved");
       humanDetected = false;
-      radarIsPresent = false;
-      radarIsPresentRaw = false;
       falsePresenceStartMs = 0;
       falsePresenceAbsenceScore = 0;
       noHumanClearStartMs = 0;

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Firmware one-way presence ownership
+
+- **Presence pipeline**: Centralized the module raw snapshot, positive-evidence timestamp, debounce scores, and debounced flag under one packet-owned updater; negative packets no longer refresh positive evidence, and the derived FSM no longer writes raw/debounced state or scores back upstream.
+- **False-presence exit**: Hard-absence decisions now consume the packet-debounced result, while DSP-starvation exits update only the derived presence state, preventing an FSM transition from manufacturing a new raw-present latch.
+- **Verification**: Dependency-free host/static recovery tests passed 2/2; focused BLE/default, nonblocking recovery, frozen 222-column serial, and power/thermal invariant tests passed 4/4; `git diff --check` passed. Arduino CLI is not installed in this worktree environment.
+
 ### 2026-07-17 - Visual refresh bootstrap retirement
 
 - **Workflow scope**: Removed the one-shot PR #75 push trigger after the Windows runner regenerated, verified, committed, and pushed all 80 active baselines; the guarded manual refresh workflow and failure artifacts remain available for intentional future UI changes.

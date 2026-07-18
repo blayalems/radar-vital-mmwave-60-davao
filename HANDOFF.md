@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Extract Live waveform and funnel tabs
+
+- **Tab boundaries**: Moved Waves, HR funnel, and RR funnel into typed standalone OnPush presentation components while the Live container retains telemetry, annotation, export, and historical-session workflows.
+- **Canvas ownership**: Each extracted tab owns its rendered canvas reference and exposes only zoom mapping/reset behavior needed by the parent, eliminating cross-template `ViewChild` coupling.
+- **Style ownership**: Added encapsulated waveform and trend-panel styles; every extracted TS, HTML, and CSS file remains below 400 lines.
+
 ### 2026-07-18 - Extract Live Snaps and Audit presentation
 
 - **Tab boundaries**: Moved the Snaps catalog/comparison flow and Audit diagnostics/export console into typed, standalone OnPush presentation components; the Live container remains the only workflow/state owner and passes narrow callback/signal view models.

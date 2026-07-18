@@ -32,11 +32,19 @@ import { ServerLifecycleService } from '../../services/server-lifecycle.service'
 import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
 import { ChartAnnotation, SnapshotRecord } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
-import { ChartDataTableComponent } from '../chart-data-table/chart-data-table.component';
 import { describeLiveStatus, LiveStatusDescription } from './live-status';
 import { LiveAuditTabComponent } from './tabs/live-audit-tab.component';
+import { LiveHrTabComponent } from './tabs/live-hr-tab.component';
+import { LiveRrTabComponent } from './tabs/live-rr-tab.component';
 import { LiveSnapsTabComponent } from './tabs/live-snaps-tab.component';
-import { LiveAuditTabViewModel, LiveSnapsTabViewModel } from './live-tab-view-models';
+import { LiveWavesTabComponent } from './tabs/live-waves-tab.component';
+import {
+  LiveAuditTabViewModel,
+  LiveHrTabViewModel,
+  LiveRrTabViewModel,
+  LiveSnapsTabViewModel,
+  LiveWavesTabViewModel
+} from './live-tab-view-models';
 
 type BlandAltmanMetric = 'hr' | 'rr';
 
@@ -73,12 +81,14 @@ interface BiasBucket {
     MatChipsModule,
     MatProgressBarModule,
     MatProgressSpinnerModule,
-    ChartDataTableComponent,
     WaveCanvasComponent,
     TrendCanvasComponent,
     OverviewSparklineComponent,
     LiveAuditTabComponent,
-    LiveSnapsTabComponent
+    LiveHrTabComponent,
+    LiveRrTabComponent,
+    LiveSnapsTabComponent,
+    LiveWavesTabComponent
   ],
   templateUrl: './live.component.html',
   styleUrl: './live.component.css',
@@ -117,10 +127,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   // Canvas element references for dynamic renderers
-  @ViewChild('breathCanvas', { static: false }) breathCanvas!: WaveCanvasComponent;
-  @ViewChild('heartCanvas', { static: false }) heartCanvas!: WaveCanvasComponent;
-  @ViewChild('hrTrendCanvas', { static: false }) hrTrendCanvas!: TrendCanvasComponent;
-  @ViewChild('rrTrendCanvas', { static: false }) rrTrendCanvas!: TrendCanvasComponent;
+  @ViewChild(LiveHrTabComponent) hrTab?: LiveHrTabComponent;
+  @ViewChild(LiveRrTabComponent) rrTab?: LiveRrTabComponent;
   @ViewChild('targetCanvas', { static: false }) targetCanvas!: ElementRef<HTMLCanvasElement>;
 
   // Mini sparkline references
@@ -210,6 +218,58 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     exportAuditLog: format => this.exportAuditLog(format),
     eventTime: event => this.eventTime(event),
     formatEvent: event => this.formatEvent(event)
+  };
+  protected readonly wavesTabContext: LiveWavesTabViewModel = {
+    state: this.state,
+    showBreathTable: this.showBreathTable,
+    showHeartTable: this.showHeartTable,
+    seriesNumbers: (...keys) => this.seriesNumbers(...keys),
+    chartLabel: (label, key, unit) => this.chartLabel(label, key, unit),
+    getAnnotationsFor: chartKey => this.getAnnotationsFor(chartKey),
+    deleteAnnotation: (chartKey, annotation) => this.deleteAnnotation(chartKey, annotation),
+    handleChartClick: (event, chartKey) => this.handleChartClick(event, chartKey),
+    downloadChart: (canvas, label) => this.downloadChart(canvas, label),
+    qualityPercent: key => this.qualityPercent(key),
+    qualityLabel: key => this.qualityLabel(key),
+    ribbonSegments: kind => this.ribbonSegments(kind),
+    ribbonLabel: kind => this.ribbonLabel(kind),
+    resetTrendRange: () => this.resetTrendRange()
+  };
+  private readonly trendTabContext = {
+    state: this.state,
+    trendRange: this.trendRange,
+    trendRangeLimit: this.trendRangeLimit,
+    ghostSessionActive: this.ghostSessionActive,
+    ghostSessionLabel: this.ghostSessionLabel,
+    ghostHrData: this.ghostHrData,
+    ghostRrData: this.ghostRrData,
+    seriesNumbers: (...keys: string[]) => this.seriesNumbers(...keys),
+    getAnnotationsFor: (chartKey: string) => this.getAnnotationsFor(chartKey),
+    deleteAnnotation: (chartKey: string, annotation: ChartAnnotation) => this.deleteAnnotation(chartKey, annotation),
+    handleChartClick: (event: MouseEvent, chartKey: string) => this.handleChartClick(event, chartKey),
+    downloadChart: (canvas: HTMLCanvasElement, label: string) => this.downloadChart(canvas, label),
+    setTrendRange: (range: TrendRange) => this.setTrendRange(range),
+    resetTrendRange: () => this.resetTrendRange(),
+    trendRangeLabel: () => this.trendRangeLabel(),
+    trimTrend: (points: number[]) => this.trimTrend(points),
+    trendChartLabel: (label: string, key: string, unit: string, type: 'hr' | 'rr') =>
+      this.trendChartLabel(label, key, unit, type),
+    ghostPointCount: (type: 'hr' | 'rr') => this.ghostPointCount(type),
+    ghostLegendText: (type: 'hr' | 'rr') => this.ghostLegendText(type),
+    toggleGhostSession: () => this.toggleGhostSession(),
+    metricState: (key: string) => this.metricState(key),
+    metricText: (key: string, decimals?: number, suffix?: string) => this.metricText(key, decimals, suffix),
+    metricLabel: (key: string) => this.metricLabel(key)
+  };
+  protected readonly hrTabContext: LiveHrTabViewModel = {
+    ...this.trendTabContext,
+    showTable: this.showHrTable,
+    biasBuckets: computed(() => this.hrBiasBuckets())
+  };
+  protected readonly rrTabContext: LiveRrTabViewModel = {
+    ...this.trendTabContext,
+    showTable: this.showRrTable,
+    warnings: computed(() => this.rrWarnings())
   };
 
   constructor() {
@@ -546,10 +606,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
     let xPct = Math.max(0, Math.min(1, (clickX - pad) / innerW));
 
-    if (chartKey === 'hr' && this.hrTrendCanvas) {
-      xPct = this.hrTrendCanvas.mapZoomedXPctToFull(xPct);
-    } else if (chartKey === 'rr' && this.rrTrendCanvas) {
-      xPct = this.rrTrendCanvas.mapZoomedXPctToFull(xPct);
+    if (chartKey === 'hr' && this.hrTab) {
+      xPct = this.hrTab.mapZoomedXPctToFull(xPct);
+    } else if (chartKey === 'rr' && this.rrTab) {
+      xPct = this.rrTab.mapZoomedXPctToFull(xPct);
     }
 
     const label = window.prompt('Enter label for new annotation:');
@@ -948,8 +1008,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   resetTrendRange(): void {
     this.trendRange.set(120);
-    if (this.hrTrendCanvas) this.hrTrendCanvas.resetZoom();
-    if (this.rrTrendCanvas) this.rrTrendCanvas.resetZoom();
+    this.hrTab?.resetZoom();
+    this.rrTab?.resetZoom();
     if (this.hrTrendCanvasClone) this.hrTrendCanvasClone.resetZoom();
     if (this.rrTrendCanvasClone) this.rrTrendCanvasClone.resetZoom();
     this.snackBar.open('Chart window reset to 120 seconds.', 'Dismiss', { duration: 2500 });

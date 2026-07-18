@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Live Overview component extraction
+
+- **Component boundary**: Moved the 423-line Overview template, its Material/sparkline imports, and both Overview canvas references into `LiveOverviewTabComponent`; `LiveComponent` now supplies the typed view model and owns only data/render orchestration.
+- **Visual continuity**: The child reuses the established Live stylesheet under its own emulated scope, preserving the existing responsive presentation without global CSS leakage.
+- **Coverage**: Added a source-boundary contract proving template and canvas ownership moved out of the parent; the Angular production build passes.
+
 ### 2026-07-18 - Persistent fallback under SSE driver ownership
 
 - **Stack integration**: Ported the audit-base polling-only threshold into `SseDriverService`; driver cancellation preserves fallback, explicit reconnect/re-auth resets it, and no retry deadline or EventSource is created while polling-only.

@@ -1,10 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect, HostListener, signal, computed } from '@angular/core';
-import { UpperCasePipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { WaveCanvasComponent } from '../wave-canvas/wave-canvas.component';
 import { TrendCanvasComponent } from '../trend-canvas/trend-canvas.component';
-import { OverviewSparklineComponent } from '../overview-sparkline/overview-sparkline.component';
 
 // Angular Material 3 modules
 import { MatCardModule } from '@angular/material/card';
@@ -12,8 +9,6 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatTabChangeEvent } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -35,12 +30,14 @@ import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.compone
 import { describeLiveStatus, LiveStatusDescription } from './live-status';
 import { LiveAuditTabComponent } from './tabs/live-audit-tab.component';
 import { LiveHrTabComponent } from './tabs/live-hr-tab.component';
+import { LiveOverviewTabComponent } from './tabs/live-overview-tab.component';
 import { LiveRrTabComponent } from './tabs/live-rr-tab.component';
 import { LiveSnapsTabComponent } from './tabs/live-snaps-tab.component';
 import { LiveWavesTabComponent } from './tabs/live-waves-tab.component';
 import {
   LiveAuditTabViewModel,
   LiveHrTabViewModel,
+  LiveOverviewTabViewModel,
   LiveRrTabViewModel,
   LiveSnapsTabViewModel,
   LiveWavesTabViewModel
@@ -67,14 +64,10 @@ interface BiasBucket {
 @Component({
   selector: 'app-live',
   imports: [
-    UpperCasePipe,
-    FormsModule,
     MatCardModule,
     MatTabsModule,
     MatButtonModule,
     MatIconModule,
-    MatFormFieldModule,
-    MatInputModule,
     MatDialogModule,
     MatSnackBarModule,
     MatButtonToggleModule,
@@ -83,9 +76,9 @@ interface BiasBucket {
     MatProgressSpinnerModule,
     WaveCanvasComponent,
     TrendCanvasComponent,
-    OverviewSparklineComponent,
     LiveAuditTabComponent,
     LiveHrTabComponent,
+    LiveOverviewTabComponent,
     LiveRrTabComponent,
     LiveSnapsTabComponent,
     LiveWavesTabComponent
@@ -128,11 +121,9 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // Canvas element references for dynamic renderers
   @ViewChild(LiveHrTabComponent) hrTab?: LiveHrTabComponent;
+  @ViewChild(LiveOverviewTabComponent) overviewTab?: LiveOverviewTabComponent;
   @ViewChild(LiveRrTabComponent) rrTab?: LiveRrTabComponent;
-  @ViewChild('targetCanvas', { static: false }) targetCanvas!: ElementRef<HTMLCanvasElement>;
-
-  // Mini sparkline references
-  @ViewChild('baCanvas', { static: false }) baCanvas?: ElementRef<HTMLCanvasElement>;
+  // Mini chart references used by the split-screen secondary pane.
   @ViewChild('breathCanvasClone', { static: false }) breathCanvasClone?: WaveCanvasComponent;
   @ViewChild('heartCanvasClone', { static: false }) heartCanvasClone?: WaveCanvasComponent;
   @ViewChild('hrTrendCanvasClone', { static: false }) hrTrendCanvasClone?: TrendCanvasComponent;
@@ -195,6 +186,59 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   sessionNotesInput = '';
   customTagInput = '';
   protected readonly trendRange = signal<TrendRange>(120);
+  protected readonly overviewTabContext: LiveOverviewTabViewModel = {
+    state: this.state,
+    kpiOrder: this.kpiOrder,
+    liveStatusAnnouncement: this.liveStatusAnnouncement,
+    baMetric: this.baMetric,
+    baStats: this.baStats,
+    sessionNotes: () => this.sessionNotesInput,
+    customTag: () => this.customTagInput,
+    setCustomTag: value => { this.customTagInput = value; },
+    openKpiZoomDialog: metric => this.openKpiZoomDialog(metric),
+    onKpiKeydown: (event, kpi) => this.onKpiKeydown(event, kpi),
+    onKpiDragStart: (event, kpi) => this.onKpiDragStart(event, kpi),
+    onKpiDragMove: event => this.onKpiDragMove(event),
+    onKpiDragEnd: event => this.onKpiDragEnd(event),
+    kpiControlLabel: (label, key, unit) => this.kpiControlLabel(label, key, unit),
+    kpiReorderDescription: kpi => this.kpiReorderDescription(kpi),
+    kpiButtonTitle: kpi => this.kpiButtonTitle(kpi),
+    hrConfidencePct: computed(() => this.hrConfidencePct()),
+    hrConfidenceSource: computed(() => this.hrConfidenceSource()),
+    rrConfidencePct: computed(() => this.rrConfidencePct()),
+    rrConfidenceSource: computed(() => this.rrConfidenceSource()),
+    hrHolding: computed(() => this.hrHolding()),
+    rrHolding: computed(() => this.rrHolding()),
+    hrValueDisplay: () => this.hrValueDisplay(),
+    rrValueDisplay: () => this.rrValueDisplay(),
+    chartLabel: (label, key, unit) => this.chartLabel(label, key, unit),
+    frameRateControlLabel: () => this.frameRateControlLabel(),
+    frameRateLabel: () => this.frameRateLabel(),
+    computedFps: computed(() => this.computedFps()),
+    targetRangeControlLabel: () => this.targetRangeControlLabel(),
+    targetRangeDisplay: () => this.targetRangeDisplay(),
+    targetZoneLabel: () => this.targetZoneLabel(),
+    targetZoneTone: () => this.targetZoneTone(),
+    signalQualityDisplay: () => this.signalQualityDisplay(),
+    signalQualitySub: () => this.signalQualitySub(),
+    signalQualityTone: () => this.signalQualityTone(),
+    motionActive: computed(() => this.motionActive()),
+    motionSummary: () => this.motionSummary(),
+    motionSub: () => this.motionSub(),
+    exportSessionNotes: () => this.exportSessionNotes(),
+    saveSessionNotes: value => this.saveSessionNotes(value),
+    addQuickTag: tag => this.addQuickTag(tag),
+    recordObservation: () => this.recordObservation(),
+    addCustomTag: () => this.addCustomTag(),
+    captureSnapshot: () => this.captureSnapshot(),
+    metricState: key => this.metricState(key),
+    metricLabel: key => this.metricLabel(key),
+    metricText: (key, decimals, suffix) => this.metricText(key, decimals, suffix),
+    hasBleRef: () => this.hasBleRef(),
+    baChartAriaLabel: () => this.baChartAriaLabel(),
+    requestCanvasDraw: () => this.requestCanvasDraw(),
+    formatFault: fault => this.formatFault(fault)
+  };
   protected readonly snapsTabContext: LiveSnapsTabViewModel = {
     state: this.state,
     selectedCompareSnaps: this.selectedCompareSnaps,
@@ -345,9 +389,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     this.viewReady = true;
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.requestCanvasDraw());
-      [
-        this.targetCanvas, this.baCanvas
-      ].filter((ref): ref is ElementRef<HTMLCanvasElement> => !!ref).forEach(ref => this.resizeObserver?.observe(ref.nativeElement));
+      this.overviewCanvasRefs()
+        .forEach(ref => this.resizeObserver?.observe(ref.nativeElement));
     }
     this.requestCanvasDraw();
   }
@@ -1435,15 +1478,23 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         this.drawTargetPosition();
         this.drawBlandAltman();
       },
-      () => this.activeTabIndex === 0 && [this.targetCanvas, this.baCanvas]
+      () => this.activeTabIndex === 0 && this.overviewCanvasRefs()
         .some(ref => this.renderScheduler.canvasVisible(ref?.nativeElement)),
       100
     );
   }
 
+  private overviewCanvasRefs(): ElementRef<HTMLCanvasElement>[] {
+    return [
+      this.overviewTab?.targetCanvas,
+      this.overviewTab?.baCanvas
+    ].filter((ref): ref is ElementRef<HTMLCanvasElement> => !!ref);
+  }
+
   private drawTargetPosition(): void {
-    if (this.activeTabIndex !== 0 || !this.targetCanvas) return;
-    const canvas = this.targetCanvas.nativeElement;
+    const targetCanvas = this.overviewTab?.targetCanvas;
+    if (this.activeTabIndex !== 0 || !targetCanvas) return;
+    const canvas = targetCanvas.nativeElement;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     const dpr = window.devicePixelRatio || 1;
@@ -1491,9 +1542,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private drawBlandAltman(): void {
     if (this.activeTabIndex !== 0) return;
-    if (!this.baCanvas) return;
+    const baCanvas = this.overviewTab?.baCanvas;
+    if (!baCanvas) return;
 
-    const canvas = this.baCanvas.nativeElement;
+    const canvas = baCanvas.nativeElement;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     const dpr = window.devicePixelRatio || 1;

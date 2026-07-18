@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Atomic dashboard readiness proof
+
+- **Reviewer follow-up**: Confirmed every supervisor and trainer dashboard payload uses `save_json`, which fsyncs a same-directory temporary file and publishes it with `os.replace`; readiness therefore cannot observe a half-written first payload.
+- **Regression gate**: Added a test that inspects the existing placeholder while the replacement temporary file is being serialized, then proves the complete new JSON appears only after replacement and no temporary file remains.
+
 ### 2026-07-17 - Mobile operator smoke synchronization
 
 - **Operator journey**: Replaced synthetic create-profile clicks with enabled, actionable clicks that explicitly await both the profile-create and automatic-login responses before asserting dialog transitions; extended only this multi-stage lockout journey to a 120-second budget.

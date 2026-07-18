@@ -28,7 +28,25 @@
 - **Presence pipeline**: Centralized the module raw snapshot, positive-evidence timestamp, debounce scores, and debounced flag under one packet-owned updater; negative packets no longer refresh positive evidence, and the derived FSM no longer writes raw/debounced state or scores back upstream.
 - **False-presence exit**: Hard-absence decisions now consume the packet-debounced result, while DSP-starvation exits update only the derived presence state, preventing an FSM transition from manufacturing a new raw-present latch.
 - **Verification**: Dependency-free host/static recovery tests passed 2/2; focused BLE/default, nonblocking recovery, frozen 222-column serial, and power/thermal invariant tests passed 4/4; `git diff --check` passed. Arduino CLI is not installed in this worktree environment.
+### 2026-07-18 - Headerless visual handoff support
 
+- **Visual refresh automation**: The Windows baseline workflow now appends its handoff entry when `HANDOFF.md` is empty or contains no existing dated headings instead of reporting success without recording the refresh.
+- **Coverage**: Added a workflow contract guard for the headerless-log fallback.
+
+### 2026-07-18 - Persistent SSE polling fallback
+
+- **Transport fallback**: Crossing the SSE error-window threshold now enters an explicit polling-only state instead of scheduling another EventSource attempt; only manual reconnect or re-authentication clears the state.
+- **Coverage**: Added a threshold test proving repeated `startSse` calls cannot reopen a stream during fallback and manual reconnect restores SSE eligibility.
+
+### 2026-07-18 - Atomic dashboard readiness proof
+
+- **Reviewer follow-up**: Confirmed every supervisor and trainer dashboard payload uses `save_json`, which fsyncs a same-directory temporary file and publishes it with `os.replace`; readiness therefore cannot observe a half-written first payload.
+- **Regression gate**: Added a test that inspects the existing placeholder while the replacement temporary file is being serialized, then proves the complete new JSON appears only after replacement and no temporary file remains.
+
+### 2026-07-17 - Mobile operator smoke synchronization
+
+- **Operator journey**: Replaced synthetic create-profile clicks with enabled, actionable clicks that explicitly await both the profile-create and automatic-login responses before asserting dialog transitions; extended only this multi-stage lockout journey to a 120-second budget.
+- **CI/browser evidence**: The final PR #75 matrix passed 331/332 cases; its sole iPhone failure waited on the switch dialog while the test had no synchronization with the two-request create-and-login operation. The patched exact iPhone WebKit journey passes 1/1, including both operator switches and the five-attempt lockout, in 1.4 minutes.
 ### 2026-07-17 - Visual refresh bootstrap retirement
 
 - **Workflow scope**: Removed the one-shot PR #75 push trigger after the Windows runner regenerated, verified, committed, and pushed all 80 active baselines; the guarded manual refresh workflow and failure artifacts remain available for intentional future UI changes.

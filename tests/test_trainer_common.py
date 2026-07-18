@@ -7,6 +7,7 @@ import subprocess
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 
 from rvt_trainer import monolith
 from rvt_trainer.api.common import (
@@ -24,6 +25,7 @@ def test_monolith_keeps_historical_helper_imports():
     assert monolith._read_json_if_exists is read_json_if_exists
     assert monolith._json_safe_response is json_safe_response
     assert monolith.nan_safe is nan_safe
+    assert monolith._api_error is api_error
     assert monolith._wait_for_process_exit is wait_for_process_exit
 
 
@@ -55,6 +57,22 @@ def test_atomic_json_round_trip_replaces_target_without_temp_leak(tmp_path):
     # persisted files. Preserve that on-disk contract during extraction.
     assert read_json_if_exists(str(target)) == {"new": 2.5, "valid": 1}
     assert list(tmp_path.glob(".codex-json-*.tmp")) == []
+
+
+def test_atomic_json_replaces_symlink_name_without_overwriting_target(tmp_path):
+    target = tmp_path / "target.json"
+    target.write_text('{"original": 1}', encoding="utf-8")
+    alias = tmp_path / "alias.json"
+    try:
+        alias.symlink_to(target)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    atomic_write_json({"replacement": 2}, str(alias))
+
+    assert not alias.is_symlink()
+    assert read_json_if_exists(str(alias)) == {"replacement": 2}
+    assert read_json_if_exists(str(target)) == {"original": 1}
 
 
 def test_read_json_if_exists_is_fail_closed(tmp_path):

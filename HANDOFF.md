@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Atomic writer compatibility closure
+
+- **Path semantics**: Restored historical `save_json` behavior by normalizing absolute paths without resolving the final symlink, so atomic replacement updates the named path rather than an unrelated link target.
+- **Compatibility guard**: Added direct `_api_error` import identity coverage and a symlink replacement regression (skipped only when the host disallows symlink creation).
+- **Verification**: Common-helper, supervisor-boundary, session-isolation, and lifecycle suites pass 52/52 with one environment skip; trainer compileall, CLI help, and `git diff --check` pass.
+
 ### 2026-07-17 - Registry-owned HTTP request selection
 
 - **Dispatch ownership**: All GET/POST/PUT/DELETE route branches now select stable names returned by the grouped route registry; API/static path patterns are no longer duplicated across the handler cascade.

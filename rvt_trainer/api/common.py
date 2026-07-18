@@ -37,7 +37,10 @@ def nan_safe(obj: Any) -> Any:
 def atomic_write_json(obj: Dict[str, Any], path: str) -> None:
     """Durably replace ``path`` with JSON without exposing a partial file."""
 
-    target = Path(path).resolve()
+    # Preserve the historical ``save_json`` contract: normalize relative
+    # segments, but do not resolve the final path through a symlink. Replacing
+    # the named path keeps an existing symlink target untouched.
+    target = Path(os.path.abspath(path))
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(
         prefix=".codex-json-",

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Extract Live Snaps and Audit presentation
+
+- **Tab boundaries**: Moved the Snaps catalog/comparison flow and Audit diagnostics/export console into typed, standalone OnPush presentation components; the Live container remains the only workflow/state owner and passes narrow callback/signal view models.
+- **Style ownership**: Added a shared tab-panel stylesheet scoped by component encapsulation so extracted content retains card, table, console, comparison, and mobile behavior without making Live styles global.
+- **Coverage**: Production Angular and generated-monolith builds pass; desktop/Pixel snapshot capture and Audit export browser journeys pass 4/4, and every extracted component source stays below 400 lines.
+
 ### 2026-07-18 - Compact mobile Live status and actions
 
 - **First-screen hierarchy**: Mobile Live keeps the persistent demo provenance and prominent Stop action while arranging Pause, Snapshot, and Stop in one touch-sized row and keeping the Simple/Advanced selector on one row.

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect, HostListener, signal, computed } from '@angular/core';
-import { DatePipe, UpperCasePipe } from '@angular/common';
+import { UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { WaveCanvasComponent } from '../wave-canvas/wave-canvas.component';
@@ -14,9 +14,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatTableModule } from '@angular/material/table';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatChipsModule } from '@angular/material/chips';
@@ -36,6 +34,9 @@ import { ChartAnnotation, SnapshotRecord } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
 import { ChartDataTableComponent } from '../chart-data-table/chart-data-table.component';
 import { describeLiveStatus, LiveStatusDescription } from './live-status';
+import { LiveAuditTabComponent } from './tabs/live-audit-tab.component';
+import { LiveSnapsTabComponent } from './tabs/live-snaps-tab.component';
+import { LiveAuditTabViewModel, LiveSnapsTabViewModel } from './live-tab-view-models';
 
 type BlandAltmanMetric = 'hr' | 'rr';
 
@@ -58,7 +59,6 @@ interface BiasBucket {
 @Component({
   selector: 'app-live',
   imports: [
-    DatePipe,
     UpperCasePipe,
     FormsModule,
     MatCardModule,
@@ -67,9 +67,7 @@ interface BiasBucket {
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
-    MatTableModule,
     MatDialogModule,
-    MatMenuModule,
     MatSnackBarModule,
     MatButtonToggleModule,
     MatChipsModule,
@@ -78,7 +76,9 @@ interface BiasBucket {
     ChartDataTableComponent,
     WaveCanvasComponent,
     TrendCanvasComponent,
-    OverviewSparklineComponent
+    OverviewSparklineComponent,
+    LiveAuditTabComponent,
+    LiveSnapsTabComponent
   ],
   templateUrl: './live.component.html',
   styleUrl: './live.component.css',
@@ -187,6 +187,30 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   sessionNotesInput = '';
   customTagInput = '';
   protected readonly trendRange = signal<TrendRange>(120);
+  protected readonly snapsTabContext: LiveSnapsTabViewModel = {
+    state: this.state,
+    selectedCompareSnaps: this.selectedCompareSnaps,
+    compareSelection: this.compareSelection,
+    sortedSnaps: () => this.sortedSnaps(),
+    captureSnapshot: () => this.captureSnapshot(),
+    clearAllSnaps: () => this.clearAllSnaps(),
+    snapDelta: key => this.snapDelta(key),
+    clearCompareSelection: () => this.clearCompareSelection(),
+    moveSnap: (snapId, direction) => this.moveSnap(snapId, direction),
+    toggleCompareSnap: snapId => this.toggleCompareSnap(snapId),
+    deleteSnap: snapId => this.deleteSnap(snapId),
+    updateSnapNote: (snapId, value) => this.updateSnapNote(snapId, value)
+  };
+  protected readonly auditTabContext: LiveAuditTabViewModel = {
+    state: this.state,
+    analysisMetric: key => this.analysisMetric(key),
+    analysisNested: (recordKey, key, decimals) => this.analysisNested(recordKey, key, decimals),
+    metricText: (key, decimals, suffix) => this.metricText(key, decimals, suffix),
+    histogramSummary: key => this.histogramSummary(key),
+    exportAuditLog: format => this.exportAuditLog(format),
+    eventTime: event => this.eventTime(event),
+    formatEvent: event => this.formatEvent(event)
+  };
 
   constructor() {
     effect(() => {

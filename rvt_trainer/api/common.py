@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import subprocess
 import tempfile
 from pathlib import Path
@@ -42,6 +43,10 @@ def atomic_write_json(obj: Dict[str, Any], path: str) -> None:
     # the named path keeps an existing symlink target untouched.
     target = Path(os.path.abspath(path))
     target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        target_mode = stat.S_IMODE(target.stat().st_mode)
+    except OSError:
+        target_mode = 0o644
     fd, tmp_path = tempfile.mkstemp(
         prefix=".codex-json-",
         suffix=".tmp",
@@ -52,6 +57,7 @@ def atomic_write_json(obj: Dict[str, Any], path: str) -> None:
             json.dump(nan_safe(obj), handle, indent=2, allow_nan=False)
             handle.flush()
             os.fsync(handle.fileno())
+        os.chmod(tmp_path, target_mode)
         os.replace(tmp_path, target)
     finally:
         if os.path.exists(tmp_path):

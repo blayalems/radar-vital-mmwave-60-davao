@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 import subprocess
 from unittest.mock import MagicMock
 
@@ -57,6 +59,20 @@ def test_atomic_json_round_trip_replaces_target_without_temp_leak(tmp_path):
     # persisted files. Preserve that on-disk contract during extraction.
     assert read_json_if_exists(str(target)) == {"new": 2.5, "valid": 1}
     assert list(tmp_path.glob(".codex-json-*.tmp")) == []
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission contract")
+def test_atomic_json_preserves_existing_permissions_and_defaults_to_world_readable(tmp_path):
+    existing = tmp_path / "existing.json"
+    existing.write_text('{"old": 1}', encoding="utf-8")
+    existing.chmod(0o640)
+
+    atomic_write_json({"new": 1}, str(existing))
+    created = tmp_path / "created.json"
+    atomic_write_json({"new": 2}, str(created))
+
+    assert stat.S_IMODE(existing.stat().st_mode) == 0o640
+    assert stat.S_IMODE(created.stat().st_mode) == 0o644
 
 
 def test_atomic_json_replaces_symlink_name_without_overwriting_target(tmp_path):

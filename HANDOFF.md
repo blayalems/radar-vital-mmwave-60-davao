@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Atomic JSON permission preservation
+
+- **Persistence compatibility**: Same-directory atomic JSON replacement now carries forward an existing target mode and applies `0644` to new files, preventing `mkstemp`'s private mode from making shared dashboard artifacts unreadable on POSIX.
+- **Coverage**: Added POSIX regression checks for both preserved and default modes.
+
 ### 2026-07-18 - Stack backend boundaries on lifecycle closure
 
 - **Integration**: Rebased the service-boundary follow-up logically on the consolidated lifecycle, request-race, cache privacy, diagnostics privacy, and exact-origin credential closure while preserving each backend extraction commit.

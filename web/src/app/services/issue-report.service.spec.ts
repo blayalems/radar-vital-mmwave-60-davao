@@ -216,6 +216,9 @@ describe('IssueReportService', () => {
     expect(categorizeControlError('Failed to fetch: network offline')).toBe('unreachable');
     expect(categorizeControlError('HTTP 503 internal server error')).toBe('server');
     expect(categorizeControlError('unexpected private detail')).toBe('other');
+    expect(categorizeControlError('Repairing I2C bus after failure')).toBe('other');
+    expect(categorizeControlError('Spinlock timeout')).toBe('timeout');
+    expect(categorizeControlError('Pairing token rejected')).toBe('authentication');
   });
 
   it('de-identifies alerts — only counts and last5 with age_s, no message text', async () => {
@@ -365,6 +368,17 @@ describe('IssueReportService', () => {
     expect(clean).not.toContain('ABCD-EFGH-JKLM');
     expect(clean).not.toContain('op_abc123');
     expect(clean).not.toContain('Blessie Mugat');
+  });
+
+  it('redacts short pairing PINs when their field or query context identifies them', () => {
+    const clean = sanitizeDiagnosticLine(
+      'Pair at /?pair=842 pairing_pin: 842 active_pin=842 unrelated=842'
+    );
+
+    expect(clean).toContain('?pair=[REDACTED_PIN]');
+    expect(clean).toContain('pairing_pin=[REDACTED_PIN]');
+    expect(clean).toContain('active_pin=[REDACTED_PIN]');
+    expect(clean).toContain('unrelated=842');
   });
 
   it('collects remote log tail from /api/trainer/log for non-exe platform', async () => {

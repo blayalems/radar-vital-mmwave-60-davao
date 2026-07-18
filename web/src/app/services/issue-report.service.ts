@@ -108,8 +108,8 @@ function escapeRegExp(value: string): string {
 export function sanitizeDiagnosticLine(line: string, identityHints: string[] = []): string {
   let redacted = String(line ?? '');
 
-  redacted = redacted.replace(/([?&]pair=)\d{6}\b/gi, '$1[REDACTED_PIN]');
-  redacted = redacted.replace(/\b(pair(?:ing)?[_ -]?(?:pin|code)|active_pin)\b\s*[:=]\s*["']?\d{6}\b/gi, '$1=[REDACTED_PIN]');
+  redacted = redacted.replace(/([?&]pair=)\d{3,8}\b/gi, '$1[REDACTED_PIN]');
+  redacted = redacted.replace(/\b(pair(?:ing)?[_ -]?(?:pin|code)|active_pin)\b\s*[:=]\s*["']?\d{3,8}\b/gi, '$1=[REDACTED_PIN]');
   redacted = redacted.replace(/\b(X-RVT-Auth|Authorization)\b\s*[:=]\s*(Bearer\s+)?[A-Za-z0-9._~+/=-]{8,}/gi, '$1: [REDACTED_TOKEN]');
   redacted = redacted.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, 'Bearer [REDACTED_TOKEN]');
   redacted = redacted.replace(/\b(rvt-operator-token|rvt-pair-token|operator_token|session_token|sse_token|token)\b\s*[:=]\s*["']?[A-Za-z0-9._~+/=-]{8,}/gi, '$1=[REDACTED_TOKEN]');
@@ -131,7 +131,7 @@ export function sanitizeDiagnosticLine(line: string, identityHints: string[] = [
 export function categorizeControlError(value: unknown): ControlErrorCategory | undefined {
   const text = String(value ?? '').trim().toLowerCase();
   if (!text) return undefined;
-  if (/(?:\b401\b|\b403\b|auth|bearer|forbidden|pair(?:ing)?|pin|token|unauthori[sz]ed)/.test(text)) {
+  if (/\b(?:401|403|auth|bearer|forbidden|pair|pairing|pin|token|unauthori[sz]ed)\b/.test(text)) {
     return 'authentication';
   }
   if (/(?:timeout|timed out|deadline)/.test(text)) return 'timeout';

@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Review closure for diagnostics and shell caching
+
+- **Diagnostic categories**: Authentication terms now require complete word matches, so `repairing` and `spinlock` cannot be mislabeled while real pairing/token failures remain categorized.
+- **PIN redaction**: Pairing query and named-field sanitizers redact 3-8 digit PINs while leaving unrelated short numeric diagnostics intact.
+- **Offline shell integrity**: Online route responses are returned normally but never stored as the canonical shell; cache refreshes fetch `index.html` explicitly before replacing the one navigation cache key.
+- **Coverage**: Added false-positive error-category cases and executable route-versus-shell cache assertions.
+
 ### 2026-07-18 - Integrate lifecycle, race, and privacy closure
 
 - **Stacked closure**: Combined bounded session shutdown ownership with report/preflight request gates, canonical navigation caching, de-identified issue diagnostics, and exact-origin trainer credential policy.

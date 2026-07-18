@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Exact-origin trainer authentication
+
+- **Credential boundary**: Browser, Capacitor, and download requests now attach trainer credentials only to relative trainer APIs or absolute API URLs on the exact configured origin; caller-supplied trainer headers are removed from untrusted destinations.
+- **Native routing**: Tauri no longer captures arbitrary absolute `/api/` URLs, while its restart-safe exception remains limited to HTTP loopback API URLs that are re-resolved and pinned by the native paired-origin transport.
+- **Verification**: Focused API/auth/Tauri coverage passes 24/24, including hostile absolute URLs and origin-prefix lookalikes; the Angular production build and `npm run build:check` pass with the existing 2.52 MB initial-bundle warning.
+
 ### 2026-07-18 - De-identified issue diagnostics
 
 - **Control summary**: Issue previews and generated URLs now allowlist control status fields, normalize mode/latency, and replace raw error/reason/message text with a non-reversible failure category.

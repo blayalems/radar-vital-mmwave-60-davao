@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Canonical shell contract alignment
+
+- **Stack regression**: Updated the inherited service-worker source contract to assert canonical dashboard refresh and fallback semantics instead of the obsolete single-line navigation call shape; the full Python suite now exercises the privacy fix.
+
 ### 2026-07-18 - Fold-local model preprocessing
 
 - **Leakage closure**: Leave-one-session-out evaluation now selects features, fits imputation, and expands missingness flags inside each training fold before transforming its holdout session; both model families inherit the same fold-local contract.

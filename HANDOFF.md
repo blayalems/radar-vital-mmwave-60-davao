@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Persistent SSE polling fallback
+
+- **Transport fallback**: Crossing the SSE error-window threshold now enters an explicit polling-only state instead of scheduling another EventSource attempt; only manual reconnect or re-authentication clears the state.
+- **Coverage**: Added a threshold test proving repeated `startSse` calls cannot reopen a stream during fallback and manual reconnect restores SSE eligibility.
+
 ### 2026-07-18 - Atomic dashboard readiness proof
 
 - **Reviewer follow-up**: Confirmed every supervisor and trainer dashboard payload uses `save_json`, which fsyncs a same-directory temporary file and publishes it with `os.replace`; readiness therefore cannot observe a half-written first payload.

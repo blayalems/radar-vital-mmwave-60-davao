@@ -215,6 +215,30 @@ describe('TelemetryService', () => {
     expect(state.sessionActive()).toBe(true);
     expect(state.currentSessionId()).toBe('session-live-1');
   });
+
+  it('stays polling-only after the SSE failure threshold until manual reconnect', async () => {
+    service = TestBed.inject(TelemetryService);
+    await settle();
+    const failedSource = mockEventSourceInstances.at(-1)!;
+
+    failedSource.onerror?.();
+    failedSource.onerror?.();
+    failedSource.onerror?.();
+    failedSource.onerror?.();
+    await settle();
+
+    expect(failedSource.closed).toBe(true);
+    expect((service as any).pollingOnly).toBe(true);
+    const instancesAfterFallback = mockEventSourceInstances.length;
+
+    await (service as any).startSse();
+    expect(mockEventSourceInstances).toHaveLength(instancesAfterFallback);
+
+    service.reconnect();
+    await settle();
+    expect((service as any).pollingOnly).toBe(false);
+    expect(mockEventSourceInstances).toHaveLength(instancesAfterFallback + 1);
+  });
 });
 
 function deferred<T>() {

@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Model-family operating guide
+
+- **Documentation**: Added the gradient-boosting-first workflow, guarded CNN commands, causal-window contract, validation order, artifact compatibility, and an explicit boundary between host training, TinyML experiments, and deployed firmware inference.
+
 ### 2026-07-18 - Optional 1-D CNN training path
 
 - **Model choice**: Gradient boosting remains the default; `--model-family cnn_1d` enables an optional TensorFlow-backed causal sequence model without making TensorFlow a base dependency.

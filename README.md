@@ -148,6 +148,19 @@ CI: [`.github/workflows/build-exe.yml`](./.github/workflows/build-exe.yml) build
 
 ---
 
+## Model training
+
+The Python trainer keeps `gradient_boosting` as its default correction model and
+offers an explicit, optional `cnn_1d` research path with causal
+session-bounded windows. The CNN requires TensorFlow and enforces a
+500-valid-window floor per target unless a clearly labelled experimental
+override is supplied.
+
+See [`docs/model-family-guide.md`](./docs/model-family-guide.md) for commands,
+data-readiness requirements, artifact behavior, and thesis-claim boundaries.
+
+---
+
 ## Testing
 
 ```bash

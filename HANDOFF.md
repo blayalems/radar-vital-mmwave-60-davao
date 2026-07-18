@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-18 - Remove redundant Live snapshot FAB
+
+- **Single clear action path**: Removed the fixed bottom-right snapshot FAB and its orphaned styling; snapshot capture remains available in the command strip, target-tracking card, and Snaps tab without covering Live content or duplicating the primary desktop action.
+- **Coverage**: The demo-mode browser journey proves the redundant instant-capture control is absent before exercising the supported Pin Snapshot flow on desktop and Pixel (2/2); the production dashboard rebuild is warning-free.
+
 ### 2026-07-17 - Honest Live trend sample states
 
 - **Empty/warm-up truth**: Trend canvases now visibly distinguish no valid samples, bounded warm-up progress, and ready history instead of presenting an empty threshold grid as if a trace existed.

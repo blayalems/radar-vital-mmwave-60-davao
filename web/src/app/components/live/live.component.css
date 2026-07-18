@@ -1507,31 +1507,6 @@
   font-size: 0.8rem;
 }
 
-/* Quick-Pin FAB styling */
-.quick-pin-fab-container {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 999;
-}
-
-.fab-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  background: var(--md-sys-color-error, #ba1a1a);
-  color: var(--md-sys-color-on-error, #ffffff);
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
 /* Annotation chip layout */
 .annotation-chips {
   display: flex;

@@ -1233,15 +1233,5 @@
     }
   </div>
 
-  <!-- Quick-Pin FAB -->
-  <div class="quick-pin-fab-container">
-    <button mat-fab color="primary" (click)="captureSnapshot()" [disabled]="!state.lastPayload()" aria-label="Capture snapshot instantly">
-      @if (state.snaps().length > 0) {
-        <span class="fab-badge">{{ state.snaps().length }}</span>
-      }
-      <mat-icon>bookmark</mat-icon>
-    </button>
-  </div>
-
 </div>
 }

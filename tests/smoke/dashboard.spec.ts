@@ -1273,6 +1273,7 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('#demoBanner')).toBeVisible();
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
     await enterLiveAdvanced(page);
+    await expect(page.getByRole('button', { name: 'Capture snapshot instantly' })).toHaveCount(0);
     await page.getByRole('button', { name: /Pin Snapshot/ }).first().click();
     await page.getByRole('tab', { name: 'Snaps' }).click();
     await expect(page.getByText('Pinned Telemetry Snapshots')).toBeVisible();

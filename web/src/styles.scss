@@ -1483,14 +1483,6 @@ html[data-palette] body app-live .hero-card {
   box-shadow: none !important;
 }
 
-/* ---- v17 snapshot FAB: primary-filled rounded square. */
-html[data-palette] body app-live .quick-pin-fab-container button,
-html[data-palette] body app-live .quick-pin-fab-container .mat-mdc-fab {
-  background: var(--md-sys-color-primary) !important;
-  color: var(--md-sys-color-on-primary) !important;
-  box-shadow: 0 12px 28px -12px rgba(8, 14, 24, 0.4) !important;
-}
-
 /* ---- v17 Live tab strip: compact chip pills (auto width, tonal active)
    instead of full-width Material tabs. */
 html[data-palette] body app-live .live-tabs-group .mat-mdc-tab-header {

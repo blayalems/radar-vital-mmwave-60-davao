@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-22 - Firmware plan completion sync
+
+- **Plan status**: Marked all four PR #79 source implementation items complete and recorded their source/model proof, including the exact 222-field header/payload gate.
+- **Release boundary**: Distinguished the six setup-only waits from the delay-free live parser/DSP recovery paths and retained Arduino/XIAO + MR60BHA2/LCD bench validation as the remaining physical release gate.
+
 ### 2026-07-22 - Frozen firmware serial-order proof
 
 - **Exact schema gate**: Added a source-level contract that reconstructs the firmware's concatenated `DATA` header and proves all 222 names and positions match `RADAR_LOG_COLUMNS` exactly.
@@ -15,7 +20,7 @@
 - **Stacked base**: Merged the canonical polling-fallback dashboard rebuild from PR #75 so PR #79 no longer inherits the failed Angular-to-monolith round-trip check.
 - **Conflict safety**: Preserved all firmware recovery entries while incorporating the base branch handoff entry and generated dashboard artifact.
 
-### 2026-07-19 - Firmware live-loop delay closure
+### 2026-07-22 - Firmware live-loop delay closure
 
 - **Deadline recovery**: Radar UART release, runtime I2C bus release, and the one-shot NVS namespace reopen now settle through explicit `millis()` deadlines instead of blocking the parser/DSP loop.
 - **Display/setup audit**: Removed the cosmetic LCD transition wait and documented all six remaining `delay()` sites as setup-only before watchdog activation.

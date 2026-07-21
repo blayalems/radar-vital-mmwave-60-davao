@@ -20,15 +20,10 @@ export interface LiveBlandAltmanStats {
   readonly thresh: number;
 }
 
-export interface LiveOverviewTabViewModel {
+export interface LiveKpiStripViewModel {
   readonly state: StateService;
   readonly kpiOrder: Signal<string[]>;
   readonly liveStatusAnnouncement: Signal<string>;
-  readonly baMetric: WritableSignal<'hr' | 'rr'>;
-  readonly baStats: Signal<LiveBlandAltmanStats | null>;
-  readonly sessionNotes: () => string;
-  readonly customTag: () => string;
-  readonly setCustomTag: (value: string) => void;
   readonly openKpiZoomDialog: (metric: 'hr' | 'rr' | 'fps' | 'dist') => void;
   readonly onKpiKeydown: (event: KeyboardEvent, kpi: string) => void;
   readonly onKpiDragStart: (event: PointerEvent, kpi: string) => void;
@@ -50,6 +45,14 @@ export interface LiveOverviewTabViewModel {
   readonly frameRateLabel: () => string;
   readonly computedFps: Signal<string>;
   readonly targetRangeControlLabel: () => string;
+}
+
+export interface LiveOverviewTabViewModel extends LiveKpiStripViewModel {
+  readonly baMetric: WritableSignal<'hr' | 'rr'>;
+  readonly baStats: Signal<LiveBlandAltmanStats | null>;
+  readonly sessionNotes: () => string;
+  readonly customTag: () => string;
+  readonly setCustomTag: (value: string) => void;
   readonly targetRangeDisplay: () => string;
   readonly targetZoneLabel: () => string;
   readonly targetZoneTone: () => 'ok' | 'warn' | 'muted';

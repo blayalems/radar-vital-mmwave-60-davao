@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-19 - Live KPI strip boundary
+
+- **Component boundary**: Extracted the four reorderable KPI controls, confidence/holding state, sparkline rendering, and debounced screen-reader status into a typed standalone OnPush `LiveKpiStripComponent`; Overview retains the remaining notes, target, analysis, and diagnostics presentation.
+- **Size contract**: The Overview template drops from 423 to 269 lines, and the source-boundary test now enforces a 400-line ceiling across every extracted Live presentation component TS/HTML/CSS file.
+- **Verification**: Angular production and generated-monolith builds pass at a 1.45 MB initial bundle with no warning; source-integrity, contrast, service-worker privacy 3/3, and web unit 218/218 gates pass.
+
 ### 2026-07-18 - Live Overview component extraction
 
 - **Component boundary**: Moved the 423-line Overview template, its Material/sparkline imports, and both Overview canvas references into `LiveOverviewTabComponent`; `LiveComponent` now supplies the typed view model and owns only data/render orchestration.

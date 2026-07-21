@@ -5,6 +5,25 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-22 - Refresh frontend boundaries on lifecycle closure
+
+- **PR topology**: Merged `codex/lifecycle-race-privacy-closure` at `e1f2bbe` so PR #76 inherits the synchronized audit base and canonical service-worker CI contract while preserving the frontend-only review boundary.
+
+### 2026-07-22 - Align service-worker static contract with canonical refresh
+
+- **CI repair**: Replaced a whitespace-sensitive single-line `networkFirst` assertion with explicit checks for the canonical dashboard refresh request, monolith fallback key, and `DASHBOARD` refresh argument.
+- **Reproduction**: The former PR #77 Python gate reached 334 passed / 1 skipped before failing only on the multiline call formatting; the focused service-worker contract now validates behavior instead of layout.
+
+### 2026-07-22 - Refresh lifecycle stack on synchronized audit base
+
+- **PR topology**: Merged `codex/cross-stack-audit-hardening` at `47fe522` so PR #77 inherits the synchronized polling-fallback dashboard and remains a strict ancestor base for PR #76.
+
+### 2026-07-19 - Polling-fallback monolith synchronization
+
+- **Generated dashboard**: Rebuilt the self-contained dashboard from the Angular source so the persistent SSE polling-only fallback shipped in `web/` is present in the committed monolith.
+- **CI reproduction**: Reproduced PR #75's failed `Verify web/ ↔ monolith round-trip` step locally and confirmed the only drift was the missing polling-fallback bundle update.
+- **Verification**: `npm run build:check` passes after the synchronized artifact is committed.
+
 ### 2026-07-19 - Live KPI strip boundary
 
 - **Component boundary**: Extracted the four reorderable KPI controls, confidence/holding state, sparkline rendering, and debounced screen-reader status into a typed standalone OnPush `LiveKpiStripComponent`; Overview retains the remaining notes, target, analysis, and diagnostics presentation.

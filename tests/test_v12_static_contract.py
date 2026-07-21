@@ -91,7 +91,10 @@ def test_service_worker_contract():
     assert "SW_UPDATED" in sw
     assert "request.mode === 'navigate'" in sw
     assert "NAVIGATION_CACHE_KEY" in sw
-    assert "networkFirst(request, 2000, NAVIGATION_CACHE_KEY" in sw
+    assert "cacheRefreshRequest = null" in sw
+    assert "const shell = await fetch(cacheRefreshRequest)" in sw
+    assert "NAVIGATION_MONOLITH_KEY" in sw
+    assert "DASHBOARD\n    ));" in sw
     assert "Pairing/support pages are network-only" in sw
     assert "/api/session/current/live_dashboard.json" in sw
     assert "/fonts/material-symbols-rounded.woff2" in sw

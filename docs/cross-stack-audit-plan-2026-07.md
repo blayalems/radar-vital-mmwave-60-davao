@@ -123,6 +123,23 @@ Acceptance:
   labels, and raw server messages; and
 - `https://untrusted.example/api/x` receives no trainer credentials.
 
+#### Implementation status — PR #77 (2026-07-22)
+
+Complete for source-controlled and automated acceptance. All six implementation
+items above are present on `codex/lifecycle-race-privacy-closure`.
+
+| Acceptance requirement | Authoritative implementation and verification evidence | Status |
+|---|---|---|
+| Deferred Report A/B loads and COM3/COM4-style setup probes resolve out of order without stale UI state | `ReportComponent` owns independent primary/comparison epochs and immutable save payloads; `HomeComponent` owns a setup fingerprint and latest-generation gate. `report.component.spec.ts` covers late A after B for primary/comparison plus both saves; `home.component.race.spec.ts` covers newest-response ownership and setup changes during Start. | Complete |
+| Server shutdown leaves no child process or owned current-session marker | `_ControlServer.stop()` closes the supervisor gate and calls `_SessionSupervisor.stop(reason="server_shutdown", auto_analyse=False)` with bounded reap and owned-marker cleanup. `test_trainer_lifecycle.py::test_control_server_shutdown_owns_session_reap_without_analysis` and the stop/reap cases in `test_session_isolation.py` cover ordering, escalation, idempotence, and failed-reap truthfulness. | Complete in automated process fixtures |
+| CacheStorage contains no pairing PIN or route-specific shell entries | `assets/sw.js` uses the scope-qualified `NAVIGATION_CACHE_KEY`, refreshes it only from `DASHBOARD`, and keeps pairing/support navigations network-only. `tests/service-worker-cache.test.mjs` executes online, offline, and pairing cases and asserts that neither `pair=` nor route keys are written or read. | Complete |
+| Diagnostic reports exclude paths, bearer tokens, PINs, identities, and raw server messages | `IssueReportService` allowlists control fields, reduces failures to categories, sorts the newest five alerts, and applies contextual PIN/token/identity/path redaction to previews and URLs. `issue-report.service.spec.ts` covers raw control errors, false-positive auth terms, 3-digit PINs, paths, tokens, recovery codes, operator IDs, subject/operator labels, and caller-supplied legacy reports. | Complete |
+| Untrusted absolute API targets receive no trainer credentials | `api-target-policy.ts` requires the exact configured origin, with only the explicit native loopback exception. `api.service.spec.ts`, `auth.interceptor.spec.ts`, and `tauri.interceptor.spec.ts` cover untrusted API-looking URLs, origin-prefix lookalikes, caller-supplied auth headers, downloads, and native routing. | Complete |
+
+The remaining gates are external release validation, not unimplemented PR #77
+scope: packaged Windows EXE child-process stop/start behavior and the native
+12-hour reconnect soak still require their target runtime.
+
 ### PR 2 — Characterization-first frontend decomposition
 
 Risk: medium. Preserve visual and behavioral baselines.

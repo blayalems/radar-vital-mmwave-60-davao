@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-22 - Record lifecycle acceptance evidence
+
+- **Audit closure**: Mapped every PR #77 acceptance bullet in the cross-stack plan to its implementation and named automated coverage, while retaining only packaged-EXE process validation and the native 12-hour reconnect soak as external release gates.
+
 ### 2026-07-22 - Align service-worker static contract with canonical refresh
 
 - **CI repair**: Replaced a whitespace-sensitive single-line `networkFirst` assertion with explicit checks for the canonical dashboard refresh request, monolith fallback key, and `DASHBOARD` refresh argument.

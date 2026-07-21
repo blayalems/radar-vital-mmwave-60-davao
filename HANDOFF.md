@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-19 - Firmware live-loop delay closure
+
+- **Deadline recovery**: Radar UART release, runtime I2C bus release, and the one-shot NVS namespace reopen now settle through explicit `millis()` deadlines instead of blocking the parser/DSP loop.
+- **Display/setup audit**: Removed the cosmetic LCD transition wait and documented all six remaining `delay()` sites as setup-only before watchdog activation.
+- **Coverage**: Added source-contract checks for recovery ordering, deferred restart/reopen states, zero live-path delays, and setup-delay classification while preserving the 222-column/BLE-off contracts.
+
 ### 2026-07-18 - Firmware alignment and stale-packet closure
 
 - **LCD/I2C safety**: Placement storage now uses type-derived C++ alignment, while LCD scanning restores the normal I2C timeout through one exit path on success and failure.

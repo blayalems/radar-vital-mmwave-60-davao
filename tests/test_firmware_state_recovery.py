@@ -346,3 +346,72 @@ def test_firmware_version_capture_state_machine_never_waits():
     assert "pollModuleFirmwareVersionWindow" not in source
     assert "pollModuleFirmwareVersionNonBlocking" not in source
     assert "fwVersionCheckedThisBoot" not in source
+
+
+def test_live_recovery_waits_are_deadline_driven():
+    source = _firmware()
+    setup = _function_body(source, "void setup()")
+    loop = _function_body(source, "void loop()")
+    start_radar = _function_body(
+        source, "static void startRadarRecovery(unsigned long now)"
+    )
+    service_radar = _function_body(
+        source, "static bool serviceRadarRecovery(unsigned long now)"
+    )
+    schedule_i2c = _function_body(
+        source,
+        "static void scheduleRuntimeI2cRecovery(",
+    )
+    service_i2c = _function_body(
+        source,
+        "static void serviceRuntimeI2cRecovery(unsigned long now) {",
+    )
+    note_nvs = _function_body(
+        source,
+        "static void noteNvsWriteFailure(unsigned long now, const char* detail)",
+    )
+    service_nvs = _function_body(
+        source,
+        "static void serviceNvsReopen(unsigned long now) {",
+    )
+
+    assert "radarRecoveryAfterMs = now + RADAR_SERIAL_RELEASE_MS;" in start_radar
+    assert "mmWaveSerial.end();" in start_radar
+    assert "(int32_t)(now - radarRecoveryAfterMs) < 0" in service_radar
+    assert "mmWaveSerial.begin(115200);" in service_radar
+    assert "armModuleFirmwareVersionCapture(now);" in service_radar
+    assert (
+        loop.index("bool radarReady = serviceRadarRecovery(now);")
+        < loop.index("radarReady ? mmWave.update(5) : false;")
+    )
+
+    assert "runtimeI2cRecoveryAfterMs = now + I2C_BUS_RELEASE_MS;" in schedule_i2c
+    assert "(int32_t)(now - runtimeI2cRecoveryAfterMs) < 0" in service_i2c
+    assert "restoreI2cBusAfterRelease();" in service_i2c
+    assert "serviceRuntimeI2cRecovery(now);" in loop
+    assert "if (setupComplete) scheduleRuntimeI2cRecovery(now);" in source
+    assert "else i2cRecoverDuringSetup();" in source
+
+    assert "nvsReopenAfterMs = now + NVS_REOPEN_SETTLE_MS;" in note_nvs
+    assert "(int32_t)(now - nvsReopenAfterMs) < 0" in service_nvs
+    assert "serviceNvsReopen(now);" in loop
+    assert "lcdSmoothTransition" not in source
+
+    for live_body in (
+        loop,
+        start_radar,
+        service_radar,
+        schedule_i2c,
+        service_i2c,
+        note_nvs,
+        service_nvs,
+    ):
+        assert "delay(" not in live_body
+
+    delay_sites = list(re.finditer(r"\bdelay\(", source))
+    assert len(delay_sites) == 6
+    assert source.count("// delay OK: setup-only, wdt not yet armed") == 6
+    for site in delay_sites:
+        context = source[max(0, site.start() - 120) : site.start()]
+        assert "// delay OK: setup-only, wdt not yet armed" in context
+    assert setup.count("delay(") == 5

@@ -5,6 +5,16 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-22 - Refresh lifecycle stack on synchronized audit base
+
+- **PR topology**: Merged `codex/cross-stack-audit-hardening` at `47fe522` so PR #77 inherits the synchronized polling-fallback dashboard and remains a strict ancestor base for PR #76.
+
+### 2026-07-19 - Polling-fallback monolith synchronization
+
+- **Generated dashboard**: Rebuilt the self-contained dashboard from the Angular source so the persistent SSE polling-only fallback shipped in `web/` is present in the committed monolith.
+- **CI reproduction**: Reproduced PR #75's failed `Verify web/ ↔ monolith round-trip` step locally and confirmed the only drift was the missing polling-fallback bundle update.
+- **Verification**: `npm run build:check` passes after the synchronized artifact is committed.
+
 ### 2026-07-18 - Linearize lifecycle stack on audit base
 
 - **PR topology**: Merged the current `codex/cross-stack-audit-hardening` head so PR #75 is now an actual ancestor of PR #77 rather than a divergent sibling, preventing avoidable merge noise downstream.

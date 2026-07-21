@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-22 - Align service-worker static contract with canonical refresh
+
+- **CI repair**: Replaced a whitespace-sensitive single-line `networkFirst` assertion with explicit checks for the canonical dashboard refresh request, monolith fallback key, and `DASHBOARD` refresh argument.
+- **Reproduction**: The former PR #77 Python gate reached 334 passed / 1 skipped before failing only on the multiline call formatting; the focused service-worker contract now validates behavior instead of layout.
+
 ### 2026-07-22 - Refresh lifecycle stack on synchronized audit base
 
 - **PR topology**: Merged `codex/cross-stack-audit-hardening` at `47fe522` so PR #77 inherits the synchronized polling-fallback dashboard and remains a strict ancestor base for PR #76.

@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-22 - Frozen firmware serial-order proof
+
+- **Exact schema gate**: Added a source-level contract that reconstructs the firmware's concatenated `DATA` header and proves all 222 names and positions match `RADAR_LOG_COLUMNS` exactly.
+- **Emitter count**: The same gate proves the row has 221 comma-terminated macro emitters plus the final `fw_uptime_s` field, preventing a correct header from masking a shifted payload.
+
 ### 2026-07-22 - Firmware stack base synchronization
 
 - **Stacked base**: Merged the canonical polling-fallback dashboard rebuild from PR #75 so PR #79 no longer inherits the failed Angular-to-monolith round-trip check.

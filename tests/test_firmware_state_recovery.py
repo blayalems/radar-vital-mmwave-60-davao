@@ -1,3 +1,4 @@
+import ast
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -415,3 +416,47 @@ def test_live_recovery_waits_are_deadline_driven():
         context = source[max(0, site.start() - 120) : site.start()]
         assert "// delay OK: setup-only, wdt not yet armed" in context
     assert setup.count("delay(") == 5
+
+
+def test_firmware_csv_header_and_emitters_match_frozen_trainer_schema():
+    source = _firmware()
+    header_call = re.search(
+        r'Serial\.println\((?P<body>"DATA,timestamp_ms.*?fw_uptime_s")\);',
+        source,
+        re.DOTALL,
+    )
+    assert header_call, "firmware DATA header not found"
+
+    header = "".join(re.findall(r'"([^"]*)"', header_call.group("body")))
+    firmware_columns = header.split(",")
+    assert firmware_columns[0] == "DATA"
+
+    trainer_source = (ROOT / "rvt_trainer" / "monolith.py").read_text(
+        encoding="utf-8", errors="ignore"
+    )
+    trainer_module = ast.parse(trainer_source)
+    columns_assignment = next(
+        node
+        for node in trainer_module.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "RADAR_LOG_COLUMNS"
+            for target in node.targets
+        )
+    )
+    trainer_columns = ast.literal_eval(columns_assignment.value)
+
+    assert len(trainer_columns) == 222
+    assert firmware_columns[1:] == trainer_columns
+
+    emit_start = source.index('Serial.print("DATA,");')
+    emit_end = source.index(
+        "if (sessionStats.active && !_csvFirstEmitDone)", emit_start
+    )
+    emit_body = source[emit_start:emit_end]
+    macro_emitters = re.findall(r"\bCSV(?:U|I|F|FN)\s*\(", emit_body)
+    assert len(macro_emitters) == 221
+    assert (
+        "Serial.println((unsigned long)(now / 1000UL)); _csvColCount++;"
+        in emit_body
+    )

@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-22 - Firmware stack base synchronization
+
+- **Stacked base**: Merged the canonical polling-fallback dashboard rebuild from PR #75 so PR #79 no longer inherits the failed Angular-to-monolith round-trip check.
+- **Conflict safety**: Preserved all firmware recovery entries while incorporating the base branch handoff entry and generated dashboard artifact.
+
 ### 2026-07-19 - Firmware live-loop delay closure
 
 - **Deadline recovery**: Radar UART release, runtime I2C bus release, and the one-shot NVS namespace reopen now settle through explicit `millis()` deadlines instead of blocking the parser/DSP loop.
@@ -34,6 +39,13 @@
 - **Presence pipeline**: Centralized the module raw snapshot, positive-evidence timestamp, debounce scores, and debounced flag under one packet-owned updater; negative packets no longer refresh positive evidence, and the derived FSM no longer writes raw/debounced state or scores back upstream.
 - **False-presence exit**: Hard-absence decisions now consume the packet-debounced result, while DSP-starvation exits update only the derived presence state, preventing an FSM transition from manufacturing a new raw-present latch.
 - **Verification**: Dependency-free host/static recovery tests passed 2/2; focused BLE/default, nonblocking recovery, frozen 222-column serial, and power/thermal invariant tests passed 4/4; `git diff --check` passed. Arduino CLI is not installed in this worktree environment.
+
+### 2026-07-19 - Polling-fallback monolith synchronization
+
+- **Generated dashboard**: Rebuilt the self-contained dashboard from the Angular source so the persistent SSE polling-only fallback shipped in `web/` is present in the committed monolith.
+- **CI reproduction**: Reproduced PR #75's failed `Verify web/ ↔ monolith round-trip` step locally and confirmed the only drift was the missing polling-fallback bundle update.
+- **Verification**: `npm run build:check` passes after the synchronized artifact is committed.
+
 ### 2026-07-18 - Headerless visual handoff support
 
 - **Visual refresh automation**: The Windows baseline workflow now appends its handoff entry when `HANDOFF.md` is empty or contains no existing dated headings instead of reporting success without recording the refresh.

@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-22 - Refresh frontend plan evidence base
+
+- **PR topology**: Merged `codex/lifecycle-race-privacy-closure` at `5bb5e21` so PR #76 carries the acceptance evidence for its lifecycle base before recording the frontend-decomposition evidence.
+
+### 2026-07-22 - Record lifecycle acceptance evidence
+
+- **Audit closure**: Mapped every PR #77 acceptance bullet in the cross-stack plan to its implementation and named automated coverage, while retaining only packaged-EXE process validation and the native 12-hour reconnect soak as external release gates.
+
 ### 2026-07-22 - Refresh frontend boundaries on lifecycle closure
 
 - **PR topology**: Merged `codex/lifecycle-race-privacy-closure` at `e1f2bbe` so PR #76 inherits the synchronized audit base and canonical service-worker CI contract while preserving the frontend-only review boundary.

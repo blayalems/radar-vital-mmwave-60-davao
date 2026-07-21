@@ -5,6 +5,25 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-22 - Refresh backend stack on lifecycle closure
+
+- **PR topology**: Merged `codex/lifecycle-race-privacy-closure` at `e1f2bbe` so the backend boundary and model-family work inherit the synchronized dashboard, canonical shell assertions, lifecycle ownership, and privacy fixes.
+
+### 2026-07-22 - Align service-worker static contract with canonical refresh
+
+- **CI repair**: Replaced a whitespace-sensitive single-line `networkFirst` assertion with explicit checks for the canonical dashboard refresh request, monolith fallback key, and `DASHBOARD` refresh argument.
+- **Reproduction**: The former PR #77 Python gate reached 334 passed / 1 skipped before failing only on the multiline call formatting; the focused service-worker contract now validates behavior instead of layout.
+
+### 2026-07-22 - Refresh lifecycle stack on synchronized audit base
+
+- **PR topology**: Merged `codex/cross-stack-audit-hardening` at `47fe522` so PR #77 inherits the synchronized polling-fallback dashboard and remains a strict ancestor base for PR #76.
+
+### 2026-07-19 - Polling-fallback monolith synchronization
+
+- **Generated dashboard**: Rebuilt the self-contained dashboard from the Angular source so the persistent SSE polling-only fallback shipped in `web/` is present in the committed monolith.
+- **CI reproduction**: Reproduced PR #75's failed `Verify web/ ↔ monolith round-trip` step locally and confirmed the only drift was the missing polling-fallback bundle update.
+- **Verification**: `npm run build:check` passes after the synchronized artifact is committed.
+
 ### 2026-07-18 - Canonical shell contract alignment
 
 - **Stack regression**: Updated the inherited service-worker source contract to assert canonical dashboard refresh and fallback semantics instead of the obsolete single-line navigation call shape; the full Python suite now exercises the privacy fix.

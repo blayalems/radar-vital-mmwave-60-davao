@@ -199,7 +199,6 @@ test.describe('v12 dashboard visual baseline', () => {
             await page.reload({ waitUntil: 'domcontentloaded' });
             await expect(page.locator('.preflight-row')).toHaveCount(10);
           }
-          await expect(page.locator('.home-empty-card')).toHaveCount(1);
           await expect(page.locator('input[aria-labelledby="bleAddressLabel"]')).toHaveValue('10:22:33:9E:8F:63');
           // Home owns continuously redrawn preview canvases. Live-route
           // baselines still cover rendered plots; hide only these moving

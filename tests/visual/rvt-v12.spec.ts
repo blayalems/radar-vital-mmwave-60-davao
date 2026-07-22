@@ -36,6 +36,13 @@ test.describe('v12 dashboard visual baseline', () => {
         })
       });
     });
+    await page.route('**/api/sessions', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, sessions: [], items: [] })
+      });
+    });
     await page.addInitScript(() => {
       sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
       const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
@@ -52,28 +59,29 @@ test.describe('v12 dashboard visual baseline', () => {
         const stabilizeHighContrastDesktop = theme === 'hc' && testInfo.project.name === 'desktop';
         // Block external font loading to prevent screenshot hanging in offline/sandboxed environments
         await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
-        if (stabilizeHomeTelemetry) {
-          await page.route('**/api/status', async (route) => {
-            await route.fulfill({
-              status: 200,
-              contentType: 'application/json',
-              body: JSON.stringify({
-                ok: true,
-                trainer_version: 'visual',
-                dashboard_version: 'visual',
-                firmware_expected: 'visual',
-                control_server_started_at: '2026-01-01T00:00:00Z',
-                active_session: {
-                  session_id: 'mock',
-                  session_dir: '',
-                  mock: true,
-                  started_at: '2026-01-01T00:00:00Z'
-                },
-                feature_flags: {}
-              })
-            });
+        // The measured trainer latency and session state are valid runtime data,
+        // but visual baselines must not depend on whichever async response wins.
+        await page.route('**/api/status', async (route) => {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              ok: true,
+              latency: 100,
+              trainer_version: 'visual',
+              dashboard_version: 'visual',
+              firmware_expected: 'visual',
+              control_server_started_at: '2026-01-01T00:00:00Z',
+              active_session: stabilizeHomeTelemetry ? {
+                session_id: 'mock',
+                session_dir: '',
+                mock: true,
+                started_at: '2026-01-01T00:00:00Z'
+              } : null,
+              feature_flags: {}
+            })
           });
-        }
+        });
         if (view === 'home') {
           // Suppress streamed changes before taking the Home layout/theme capture.
           // Plot rendering remains asserted on the Live route.

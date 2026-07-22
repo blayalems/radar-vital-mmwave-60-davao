@@ -79,19 +79,21 @@ test.describe('v12 dashboard visual baseline', () => {
           });
         });
         if (view === 'home') {
-          // Keep Home in one explicit no-session state. Without this route, a
-          // late trainer payload can remove the empty-data card after layout,
-          // shifting the iPad screenshot even though the card itself is hidden.
-          await page.route('**/api/session/current/live_dashboard.json*', async (route) => {
-            await route.fulfill({
-              status: 404,
-              contentType: 'application/json',
-              body: JSON.stringify({
-                ok: false,
-                error: 'NO_ACTIVE_SESSION: no active session'
-              })
+          if (stabilizeTabletHome) {
+            // The iPad baseline intentionally reserves the hidden empty-data
+            // card's space. Pin only this fixture to no-session so a late
+            // trainer payload cannot remove the card and shift the form.
+            await page.route('**/api/session/current/live_dashboard.json*', async (route) => {
+              await route.fulfill({
+                status: 404,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                  ok: false,
+                  error: 'NO_ACTIVE_SESSION: no active session'
+                })
+              });
             });
-          });
+          }
           // Suppress streamed changes before taking the Home layout/theme capture.
           // Plot rendering remains asserted on the Live route.
           await page.addInitScript(({ stabilizeHomeTelemetry }) => {
@@ -212,7 +214,9 @@ test.describe('v12 dashboard visual baseline', () => {
             await page.reload({ waitUntil: 'domcontentloaded' });
             await expect(page.locator('.preflight-row')).toHaveCount(10);
           }
-          await expect(page.locator('.home-empty-card')).toHaveCount(1);
+          if (stabilizeTabletHome) {
+            await expect(page.locator('.home-empty-card')).toHaveCount(1);
+          }
           await expect(page.locator('input[aria-labelledby="bleAddressLabel"]')).toHaveValue('10:22:33:9E:8F:63');
           // Home owns continuously redrawn preview canvases. Live-route
           // baselines still cover rendered plots; hide only these moving

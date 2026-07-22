@@ -79,6 +79,28 @@ import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
+from rvt_trainer.api.common import (
+    api_error as _api_error,
+    atomic_write_json as save_json,
+    json_safe_response as _json_safe_response,
+    nan_safe,
+    read_json_if_exists as _read_json_if_exists,
+    wait_for_process_exit as _wait_for_process_exit,
+)
+from rvt_trainer.api.route_registry import (
+    AuthPolicy as _RouteAuthPolicy,
+    authorization_for as _route_authorization_for,
+    match_route as _match_route,
+)
+from rvt_trainer.modeling import (
+    Cnn1DConfig,
+    Keras1DCNNRegressor,
+    MODEL_FAMILIES,
+    MODEL_FAMILY_CNN_1D,
+    MODEL_FAMILY_GRADIENT_BOOSTING,
+    build_causal_windows,
+)
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -667,36 +689,6 @@ def bytes_to_c_array(blob: bytes, var_name: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def nan_safe(obj):
-    if isinstance(obj, dict):
-        return {k: nan_safe(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [nan_safe(v) for v in obj]
-    if isinstance(obj, tuple):
-        return [nan_safe(v) for v in obj]
-    if isinstance(obj, (np.floating, float)):
-        return float(obj) if np.isfinite(obj) else None
-    if isinstance(obj, (np.integer, int)):
-        return int(obj)
-    return obj
-
-
-def save_json(obj: Dict, path: str):
-    abs_path = os.path.abspath(path)
-    out_dir = os.path.dirname(abs_path) or os.getcwd()
-    os.makedirs(out_dir, exist_ok=True)
-    fd, tmp_path = tempfile.mkstemp(prefix=".codex-json-", suffix=".tmp", dir=out_dir)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(nan_safe(obj), f, indent=2, allow_nan=False)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, abs_path)
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-
 def write_text_report(path: str, info: Dict):
     with open(path, "w", encoding="utf-8") as f:
         f.write(f"RADAR VITAL TRAINER REPORT v{VERSION}\n")
@@ -746,16 +738,6 @@ def _terminate_subprocess(proc: subprocess.Popen, label: str, timeout_s: float =
             proc.kill()
         except Exception:
             pass
-
-
-def _read_json_if_exists(path: str) -> Optional[Dict]:
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return None
 
 
 def _dashboard_analysis_payload(session_dir: str) -> Optional[Dict[str, object]]:
@@ -4513,25 +4495,6 @@ def _report_stamp() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
 
 
-def _json_safe_response(obj) -> bytes:
-    def clean(v):
-        if isinstance(v, bool) or v is None or isinstance(v, str):
-            return v
-        if isinstance(v, dict):
-            return {k: clean(val) for k, val in v.items()}
-        if isinstance(v, (list, tuple)):
-            return [clean(val) for val in v]
-        if isinstance(v, (np.floating, float)):
-            # Coerce NaN *and* ±Inf to null: json.dumps with the default
-            # allow_nan=True would otherwise emit bare `NaN`/`Infinity` tokens,
-            # which are invalid JSON and break strict client parsers.
-            return float(v) if np.isfinite(v) else None
-        if isinstance(v, (np.integer, int)):
-            return int(v)
-        return v
-    return json.dumps(clean(obj), ensure_ascii=False, allow_nan=False).encode("utf-8")
-
-
 def _pid_alive(pid) -> bool:
     try:
         pid_i = int(pid)
@@ -4546,157 +4509,6 @@ def _pid_alive(pid) -> bool:
         return True
     except Exception:
         return False
-
-
-def _lock_path(sessions_root: str) -> Path:
-    return Path(sessions_root) / ".session.lock"
-
-
-def _write_session_lock(sessions_root: str, session_dir: str, pid: Optional[int] = None) -> Dict[str, object]:
-    root = Path(sessions_root)
-    root.mkdir(parents=True, exist_ok=True)
-    data = {"pid": int(pid or os.getpid()), "session_dir": str(session_dir), "started_at": _iso_now()}
-    path = _lock_path(str(root))
-    try:
-        with path.open("x", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-    except FileExistsError:
-        if not _check_stale_session_lock(str(root)):
-            raise
-        with path.open("x", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-    return data
-
-
-def _read_session_lock(sessions_root: str) -> Optional[Dict[str, object]]:
-    path = _lock_path(sessions_root)
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else None
-    except Exception:
-        return None
-
-
-def _release_session_lock(sessions_root: str) -> None:
-    try:
-        _lock_path(sessions_root).unlink()
-    except FileNotFoundError:
-        pass
-
-
-def _same_session_dir(left: object, right: object) -> bool:
-    if not left or not right:
-        return False
-    try:
-        return os.path.normcase(os.path.abspath(str(left))) == os.path.normcase(os.path.abspath(str(right)))
-    except Exception:
-        return False
-
-
-def _session_marker_owned_by(data: object, pid: object, session_dir: object) -> bool:
-    if not isinstance(data, dict) or not _same_session_dir(data.get("session_dir"), session_dir):
-        return False
-    try:
-        return int(data.get("pid")) == int(pid)
-    except Exception:
-        return False
-
-
-def _release_session_lock_if_owned(sessions_root: str, pid: object, session_dir: object) -> bool:
-    path = _lock_path(sessions_root)
-    if not path.exists():
-        return True
-    data = _read_session_lock(sessions_root)
-    if not _session_marker_owned_by(data, pid, session_dir):
-        return False
-    try:
-        path.unlink()
-        return True
-    except FileNotFoundError:
-        return True
-
-
-def _supervisor_stop_path(session_dir: object) -> Path:
-    return Path(str(session_dir)) / ".supervisor-stop.json"
-
-
-def _write_supervisor_stop_request(
-    session_dir: str,
-    *,
-    reason: str,
-    session_pid: int,
-    auto_analyse: bool,
-) -> Dict[str, object]:
-    request = {
-        "schema_version": CONTROL_API_SCHEMA_VERSION,
-        "request_id": secrets.token_hex(12),
-        "requested_at": _iso_now(),
-        "reason": str(reason),
-        "session_dir": os.path.abspath(session_dir),
-        "session_pid": int(session_pid),
-        "supervisor_pid": os.getpid(),
-        # The detached child normally analyses inline. A parent-driven stop
-        # suppresses that path so exactly one owner decides whether analysis
-        # starts after the child has been reaped and its markers are clean.
-        "suppress_inline_auto_analyse": True,
-        "parent_auto_analyse": bool(auto_analyse),
-    }
-    save_json(request, str(_supervisor_stop_path(session_dir)))
-    return request
-
-
-def _consume_supervisor_stop_request(session_dir: str) -> Optional[Dict[str, object]]:
-    path = _supervisor_stop_path(session_dir)
-    data = _read_json_if_exists(str(path))
-    if path.exists():
-        try:
-            path.unlink()
-        except FileNotFoundError:
-            pass
-    return data if isinstance(data, dict) else None
-
-
-def _clear_supervisor_stop_request(session_dir: str, request_id: object) -> bool:
-    path = _supervisor_stop_path(session_dir)
-    if not path.exists():
-        return True
-    data = _read_json_if_exists(str(path))
-    if not isinstance(data, dict) or str(data.get("request_id") or "") != str(request_id or ""):
-        return False
-    try:
-        path.unlink()
-        return True
-    except FileNotFoundError:
-        return True
-
-
-def _check_stale_session_lock(sessions_root: str) -> bool:
-    data = _read_session_lock(sessions_root)
-    if not data:
-        path = _lock_path(sessions_root)
-        if path.exists():
-            _release_session_lock(sessions_root)
-            return True
-        return False
-    if _pid_alive(data.get("pid")):
-        return False
-    _release_session_lock(sessions_root)
-    return True
-
-
-def _session_is_active(sessions_root: str) -> bool:
-    data = _read_session_lock(sessions_root)
-    if not data:
-        path = _lock_path(sessions_root)
-        if path.exists():
-            _release_session_lock(sessions_root)
-        return False
-    if _pid_alive(data.get("pid")):
-        return True
-    _release_session_lock(sessions_root)
-    return False
 
 
 def _preflight_result(check_id: str, label: str, status: str, detail: str,
@@ -6639,303 +6451,22 @@ def _build_help_schema() -> Dict[str, object]:
 HELP_SCHEMA = _build_help_schema()
 
 
-class _SessionSupervisor:
-    def __init__(self, sessions_root: str = "sessions"):
-        self.sessions_root = os.path.abspath(sessions_root)
-        os.makedirs(self.sessions_root, exist_ok=True)
-        self._lifecycle_lock = threading.RLock()
-        self._closing = False
-        self.proc = None
-        self.session_dir = None
-        self.started_at = None
-        self.started_monotonic = None
-        self.params = {}
-        self._stop_grace_s = 10.0
-        self._terminate_grace_s = 3.0
-        self._kill_grace_s = 2.0
-
-    def _current_path(self) -> Path:
-        return Path(self.sessions_root) / "current_session.json"
-
-    def _write_current(self):
-        save_json({"session_id": Path(self.session_dir).name, "session_dir": self.session_dir, "pid": self.proc.pid, "started_at": self.started_at, "params": self.params}, str(self._current_path()))
-
-    def _clear_current(self, pid: object = None, session_dir: object = None) -> bool:
-        path = self._current_path()
-        if not path.exists():
-            return True
-        if pid is not None or session_dir is not None:
-            data = self._read_current()
-            if not _session_marker_owned_by(data, pid, session_dir):
-                return False
-        try:
-            path.unlink()
-            return True
-        except FileNotFoundError:
-            return True
-
-    def _read_current(self):
-        data = _read_json_if_exists(str(self._current_path()))
-        return data if isinstance(data, dict) else None
-
-    def _reset_runtime_state(self):
-        self.proc = None
-        self.session_dir = None
-        self.started_at = None
-        self.started_monotonic = None
-        self.params = {}
-
-    def close_start_gate(self):
-        with self._lifecycle_lock:
-            self._closing = True
-
-    def _write_starting_live_payload(self, duration_s=None):
-        session_id = Path(self.session_dir).name
-        remaining = None
-        if duration_s is not None:
-            try:
-                remaining = max(0.0, float(duration_s))
-            except Exception:
-                remaining = None
-        payload = {
-            "schema_version": LIVE_EVENT_SCHEMA_VERSION,
-            "revision": int(time.time() * 1000),
-            "session_id": session_id,
-            "_supervisor_placeholder": True,
-            "meta": {
-                "status": "starting",
-                "session_id": session_id,
-                "elapsed_s": 0.0,
-                "remaining_s": remaining,
-                "version": VERSION,
-                "session_dir": os.path.abspath(self.session_dir),
-                "note": "Session subprocess is starting.",
-            },
-            "radar": {"rows": 0},
-            "ble": {"rows": 0, "raw_packets": 0},
-            "thresholds": {},
-            "faults": [],
-            "events": ["[INFO] Session subprocess starting"],
-            "series": {},
-            "analysis": None,
-        }
-        save_json(payload, str(Path(self.session_dir) / "live_dashboard.json"))
-        save_json(payload, str(Path(self.session_dir) / "dashboard.json"))
-
-    def _poll(self):
-        with self._lifecycle_lock:
-            if self.proc is not None and self.proc.poll() is not None:
-                proc = self.proc
-                session_dir = self.session_dir
-                self._clear_current(pid=proc.pid, session_dir=session_dir)
-                self._reset_runtime_state()
-                return True
-            return False
-
-    def start(self, duration_s=None, radar_port=DEFAULT_RADAR_PORT, ble_address=DEFAULT_BLE_ADDRESS,
-              ble_profile="ailink_oximeter", timeout_s: float = 30.0, **kwargs):
-        with self._lifecycle_lock:
-            if self._closing:
-                raise RuntimeError("SUPERVISOR_CLOSING: session starts are disabled")
-            return self._start_locked(
-                duration_s=duration_s,
-                radar_port=radar_port,
-                ble_address=ble_address,
-                ble_profile=ble_profile,
-                timeout_s=timeout_s,
-                **kwargs,
-            )
-
-    def _start_locked(self, duration_s=None, radar_port=DEFAULT_RADAR_PORT, ble_address=DEFAULT_BLE_ADDRESS,
-                      ble_profile="ailink_oximeter", timeout_s: float = 30.0, **kwargs):
-        self._poll()
-        if self.proc is not None and self.proc.poll() is None:
-            raise RuntimeError("SESSION_IN_PROGRESS: active session already running")
-        if _session_is_active(self.sessions_root):
-            raise RuntimeError("SESSION_IN_PROGRESS: session lock active")
-        radar_port = str(radar_port or DEFAULT_RADAR_PORT).strip() or DEFAULT_RADAR_PORT
-        ble_address = str(ble_address or DEFAULT_BLE_ADDRESS).strip() or DEFAULT_BLE_ADDRESS
-        self.session_dir = str(Path(_next_session_dir(self.sessions_root)))
-        Path(self.session_dir).mkdir(parents=True, exist_ok=True)
-        argv = [
-            sys.executable, str(_TRAINER_ENTRYPOINT), "session",
-            "--session-dir", self.session_dir,
-            "--port", radar_port,
-            "--address", ble_address,
-            "--ble-profile", ble_profile,
-            "--dashboard-port", "0",
-            "--no-open-dashboard",
-        ]
-        if kwargs.get("notify_char"):
-            argv += ["--notify-char", str(kwargs.get("notify_char"))]
-        if kwargs.get("dashboard_refresh_s"):
-            argv += ["--dashboard-refresh-s", str(kwargs.get("dashboard_refresh_s"))]
-        if kwargs.get("subject_profile_id"):
-            argv += ["--subject-profile-id", str(kwargs.get("subject_profile_id"))]
-        if duration_s is not None:
-            argv += ["--duration-s", str(duration_s)]
-        creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
-        # Write the operator-visible starting state before spawning. A fast
-        # child must be allowed to replace it; writing this after Popen could
-        # overwrite the child's first real dashboard payload.
-        self._write_starting_live_payload(duration_s=duration_s)
-        self.proc = subprocess.Popen(argv, creationflags=creationflags)
-        self.started_at = _iso_now()
-        self.started_monotonic = time.monotonic()
-        self.params = {"duration_s": duration_s, "radar_port": radar_port, "ble_address": ble_address, "ble_profile": ble_profile}
-        self.params.update({k: v for k, v in kwargs.items() if v not in (None, "")})
-        self._write_current()
-        live = Path(self.session_dir) / "live_dashboard.json"
-        deadline = time.monotonic() + float(timeout_s)
-        while time.monotonic() < deadline:
-            if self.proc.poll() is not None:
-                proc = self.proc
-                self._clear_current(pid=proc.pid, session_dir=self.session_dir)
-                self._reset_runtime_state()
-                raise RuntimeError("SPAWN_ERROR: session exited before live_dashboard.json appeared")
-            live_payload = _read_json_if_exists(str(live))
-            if isinstance(live_payload, dict) and not live_payload.get("_supervisor_placeholder"):
-                return {"session_id": Path(self.session_dir).name, "session_dir": self.session_dir, "pid": self.proc.pid, "started_at": self.started_at}
-            time.sleep(0.02)
-        try:
-            self.proc.terminate()
-            self.proc.wait(timeout=3.0)
-        except Exception:
-            try:
-                self.proc.kill()
-                self.proc.wait(timeout=2.0)
-            except Exception:
-                pass
-        finally:
-            proc = self.proc
-            self._clear_current(
-                pid=getattr(proc, "pid", None),
-                session_dir=self.session_dir,
-            )
-            self._reset_runtime_state()
-        raise TimeoutError("live_dashboard.json did not appear before timeout")
-
-    @staticmethod
-    def _wait_for_exit(proc, timeout_s: float) -> bool:
-        try:
-            proc.wait(timeout=max(0.0, float(timeout_s)))
-            return True
-        except subprocess.TimeoutExpired:
-            return False
-        except Exception:
-            try:
-                return proc.poll() is not None
-            except Exception:
-                return False
-
-    def stop(
-        self,
-        reason: str = "user_request",
-        *,
-        auto_analyse: bool = True,
-        missing_ok: bool = False,
-    ):
-        with self._lifecycle_lock:
-            if self.proc is None:
-                if not missing_ok:
-                    raise RuntimeError("no active session")
-                return _schema_wrap({
-                    "session_id": "",
-                    "stopped_at": _iso_now(),
-                    "reason": reason,
-                    "auto_analyse": None,
-                    "already_stopped": True,
-                })
-
-            proc = self.proc
-            stopped_session_dir = str(self.session_dir or "")
-            request = _write_supervisor_stop_request(
-                stopped_session_dir,
-                reason=reason,
-                session_pid=proc.pid,
-                auto_analyse=auto_analyse,
-            )
-            exited = proc.poll() is not None
-            if not exited:
-                sig = getattr(signal, "CTRL_BREAK_EVENT", signal.SIGINT)
-                try:
-                    proc.send_signal(sig)
-                except Exception:
-                    try:
-                        proc.send_signal(signal.SIGINT)
-                    except Exception:
-                        pass
-                exited = self._wait_for_exit(proc, self._stop_grace_s)
-            if not exited:
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
-                exited = self._wait_for_exit(proc, self._terminate_grace_s)
-            if not exited:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
-                exited = self._wait_for_exit(proc, self._kill_grace_s)
-            if not exited:
-                raise RuntimeError(
-                    f"SESSION_STOP_FAILED: child process {proc.pid} could not be reaped; "
-                    "session markers were preserved"
-                )
-
-            current_clean = self._clear_current(pid=proc.pid, session_dir=stopped_session_dir)
-            lock_clean = _release_session_lock_if_owned(
-                self.sessions_root,
-                pid=proc.pid,
-                session_dir=stopped_session_dir,
-            )
-            request_clean = _clear_supervisor_stop_request(
-                stopped_session_dir,
-                request.get("request_id"),
-            )
-            self._reset_runtime_state()
-            if not (current_clean and lock_clean and request_clean):
-                raise RuntimeError(
-                    "SESSION_CLEANUP_CONFLICT: stopped child was reaped, but a marker "
-                    "owned by another session was preserved"
-                )
-
-            auto = (
-                _spawn_auto_analyse(stopped_session_dir, reason=reason)
-                if auto_analyse and stopped_session_dir
-                else None
-            )
-            return _schema_wrap({
-                "session_id": Path(stopped_session_dir).name,
-                "stopped_at": _iso_now(),
-                "reason": reason,
-                "auto_analyse": auto,
-            })
-
-    def current(self) -> Optional[Dict[str, object]]:
-        with self._lifecycle_lock:
-            self._poll()
-            if self.proc is None:
-                data = self._read_current()
-                if data and _pid_alive(data.get("pid")):
-                    return data
-                if data:
-                    self._clear_current(
-                        pid=data.get("pid"),
-                        session_dir=data.get("session_dir"),
-                    )
-                lock = _read_session_lock(self.sessions_root)
-                if lock and _pid_alive(lock.get("pid")):
-                    return {"session_id": Path(str(lock.get("session_dir", ""))).name, "session_dir": lock.get("session_dir"), "pid": lock.get("pid"), "started_at": lock.get("started_at"), "external": True}
-                return None
-            elapsed = max(0.0, time.monotonic() - float(self.started_monotonic or time.monotonic()))
-            duration = self.params.get("duration_s")
-            try:
-                remaining = max(0.0, float(duration) - elapsed) if duration is not None else None
-            except Exception:
-                remaining = None
-            return {"session_id": Path(self.session_dir).name, "session_dir": self.session_dir, "pid": self.proc.pid, "started_at": self.started_at, "elapsed_s": elapsed, "remaining_s": remaining, "params": self.params}
+from rvt_trainer.session.supervisor import (  # noqa: E402
+    SessionSupervisor as _SessionSupervisor,
+    _check_stale_session_lock,
+    _clear_supervisor_stop_request,
+    _consume_supervisor_stop_request,
+    _lock_path,
+    _read_session_lock,
+    _release_session_lock,
+    _release_session_lock_if_owned,
+    _same_session_dir,
+    _session_is_active,
+    _session_marker_owned_by,
+    _supervisor_stop_path,
+    _write_session_lock,
+    _write_supervisor_stop_request,
+)
 
 
 def _effective_defaults(sessions_root: str) -> Dict[str, object]:
@@ -7060,19 +6591,15 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         # Keep static test contract happy: WWW-Authenticate RVT-Token
         parsed = urlparse(self.path)
         path = parsed.path
+        route_auth = _route_authorization_for(self.command, path)
 
         # 1. Bypass public endpoints
-        if path in {
-            "/api/health",
-            "/api/version",
-            "/api/update/manifest",
-            "/api/help/schema",
-        }:
+        if route_auth == _RouteAuthPolicy.PUBLIC:
             return True
 
         # 2. Extract authorization token
         token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if getattr(self, "headers", None) else "").strip()
-        is_sse_path = (path in {"/api/session/events", "/api/events/subscribe"}) or (path.startswith("/api/sessions/") and path.endswith("/events"))
+        is_sse_path = route_auth == _RouteAuthPolicy.SSE
         if not token and is_sse_path:
             q = parse_qs(parsed.query)
             token = (q.get("token") or [""])[-1].strip()
@@ -7086,23 +6613,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         is_bootstrap = (len(profiles) == 0) and not db.get("_load_error")
 
         # 4. Check if it is a Discovery endpoint
-        is_discovery = False
-        if path == "/api/server-info" and self.command == "GET":
-            is_discovery = True
-        elif path == "/api/native-pairing-info" and self.command == "GET":
-            is_discovery = True
-        elif path == "/api/operator-profiles" and self.command == "GET":
-            is_discovery = True
-        elif path == "/api/auth/login" and self.command == "POST":
-            is_discovery = True
-        elif path == "/api/operator-profiles" and self.command == "POST" and is_bootstrap:
-            is_discovery = True
-        elif path == "/api/auth/reset-pin" and self.command == "POST":
-            # Accessible without session token — recovery code replaces auth
-            is_discovery = True
-        elif path == "/api/auth/host-reset" and self.command == "POST":
-            # Accessible without session token — loopback check in handler replaces auth
-            is_discovery = True
+        is_discovery = route_auth in {
+            _RouteAuthPolicy.DISCOVERY,
+            _RouteAuthPolicy.RECOVERY,
+            _RouteAuthPolicy.LOOPBACK,
+        } or (
+            route_auth == _RouteAuthPolicy.BOOTSTRAP
+            and is_bootstrap
+        )
 
         # 4b. Loopback-only native bootstrap: the EXE shell reads pairing details
         # over 127.0.0.1 with no pairing token (tokens belong to phones). The route
@@ -7120,7 +6638,6 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         # iteration"). Hold-time is kept to plain dict ops only — no I/O.
         is_real_valid_operator = False
         is_valid_sse = False
-        is_sse_path = (path in {"/api/session/events", "/api/events/subscribe"}) or (path.startswith("/api/sessions/") and path.endswith("/events"))
         with _OPERATOR_LOCK:
             if token and hasattr(self.server, "operator_sessions") and token in self.server.operator_sessions:
                 session = self.server.operator_sessions[token]
@@ -7149,7 +6666,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         # own WebView holds none after a share-mode sidecar restart. Sensitive
         # endpoints below still require a valid operator session, and same-machine
         # callers already have filesystem access to everything the API serves.
-        if path == "/api/auth/host-reset" and self.command == "POST":
+        if route_auth == _RouteAuthPolicy.LOOPBACK:
             return True
 
         if getattr(self.server, "bind_mode", "local") == "lan" and client_host not in {"127.0.0.1", "::1", "localhost"}:
@@ -7251,45 +6768,46 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         path = parsed.path
-        if path == "/rvt-sw.js":
+        route_spec = _match_route("GET", path)
+        route_name = route_spec.name if route_spec is not None else None
+        if route_name == "legacy_service_worker":
             sw_path = _assets_root() / "rvt-sw.js"
             if sw_path.exists():
                 self._send_bytes(200, sw_path.read_bytes(), "application/javascript; charset=utf-8", cache_control="no-cache")
             else:
                 self._send_json(404, {"ok": False, "error": {"code": "LEGACY_SW_TOMBSTONE_NOT_FOUND", "message": "assets/rvt-sw.js is missing"}})
             return
-        if path == "/sw.js":
+        if route_name == "service_worker":
             sw_path = _assets_root() / "sw.js"
             if sw_path.exists():
                 self._send_bytes(200, sw_path.read_bytes(), "application/javascript; charset=utf-8", cache_control="no-cache")
             else:
                 self._send_json(404, {"ok": False, "error": {"code": "SW_NOT_FOUND", "message": "assets/sw.js is missing"}})
             return
-        if path == "/manifest.webmanifest":
+        if route_name == "manifest":
             data = json.dumps(_manifest_payload(self.server), separators=(",", ":"), ensure_ascii=False).encode("utf-8")
             self._send_bytes(200, data, "application/manifest+json; charset=utf-8", cache_control="no-cache")
             return
-        if path == "/about":
+        if route_name == "about":
             self._send_bytes(200, _support_matrix_html(self.server).encode("utf-8"), "text/html; charset=utf-8", cache_control="no-store")
             return
-        if path == "/pair":
+        if route_name == "pair":
             self._send_bytes(200, _pair_page_html(self.server).encode("utf-8"), "text/html; charset=utf-8", cache_control="no-store")
             return
-        if path.startswith("/icons/") or path.startswith("/lib/") or path.startswith("/fonts/"):
+        if route_name in {"icons", "libraries", "fonts"}:
             target = _safe_asset_path(path)
             if not target:
                 self._send_json(404, {"ok": False, "error": {"code": "ASSET_NOT_FOUND", "message": "asset not found"}})
                 return
             self._send_bytes(200, target.read_bytes(), _content_type_for_asset(target), cache_control="public, max-age=31536000, immutable")
             return
-        public_api_paths = {
-            "/api/health",
-            "/api/version",
-            "/api/update/manifest",
-        }
-        if path.startswith("/api/") and path not in public_api_paths and not self._require_control_auth():
+        if (
+            path.startswith("/api/")
+            and _route_authorization_for("GET", path) != _RouteAuthPolicy.PUBLIC
+            and not self._require_control_auth()
+        ):
             return
-        if path == "/api/update/manifest":
+        if route_name == "update_manifest":
             with _manifest_cache_lock:
                 now = time.time()
                 if _manifest_cache["data"] is not None and now - _manifest_cache["ts"] < 300:
@@ -7305,7 +6823,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     self._send_json(502, {"ok": False, "error": {"code": "PROXY_ERROR", "message": f"Failed to fetch update manifest: {str(e)}"}} )
             return
-        if path == "/api/auth/validate":
+        if route_name == "auth_validate":
             token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if getattr(self, "headers", None) else "").strip()
             with _OPERATOR_LOCK:
                 sess = self.server.operator_sessions.get(token) if (token and hasattr(self.server, "operator_sessions")) else None
@@ -7328,14 +6846,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     "operator": None
                 })
             return
-        if path == "/api/health":
+        if route_name == "health":
             t0 = time.perf_counter()
             payload = {"ok": True, "t": int(time.time() * 1000), "version": VERSION, "latency_ms": round((time.perf_counter() - t0) * 1000, 3)}
             if getattr(self.server, "bind_mode", "local") != "lan":
                 payload.update({"feature_flags": FEATURE_FLAGS, "metrics": _system_metrics(self.server.sessions_root)})
             self._send_json(200, payload)
             return
-        if path == "/api/version":
+        if route_name == "version":
             self._send_json(200, {
                 "trainer": VERSION,
                 "firmware_expected": FIRMWARE_VERSION_EXPECTED,
@@ -7355,15 +6873,15 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "update_manifest_url": UPDATE_MANIFEST_URL
             })
             return
-        if path == "/api/ble/scan":
+        if route_name == "ble_scan":
             q = parse_qs(parsed.query)
             timeout_s = float((q.get("timeout_s") or ["3"])[-1] or 3)
             self._send_json(200, _scan_ble_devices_payload(timeout_s=timeout_s))
             return
-        if path == "/api/subject-profiles":
+        if route_name == "subject_profiles":
             self._send_json(200, _load_subject_profiles(self.server.sessions_root))
             return
-        if path == "/api/operator-profiles":
+        if route_name == "operator_profiles_get":
             db = _load_operator_profiles(self.server.sessions_root)
             profiles_list = []
             for op_id, prof in db.get("profiles", {}).items():
@@ -7377,7 +6895,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "profiles": profiles_list
             })
             return
-        if path == "/api/server-info":
+        if route_name == "server_info":
             payload = {
                 "ok": True,
                 "origin": _advertised_origin(self.server),
@@ -7391,7 +6909,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             }
             self._send_json(200, payload, cache_control="no-store")
             return
-        if path == "/api/native-pairing-info":
+        if route_name == "native_pairing_info":
             client_host = str(self.client_address[0] if self.client_address else "")
             if client_host not in {"127.0.0.1", "::1", "localhost"}:
                 self._send_json(403, {"ok": False, "error": {"code": "LOOPBACK_ONLY", "message": "native pairing info is loopback-only"}}, cache_control="no-store")
@@ -7415,44 +6933,44 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     pass  # QR stays optional; the textual pairing link is always present
             self._send_json(200, pairing_payload, cache_control="no-store")
             return
-        if path == "/api/session/events" or path == "/api/events/subscribe":
+        if route_name in {"session_events", "events_subscribe"}:
             self._send_sse()
             return
-        if path.startswith("/api/sessions/") and path.endswith("/events"):
+        if route_name == "recorded_session_events":
             sid = unquote(path.split("/")[3])
             self._send_sse(session_id_hint=sid)
             return
-        if path == "/api/trainer/log":
+        if route_name == "trainer_log":
             self._send_json(200, {"ok": True, "lines": list(_TRAINER_LOG)[-200:]})
             return
-        if path == "/api/status":
+        if route_name == "status":
             active = {"session_id": "mock", "session_dir": "", "mock": True, "started_at": self.server.started_at} if getattr(self.server, "mock", False) else self.server.supervisor.current()
             self._send_json(200, {"ok": True, "trainer_version": VERSION, "dashboard_version": DASHBOARD_VERSION, "firmware_expected": FIRMWARE_VERSION_EXPECTED, "control_server_started_at": self.server.started_at, "active_session": active, "feature_flags": FEATURE_FLAGS})
             return
-        if path == "/api/defaults":
+        if route_name == "defaults":
             self._send_json(200, _effective_defaults(self.server.sessions_root))
             return
-        if path == "/api/serial/ports":
+        if route_name == "serial_ports":
             self._send_json(200, _serial_ports_payload(str(_effective_defaults(self.server.sessions_root).get("radar_port", DEFAULT_RADAR_PORT))))
             return
-        if path == "/api/preflight":
+        if route_name == "preflight_all":
             q = {k: v[-1] for k, v in parse_qs(parsed.query).items() if v}
             include = q.pop("include", None)
             if include:
                 q["include"] = [x.strip() for x in str(include).split(",") if x.strip()]
             self._send_json(200, _run_preflight_all(sessions_root=self.server.sessions_root, **q))
             return
-        if path == "/api/help/schema":
+        if route_name == "help_schema":
             self._send_json(200, HELP_SCHEMA)
             return
-        if path == "/api/session/current":
+        if route_name == "session_current":
             if getattr(self.server, "mock", False):
                 self._send_json(200, {"session_id": "mock", "session_dir": "", "mock": True, "started_at": self.server.started_at})
                 return
             cur = self.server.supervisor.current()
             self._send_json(200 if cur else 404, cur or {"ok": False, "error": {"code": "NO_ACTIVE_SESSION", "message": "no active session"}})
             return
-        if path == "/api/session/current/live_dashboard.json":
+        if route_name == "session_live_dashboard":
             if getattr(self.server, "mock", False):
                 self._send_json(200, _mock_live_payload())
                 return
@@ -7474,7 +6992,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     payload["meta"] = meta
                 self._send_json(200, payload)
             return
-        if path == "/api/session/buffer":
+        if route_name == "session_buffer":
             q = parse_qs(parsed.query)
             seconds = int((q.get("seconds") or ["60"])[-1] or 60)
             if getattr(self.server, "mock", False):
@@ -7488,10 +7006,10 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             payload = _read_json_if_exists(str(live_path)) if live_path.exists() else None
             self._send_json(200 if payload else 404, {"ok": bool(payload), "schema_version": LIVE_EVENT_SCHEMA_VERSION, "session_id": cur.get("session_id"), "buffer_s": seconds, "payload": payload})
             return
-        if path == "/api/sessions":
+        if route_name == "sessions_list":
             self._send_json(200, {"root": self.server.sessions_root, "items": _scan_sessions_root(self.server.sessions_root)})
             return
-        if path.startswith("/api/sessions/") and "/files/" in path:
+        if route_name == "session_files":
             parts = path.split("/")
             sid = unquote(parts[3]) if len(parts) > 3 else ""
             rel = unquote(path.split("/files/", 1)[1]) if "/files/" in path else ""
@@ -7511,7 +7029,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_bytes(200, target.read_bytes(), mimetypes.guess_type(str(target))[0] or "application/octet-stream")
             return
-        if path.startswith("/api/sessions/") and path.endswith("/annotations"):
+        if route_name == "session_annotations_get":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7520,7 +7038,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json(200, _load_session_annotations_payload(root, sid))
             return
-        if path.startswith("/api/sessions/") and path.endswith("/notes"):
+        if route_name == "session_notes_get":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7541,7 +7059,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "notes": notes,
             })
             return
-        if path.startswith("/api/sessions/") and path.endswith("/signoff"):
+        if route_name == "session_signoff_get":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7559,14 +7077,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "updated_at": existing.get("updated_at"),
             })
             return
-        if path.startswith("/api/sessions/") and path.endswith("/summary"):
+        if route_name == "session_summary":
             sid = unquote(path.split("/")[3])
             try:
                 self._send_json(200, _load_session_summary(str(_session_path(self.server.sessions_root, sid))))
             except Exception:
                 self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": "session not found"}})
             return
-        if path.startswith("/api/sessions/") and path.endswith("/data"):
+        if route_name == "session_data":
             sid = unquote(path.split("/")[3])
             points = int((parse_qs(parsed.query).get("points") or ["1000"])[-1] or 1000)
             try:
@@ -7574,7 +7092,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": str(e)}})
             return
-        if path.startswith("/api/sessions/") and path.endswith("/compare"):
+        if route_name == "session_compare":
             sid = unquote(path.split("/")[3])
             try:
                 _session_path(self.server.sessions_root, sid)
@@ -7583,7 +7101,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json(200, _compare_session_payload(self.server.sessions_root, sid))
             return
-        if path.startswith("/api/sessions/") and path.endswith("/analyse/status"):
+        if route_name == "session_analysis_status":
             sid = unquote(path.split("/")[3])
             try:
                 _session_path(self.server.sessions_root, sid)
@@ -7592,7 +7110,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json(200, _analysis_job_status(self.server.sessions_root, sid))
             return
-        if path.startswith("/api/sessions/") and path.endswith("/training/status"):
+        if route_name == "session_training_status":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7627,7 +7145,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "updated_at": _iso_now(),
             })
             return
-        if path.startswith("/api/sessions/") and path.endswith("/predict"):
+        if route_name == "session_predict":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7638,7 +7156,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             found = next((p for p in candidates if p.exists()), None)
             self._send_json(200, {"ok": bool(found), "session_id": sid, "summary": (_read_json_if_exists(str(found)) if found else None), "path": str(found) if found else None})
             return
-        if path == "/api/report/export":
+        if route_name == "report_export":
             sid = (parse_qs(parsed.query).get("session") or [""])[-1]
             if not sid:
                 self._send_json(400, {"ok": False, "error": {"code": "VALIDATION_FAILED", "message": "session query parameter is required"}})
@@ -7653,10 +7171,20 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self._send_json(404, {"ok": False, "error": "not_found"})
             return
         dashboard_routes = {f"/{str(name)}" for name in _DASHBOARD_HTML_FALLBACK_NAMES}
-        if path in ("/", "/index.html", "/connect", "/dashboard", "/live", "/home", "/settings", "/report", "/help"):
+        if route_name in {
+            "shell_root",
+            "shell_index",
+            "shell_connect",
+            "shell_dashboard",
+            "shell_live",
+            "shell_home",
+            "shell_settings",
+            "shell_report",
+            "shell_help",
+        }:
             self.path = f"/{_DASHBOARD_HTML_NAME}"
             path = f"/{_DASHBOARD_HTML_NAME}"
-        if path == "/live_dashboard.html":
+        if route_name == "legacy_live_dashboard":
             self.path = f"/{_DASHBOARD_HTML_NAME}"
             path = f"/{_DASHBOARD_HTML_NAME}"
         if path in dashboard_routes:
@@ -7687,25 +7215,27 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if self._reject_untrusted():
             return
         path = urlparse(self.path).path
+        route_spec = _match_route("POST", path)
+        route_name = route_spec.name if route_spec is not None else None
         body = self._read_body()
         if body is None:
             return
-        if path == "/api/auth/exchange":
+        if route_name == "auth_exchange":
             client_ip = (self.client_address[0] if self.client_address else "") or "unknown"
             status, payload = _exchange_pair_pin(self.server, str(body.get("pin") or ""), client_ip)
             self._send_json(status, payload, cache_control="no-store")
             return
         if path.startswith("/api/") and not self._require_control_auth():
             return
-        if path == "/api/operator-profiles":
+        if route_name == "operator_profiles_create":
             status, payload = _create_operator_profile(self.server, body)
             self._send_json(status, payload)
             return
-        if path == "/api/auth/login":
+        if route_name == "auth_login":
             status, payload = _login_operator(self.server, str(body.get("operator_id") or ""), str(body.get("pin") or ""))
             self._send_json(status, payload)
             return
-        if path == "/api/auth/logout":
+        if route_name == "auth_logout":
             token = ((self.headers.get("X-RVT-Auth") or self.headers.get("X-RVT-Token") or "") if getattr(self, "headers", None) else "").strip()
             if not token:
                 token = (parse_qs(urlparse(self.path).query).get("token") or [""])[-1].strip()
@@ -7721,7 +7251,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     _invalidate_operator_sse_tokens(self.server, operator_id)
             self._send_json(200, {"ok": True})
             return
-        if path == "/api/auth/sse-token":
+        if route_name == "auth_sse_token":
             token = secrets.token_urlsafe(24)
             # Bind the SSE token to the requesting operator so session
             # invalidation (reset / host-reset / logout) can also drop it.
@@ -7742,7 +7272,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 }
             self._send_json(200, {"sse_token": token})
             return
-        if path == "/api/auth/reset-pin":
+        if route_name == "auth_reset_pin":
             status, payload = _reset_pin_with_recovery(
                 self.server,
                 str(body.get("operator_id") or ""),
@@ -7751,7 +7281,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             )
             self._send_json(status, payload, cache_control="no-store")
             return
-        if path == "/api/auth/host-reset":
+        if route_name == "auth_host_reset":
             client_host = str(self.client_address[0] if self.client_address else "")
             if client_host not in {"127.0.0.1", "::1", "localhost"}:
                 self._send_json(403, {"ok": False, "error": {"code": "LOOPBACK_ONLY", "message": "host-reset is loopback-only"}}, cache_control="no-store")
@@ -7763,20 +7293,20 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             )
             self._send_json(status, payload, cache_control="no-store")
             return
-        if path == "/api/defaults":
+        if route_name == "defaults":
             current = _effective_defaults(self.server.sessions_root)
             current.update({k: v for k, v in body.items() if k in current})
             save_json(current, str(Path(self.server.sessions_root) / ".user_defaults.json"))
             self._send_json(200, current)
             return
-        if path.startswith("/api/preflight/"):
+        if route_name == "preflight_one":
             check_id = path.rsplit("/", 1)[-1]
             if check_id in {"serial_port_probe", "ble_device_probe"} and self.server.supervisor.current():
                 self._send_json(409, {"ok": False, "error": {"code": "SESSION_IN_PROGRESS", "message": "hardware preflight is blocked while a session is active"}})
                 return
             self._send_json(200, _run_preflight_check(check_id, sessions_root=self.server.sessions_root, **body))
             return
-        if path == "/api/session/start":
+        if route_name == "session_start":
             radar_port = str(body.get("radar_port") or DEFAULT_RADAR_PORT).strip() or DEFAULT_RADAR_PORT
             if str(radar_port).strip().lower() in {"auto", "autodetect", "auto-detect"}:
                 radar_port = _auto_detect_radar_port(DEFAULT_RADAR_PORT)
@@ -7814,7 +7344,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             except TimeoutError as e:
                 self._send_json(500, {"ok": False, "error": {"code": "SPAWN_TIMEOUT", "message": str(e)}})
             return
-        if path == "/api/session/stop":
+        if route_name == "session_stop":
             try:
                 self._send_json(200, self.server.supervisor.stop(reason=str(body.get("reason", "user_request"))))
             except RuntimeError as e:
@@ -7822,16 +7352,13 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 no_active = message == "no active session"
                 self._send_json(
                     404 if no_active else 500,
-                    {
-                        "ok": False,
-                        "error": {
-                            "code": "NO_ACTIVE_SESSION" if no_active else "SESSION_STOP_FAILED",
-                            "message": message,
-                        },
-                    },
+                    _api_error(
+                        "NO_ACTIVE_SESSION" if no_active else "SESSION_STOP_FAILED",
+                        message,
+                    ),
                 )
             return
-        if path == "/api/session/annotate":
+        if route_name == "session_annotate":
             cur = self.server.supervisor.current()
             if not cur:
                 self._send_json(404, {"ok": False, "error": {"code": "NO_ACTIVE_SESSION", "message": "no active session"}})
@@ -7850,7 +7377,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             save_json(existing, str(notes_path))
             self._send_json(200, {"ok": True, "entry": entry})
             return
-        if path == "/api/session/annotations":
+        if route_name == "session_annotations":
             cur = self.server.supervisor.current()
             if not cur:
                 self._send_json(404, {"ok": False, "error": {"code": "NO_ACTIVE_SESSION", "message": "no active session"}})
@@ -7863,7 +7390,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             entry = _upsert_session_annotation(session_dir, session_id, chart_key, annotation, action=action)
             self._send_json(200, {"ok": True, "entry": entry, "action": action})
             return
-        if path.startswith("/api/sessions/") and path.endswith("/analyse"):
+        if route_name == "session_analyse":
             sid = unquote(path.split("/")[3])
             try:
                 self._send_json(200, _rerun_session_analysis(str(_session_path(self.server.sessions_root, sid))))
@@ -7881,10 +7408,12 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if not self._require_control_auth():
             return
         path = urlparse(self.path).path
+        route_spec = _match_route("PUT", path)
+        route_name = route_spec.name if route_spec is not None else None
         body = self._read_body()
         if body is None:
             return
-        if path.startswith("/api/sessions/") and path.endswith("/notes"):
+        if route_name == "session_notes_put":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7904,7 +7433,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             save_json(existing, str(notes_path))
             self._send_json(200, existing)
             return
-        if path.startswith("/api/sessions/") and path.endswith("/signoff"):
+        if route_name == "session_signoff_put":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7929,7 +7458,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             save_json(signoff, str(root / "session_signoff.json"))
             self._send_json(200, signoff)
             return
-        if path.startswith("/api/sessions/") and path.endswith("/tags"):
+        if route_name == "session_tags":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -7957,7 +7486,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if not self._require_control_auth():
             return
         path = urlparse(self.path).path
-        if path.startswith("/api/sessions/"):
+        route_spec = _match_route("DELETE", path)
+        route_name = route_spec.name if route_spec is not None else None
+        if route_name == "session_delete":
             sid = unquote(path.split("/")[3])
             try:
                 root = _session_path(self.server.sessions_root, sid)
@@ -12869,6 +12400,19 @@ def resolve_model_params(args) -> Dict[str, float]:
     }
 
 
+def resolve_cnn_config(args) -> Cnn1DConfig:
+    return Cnn1DConfig(
+        window_size=int(getattr(args, "cnn_window_size", 32)),
+        filters=int(getattr(args, "cnn_filters", 32)),
+        kernel_size=int(getattr(args, "cnn_kernel_size", 5)),
+        dropout=float(getattr(args, "cnn_dropout", 0.20)),
+        learning_rate=float(getattr(args, "cnn_learning_rate", 1e-3)),
+        epochs=int(getattr(args, "cnn_epochs", 100)),
+        batch_size=int(getattr(args, "cnn_batch_size", 64)),
+        patience=int(getattr(args, "cnn_patience", 12)),
+    )
+
+
 def build_model(random_state, params, n_estimators):
     return GradientBoostingRegressor(
         n_estimators=int(n_estimators), max_depth=int(params["max_depth"]),
@@ -12947,6 +12491,128 @@ def fit_target_model(
     return fit(build_model(random_state, params, int(params["n_estimators"]))), meta
 
 
+def fit_cnn_target_model(
+    df_train,
+    df_val,
+    target,
+    X_train_all,
+    X_val_all,
+    config,
+    random_state=42,
+    sample_weight_mode="none",
+    min_valid_windows=500,
+    allow_small_dataset=False,
+):
+    valid_col = f"{target}_valid_for_eval"
+    ref_col = f"ref_{target}"
+    train_mask = df_train[valid_col].fillna(False).to_numpy(dtype=bool)
+    val_mask = df_val[valid_col].fillna(False).to_numpy(dtype=bool)
+    train_rows = df_train.loc[train_mask].copy()
+    val_rows = df_val.loc[val_mask].copy()
+    required_rows = 20 if allow_small_dataset else max(20, int(min_valid_windows))
+    if len(train_rows) < required_rows:
+        override = (
+            " Pass --allow-small-cnn-dataset only for an explicitly labelled "
+            "overfit/feasibility experiment."
+            if not allow_small_dataset
+            else ""
+        )
+        raise ValueError(
+            f"Not enough valid {target.upper()} windows for cnn_1d "
+            f"({len(train_rows)} available, {required_rows} required). "
+            "Fix upstream publish coverage or keep --model-family gradient_boosting."
+            + override
+        )
+
+    train_sessions = (
+        df_train["session_id"].to_numpy(dtype=object)
+        if "session_id" in df_train
+        else np.repeat("train", len(df_train))
+    )
+    val_sessions = (
+        df_val["session_id"].to_numpy(dtype=object)
+        if "session_id" in df_val
+        else np.repeat("validation", len(df_val))
+    )
+    train_windows, train_endpoints = build_causal_windows(
+        X_train_all.to_numpy(dtype=np.float32),
+        train_sessions,
+        config.window_size,
+        endpoint_mask=train_mask,
+    )
+    val_windows, val_endpoints = build_causal_windows(
+        X_val_all.to_numpy(dtype=np.float32),
+        val_sessions,
+        config.window_size,
+        endpoint_mask=val_mask,
+    )
+    y_train = df_train.iloc[train_endpoints][ref_col].to_numpy(dtype=np.float32)
+    y_val = df_val.iloc[val_endpoints][ref_col].to_numpy(dtype=np.float32)
+    weights = get_sample_weights(train_rows, target, sample_weight_mode)
+    model = Keras1DCNNRegressor(config=config, random_state=random_state)
+    validation_data = (val_windows, y_val) if len(val_windows) >= 10 else None
+    model.fit(
+        train_windows,
+        y_train,
+        validation_data=validation_data,
+        sample_weight=weights,
+    )
+    trained_epochs = max((len(values) for values in model.history_.values()), default=0)
+    best_val_rmse = float("nan")
+    if len(val_windows):
+        val_pred = model.predict_windows(val_windows)
+        best_val_rmse = float(np.sqrt(mean_squared_error(y_val, val_pred)))
+    meta = {
+        "model_family": MODEL_FAMILY_CNN_1D,
+        "train_rows": int(len(train_rows)),
+        "val_rows": int(len(val_rows)),
+        "window_size": int(config.window_size),
+        "input_channels": int(X_train_all.shape[1]),
+        "trained_epochs": int(trained_epochs),
+        "best_val_rmse": best_val_rmse,
+        "used_early_stopping": validation_data is not None,
+    }
+    return model, meta
+
+
+def fit_selected_target_model(
+    df_train,
+    df_val,
+    target,
+    X_train_all,
+    X_val_all,
+    params,
+    args,
+    random_state,
+):
+    model_family = getattr(args, "model_family", MODEL_FAMILY_GRADIENT_BOOSTING)
+    if model_family == MODEL_FAMILY_CNN_1D:
+        return fit_cnn_target_model(
+            df_train,
+            df_val,
+            target,
+            X_train_all,
+            X_val_all,
+            config=resolve_cnn_config(args),
+            random_state=random_state,
+            sample_weight_mode=args.sample_weight_mode,
+            min_valid_windows=int(getattr(args, "cnn_min_valid_windows", 500)),
+            allow_small_dataset=bool(getattr(args, "allow_small_cnn_dataset", False)),
+        )
+    return fit_target_model(
+        df_train,
+        df_val,
+        target,
+        X_train_all,
+        X_val_all,
+        params=params,
+        random_state=random_state,
+        sample_weight_mode=args.sample_weight_mode,
+        use_early_stopping=not args.disable_early_stopping,
+        early_stop_strategy=args.early_stop_strategy,
+    )
+
+
 def apply_causal_slew_limit(df, col, max_delta_per_s):
     if max_delta_per_s is None or not np.isfinite(max_delta_per_s) or max_delta_per_s <= 0:
         return df
@@ -12977,12 +12643,22 @@ def add_predictions(df, X_all, model_hr=None, model_rr=None, hr_slew_limit=None,
     df = df.copy()
     X  = X_all.to_numpy(dtype=np.float32)
     if model_hr is not None:
-        df["pred_hr"] = np.clip(model_hr.predict(X), HR_RANGE[0], HR_RANGE[1])
+        raw_hr = (
+            model_hr.predict_aligned(df, X_all)
+            if hasattr(model_hr, "predict_aligned")
+            else model_hr.predict(X)
+        )
+        df["pred_hr"] = np.clip(raw_hr, HR_RANGE[0], HR_RANGE[1])
         df = apply_causal_slew_limit(df, "pred_hr", hr_slew_limit)
     else:
         df["pred_hr"] = np.nan
     if model_rr is not None:
-        df["pred_rr"] = np.clip(model_rr.predict(X), RR_RANGE[0], RR_RANGE[1])
+        raw_rr = (
+            model_rr.predict_aligned(df, X_all)
+            if hasattr(model_rr, "predict_aligned")
+            else model_rr.predict(X)
+        )
+        df["pred_rr"] = np.clip(raw_rr, RR_RANGE[0], RR_RANGE[1])
         df = apply_causal_slew_limit(df, "pred_rr", rr_slew_limit)
     else:
         df["pred_rr"] = np.nan
@@ -13158,6 +12834,8 @@ def cmd_predict(args):
                               pred_col="pred_rr", enabled=not args.no_plots)
     summary = {
         "version": VERSION,
+        "model_family": pre.get("model_family", MODEL_FAMILY_GRADIENT_BOOSTING),
+        "sequence": pre.get("sequence"),
         "rows": int(len(pred_df)),
         "sessions": list(dict.fromkeys(pred_df["session_id"].tolist())),
         "feature_mode": feature_mode,
@@ -13513,8 +13191,7 @@ def cmd_analyse(args):
     print(f"[OUT] Analysis outputs saved to {args.out}")
     return summary
 
-def _run_loso_evaluation(base_df: pd.DataFrame, args, feature_cols, impute_values, missing_flag_cols,
-                         expanded_feature_cols, params, available_targets):
+def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets):
     session_ids = list(dict.fromkeys(base_df["session_id"].tolist()))
     if len(session_ids) < 3:
         return {"enabled": False, "reason": "need at least 3 sessions"}
@@ -13528,23 +13205,49 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, feature_cols, impute_value
         loo_train_df = validity_masks(engineer_temporal_features(loo_train_base, feature_mode=args.feature_mode))
         loo_stop_df = validity_masks(engineer_temporal_features(loo_stop_base, feature_mode=args.feature_mode))
         loo_eval_df = validity_masks(engineer_temporal_features(eval_base, feature_mode=args.feature_mode))
-        X_train = transform_feature_matrix(loo_train_df, feature_cols, impute_values, missing_flag_cols)
-        X_train = X_train.reindex(columns=expanded_feature_cols, fill_value=0.0).astype(np.float32)
-        X_stop = transform_feature_matrix(loo_stop_df, feature_cols, impute_values, missing_flag_cols)
-        X_stop = X_stop.reindex(columns=expanded_feature_cols, fill_value=0.0).astype(np.float32)
-        X_eval = transform_feature_matrix(loo_eval_df, feature_cols, impute_values, missing_flag_cols)
-        X_eval = X_eval.reindex(columns=expanded_feature_cols, fill_value=0.0).astype(np.float32)
+        fold_feature_cols = pick_feature_columns(
+            loo_train_df,
+            feature_mode=args.feature_mode,
+            max_nan_frac=args.max_nan_frac,
+            min_variance=args.min_variance,
+            allow_policy_features=bool(getattr(args, "allow_policy_features", False)),
+        )
+        if not fold_feature_cols:
+            folds.append({
+                "holdout_session": holdout,
+                "skipped": True,
+                "reason": "no numeric features selected from the fold training sessions",
+            })
+            continue
+        assert_ml_feature_schema(
+            fold_feature_cols,
+            allow_policy_features=bool(getattr(args, "allow_policy_features", False)),
+        )
+        X_train, X_stop, fold_impute_values, fold_missing_flag_cols = prepare_feature_matrix(
+            loo_train_df,
+            loo_stop_df,
+            fold_feature_cols,
+        )
+        fold_expanded_feature_cols = list(X_train.columns)
+        X_eval = transform_feature_matrix(
+            loo_eval_df,
+            fold_feature_cols,
+            fold_impute_values,
+            fold_missing_flag_cols,
+        )
+        X_eval = X_eval.reindex(
+            columns=fold_expanded_feature_cols,
+            fill_value=0.0,
+        ).astype(np.float32)
         model_hr = model_rr = None
         if "hr" in available_targets and loo_train_df.get("hr_valid_for_eval", pd.Series(False, index=loo_train_df.index)).fillna(False).sum() >= 20:
-            model_hr, _ = fit_target_model(loo_train_df, loo_stop_df, "hr", X_train, X_stop, params=params,
-                                           random_state=args.random_state + i, sample_weight_mode=args.sample_weight_mode,
-                                           use_early_stopping=not args.disable_early_stopping,
-                                           early_stop_strategy=args.early_stop_strategy)
+            model_hr, _ = fit_selected_target_model(
+                loo_train_df, loo_stop_df, "hr", X_train, X_stop,
+                params=params, args=args, random_state=args.random_state + i)
         if "rr" in available_targets and loo_train_df.get("rr_valid_for_eval", pd.Series(False, index=loo_train_df.index)).fillna(False).sum() >= 20:
-            model_rr, _ = fit_target_model(loo_train_df, loo_stop_df, "rr", X_train, X_stop, params=params,
-                                           random_state=args.random_state + 100 + i, sample_weight_mode=args.sample_weight_mode,
-                                           use_early_stopping=not args.disable_early_stopping,
-                                           early_stop_strategy=args.early_stop_strategy)
+            model_rr, _ = fit_selected_target_model(
+                loo_train_df, loo_stop_df, "rr", X_train, X_stop,
+                params=params, args=args, random_state=args.random_state + 100 + i)
         pred = add_predictions(loo_eval_df, X_eval, model_hr=model_hr, model_rr=model_rr,
                                hr_slew_limit=args.slew_limit_hr_per_s, rr_slew_limit=args.slew_limit_rr_per_s)
         fold = {"holdout_session": holdout}
@@ -13573,8 +13276,14 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, feature_cols, impute_value
 def cmd_train(args):
     os.makedirs(args.out, exist_ok=True)
     progress_path = os.path.join(args.out, "training_progress.json")
+    model_family = getattr(args, "model_family", MODEL_FAMILY_GRADIENT_BOOSTING)
     target_label = ",".join(getattr(args, "targets", ["hr", "rr"]))
-    n_estimators_total = int(getattr(args, "n_estimators", 0) or 0)
+    progress_units_per_target = (
+        int(getattr(args, "cnn_epochs", 0) or 0)
+        if model_family == MODEL_FAMILY_CNN_1D
+        else int(getattr(args, "n_estimators", 0) or 0)
+    )
+    n_estimators_total = progress_units_per_target
     started_at = _iso_now()
     save_json({
         "schema_version": TRAINING_PROGRESS_SCHEMA_VERSION,
@@ -13587,6 +13296,8 @@ def cmd_train(args):
         "elapsed_s": 0.0,
         "started_at": started_at,
         "updated_at": started_at,
+        "model_family": model_family,
+        "progress_unit": "epochs" if model_family == MODEL_FAMILY_CNN_1D else "estimators",
     }, progress_path)
     train_started_t = time.monotonic()
     def _write_training_progress(status="running", n_done=0, train_loss=None, val_loss=None, **extra):
@@ -13601,6 +13312,8 @@ def cmd_train(args):
             "elapsed_s": round(time.monotonic() - train_started_t, 3),
             "started_at": started_at,
             "updated_at": _iso_now(),
+            "model_family": model_family,
+            "progress_unit": "epochs" if model_family == MODEL_FAMILY_CNN_1D else "estimators",
         }
         payload.update(extra)
         save_json(payload, progress_path)
@@ -13660,7 +13373,7 @@ def cmd_train(args):
             f"Requested={requested_targets}, skipped={skipped_targets}")
     if skipped_targets:
         warn(f"Skipping targets without enough valid reference rows: {skipped_targets}")
-    n_estimators_total = int(getattr(args, "n_estimators", 0) or 0) * max(1, len(available_targets))
+    n_estimators_total = progress_units_per_target * max(1, len(available_targets))
     _write_training_progress(status="running", n_done=0, phase="training_targets")
 
     feature_cols = pick_feature_columns(
@@ -13697,7 +13410,6 @@ def cmd_train(args):
             warn(msg)
 
     params = resolve_model_params(args)
-    use_es = not args.disable_early_stopping
     model_hr = None
     model_rr = None
     hr_fit_meta = {"skipped": True}
@@ -13705,18 +13417,28 @@ def cmd_train(args):
     n_estimators_done = 0
 
     if "hr" in available_targets:
-        model_hr, hr_fit_meta = fit_target_model(
-            train_df, stop_df, "hr", X_train_all, X_stop_all, params=params,
-            random_state=args.random_state, sample_weight_mode=args.sample_weight_mode,
-            use_early_stopping=use_es, early_stop_strategy=args.early_stop_strategy)
-        n_estimators_done += int(hr_fit_meta.get("best_n_estimators", params.get("n_estimators", 0)) or 0)
+        model_hr, hr_fit_meta = fit_selected_target_model(
+            train_df, stop_df, "hr", X_train_all, X_stop_all,
+            params=params, args=args, random_state=args.random_state)
+        n_estimators_done += int(
+            hr_fit_meta.get(
+                "trained_epochs",
+                hr_fit_meta.get("best_n_estimators", params.get("n_estimators", 0)),
+            )
+            or 0
+        )
         _write_training_progress(status="running", n_done=n_estimators_done, phase="trained_hr", val_loss=hr_fit_meta.get("best_val_rmse"))
     if "rr" in available_targets:
-        model_rr, rr_fit_meta = fit_target_model(
-            train_df, stop_df, "rr", X_train_all, X_stop_all, params=params,
-            random_state=args.random_state + 1, sample_weight_mode=args.sample_weight_mode,
-            use_early_stopping=use_es, early_stop_strategy=args.early_stop_strategy)
-        n_estimators_done += int(rr_fit_meta.get("best_n_estimators", params.get("n_estimators", 0)) or 0)
+        model_rr, rr_fit_meta = fit_selected_target_model(
+            train_df, stop_df, "rr", X_train_all, X_stop_all,
+            params=params, args=args, random_state=args.random_state + 1)
+        n_estimators_done += int(
+            rr_fit_meta.get(
+                "trained_epochs",
+                rr_fit_meta.get("best_n_estimators", params.get("n_estimators", 0)),
+            )
+            or 0
+        )
         _write_training_progress(status="running", n_done=n_estimators_done, phase="trained_rr", val_loss=rr_fit_meta.get("best_val_rmse"))
 
     train_pred = add_predictions(train_df, X_train_all, model_hr=model_hr, model_rr=model_rr,
@@ -13772,6 +13494,21 @@ def cmd_train(args):
             print("\n[RR model test]\n  skipped")
 
     feature_manifest = {
+        "model_family": model_family,
+        "sequence": (
+            resolve_cnn_config(args).as_dict()
+            if model_family == MODEL_FAMILY_CNN_1D
+            else None
+        ),
+        "cnn_training_policy": (
+            {
+                "minimum_valid_windows": int(args.cnn_min_valid_windows),
+                "small_dataset_override": bool(args.allow_small_cnn_dataset),
+                "status": "experimental",
+            }
+            if model_family == MODEL_FAMILY_CNN_1D
+            else None
+        ),
         "feature_mode": args.feature_mode,
         "feature_engineering_version": FEATURE_ENGINEERING_VERSION,
         "feature_schema_version": FEATURE_SCHEMA_VERSION,
@@ -13797,6 +13534,21 @@ def cmd_train(args):
     with open(os.path.join(args.out, "preprocessor.pkl"), "wb") as f:
         pickle.dump({
             "version": VERSION, "feature_mode": args.feature_mode,
+            "model_family": model_family,
+            "sequence": (
+                resolve_cnn_config(args).as_dict()
+                if model_family == MODEL_FAMILY_CNN_1D
+                else None
+            ),
+            "cnn_training_policy": (
+                {
+                    "minimum_valid_windows": int(args.cnn_min_valid_windows),
+                    "small_dataset_override": bool(args.allow_small_cnn_dataset),
+                    "status": "experimental",
+                }
+                if model_family == MODEL_FAMILY_CNN_1D
+                else None
+            ),
             "feature_engineering_version": FEATURE_ENGINEERING_VERSION,
             "feature_schema_version": FEATURE_SCHEMA_VERSION,
             "feature_schema_hash": feature_schema_hash(),
@@ -13815,12 +13567,12 @@ def cmd_train(args):
     # the .pkl files so the digests cover the exact bytes on disk. Verified by
     # _verify_model_dir before any pickle.load at predict time (audit item D4).
     _write_model_manifest(args.out)
-    if model_hr is not None:
+    if model_hr is not None and hasattr(model_hr, "feature_importances_"):
         save_feature_importance(model_hr, expanded_feature_cols,
                                 os.path.join(args.out, "feature_importance_hr.csv"))
         save_feature_importance_plot(model_hr, expanded_feature_cols,
                                      os.path.join(args.out, "feature_importance_hr.png"))
-    if model_rr is not None:
+    if model_rr is not None and hasattr(model_rr, "feature_importances_"):
         save_feature_importance(model_rr, expanded_feature_cols,
                                 os.path.join(args.out, "feature_importance_rr.csv"))
         save_feature_importance_plot(model_rr, expanded_feature_cols,
@@ -13859,11 +13611,26 @@ def cmd_train(args):
         }
         save_json(embedded_info, os.path.join(args.out, "embedded_export_summary.json"))
 
-    loo_eval = _run_loso_evaluation(base_df, args, feature_cols, impute_values, missing_flag_cols, expanded_feature_cols, params, available_targets) \
+    loo_eval = _run_loso_evaluation(base_df, args, params, available_targets) \
         if getattr(args, "loo_eval", False) else {"enabled": False}
 
     summary = {
         "version": VERSION, "split": split_info,
+        "model_family": model_family,
+        "cnn_config": (
+            resolve_cnn_config(args).as_dict()
+            if model_family == MODEL_FAMILY_CNN_1D
+            else None
+        ),
+        "cnn_training_policy": (
+            {
+                "minimum_valid_windows": int(args.cnn_min_valid_windows),
+                "small_dataset_override": bool(args.allow_small_cnn_dataset),
+                "status": "experimental",
+            }
+            if model_family == MODEL_FAMILY_CNN_1D
+            else None
+        ),
         "alignment": {
             "tolerance_s": args.tolerance_s, "merge_direction": args.merge_direction,
             "auto_align_start": bool(args.auto_align_start),
@@ -13872,7 +13639,12 @@ def cmd_train(args):
             "heart_fft_window_s": args.heart_fft_window_s,
             "breath_fft_window_s": args.breath_fft_window_s,
         },
-        "model_params": params, "feature_manifest": feature_manifest,
+        "model_params": (
+            resolve_cnn_config(args).as_dict()
+            if model_family == MODEL_FAMILY_CNN_1D
+            else params
+        ),
+        "feature_manifest": feature_manifest,
         "train_valid_counts": {
             "hr_valid_train_rows": valid_counts["hr"],
             "rr_valid_train_rows": valid_counts["rr"],
@@ -15004,8 +14776,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     # -- train -----------------------------------------------------------------
     p_tr = sub.add_parser("train",
-        help="train HR and RR GBM correction models (only after gate passes)")
+        help="train HR/RR correction models with gradient boosting or an optional 1-D CNN")
     add_common(p_tr)
+    p_tr.add_argument(
+        "--model-family",
+        choices=MODEL_FAMILIES,
+        default=MODEL_FAMILY_GRADIENT_BOOSTING,
+        help="estimator family (default: gradient_boosting; cnn_1d requires TensorFlow)",
+    )
     p_tr.add_argument("--val-ratio",         type=float, default=0.2)
     p_tr.add_argument("--three-way-split",   action="store_true")
     p_tr.add_argument("--early-stop-ratio",  type=float, default=0.15)
@@ -15021,6 +14799,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_tr.add_argument("--max-depth",         type=int,   default=3)
     p_tr.add_argument("--learning-rate",     type=float, default=0.04)
     p_tr.add_argument("--subsample",         type=float, default=0.8)
+    p_tr.add_argument("--cnn-window-size",   type=int, default=32,
+                      help="causal samples per 1-D CNN input window")
+    p_tr.add_argument("--cnn-filters",       type=int, default=32)
+    p_tr.add_argument("--cnn-kernel-size",   type=int, default=5)
+    p_tr.add_argument("--cnn-dropout",       type=float, default=0.20)
+    p_tr.add_argument("--cnn-learning-rate", type=float, default=1e-3)
+    p_tr.add_argument("--cnn-epochs",        type=int, default=100)
+    p_tr.add_argument("--cnn-batch-size",    type=int, default=64)
+    p_tr.add_argument("--cnn-patience",      type=int, default=12)
+    p_tr.add_argument("--cnn-min-valid-windows", type=int, default=500,
+                      help="minimum valid endpoint windows per target before CNN training")
+    p_tr.add_argument("--allow-small-cnn-dataset", action="store_true",
+                      help="research-only override for CNN feasibility/overfit experiments")
     p_tr.add_argument("--max-nan-frac",      type=float, default=0.70)
     p_tr.add_argument("--min-variance",      type=float, default=1e-8)
     p_tr.add_argument("--min-samples-per-feature", type=int, default=10)

@@ -145,6 +145,21 @@ def test_public_routes_need_no_auth(server):
 # --------------------------------------------------------------------------- #
 # Wave 1/6 — firmware workflow path guard
 # --------------------------------------------------------------------------- #
+def test_session_stop_error_envelope_keeps_http_failure_status(server, monkeypatch):
+    monkeypatch.setattr(
+        server.server.supervisor,
+        "stop",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("supervisor failure")),
+    )
+
+    status, data = server.raw("POST", "/api/session/stop")
+
+    payload = json.loads(data)
+    assert status == 500
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "SESSION_STOP_FAILED"
+
+
 def _quoted_ino_patterns(text: str):
     import re
     return re.findall(r"['\"]([^'\"]*\.ino)['\"]", text)

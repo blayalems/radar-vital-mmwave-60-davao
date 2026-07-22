@@ -11,7 +11,9 @@ LAYOUT = ROOT / "web" / "src" / "app" / "components" / "layout" / "layout.compon
 LAYOUT_TS = ROOT / "web" / "src" / "app" / "components" / "layout" / "layout.component.ts"
 API = ROOT / "web" / "src" / "app" / "services" / "api.service.ts"
 APP_META = ROOT / "web" / "src" / "app" / "services" / "app-meta.ts"
+SANDBOX_API = ROOT / "web" / "src" / "app" / "services" / "sandbox-api.service.ts"
 TELEMETRY = ROOT / "web" / "src" / "app" / "services" / "telemetry.service.ts"
+SSE_DRIVER = ROOT / "web" / "src" / "app" / "services" / "sse-driver.service.ts"
 BLUETOOTH = ROOT / "web" / "src" / "app" / "services" / "bluetooth.service.ts"
 SW_UPDATE = ROOT / "web" / "src" / "app" / "services" / "sw-update.service.ts"
 STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
@@ -49,6 +51,7 @@ def test_dashboard_pwa_contract():
     layout_ts = text(LAYOUT_TS)
     api = text(API)
     telemetry = text(TELEMETRY)
+    sse_driver = text(SSE_DRIVER)
     state = text(STATE)
     assert "viewport-fit=cover" in html
     assert "interactive-widget=resizes-content" in html
@@ -64,8 +67,8 @@ def test_dashboard_pwa_contract():
     assert 'href="#mainContent"' in layout
     assert "rvt-pair-token" in api or "rvt-pair-token" in text(ROOT / "web" / "src" / "app" / "services" / "rvt-storage-keys.ts")
     assert "X-RVT-Auth" in api
-    assert "/api/events/subscribe" in telemetry
-    assert "new EventSource" in telemetry
+    assert "/api/events/subscribe" in sse_driver
+    assert "new EventSource" in sse_driver
     assert "document.documentElement.dataset['theme']" in state
     assert "this.state.demoSourceActive()" in telemetry
     assert "PersistenceService" in state
@@ -104,7 +107,7 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
     trainer = text(TRAINER_MONOLITH)
     firmware = text(FW)
     app_meta = text(APP_META)
-    api = text(API)
+    sandbox_api = text(SANDBOX_API)
     sw = text(SW)
 
     assert json.loads(text(ROOT_PACKAGE))["version"] == "16.4.0"
@@ -121,8 +124,8 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
     assert "PRODUCT_VERSION = '16.4.0';" in app_meta
     assert "PRODUCT_VERSION_SHORT = 'v16.4';" in app_meta
     assert "PRODUCT_VERSION_LABEL = 'App v16.4';" in app_meta
-    assert "import { PRODUCT_VERSION } from './app-meta';" in api
-    assert "product_version: PRODUCT_VERSION" in api
+    assert "import { PRODUCT_VERSION } from './app-meta';" in sandbox_api
+    assert "product_version: PRODUCT_VERSION" in sandbox_api
     assert '#define FW_VERSION "v16.4.0"' in firmware
     assert "#define SKETCH_VERSION_MAJOR 16" in firmware
     assert "#define SKETCH_VERSION_SUB 4" in firmware
@@ -476,4 +479,3 @@ def test_207_column_row_parses_without_warning():
     # Verify that the added columns (indices 207 to 221) are padded with empty strings
     for i in range(207, 222):
         assert row[i] == ""
-

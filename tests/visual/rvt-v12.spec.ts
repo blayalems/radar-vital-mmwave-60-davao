@@ -47,6 +47,7 @@ test.describe('v12 dashboard visual baseline', () => {
       sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
       const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
       setup.operator_label = 'Operator A';
+      setup.ble_address = '10:22:33:9E:8F:63';
       localStorage.setItem('rvt-setup', JSON.stringify(setup));
     });
   });
@@ -72,12 +73,7 @@ test.describe('v12 dashboard visual baseline', () => {
               dashboard_version: 'visual',
               firmware_expected: 'visual',
               control_server_started_at: '2026-01-01T00:00:00Z',
-              active_session: stabilizeHomeTelemetry ? {
-                session_id: 'mock',
-                session_dir: '',
-                mock: true,
-                started_at: '2026-01-01T00:00:00Z'
-              } : null,
+              active_session: null,
               feature_flags: {}
             })
           });
@@ -176,6 +172,24 @@ test.describe('v12 dashboard visual baseline', () => {
         await page.goto(`/${view}`, { waitUntil: 'domcontentloaded' });
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
         await expect(page.locator('app-layout')).toBeVisible();
+
+        // ApiService reports the measured request round-trip rather than the
+        // latency value in the mocked response. Keep that useful runtime
+        // behavior while locking only the screenshot text node.
+        await page.evaluate(() => {
+          const statusSub = document.querySelector<HTMLElement>('#statusPill .status-sub');
+          if (!statusSub) return;
+          const lockLatency = () => {
+            if (statusSub.textContent !== '100 ms') statusSub.textContent = '100 ms';
+          };
+          lockLatency();
+          new MutationObserver(lockLatency).observe(statusSub, {
+            childList: true,
+            characterData: true,
+            subtree: true
+          });
+        });
+
         if (view === 'home') {
           try {
             await expect(page.locator('.preflight-row')).toHaveCount(10, { timeout: 5000 });
@@ -185,6 +199,8 @@ test.describe('v12 dashboard visual baseline', () => {
             await page.reload({ waitUntil: 'domcontentloaded' });
             await expect(page.locator('.preflight-row')).toHaveCount(10);
           }
+          await expect(page.locator('.home-empty-card')).toHaveCount(1);
+          await expect(page.locator('input[aria-labelledby="bleAddressLabel"]')).toHaveValue('10:22:33:9E:8F:63');
           // Home owns continuously redrawn preview canvases. Live-route
           // baselines still cover rendered plots; hide only these moving
           // pixels so home comparisons validate layout and theme surfaces.

@@ -1,0 +1,135 @@
+name: Repair PR 78 visual blockers
+
+on:
+  push:
+    branches:
+      - codex/backend-service-boundaries
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/backend-service-boundaries
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-v12.txt
+
+      - name: Stabilize status and session fixtures
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('tests/visual/rvt-v12.spec.ts')
+          source = path.read_text(encoding='utf-8')
+
+          profile_route_end = """    await page.route('**/api/operator-profiles', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          schema_version: 'rvt-operator-profiles-v12.0',
+          profiles: [{ operator_id: 'op_test', display_name: 'Operator A', initials: 'OA' }]
+        })
+      });
+    });
+"""
+          session_route = profile_route_end + """    await page.route('**/api/sessions', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, sessions: [], items: [] })
+      });
+    });
+"""
+          if profile_route_end not in source:
+              raise SystemExit('Operator-profile fixture block not found')
+          source = source.replace(profile_route_end, session_route, 1)
+
+          status_replacement = """        // Fix the shared topbar status payload for every visual fixture. The
+        // measured trainer latency is valid runtime data, but it must not make
+        // otherwise identical screenshots differ from run to run.
+        await page.route('**/api/status', async (route) => {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              ok: true,
+              latency: 100,
+              trainer_version: 'visual',
+              dashboard_version: 'visual',
+              firmware_expected: 'visual',
+              control_server_started_at: '2026-01-01T00:00:00Z',
+              active_session: stabilizeHomeTelemetry ? {
+                session_id: 'mock',
+                session_dir: '',
+                mock: true,
+                started_at: '2026-01-01T00:00:00Z'
+              } : null,
+              feature_flags: {}
+            })
+          });
+        });
+"""
+          pattern = re.compile(
+              r"        if \(stabilizeHomeTelemetry\) \{\n"
+              r".*?"
+              r"        \}\n"
+              r"(?=        if \(view === 'home'\) \{)",
+              re.DOTALL,
+          )
+          source, count = pattern.subn(status_replacement, source, count=1)
+          if count != 1:
+              raise SystemExit(f'Expected one status-fixture block, found {count}')
+          path.write_text(source, encoding='utf-8', newline='\n')
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          npm ci
+          npm --prefix web ci
+          python -m pip install --upgrade pip
+          pip install -r requirements-v12.txt
+
+      - name: Build web bundle
+        run: npm run build:web
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium webkit
+
+      - name: Verify existing Windows baselines
+        env:
+          PYTHON: python
+          RVT_TEST_PORT: 8990
+        run: npx playwright test tests/visual
+
+      - name: Commit deterministic fixture
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tests/visual/rvt-v12.spec.ts
+          if git diff --cached --quiet; then
+            echo "No fixture changes detected."
+            exit 0
+          fi
+          git commit -m "test(visual): stabilize trainer status and session fixtures"
+          git push origin HEAD:codex/backend-service-boundaries

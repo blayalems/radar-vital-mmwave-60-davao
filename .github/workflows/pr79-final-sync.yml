@@ -19,6 +19,15 @@ jobs:
         with:
           ref: codex/firmware-state-recovery
           fetch-depth: 0
+          show-progress: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install focused test runner
+        run: python -m pip install --disable-pip-version-check pytest
 
       - name: Merge integrated main and resolve shared contracts
         shell: bash
@@ -26,7 +35,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
+          git fetch --quiet origin main
           git merge --no-ff --no-commit -X theirs origin/main
           if [[ -n "$(git diff --name-only --diff-filter=U)" ]]; then
             echo "Unresolved conflicts remain:"
@@ -111,7 +120,10 @@ jobs:
           git add -A
 
       - name: Run focused firmware contracts
-        run: python -m pytest -q tests/test_firmware_state_recovery.py tests/test_v12_static_contract.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q --tb=short tests/test_firmware_state_recovery.py tests/test_v12_static_contract.py 2>&1 | tee /tmp/focused-tests.log
 
       - name: Install Arduino CLI and XIAO ESP32-C6 libraries
         shell: bash
@@ -147,7 +159,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin main
+          git fetch --quiet origin main
           git checkout -B main origin/main
           git rm .github/workflows/pr79-final-sync.yml
           git commit -m "chore: remove one-shot PR79 synchronization gate"

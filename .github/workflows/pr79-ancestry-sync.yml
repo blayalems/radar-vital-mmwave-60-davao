@@ -1,0 +1,39 @@
+name: Finalize PR79 ancestry
+
+on:
+  pull_request:
+    types: [opened]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize:
+    if: github.event.pull_request.head.ref == 'codex/trigger-pr79-ancestry'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Remove one-shot workflow from main first
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/pr79-ancestry-sync.yml
+          git commit -m "chore: remove one-shot PR79 ancestry synchronizer"
+          git push origin HEAD:main
+
+      - name: Merge cleaned main into PR79
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main codex/firmware-state-recovery
+          git checkout -B codex/firmware-state-recovery origin/codex/firmware-state-recovery
+          git merge --no-ff origin/main -m "Merge current main cleanup into firmware recovery"
+          git push origin HEAD:codex/firmware-state-recovery

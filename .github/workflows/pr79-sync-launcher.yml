@@ -1,0 +1,65 @@
+name: Launch PR79 integration resolver
+
+on:
+  pull_request_target:
+    types: [reopened]
+    branches: [main]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  launch:
+    if: github.event.pull_request.number == 79
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Enable manual dispatch on resolver
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/pr79-sync-main.yml')
+          text = path.read_text(encoding='utf-8')
+          old = '''on:
+            push:
+              branches:
+                - main
+              paths:
+                - .github/workflows/pr79-sync-main.yml
+          '''
+          new = '''on:
+            workflow_dispatch:
+          '''
+          if old not in text and new not in text:
+              raise RuntimeError('resolver trigger block not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/pr79-sync-main.yml
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: enable PR79 resolver dispatch"
+            git push origin HEAD:main
+          fi
+
+      - name: Dispatch resolver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            if gh workflow run pr79-sync-main.yml --ref main; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Unable to dispatch PR79 resolver"
+          exit 1

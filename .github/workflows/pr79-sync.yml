@@ -1,0 +1,189 @@
+name: Resolve PR79 against integrated main
+
+on:
+  push:
+    branches:
+      - codex/firmware-state-recovery
+    paths:
+      - .github/workflows/pr79-sync.yml
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out firmware branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/firmware-state-recovery
+          fetch-depth: 0
+
+      - name: Configure merge identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge integrated main and resolve shared files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git show HEAD:HANDOFF.md > /tmp/pr79-HANDOFF.md
+          git show HEAD:docs/cross-stack-audit-plan-2026-07.md > /tmp/pr79-audit.md
+
+          set +e
+          git merge --no-ff --no-commit origin/main
+          merge_status=$?
+          set -e
+          if [[ $merge_status -ne 0 && ! -f .git/MERGE_HEAD ]]; then
+            echo "Merge failed before creating a resolvable merge state."
+            exit 1
+          fi
+
+          conflicts="$(git diff --name-only --diff-filter=U || true)"
+          allowed=$'HANDOFF.md\ndocs/cross-stack-audit-plan-2026-07.md\ntests/test_v12_static_contract.py'
+          while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+            if ! grep -Fxq "$path" <<<"$allowed"; then
+              echo "Unexpected conflict: $path"
+              exit 1
+            fi
+          done <<<"$conflicts"
+
+          git checkout --theirs -- HANDOFF.md docs/cross-stack-audit-plan-2026-07.md tests/test_v12_static_contract.py
+
+          python - <<'PY'
+          from pathlib import Path
+
+          handoff_path = Path("HANDOFF.md")
+          main_handoff = handoff_path.read_text(encoding="utf-8")
+          pr79_handoff = Path("/tmp/pr79-HANDOFF.md").read_text(encoding="utf-8")
+
+          titles = [
+              "2026-07-22 - Firmware plan completion sync",
+              "2026-07-22 - Frozen firmware serial-order proof",
+              "2026-07-22 - Firmware stack base synchronization",
+              "2026-07-22 - Firmware live-loop delay closure",
+              "2026-07-18 - Firmware alignment and stale-packet closure",
+              "2026-07-18 - Firmware-version capture state machine",
+              "2026-07-18 - Firmware LCD lifecycle recovery",
+              "2026-07-18 - Firmware one-way presence ownership",
+          ]
+
+          def extract_section(text: str, title: str) -> str:
+              marker = f"### {title}"
+              start = text.index(marker)
+              end = text.find("\n### ", start + len(marker))
+              if end < 0:
+                  end = len(text)
+              return text[start:end].strip()
+
+          for title in titles:
+              marker = f"### {title}"
+              start = main_handoff.find(marker)
+              if start >= 0:
+                  end = main_handoff.find("\n### ", start + len(marker))
+                  if end < 0:
+                      end = len(main_handoff)
+                  main_handoff = main_handoff[:start] + main_handoff[end + (1 if end < len(main_handoff) else 0):]
+
+          sync_entry = """### 2026-07-24 - Synchronize firmware recovery with integrated main
+
+          - **Stack integration**: Merged `main` at `b9d9547` into PR #79 after the lifecycle, backend, and frontend stack reached the default branch.
+          - **Conflict policy**: Kept integrated-main documentation and static contracts as the base, then reapplied the firmware recovery completion evidence and the bounded capture assertions.
+          - **Verification**: Focused firmware/static tests and an Arduino CLI compile for `esp32:esp32:XIAO_ESP32C6` pass before this merge commit is pushed.
+          """.strip()
+          sections = [sync_entry] + [extract_section(pr79_handoff, title) for title in titles]
+          insert_at = main_handoff.find("### ")
+          if insert_at < 0:
+              raise RuntimeError("HANDOFF heading insertion point not found")
+          resolved_handoff = (
+              main_handoff[:insert_at]
+              + "\n\n".join(sections)
+              + "\n\n"
+              + main_handoff[insert_at:]
+          )
+          handoff_path.write_text(resolved_handoff, encoding="utf-8")
+
+          audit_path = Path("docs/cross-stack-audit-plan-2026-07.md")
+          main_audit = audit_path.read_text(encoding="utf-8")
+          pr79_audit = Path("/tmp/pr79-audit.md").read_text(encoding="utf-8")
+          status_marker = "Implementation status (2026-07-22):"
+          status_start = pr79_audit.index(status_marker)
+          status_end = pr79_audit.index("\nAcceptance:", status_start)
+          status_block = pr79_audit[status_start:status_end].strip()
+
+          existing = main_audit.find(status_marker)
+          if existing >= 0:
+              existing_end = main_audit.index("\nAcceptance:", existing)
+              main_audit = main_audit[:existing] + status_block + main_audit[existing_end:]
+          else:
+              anchor = "hardware allows; document setup-only delays."
+              anchor_at = main_audit.index(anchor) + len(anchor)
+              main_audit = main_audit[:anchor_at] + "\n\n" + status_block + main_audit[anchor_at:]
+          audit_path.write_text(main_audit, encoding="utf-8")
+
+          static_path = Path("tests/test_v12_static_contract.py")
+          static_text = static_path.read_text(encoding="utf-8")
+          old = '''    # 6. Radar-link recovery must not pause the DSP/telemetry loop while
+              # waiting for optional module-version metadata.
+              assert "pollModuleFirmwareVersionNonBlocking();" in ino
+              assert "pollModuleFirmwareVersionWindow(400UL)" not in ino'''
+          new = '''    # 6. Firmware-version capture is a bounded nonblocking state machine,
+              # re-armed after each parser begin and serviced after the normal update.
+              assert "serviceModuleFirmwareVersionCapture(now);" in ino
+              assert ino.count("armModuleFirmwareVersionCapture(") == 3
+              assert "MODULE_FW_CAPTURE_EXPIRED" in ino
+              assert "pollModuleFirmwareVersionWindow" not in ino
+              assert "pollModuleFirmwareVersionNonBlocking" not in ino'''
+          if old in static_text:
+              static_text = static_text.replace(old, new, 1)
+          elif new not in static_text:
+              raise RuntimeError("Expected firmware-version static contract block not found")
+          static_path.write_text(static_text, encoding="utf-8")
+          PY
+
+          git rm .github/workflows/pr79-sync.yml
+          git add HANDOFF.md docs/cross-stack-audit-plan-2026-07.md tests/test_v12_static_contract.py
+
+          if [[ -n "$(git diff --name-only --diff-filter=U)" ]]; then
+            echo "Unresolved conflicts remain:"
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+
+      - name: Run focused firmware contracts
+        run: python -m pytest -q tests/test_firmware_state_recovery.py tests/test_v12_static_contract.py
+
+      - name: Install Arduino CLI and XIAO ESP32-C6 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          sudo install -m 0755 bin/arduino-cli /usr/local/bin/arduino-cli
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+          arduino-cli config set library.enable_unsafe_install true
+          arduino-cli lib install "LiquidCrystal I2C" "Adafruit MLX90614 Library" "Adafruit BusIO" "BH1750" "Adafruit NeoPixel" "ArduinoJson"
+          arduino-cli lib install --git-url https://github.com/Seeed-Studio/Seeed_Arduino_mmWave.git
+
+      - name: Compile firmware for XIAO ESP32-C6
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/radar_vital_v16_4_0
+          cp radar_vital_v16_4_0.ino /tmp/radar_vital_v16_4_0/radar_vital_v16_4_0.ino
+          arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32C6 /tmp/radar_vital_v16_4_0
+
+      - name: Commit and push synchronized branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git commit -m "Merge integrated main into firmware recovery"
+          git push origin HEAD:codex/firmware-state-recovery

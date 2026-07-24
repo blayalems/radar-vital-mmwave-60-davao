@@ -42,16 +42,10 @@ jobs:
             git diff --name-only --diff-filter=U
             exit 1
           fi
-
-          git rm -f \
-            .github/workflows/pr79-sync.yml \
-            .github/workflows/pr79-open-sync.yml \
-            .github/workflows/pr79-final-sync.yml || true
-
+          git rm -f .github/workflows/pr79-sync.yml .github/workflows/pr79-open-sync.yml .github/workflows/pr79-final-sync.yml || true
           python - <<'PY'
           from pathlib import Path
           import re
-
           handoff = Path('HANDOFF.md')
           text = handoff.read_text(encoding='utf-8')
           marker = '### 2026-07-24 - Synchronize firmware recovery with integrated main'
@@ -66,7 +60,6 @@ jobs:
               if at < 0:
                   raise RuntimeError('HANDOFF insertion point not found')
               handoff.write_text(text[:at] + entry + '\n' + text[at:], encoding='utf-8')
-
           audit = Path('docs/cross-stack-audit-plan-2026-07.md')
           text = audit.read_text(encoding='utf-8')
           status_marker = 'Implementation status (2026-07-24):'
@@ -83,7 +76,6 @@ jobs:
                   'Remaining physical release gate: run the XIAO ESP32-C6 + MR60BHA2 + LCD recovery scenarios and capture loop-timing/CSV evidence.\n'
               )
               audit.write_text(text[:at] + status + text[at:], encoding='utf-8')
-
           static = Path('tests/test_v12_static_contract.py')
           text = static.read_text(encoding='utf-8')
           pattern = re.compile(
@@ -105,15 +97,8 @@ jobs:
           if count != 1 and replacement not in text:
               raise RuntimeError('firmware-version static contract block not found')
           static.write_text(text, encoding='utf-8')
-
           ino = Path('radar_vital_v16_4_0.ino').read_text(encoding='utf-8')
-          for required in (
-              'serviceModuleFirmwareVersionCapture(now);',
-              'MODULE_FW_CAPTURE_EXPIRED',
-              'lcdDetach(',
-              'serviceRuntimeI2cRecovery(',
-              'lastRadarPresencePacketMs',
-          ):
+          for required in ('serviceModuleFirmwareVersionCapture(now);', 'MODULE_FW_CAPTURE_EXPIRED', 'lcdDetach(', 'serviceRuntimeI2cRecovery(', 'lastRadarPresencePacketMs'):
               if required not in ino:
                   raise RuntimeError(f'missing synchronized firmware symbol: {required}')
           PY
@@ -125,19 +110,38 @@ jobs:
       - name: Run shared static contracts
         run: python -m pytest -q --tb=short tests/test_v12_static_contract.py
 
-      - name: Install Arduino CLI and XIAO ESP32-C6 libraries
+      - name: Install Arduino CLI
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
           sudo install -m 0755 bin/arduino-cli /usr/local/bin/arduino-cli
+          arduino-cli version
           arduino-cli config init
+          arduino-cli config set library.enable_unsafe_install true
+
+      - name: Install ESP32 board core
+        shell: bash
+        run: |
+          set -euo pipefail
           arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
-          arduino-cli config set library.enable_unsafe_install true
-          arduino-cli lib install "LiquidCrystal I2C" "Adafruit MLX90614 Library" "Adafruit BusIO" "BH1750" "Adafruit NeoPixel" "ArduinoJson"
-          arduino-cli lib install --git-url https://github.com/Seeed-Studio/Seeed_Arduino_mmWave.git
+
+      - name: Install LiquidCrystal I2C library
+        run: arduino-cli lib install "LiquidCrystal I2C"
+
+      - name: Install Adafruit MLX90614 and BusIO libraries
+        run: arduino-cli lib install "Adafruit MLX90614 Library" "Adafruit BusIO"
+
+      - name: Install BH1750 library
+        run: arduino-cli lib install "BH1750"
+
+      - name: Install NeoPixel and ArduinoJson libraries
+        run: arduino-cli lib install "Adafruit NeoPixel" "ArduinoJson"
+
+      - name: Install Seeed mmWave library
+        run: arduino-cli lib install --git-url https://github.com/Seeed-Studio/Seeed_Arduino_mmWave.git
 
       - name: Compile firmware for XIAO ESP32-C6
         shell: bash

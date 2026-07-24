@@ -1,4 +1,4 @@
-import { Injectable, computed, effect, inject } from '@angular/core';
+import { Injectable, effect, inject } from '@angular/core';
 import {
   AlertEvent,
   AlertSeverity,
@@ -21,6 +21,7 @@ import { UiStore } from './stores/ui.store';
 import { SessionStore } from './stores/session.store';
 import { AlertStore } from './stores/alert.store';
 import { TelemetryStore } from './stores/telemetry.store';
+import { SourceModeService } from './source-mode.service';
 
 export interface SubjectProfile {
   label: string;
@@ -78,6 +79,7 @@ export class StateService {
   private readonly sessionStore = inject(SessionStore);
   private readonly alertStore = inject(AlertStore);
   private readonly telemetryStore = inject(TelemetryStore);
+  private readonly sourceMode = inject(SourceModeService);
 
   private activeStorageScope: StorageScope | '' = '';
   private scopedHydrated = false;
@@ -112,9 +114,9 @@ export class StateService {
   maxChartPoints = this.telemetryStore.maxChartPoints;
 
   // Demo & Stale Settings
-  demoMode = this.uiStore.demoMode;
-  autoDemoOnDisconnect = this.uiStore.autoDemoOnDisconnect;
-  autoDemoActive = this.uiStore.autoDemoActive;
+  demoMode = this.sourceMode.manualDemoActive;
+  autoDemoOnDisconnect = this.sourceMode.autoDemoOnDisconnect;
+  autoDemoActive = this.sourceMode.automaticDemoActive;
   freezeOnStale = this.alertStore.freezeOnStale;
 
   // KPI Thresholds & Profiles
@@ -139,9 +141,7 @@ export class StateService {
   sessionItems = this.sessionStore.sessionItems;
   currentSessionId = this.sessionStore.currentSessionId;
   sessionActive = this.sessionStore.sessionActive;
-  readonly demoSourceActive = computed(() =>
-    this.demoMode() || this.autoDemoActive() || this.ctlStatus()?.mode === 'sandbox'
-  );
+  readonly demoSourceActive = this.sourceMode.simulated;
   preflightChecks = this.sessionStore.preflightChecks;
   preflightRunning = this.sessionStore.preflightRunning;
   preflightUpdatedAtMs = this.sessionStore.preflightUpdatedAtMs;
@@ -361,8 +361,10 @@ export class StateService {
           this.audioVolume.set(Math.max(0.0, Math.min(1.0, val)));
         }
       }
-      this.demoMode.set(localStorage.getItem('rvt-demo-mode') === '1');
-      this.autoDemoOnDisconnect.set(localStorage.getItem('rvt-auto-demo-on-disconnect') === '1');
+      this.sourceMode.restorePreferences(
+        localStorage.getItem('rvt-demo-mode') === '1',
+        localStorage.getItem('rvt-auto-demo-on-disconnect') === '1'
+      );
       const freezeVal = localStorage.getItem('rvt-freeze-on-stale');
       if (freezeVal !== null) this.freezeOnStale.set(freezeVal !== '0');
 
@@ -398,23 +400,15 @@ export class StateService {
   }
 
   storageScope(): StorageScope {
-    return this.demoSourceActive() ? 'demo' : 'live';
+    return this.sourceMode.storageScope();
   }
 
   trySetDemoMode(enabled: boolean): boolean {
-    if (enabled && this.sessionActive() && !this.demoSourceActive()) {
-      return false;
-    }
-    this.demoMode.set(enabled);
-    return true;
+    return this.sourceMode.setManualDemo(enabled);
   }
 
   trySetAutoDemoActive(enabled: boolean): boolean {
-    if (enabled && this.sessionActive() && !this.demoSourceActive()) {
-      return false;
-    }
-    this.autoDemoActive.set(enabled);
-    return true;
+    return this.sourceMode.setAutomaticDemoActive(enabled);
   }
 
   private async hydrateScopedRecords(scope: StorageScope): Promise<void> {

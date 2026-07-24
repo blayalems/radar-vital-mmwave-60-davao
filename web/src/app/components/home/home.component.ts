@@ -24,12 +24,18 @@ import { BluetoothService } from '../../services/bluetooth.service';
 import { InstallPromptService } from '../../services/install-prompt.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { I18nService } from '../../services/i18n.service';
+import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
-import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload } from '../../models/rvt.models';
+import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload, SetupState } from '../../models/rvt.models';
+import {
+  PreflightRequestCoordinator,
+  PreflightSetup,
+  preflightSetupFingerprint
+} from './preflight-request-coordinator.service';
+export { preflightSetupFingerprint } from './preflight-request-coordinator.service';
 
 const FALLBACK_RADAR_PORT = 'COM10';
 const DEFAULT_RADAR_PORT_CHOICES = ['COM7', FALLBACK_RADAR_PORT, 'COM3', 'COM4', 'COM11', 'COM12', '/dev/ttyUSB0', '/dev/ttyUSB1'];
-const PREFLIGHT_REQUEST_TIMEOUT_MS = 30000;
 const START_BLOCKING_PREFLIGHT_IDS = new Set([
   'serial_port_list',
   'session_folder_writable',
@@ -37,6 +43,19 @@ const START_BLOCKING_PREFLIGHT_IDS = new Set([
   'schema_hash_consistency',
   'clock_monotonic_sanity'
 ]);
+
+interface SessionStartPayload {
+  duration_s: number;
+  radar_port: string;
+  ble_address: string;
+  subject_label: string;
+  operator_label: string;
+  station_label: string;
+  subject_profile_id: string;
+  ble_profile: string;
+  skip_countdown: boolean;
+  advanced: { notify_char: string };
+}
 
 export function mergeRadarPortChoices(...groups: Array<Array<string | undefined> | undefined>): string[] {
   const seen = new Set<string>();
@@ -104,15 +123,18 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly renderScheduler = inject(ChartRenderSchedulerService);
+  private readonly preflightRequests = inject(PreflightRequestCoordinator);
 
   @ViewChild('radarCanvas', { static: false }) radarCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('trendCanvas', { static: false }) trendCanvas!: ElementRef<HTMLCanvasElement>;
 
-  private animeFrameId: number | null = null;
   private canvasCtx: CanvasRenderingContext2D | null = null;
   private trendCtx: CanvasRenderingContext2D | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private viewReady = false;
+  private readonly sparklineRenderOwner = {};
+  private sparklineQueueTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly onVisibilityChange = () => this.requestCanvasDraw();
 
   constructor() {
@@ -124,7 +146,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.sessionItems();
       this.state.sessionNotes();
       this.requestCanvasDraw();
-      setTimeout(() => void this.drawAllSparklines(), 150);
+      this.scheduleSessionSparklines();
     });
   }
 
@@ -167,11 +189,13 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         return;
       }
     }
-    this.refreshDefaults();
-    this.loadSubjectProfiles();
-    this.loadSessions();
-    this.runPreflight();
-    void this.scanSerialPorts();
+    await Promise.all([
+      this.refreshDefaults(),
+      this.loadSubjectProfiles(),
+      this.loadSessions()
+    ]);
+    await this.scanSerialPorts(false);
+    await this.runPreflight();
   }
 
   protected async installApp(): Promise<void> {
@@ -220,16 +244,14 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       if (this.radarCanvas) this.resizeObserver.observe(this.radarCanvas.nativeElement);
       if (this.trendCanvas) this.resizeObserver.observe(this.trendCanvas.nativeElement);
     }
-    document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.requestCanvasDraw();
   }
 
   ngOnDestroy() {
-    if (this.animeFrameId) {
-      cancelAnimationFrame(this.animeFrameId);
-    }
+    this.renderScheduler.cancel(this);
+    this.renderScheduler.cancel(this.sparklineRenderOwner);
+    if (this.sparklineQueueTimer) clearTimeout(this.sparklineQueueTimer);
     this.resizeObserver?.disconnect();
-    document.removeEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   async refreshDefaults() {
@@ -275,7 +297,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   onFormChange() {
-    this.runPreflight();
+    void this.runPreflight();
   }
 
   updateSetup<K extends keyof ReturnType<StateService['setup']>>(key: K, value: ReturnType<StateService['setup']>[K]): void {
@@ -300,7 +322,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  async scanSerialPorts() {
+  async scanSerialPorts(refreshPreflightAfterChange = true) {
+    const setupBefore = this.currentPreflightFingerprint();
     this.isScanningPorts = true;
     this.state.triggerHaptic('tap');
     try {
@@ -322,6 +345,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.triggerHaptic('warn');
     } finally {
       this.isScanningPorts = false;
+      if (refreshPreflightAfterChange && setupBefore !== this.currentPreflightFingerprint()) {
+        void this.runPreflight();
+      }
     }
   }
 
@@ -343,7 +369,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       } else if (this.bluetooth.isSupported() && !this.state.demoMode()) {
         const dev = await this.bluetooth.requestDevice();
         if (dev && dev.name) {
-          this.state.setup.update(s => ({ ...s, ble_address: dev.id || dev.name || '' }));
+          const address = dev.id || dev.name || '';
+          this.state.setup.update(s => ({ ...s, ble_address: address }));
+          void this.runPreflight();
         }
       } else {
         this.bleDevices = [
@@ -420,46 +448,54 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
-  async runPreflight() {
+  async runPreflight(): Promise<boolean> {
+    const setup = this.capturePreflightSetup();
     this.state.preflightRunning.set(true);
     this.preflightError = '';
+    let superseded = false;
     try {
-      const query = new URLSearchParams({
-        port: this.state.setup().radar_port,
-        address: this.state.setup().ble_address
-      });
-      const resp = await this.api.request<{ checks?: PreflightCheck[] }>(
-        `/api/preflight?${query.toString()}`,
-        undefined,
-        false,
-        PREFLIGHT_REQUEST_TIMEOUT_MS
-      );
-      if (resp && Array.isArray(resp.checks)) {
-        this.state.preflightChecks.set(resp.checks);
-        this.state.preflightUpdatedAtMs.set(Date.now());
+      const result = await this.preflightRequests.runAll(setup, () => this.currentPreflightFingerprint());
+      if (result.status === 'superseded') {
+        superseded = true;
+        return false;
       }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Preflight unavailable.';
-      this.preflightError = message === 'Request timeout'
-        ? 'Preflight timed out while probing hardware. Re-run the checks; Start only blocks on collection, storage, schema, and clock failures.'
-        : message;
+      if (result.status === 'stale') {
+        this.preflightError = 'Setup changed while checks were running. Run preflight again for the current radar and BLE selection.';
+        return false;
+      }
+      if (result.status === 'applied') {
+        this.state.preflightChecks.set(result.checks);
+        this.state.preflightUpdatedAtMs.set(Date.now());
+        return true;
+      }
+      this.preflightError = result.status === 'empty'
+        ? 'Preflight returned no hardware checks.'
+        : result.message;
+      return false;
     } finally {
-      this.state.preflightRunning.set(false);
+      if (!superseded) this.state.preflightRunning.set(false);
     }
   }
 
   async runSingleCheck(checkId: string) {
+    const setup = this.capturePreflightSetup();
+    this.state.preflightRunning.set(true);
+    this.preflightError = '';
     this.state.triggerHaptic('tap');
+    let superseded = false;
     try {
-      const resp = await this.api.request<PreflightCheck | { check?: PreflightCheck }>(`/api/preflight/${checkId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          port: this.state.setup().radar_port,
-          address: this.state.setup().ble_address
-        })
-      });
-      const check = 'check' in resp && resp.check ? resp.check : resp as PreflightCheck;
+      const result = await this.preflightRequests.runSingle(checkId, setup, () => this.currentPreflightFingerprint());
+      if (result.status === 'superseded') {
+        superseded = true;
+        return;
+      }
+      if (result.status === 'stale') return;
+      if (result.status === 'error') {
+        this.preflightError = result.message;
+        this.state.triggerHaptic('reject');
+        return;
+      }
+      const check = result.check;
       if (check && check.id) {
         this.state.preflightChecks.set(this.preflightChecks.map(c => c.id === checkId ? check : c));
         this.state.preflightUpdatedAtMs.set(Date.now());
@@ -469,8 +505,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
           this.state.triggerHaptic('warn');
         }
       }
-    } catch (_) {
-      this.state.triggerHaptic('reject');
+    } finally {
+      if (!superseded) this.state.preflightRunning.set(false);
     }
   }
 
@@ -490,6 +526,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   preflightProgressLabel(): string {
     if (this.isPreflightRunning) return this.preflightChecks.length ? 'Refreshing hardware checks...' : 'Running hardware checks...';
+    if (this.preflightChecks.length && this.preflightRequests.lastValidFingerprint !== this.currentPreflightFingerprint()) {
+      return 'Setup changed — run checks again';
+    }
     const updatedAt = this.state.preflightUpdatedAtMs();
     return updatedAt ? `Last checked ${new Date(updatedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : 'Not checked yet';
   }
@@ -504,7 +543,10 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   canStartSession(): boolean {
-    return !this.isPreflightRunning && this.preflightChecks.length > 0 && !this.hasBlockingPreflightFailure();
+    return !this.isPreflightRunning
+      && this.preflightRequests.lastValidFingerprint === this.currentPreflightFingerprint()
+      && this.preflightChecks.length > 0
+      && !this.hasBlockingPreflightFailure();
   }
 
   protected checkPasses(check: PreflightCheck): boolean {
@@ -537,7 +579,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   setSessionFilter(filter: 'all' | 'pass' | 'warn' | 'fail' | 'tagged') {
     this.sessionFilter = filter;
     this.state.triggerHaptic('tap');
-    setTimeout(() => void this.drawAllSparklines(), 150);
+    this.scheduleSessionSparklines();
   }
 
   getFilteredSessions(): SessionRecord[] {
@@ -605,6 +647,20 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private sparklineCache: Record<string, number[]> = {};
+
+  private scheduleSessionSparklines(): void {
+    if (this.sparklineQueueTimer) clearTimeout(this.sparklineQueueTimer);
+    this.sparklineQueueTimer = setTimeout(() => {
+      this.sparklineQueueTimer = null;
+      this.renderScheduler.request(
+        this.sparklineRenderOwner,
+        () => void this.drawAllSparklines(),
+        () => Array.from(document.querySelectorAll<HTMLCanvasElement>('canvas.session-micro-sparkline'))
+          .some(canvas => this.renderScheduler.canvasVisible(canvas)),
+        150
+      );
+    }, 150);
+  }
 
   async drawAllSparklines(): Promise<void> {
     if (typeof document === 'undefined') return;
@@ -695,25 +751,20 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   async startSession() {
     this.state.triggerHaptic('sessionStart');
     this.isStartingSession = true;
+    const payload = this.captureSessionStartPayload();
+    const setupFingerprint = JSON.stringify(payload);
     try {
-      await this.runPreflight();
-      if (!this.canStartSession()) {
+      const preflightReady = await this.runPreflight();
+      if (setupFingerprint !== JSON.stringify(this.captureSessionStartPayload())) {
+        this.snackBar.open('Start cancelled: setup changed while preflight was running. Review the current settings and try again.', 'Dismiss', { duration: 7000 });
+        this.state.triggerHaptic('reject');
+        return;
+      }
+      if (!preflightReady || !this.canStartSession()) {
         this.snackBar.open('Start blocked: resolve failed preflight checks first.', 'Dismiss', { duration: 7000 });
         return;
       }
-      const payload = {
-        duration_s: this.selectedDuration,
-        radar_port: this.state.setup().radar_port,
-        ble_address: this.state.setup().ble_address,
-        subject_label: this.state.setup().subject_label,
-        operator_label: this.state.setup().operator_label,
-        station_label: this.state.setup().station_label,
-        subject_profile_id: this.state.setup().subject_profile_id,
-        ble_profile: this.state.setup().ble_profile,
-        skip_countdown: this.state.setup().skip_countdown,
-        advanced: { notify_char: this.state.setup().notify_char }
-      };
-      
+
       const r = await this.api.request<SessionRecord>('/api/session/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -736,6 +787,34 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     }
   }
 
+  private capturePreflightSetup(): PreflightSetup {
+    const setup = this.state.setup();
+    return {
+      radar_port: setup.radar_port,
+      ble_address: setup.ble_address
+    };
+  }
+
+  private currentPreflightFingerprint(): string {
+    return preflightSetupFingerprint(this.state.setup());
+  }
+
+  private captureSessionStartPayload(): SessionStartPayload {
+    const setup = this.state.setup();
+    return {
+      duration_s: this.selectedDuration,
+      radar_port: setup.radar_port,
+      ble_address: setup.ble_address,
+      subject_label: setup.subject_label,
+      operator_label: setup.operator_label,
+      station_label: setup.station_label,
+      subject_profile_id: setup.subject_profile_id,
+      ble_profile: setup.ble_profile,
+      skip_countdown: setup.skip_countdown,
+      advanced: { notify_char: setup.notify_char }
+    };
+  }
+
   reviewSession(sessionId: string) {
     this.state.currentSessionId.set(sessionId);
     this.router.navigate(['/report']);
@@ -744,12 +823,17 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // --- Premium Canvas Drawing Animations ---
   private requestCanvasDraw(): void {
-    if (!this.viewReady || document.visibilityState === 'hidden' || this.animeFrameId !== null) return;
-    this.animeFrameId = requestAnimationFrame(() => {
-      this.animeFrameId = null;
-      this.animateRadarCanvas();
-      this.animateTrendCanvas();
-    });
+    if (!this.viewReady) return;
+    this.renderScheduler.request(
+      this,
+      () => {
+        this.animateRadarCanvas();
+        this.animateTrendCanvas();
+      },
+      () => [this.radarCanvas, this.trendCanvas]
+        .some(ref => this.renderScheduler.canvasVisible(ref?.nativeElement)),
+      100
+    );
   }
 
   private animateRadarCanvas() {

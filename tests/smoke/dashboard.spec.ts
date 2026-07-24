@@ -372,10 +372,18 @@ test.describe('Dashboard smoke', () => {
 
     await page.evaluate(() => localStorage.setItem('rvt-demo-mode', '1'));
     await gotoDashboardRoute(page, '/live');
-    await expect(page.locator('.kpi-hr')).toHaveAttribute('role', 'status');
-    await expect(page.locator('.kpi-hr')).toHaveAttribute('aria-live', 'polite');
+    const heartRateKpi = page.locator('.kpi-hr');
+    await expect(heartRateKpi).toHaveJSProperty('tagName', 'BUTTON');
+    await expect(heartRateKpi).not.toHaveAttribute('aria-live', /.+/);
+    await expect(heartRateKpi).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowLeft Alt+ArrowRight');
     await expect(page.locator('.kpi-hr canvas')).toHaveAttribute('role', 'img');
-    await expect(page.locator('app-live [role="alert"]')).toHaveCount(1);
+    await expect(page.locator('.kpi-grid > [role="status"][aria-live="polite"]')).toHaveCount(1);
+    await expect(page.locator('.kpi-grid > [role="alert"]')).toHaveCount(0);
+
+    await heartRateKpi.focus();
+    await page.keyboard.press('Alt+ArrowRight');
+    await expect(page.locator('.kpi-grid .kpi-metric-card').first()).toHaveClass(/kpi-rr/);
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('rvt-kpi-order'))).toContain('["rr","hr"');
 
     const notes = page.locator('textarea.notes-textarea');
     await notes.focus();
@@ -422,6 +430,44 @@ test.describe('Dashboard smoke', () => {
     expect(graphHeights).toHaveLength(4);
     // v17 advanced KPI cards use a 42px spark strip (prototype drawSpark spec).
     expect(Math.min(...graphHeights)).toBeGreaterThanOrEqual(40);
+  });
+
+  test('labels zero-only trend history as no valid samples', async ({ page }) => {
+    await page.route('**/api/events/subscribe**', route => route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      headers: { 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+      body: 'event: ping\ndata: {"ok":true}\n\n'
+    }));
+    await page.route('**/api/status', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        active_session: { session_id: 'session-empty-trend', subject: 'Trend QA' }
+      })
+    }));
+    await page.route('**/api/session/current/live_dashboard.json**', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        meta: { status: 'running', session_id: 'session-empty-trend', elapsed_s: 3, remaining_s: 27 },
+        radar: { reported_hr: 0, reported_rr: 0 },
+        ble: {},
+        faults: [],
+        events: [],
+        series: { reported_hr: [0, 0, 0], reported_rr: [0, 0, 0] }
+      })
+    }));
+
+    await gotoDashboardRoute(page, '/live');
+    await enterLiveAdvanced(page);
+    await page.getByRole('tab', { name: 'HR funnel' }).click();
+
+    const trend = page.locator('trend-canvas [data-sample-state="empty"]').first();
+    await expect(trend).toBeVisible();
+    await expect(trend.getByText('No trend samples yet')).toBeVisible();
+    await expect(trend.locator('canvas')).toHaveAttribute('aria-label', /No trend samples yet/);
   });
 
   test('keeps primary navigation available in simple view and collapses the desktop rail', async ({ page }) => {
@@ -498,6 +544,28 @@ test.describe('Dashboard smoke', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedDemoMode(page);
     await gotoDashboardRoute(page, '/live');
+
+    const headerGeometry = await page.evaluate(() => {
+      const rect = (selector: string) => {
+        const box = document.querySelector(selector)?.getBoundingClientRect();
+        return box ? { top: box.top, bottom: box.bottom, width: box.width, height: box.height } : null;
+      };
+      return {
+        banner: rect('#demoBanner'),
+        topbar: rect('.topbar'),
+        command: rect('.command-strip-card'),
+        timer: rect('.session-timer-group'),
+        chips: rect('.signal-status-chips'),
+        actions: rect('.command-actions'),
+        mode: rect('.live-mode-toolbar'),
+        firstKpi: rect('.kpi-metric-card')
+      };
+    });
+    expect(headerGeometry.banner?.height, 'demo provenance remains visible').toBeGreaterThan(0);
+    expect(headerGeometry.command?.height, 'Live status/actions stay compact').toBeLessThanOrEqual(170);
+    expect(headerGeometry.mode?.height, 'mode selector stays on one compact row').toBeLessThanOrEqual(56);
+    expect(headerGeometry.firstKpi?.top, 'first KPI remains in the mobile first-screen hierarchy').toBeLessThan(500);
+    await expect(page.getByRole('button', { name: 'Stop Session' })).toBeVisible();
 
     const targets = page.locator([
       '.demo-banner-action',
@@ -1227,6 +1295,7 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('#demoBanner')).toBeVisible();
     await expect(page.locator('.kpi-hr .kpi-card-value strong')).not.toHaveText('--', { timeout: 5000 });
     await enterLiveAdvanced(page);
+    await expect(page.getByRole('button', { name: 'Capture snapshot instantly' })).toHaveCount(0);
     await page.getByRole('button', { name: /Pin Snapshot/ }).first().click();
     await page.getByRole('tab', { name: 'Snaps' }).click();
     await expect(page.getByText('Pinned Telemetry Snapshots')).toBeVisible();

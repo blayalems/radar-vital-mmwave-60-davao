@@ -1,0 +1,81 @@
+@let ctx = context();
+<div class="tab-content-grid">
+  <mat-card class="snapshots-container-card">
+    <mat-card-header class="snapshots-header-row">
+      <div>
+        <mat-card-title>Pinned Telemetry Snapshots</mat-card-title>
+        <mat-card-subtitle>Historical points captured to analyze physiological drifts or sensor drops.</mat-card-subtitle>
+      </div>
+      <div class="snapshots-actions">
+        <button mat-flat-button color="primary" (click)="ctx.captureSnapshot()" [disabled]="!ctx.state.lastPayload()">
+          <mat-icon>add</mat-icon>
+          Pin Current Frame
+        </button>
+        <button mat-flat-button color="warn" (click)="ctx.clearAllSnaps()" [disabled]="ctx.state.snaps().length === 0" class="mat-tonal-button">
+          <mat-icon>delete_sweep</mat-icon>
+          Clear All
+        </button>
+      </div>
+    </mat-card-header>
+
+    <mat-card-content class="snapshots-catalog">
+      @if (ctx.state.snaps().length > 0) {
+        @if (ctx.selectedCompareSnaps().length === 2) {
+          <div class="snapshot-compare-panel" role="region" aria-label="Snapshot comparison">
+            <div>
+              <strong>Compare selected frames</strong>
+              <span>Frame 2 minus Frame 1: {{ ctx.selectedCompareSnaps()[0].ts | date:'mediumTime' }} to {{ ctx.selectedCompareSnaps()[1].ts | date:'mediumTime' }}</span>
+            </div>
+            <dl>
+              <div><dt>HR delta</dt><dd>{{ ctx.snapDelta('reported_hr') }} bpm</dd></div>
+              <div><dt>RR delta</dt><dd>{{ ctx.snapDelta('reported_rr') }} br/min</dd></div>
+              <div><dt>Range delta</dt><dd>{{ ctx.snapDelta('distance_cm') }} cm</dd></div>
+            </dl>
+            <button mat-button type="button" (click)="ctx.clearCompareSelection()">Clear comparison</button>
+          </div>
+        }
+        <div class="snapshots-grid-container">
+          @for (snap of ctx.sortedSnaps(); track snap.id; let first = $first; let last = $last) {
+            <mat-card class="snap-card" [attr.data-snapshot-id]="snap.id">
+              <mat-card-header class="snap-card-header-row">
+                <strong>Frame Point: {{ snap.ts | date:'mediumTime' }}</strong>
+                <div class="snap-card-actions">
+                  <button mat-icon-button type="button" (click)="ctx.moveSnap(snap.id, -1)" [disabled]="first" aria-label="Move snapshot earlier">
+                    <mat-icon>arrow_upward</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" (click)="ctx.moveSnap(snap.id, 1)" [disabled]="last" aria-label="Move snapshot later">
+                    <mat-icon>arrow_downward</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" (click)="ctx.toggleCompareSnap(snap.id)" [color]="ctx.compareSelection().includes(snap.id) ? 'primary' : undefined" [attr.aria-pressed]="ctx.compareSelection().includes(snap.id)" aria-label="Select snapshot for comparison">
+                    <mat-icon>compare_arrows</mat-icon>
+                  </button>
+                  <button mat-icon-button color="warn" (click)="ctx.deleteSnap(snap.id)" aria-label="Delete snapshot">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              </mat-card-header>
+              <mat-card-content class="snap-card-metrics">
+                <div class="snap-mini-kpi"><span>Radar HR:</span><strong>{{ Math.round(snap.reported_hr) }} bpm</strong></div>
+                <div class="snap-mini-kpi"><span>Radar RR:</span><strong>{{ Math.round(snap.reported_rr) }} br/m</strong></div>
+                <div class="snap-mini-kpi"><span>BLE HR:</span><strong>{{ Math.round(snap.ble_hr) }} bpm</strong></div>
+                <div class="snap-mini-kpi"><span>Distance:</span><strong>{{ Math.round(snap.distance_cm) }} cm</strong></div>
+
+                <div class="snap-notes-field">
+                  <mat-form-field appearance="outline" class="form-field-full">
+                    <mat-label>Snapshot Notes</mat-label>
+                    <input matInput [ngModel]="ctx.state.snapNotes()[snap.id]" (ngModelChange)="ctx.updateSnapNote(snap.id, $event)" placeholder="e.g. baseline check, cough event">
+                  </mat-form-field>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          }
+        </div>
+      } @else {
+        <div class="snapshots-empty-state">
+          <mat-icon class="empty-icon">bookmark_border</mat-icon>
+          <span>No snapshots pinned yet. Click "Pin Current Frame" above to capture a point.</span>
+        </div>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>

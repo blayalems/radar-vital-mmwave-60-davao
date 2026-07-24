@@ -27,6 +27,8 @@ import { StateService } from './state.service';
 
 // ---- type aliases ----------------------------------------------------------
 
+export type ControlErrorCategory = 'authentication' | 'timeout' | 'tls' | 'unreachable' | 'server' | 'other';
+
 export interface IssueReport {
   /** Always present — never dropped by truncation. */
   product_version: string;
@@ -39,7 +41,7 @@ export interface IssueReport {
     ok: boolean | undefined;
     mode: string | undefined;
     latency: number | undefined;
-    error: string | undefined;
+    error_category: ControlErrorCategory | undefined;
   };
   /** De-identified alert summary — counts and last-5 {severity, source, age_s}. Present when diagnostics are enabled. */
   alerts?: {
@@ -75,6 +77,29 @@ interface TrainerLogResponse {
 // ---- constants -------------------------------------------------------------
 
 const MAX_URL = 7_500;
+const CONTROL_ERROR_CATEGORIES = new Set<ControlErrorCategory>([
+  'authentication',
+  'timeout',
+  'tls',
+  'unreachable',
+  'server',
+  'other'
+]);
+const CONTROL_MODES = new Set(['live', 'sandbox', 'loading']);
+const ALERT_SOURCES = new Set([
+  'ctl',
+  'fault',
+  'firmware',
+  'heart-rate',
+  'pairing',
+  'radar',
+  'respiration',
+  'session',
+  'sse-session-warning',
+  'sse-stopped',
+  'system',
+  'telemetry'
+]);
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -83,8 +108,8 @@ function escapeRegExp(value: string): string {
 export function sanitizeDiagnosticLine(line: string, identityHints: string[] = []): string {
   let redacted = String(line ?? '');
 
-  redacted = redacted.replace(/([?&]pair=)\d{6}\b/gi, '$1[REDACTED_PIN]');
-  redacted = redacted.replace(/\b(pair(?:ing)?[_ -]?(?:pin|code)|active_pin)\b\s*[:=]\s*["']?\d{6}\b/gi, '$1=[REDACTED_PIN]');
+  redacted = redacted.replace(/([?&]pair=)\d{3,8}\b/gi, '$1[REDACTED_PIN]');
+  redacted = redacted.replace(/\b(pair(?:ing)?[_ -]?(?:pin|code)|active_pin)\b\s*[:=]\s*["']?\d{3,8}\b/gi, '$1=[REDACTED_PIN]');
   redacted = redacted.replace(/\b(X-RVT-Auth|Authorization)\b\s*[:=]\s*(Bearer\s+)?[A-Za-z0-9._~+/=-]{8,}/gi, '$1: [REDACTED_TOKEN]');
   redacted = redacted.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, 'Bearer [REDACTED_TOKEN]');
   redacted = redacted.replace(/\b(rvt-operator-token|rvt-pair-token|operator_token|session_token|sse_token|token)\b\s*[:=]\s*["']?[A-Za-z0-9._~+/=-]{8,}/gi, '$1=[REDACTED_TOKEN]');
@@ -101,6 +126,80 @@ export function sanitizeDiagnosticLine(line: string, identityHints: string[] = [
   }
 
   return redacted;
+}
+
+export function categorizeControlError(value: unknown): ControlErrorCategory | undefined {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (!text) return undefined;
+  if (/\b(?:401|403|auth|bearer|forbidden|pair|pairing|pin|token|unauthori[sz]ed)\b/.test(text)) {
+    return 'authentication';
+  }
+  if (/(?:timeout|timed out|deadline)/.test(text)) return 'timeout';
+  if (/(?:certificate|cert\b|https|ssl|tls)/.test(text)) return 'tls';
+  if (/(?:connection refused|failed to fetch|network|offline|unreachable|unavailable)/.test(text)) {
+    return 'unreachable';
+  }
+  if (/(?:\b5\d\d\b|internal server|server error)/.test(text)) return 'server';
+  return 'other';
+}
+
+function normalizeControlMode(value: unknown): string | undefined {
+  const mode = String(value ?? '').trim().toLowerCase();
+  if (!mode) return undefined;
+  return CONTROL_MODES.has(mode) ? mode : 'unknown';
+}
+
+function normalizeAlertSource(value: unknown): string | undefined {
+  const source = String(value ?? '').trim().toLowerCase();
+  if (!source) return undefined;
+  return ALERT_SOURCES.has(source) ? source : 'other';
+}
+
+function safeControlSummary(value: unknown): IssueReport['ctl'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const explicitCategory = String(raw['error_category'] ?? '').trim().toLowerCase();
+  const category = CONTROL_ERROR_CATEGORIES.has(explicitCategory as ControlErrorCategory)
+    ? explicitCategory as ControlErrorCategory
+    : categorizeControlError([raw['error'], raw['reason'], raw['message']].filter(Boolean).join(' '));
+  const latency = Number(raw['latency']);
+  return {
+    ok: typeof raw['ok'] === 'boolean' ? raw['ok'] : undefined,
+    mode: normalizeControlMode(raw['mode']),
+    latency: Number.isFinite(latency) ? Math.max(0, Math.round(latency)) : undefined,
+    error_category: category
+  };
+}
+
+function safeAlertSummary(value: unknown): IssueReport['alerts'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const rawCounts = raw['counts'] && typeof raw['counts'] === 'object' && !Array.isArray(raw['counts'])
+    ? raw['counts'] as Record<string, unknown>
+    : {};
+  const count = (key: string) => {
+    const numeric = Number(rawCounts[key]);
+    return Number.isFinite(numeric) ? Math.max(0, Math.round(numeric)) : 0;
+  };
+  const last5 = Array.isArray(raw['last5'])
+    ? raw['last5'].slice(0, 5).map(entry => {
+        const item = entry && typeof entry === 'object' && !Array.isArray(entry)
+          ? entry as Record<string, unknown>
+          : {};
+        const age = Number(item['age_s']);
+        return {
+          severity: ['info', 'warn', 'critical'].includes(String(item['severity']))
+            ? String(item['severity'])
+            : 'unknown',
+          source: normalizeAlertSource(item['source']),
+          age_s: Number.isFinite(age) ? Math.max(0, Math.round(age)) : 0
+        };
+      })
+    : [];
+  return {
+    counts: { info: count('info'), warn: count('warn'), critical: count('critical') },
+    last5
+  };
 }
 
 // ---- service ---------------------------------------------------------------
@@ -195,8 +294,8 @@ export class IssueReportService {
       product_version: report.product_version,
       platform: report.platform,
       connection_mode: report.connection_mode,
-      ctl: report.ctl,
-      alerts: report.alerts,
+      ctl: safeControlSummary(report.ctl),
+      alerts: safeAlertSummary(report.alerts),
       log_tail: this.sanitizeLogTail(report.log_tail),
     };
 
@@ -301,13 +400,7 @@ export class IssueReportService {
   }
 
   private collectCtlStatus(): IssueReport['ctl'] {
-    const ctl = this.state.ctlStatus();
-    return {
-      ok: ctl?.ok,
-      mode: ctl?.mode,
-      latency: ctl?.latency,
-      error: ctl?.error,
-    };
+    return safeControlSummary(this.state.ctlStatus());
   }
 
   private collectAlerts(): IssueReport['alerts'] {
@@ -319,13 +412,15 @@ export class IssueReportService {
       else if (a.severity === 'warn') counts.warn++;
       else if (a.severity === 'critical') counts.critical++;
     }
-    // De-identify: last 5 — severity, source, age in seconds. No message text.
-    const last5 = allAlerts
-      .slice(-5)
+    // Sort explicitly: AlertStore is newest-first, while imports/restores may
+    // not be. Keep only category/source/age; never copy message text.
+    const last5 = [...allAlerts]
+      .sort((a, b) => Number(b.ts) - Number(a.ts))
+      .slice(0, 5)
       .map(a => ({
         severity: a.severity as string,
-        source: a.source as string | undefined,
-        age_s: Math.round((now - a.ts) / 1000),
+        source: normalizeAlertSource(a.source),
+        age_s: Math.max(0, Math.round((now - a.ts) / 1000)),
       }));
     return { counts, last5 };
   }

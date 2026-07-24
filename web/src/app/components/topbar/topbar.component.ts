@@ -19,6 +19,7 @@ import { AuthService } from '../../services/auth.service';
 import { SwitchOperatorDialogComponent } from '../switch-operator-dialog/switch-operator-dialog.component';
 import { I18nService } from '../../services/i18n.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
+import { SourceModeService } from '../../services/source-mode.service';
 
 @Component({
   selector: 'app-topbar',
@@ -42,6 +43,7 @@ export class TopbarComponent {
   protected readonly serverLifecycle = inject(ServerLifecycleService);
   protected readonly auth = inject(AuthService);
   protected readonly i18n = inject(I18nService);
+  protected readonly sourceMode = inject(SourceModeService);
   protected readonly mobileActionsOpen = signal(false);
   private readonly api = inject(ApiService);
   private readonly telemetry = inject(TelemetryService);
@@ -79,9 +81,7 @@ export class TopbarComponent {
       default: return 'Cycle theme';
     }
   });
-  protected readonly isDemoStatus = computed(() =>
-    this.state.demoMode() || this.state.autoDemoActive() || this.state.ctlStatus()?.mode === 'sandbox'
-  );
+  protected readonly isDemoStatus = this.sourceMode.simulated;
   protected readonly statusIcon = computed(() => {
     if (this.isDemoStatus()) return '';
     if (this.state.ctlStatus()?.ok === false) return 'cloud_off';

@@ -1,0 +1,121 @@
+<div class="tab-content-grid">
+  <mat-card class="trend-large-card">
+    <mat-card-header class="trend-header-row">
+      <div>
+        <mat-card-title>Heart Rate Funnel Trends</mat-card-title>
+        <mat-card-subtitle>Reported radar sequence; window controls match the operator workflow.</mat-card-subtitle>
+      </div>
+      <div class="trend-actions">
+        <mat-button-toggle-group aria-label="Heart rate chart time range">
+          <mat-button-toggle [checked]="context().trendRange() === 30" (click)="context().setTrendRange(30)">30s</mat-button-toggle>
+          <mat-button-toggle [checked]="context().trendRange() === 60" (click)="context().setTrendRange(60)">60s</mat-button-toggle>
+          <mat-button-toggle [checked]="context().trendRange() === 120" (click)="context().setTrendRange(120)">120s</mat-button-toggle>
+          <mat-button-toggle [checked]="context().trendRange() === 'max'" (click)="context().setTrendRange('max')">Max</mat-button-toggle>
+        </mat-button-toggle-group>
+        <button mat-icon-button type="button" [attr.aria-label]="context().showTable() ? 'Hide data table' : 'Show data table'" (click)="context().showTable.set(!context().showTable()); context().state.triggerHaptic('tap')" [color]="context().showTable() ? 'primary' : null">
+          <mat-icon>{{ context().showTable() ? 'grid_on' : 'grid_off' }}</mat-icon>
+        </button>
+        <button mat-icon-button type="button" [color]="context().ghostSessionActive() ? 'accent' : null" aria-label="Toggle ghost session overlay" (click)="context().toggleGhostSession()">
+          <mat-icon>{{ context().ghostSessionActive() ? 'layers_clear' : 'layers' }}</mat-icon>
+        </button>
+        <button mat-icon-button type="button" aria-label="Reset heart rate chart window" (click)="context().resetTrendRange()"><mat-icon>restart_alt</mat-icon></button>
+        <button mat-icon-button type="button" aria-label="Download heart rate trend image" (click)="downloadTrend()"><mat-icon>download</mat-icon></button>
+      </div>
+    </mat-card-header>
+    <mat-card-content class="trend-large-content">
+      <div class="range-caption">Viewing {{ context().trendRangeLabel() }}</div>
+      @if (context().showTable()) {
+        <div class="large-canvas-container">
+          <rvt-chart-data-table [series]="context().state.lastPayload()?.series" [limit]="context().trendRangeLimit()" label="Heart Rate Funnel Samples" />
+        </div>
+      } @else {
+        @if (context().ghostPointCount('hr') > 1) {
+          <div class="trend-legend" role="group" aria-label="Heart rate trend legend">
+            <span class="trend-legend-item"><span class="trend-line current hr" aria-hidden="true"></span>Current session</span>
+            <span class="trend-legend-item"><span class="trend-line ghost" aria-hidden="true"></span>{{ context().ghostLegendText('hr') }}</span>
+          </div>
+        }
+        <div class="large-canvas-container">
+          <trend-canvas #trendCanvas
+            [data]="context().trimTrend(context().seriesNumbers('reported_hr', 'hr'))"
+            color="rgba(0, 164, 150, 0.95)"
+            [minV]="Math.max(0, context().state.kpiThresholds().hrLow - 20)"
+            [maxV]="context().state.kpiThresholds().hrHigh + 20"
+            type="hr"
+            [ariaLabel]="context().trendChartLabel('Heart rate trend', 'reported_hr', 'beats per minute', 'hr')"
+            [ghostData]="context().ghostHrData()"
+            [ghostSessionLabel]="context().ghostSessionLabel()"
+            [ghostSessionActive]="context().ghostSessionActive()"
+            [annotations]="context().getAnnotationsFor('hr')"
+            (click)="context().handleChartClick($event, 'hr')" />
+        </div>
+        @if (context().getAnnotationsFor('hr').length > 0) {
+          <div class="annotation-chips">
+            @for (ann of context().getAnnotationsFor('hr'); track ann.id) {
+              <mat-chip-row (removed)="context().deleteAnnotation('hr', ann)">
+                {{ ann.label }} ({{ (ann.xPct * 100).toFixed(0) }}%)
+                <button matChipRemove [attr.aria-label]="'Remove annotation ' + ann.label"><mat-icon>cancel</mat-icon></button>
+              </mat-chip-row>
+            }
+          </div>
+        }
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="advanced-card">
+    <mat-card-header>
+      <mat-card-title>Raw-HR vs Ref-HR Rate-Bucketed Bias</mat-card-title>
+      <mat-card-subtitle>Mean raw-minus-reference bias per 10-bpm reference bucket.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content class="bias-bucket-list">
+      @if (context().biasBuckets().length > 0) {
+        @for (bucket of context().biasBuckets(); track bucket.label) {
+          <div class="bias-row">
+            <span>{{ bucket.label }}</span>
+            <div class="bias-track"><div class="bias-fill" [style.width.%]="bucket.width"></div></div>
+            <strong>{{ bucket.bias.toFixed(1) }} bpm / n={{ bucket.count }}</strong>
+          </div>
+        }
+      } @else {
+        <p class="empty-copy">Waiting for raw HR and BLE/reference series.</p>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <div class="diagnostics-double-column">
+    <mat-card class="diagnostics-card">
+      <mat-card-header><mat-card-title>HR Funnel Telemetry</mat-card-title></mat-card-header>
+      <mat-card-subtitle>Arbiter to reject-phase to blend to coherence to publish.</mat-card-subtitle>
+      <mat-card-content class="diagnostics-table-wrap">
+        <mat-chip-set class="signal-chip-set" aria-label="Heart rate status flags">
+          <mat-chip [class.status-good]="context().metricState('hr_arbiter_corrected') === 'Yes'">Arbiter {{ context().metricState('hr_arbiter_corrected') }}</mat-chip>
+          <mat-chip [class.status-warn]="context().metricState('hr_rejectphase_rejected') === 'Yes'">Reject phase {{ context().metricState('hr_rejectphase_rejected') }}</mat-chip>
+          <mat-chip [class.status-good]="context().metricState('trusted_hr_fresh') === 'Yes'">Trust fresh {{ context().metricState('trusted_hr_fresh') }}</mat-chip>
+        </mat-chip-set>
+        <table class="diagnostics-table"><tbody>
+          <tr><td>Agreement error</td><td>{{ context().metricText('hr_agree_err_bpm', 2, ' bpm') }}</td></tr>
+          <tr><td>ZC bpm / confidence</td><td>{{ context().metricText('hr_zc_bpm', 2) }} / {{ context().metricText('hr_zc_conf', 3) }}</td></tr>
+          <tr><td>Spec bpm / magnitude</td><td>{{ context().metricText('hr_spec_bpm', 2) }} / {{ context().metricText('hr_spec_mag', 4) }}</td></tr>
+          <tr><td>Trusted anchor</td><td>{{ context().metricText('hr_trusted_anchor_value', 2, ' bpm') }}</td></tr>
+          <tr><td>Anchor error</td><td>{{ context().metricText('hr_anchor_err_bpm', 2, ' bpm') }}</td></tr>
+          <tr><td>Publish reason</td><td>{{ context().metricLabel('hr_publish_reason_name') }}</td></tr>
+        </tbody></table>
+      </mat-card-content>
+    </mat-card>
+    <mat-card class="diagnostics-card">
+      <mat-card-header><mat-card-title>HR Stage Values</mat-card-title></mat-card-header>
+      <mat-card-subtitle>Values carried through the publish path.</mat-card-subtitle>
+      <mat-card-content class="diagnostics-table-wrap">
+        <table class="diagnostics-table"><tbody>
+          <tr><td>Pre reject-phase</td><td>{{ context().metricText('hr_pre_rejectphase', 2, ' bpm') }}</td></tr>
+          <tr><td>Post reject-phase</td><td>{{ context().metricText('hr_post_rejectphase', 2, ' bpm') }}</td></tr>
+          <tr><td>Post blend</td><td>{{ context().metricText('hr_post_blend', 2, ' bpm') }}</td></tr>
+          <tr><td>Post coherence</td><td>{{ context().metricText('hr_post_coherence', 2, ' bpm') }}</td></tr>
+          <tr><td>Final publish</td><td>{{ context().metricText('hr_final_publish_candidate', 2, ' bpm') }}</td></tr>
+          <tr><td>Raw high-bias suspect</td><td>{{ context().metricState('hr_raw_high_bias_suspect') }}</td></tr>
+        </tbody></table>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

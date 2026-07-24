@@ -140,8 +140,8 @@ jobs:
       - name: Install NeoPixel and ArduinoJson libraries
         run: arduino-cli lib install "Adafruit NeoPixel" "ArduinoJson"
 
-      - name: Install Seeed mmWave library
-        run: arduino-cli lib install --git-url https://github.com/Seeed-Studio/Seeed_Arduino_mmWave.git
+      - name: Install Seeed Arduino mmWave library
+        run: arduino-cli lib install "Seeed Arduino mmWave@1.0.0"
 
       - name: Compile firmware for XIAO ESP32-C6
         shell: bash

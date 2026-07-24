@@ -1,1 +1,1 @@
-Trigger the PR79 synchronization gate with the published Seeed Arduino mmWave package.
+Trigger the PR79 synchronization gate with Seeed's documented mmWave GitHub repository.

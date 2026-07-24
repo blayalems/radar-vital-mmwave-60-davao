@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 
-import { IssueReportService, IssueReport, sanitizeDiagnosticLine } from './issue-report.service';
+import { categorizeControlError, IssueReportService, IssueReport, sanitizeDiagnosticLine } from './issue-report.service';
 import { ApiService } from './api.service';
 import { StateService } from './state.service';
 import { ServerLifecycleService } from './server-lifecycle.service';
@@ -163,6 +163,64 @@ describe('IssueReportService', () => {
     expect(report.alerts).toBeDefined();
   });
 
+  it('reduces raw control failures to an allowlisted category and omits sensitive fields', async () => {
+    const secret = 'operator-token-secret-123456';
+    const state = buildMockState({
+      ctlStatus: vi.fn(() => ({
+        ok: false,
+        mode: 'live',
+        latency: 41.7,
+        error: `Authorization: Bearer ${secret} for operator Blessie failed with 401`,
+        reason: 'pairing token rejected',
+        message: 'subject P-014',
+        active_session: { session_id: 'private-session', subject_label: 'P-014' }
+      }))
+    });
+    localStorage.setItem(DIAGNOSTICS_OPTIN_KEY, '1');
+    const service = configure(buildMockApi(), state);
+
+    const report = await service.buildReport();
+    const serialized = JSON.stringify(report);
+    const taintedLegacyReport: IssueReport = {
+      ...report,
+      ctl: {
+        ...report.ctl,
+        error: `legacy ${secret}`,
+        reason: 'operator Blessie',
+        active_session: { session_id: 'private-session' }
+      } as unknown as IssueReport['ctl']
+    };
+    const issueDiagnostics = new URL(service.buildIssueUrl(taintedLegacyReport)).searchParams.get('diagnostics') || '';
+
+    expect(report.ctl).toEqual({
+      ok: false,
+      mode: 'live',
+      latency: 42,
+      error_category: 'authentication'
+    });
+    for (const output of [serialized, issueDiagnostics]) {
+      expect(output).not.toContain(secret);
+      expect(output).not.toContain('Blessie');
+      expect(output).not.toContain('P-014');
+      expect(output).not.toContain('private-session');
+      expect(output).not.toContain('"error"');
+      expect(output).not.toContain('"reason"');
+      expect(output).not.toContain('"message"');
+      expect(output).not.toContain('"active_session"');
+    }
+  });
+
+  it('classifies control failures without retaining their raw text', () => {
+    expect(categorizeControlError('Request timeout for operator Alice')).toBe('timeout');
+    expect(categorizeControlError('TLS certificate rejected at trainer.example')).toBe('tls');
+    expect(categorizeControlError('Failed to fetch: network offline')).toBe('unreachable');
+    expect(categorizeControlError('HTTP 503 internal server error')).toBe('server');
+    expect(categorizeControlError('unexpected private detail')).toBe('other');
+    expect(categorizeControlError('Repairing I2C bus after failure')).toBe('other');
+    expect(categorizeControlError('Spinlock timeout')).toBe('timeout');
+    expect(categorizeControlError('Pairing token rejected')).toBe('authentication');
+  });
+
   it('de-identifies alerts — only counts and last5 with age_s, no message text', async () => {
     const now = Date.now();
     const state = buildMockState({
@@ -183,6 +241,28 @@ describe('IssueReportService', () => {
       expect((entry as unknown as Record<string, unknown>)['msg']).toBeUndefined();
       expect(typeof entry.age_s).toBe('number');
     }
+  });
+
+  it('selects the newest five alerts by timestamp regardless of storage order', async () => {
+    const now = 2_000_000;
+    vi.spyOn(Date, 'now').mockReturnValue(now);
+    const ages = [7, 1, 5, 3, 2, 6, 4];
+    const state = buildMockState({
+      alertHistory: vi.fn(() => ages.map((age, index) => ({
+        severity: index % 2 ? 'warn' : 'info',
+        msg: `private alert ${index}`,
+        source: 'telemetry',
+        ts: now - age * 1000,
+        id: `a${index}`,
+        dismissed: false
+      })))
+    });
+    localStorage.setItem(DIAGNOSTICS_OPTIN_KEY, '1');
+    const service = configure(buildMockApi(), state);
+
+    const report = await service.buildReport();
+
+    expect(report.alerts?.last5.map(alert => alert.age_s)).toEqual([1, 2, 3, 4, 5]);
   });
 
   // ---- platform branching --------------------------------------------------
@@ -288,6 +368,17 @@ describe('IssueReportService', () => {
     expect(clean).not.toContain('ABCD-EFGH-JKLM');
     expect(clean).not.toContain('op_abc123');
     expect(clean).not.toContain('Blessie Mugat');
+  });
+
+  it('redacts short pairing PINs when their field or query context identifies them', () => {
+    const clean = sanitizeDiagnosticLine(
+      'Pair at /?pair=842 pairing_pin: 842 active_pin=842 unrelated=842'
+    );
+
+    expect(clean).toContain('?pair=[REDACTED_PIN]');
+    expect(clean).toContain('pairing_pin=[REDACTED_PIN]');
+    expect(clean).toContain('active_pin=[REDACTED_PIN]');
+    expect(clean).toContain('unrelated=842');
   });
 
   it('collects remote log tail from /api/trainer/log for non-exe platform', async () => {
@@ -403,7 +494,7 @@ describe('IssueReportService', () => {
       product_version: '16.4.0',
       platform: 'PWA (browser)',
       connection_mode: 'LAN paired (phone/PWA to trainer)',
-      ctl: { ok: true, mode: 'live', latency: 42, error: undefined },
+      ctl: { ok: true, mode: 'live', latency: 42, error_category: undefined },
       alerts: hugeAlerts,
       log_tail: hugeLogTail,
     };
@@ -429,7 +520,7 @@ describe('IssueReportService', () => {
       product_version: '16.4.0',
       platform: 'PWA (browser)',
       connection_mode: 'LAN paired (phone/PWA to trainer)',
-      ctl: { ok: true, mode: 'x'.repeat(5000), latency: 42, error: 'x'.repeat(5000) },
+      ctl: { ok: true, mode: 'live', latency: 42, error_category: 'other' },
       alerts: {
         counts: { info: 0, warn: 0, critical: 0 },
         last5: Array.from({ length: 5 }, () => ({ severity: 'warn', source: 'x'.repeat(1000), age_s: 1 })),

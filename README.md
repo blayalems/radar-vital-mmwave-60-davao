@@ -75,7 +75,7 @@ python3 radar_vital_trainer_v12_for_v16_0.py serve --bind lan
 
 `--bind lan` generates a six-digit PIN (five-minute TTL, single-use), prints the pairing page URL, and supplies a QR link encoding `http://<lan-ip>:8765/?pair=<PIN>`. The public `/api/server-info` route is metadata-only and does not serve a QR image or expose the PIN. The Windows EXE Settings card reads PIN details through the native bridge from loopback-only `/api/native-pairing-info`; phone/APK/PWA clients use the printed QR, `/pair`, or manual PIN entry. The Angular Settings view keeps the issued `X-RVT-Auth` token in session storage only. Five invalid PIN exchanges from one client within a minute trigger a one-minute pairing cooldown; reopen the pairing flow after the cooldown or mint a new PIN if an operator mistyped repeatedly. Protected session APIs also require an operator session token after bootstrap on local and LAN serves.
 
-| Endpoint set | Auth | Routes (verified against `rvt_trainer/monolith.py`) |
+| Endpoint set | Auth | Routes (owned by `rvt_trainer.api.route_registry`) |
 |---|---|---|
 | Bootstrap/public | None | shell assets, `/pair`, `/api/health`, `/api/version`, `/api/update/manifest`, `/api/server-info`, `/api/auth/exchange`, `/api/help/schema` |
 | EXE native loopback bootstrap | Loopback-only native bridge | `/api/native-pairing-info` (GET; `?format=qr` adds `qr_png_base64` in LAN bind) |
@@ -85,7 +85,26 @@ python3 radar_vital_trainer_v12_for_v16_0.py serve --bind lan
 | Physiological / session / hardware | `X-RVT-Auth` operator token after bootstrap | `/api/status`, `/api/events/subscribe`, `/api/session/events`, `/api/session/current`, `/api/session/current/live_dashboard.json`, `/api/session/buffer`, `/api/sessions`, `/api/sessions/<id>/summary`, `/api/sessions/<id>/data`, `/api/sessions/<id>/notes` (GET), `/api/sessions/<id>/signoff` (GET), `/api/sessions/<id>/annotations` (GET), `/api/sessions/<id>/compare`, `/api/sessions/<id>/analyse/status`, `/api/sessions/<id>/training/status`, `/api/sessions/<id>/predict`, `/api/sessions/<id>/files/<rel>`, `/api/ble/scan`, `/api/serial/ports`, `/api/preflight`, `/api/preflight/<id>` (single-check rerun), `/api/trainer/log`, `/api/report/export` |
 | Control / mutation | `X-RVT-Auth` operator token after bootstrap | `/api/session/start` (POST), `/api/session/stop` (POST), `/api/session/annotate` (POST), `/api/session/annotations` (POST), `/api/sessions/<id>/notes` (PUT), `/api/sessions/<id>/signoff` (PUT), `/api/sessions/<id>/tags` (PUT), `/api/sessions/<id>/analyse` (POST — rerun; returns `radar_only` status when reference CSV/BLE data is absent), `/api/sessions/<id>` (DELETE — soft-trashes to `.trash/`) |
 
+Backend service ownership is split without changing the public entrypoint:
+
+- `rvt_trainer.session.SessionSupervisor` owns capture-process start, stop,
+  reap, session locks, and stop markers.
+- `rvt_trainer.api.route_registry` owns route names, methods, groups, and
+  authorization policies; the compatibility handler dispatches by those names.
+- `rvt_trainer.api.common` owns strict JSON responses, stable API errors,
+  atomic JSON persistence, and bounded process waits.
+- `rvt_trainer.monolith` retains historical import aliases while downstream
+  callers migrate; `python -m rvt_trainer` and the root trainer script remain
+  equivalent packaged entrypoints.
+
 Tokens live in the trainer's memory only — re-pair after every trainer restart.
+
+An explicit `/api/session/stop` first lets the detached capture child flush and
+exit, escalates through bounded terminate/kill waits if needed, and only then
+may enqueue eligible paired analysis. Stopping the control server uses the same
+bounded reap but never starts analysis; already-captured files are preserved.
+If the child cannot be reaped, its current-session markers remain intact and
+the stop reports a failure instead of advertising an idle trainer.
 
 For TLS, pass `--tls` (auto-generates a self-signed cert under `.rvt_tls/`, which is git-ignored). HSTS is **not** sent under self-signed certs; pass `--tls-trusted` only when serving a CA-signed cert.
 
@@ -126,6 +145,19 @@ cargo tauri build                     # produces src-tauri/target/release/*.exe
 Tauri uses Microsoft Edge WebView2 and keeps WebView network policy at `connect-src 'self'`. Paired LAN API/download calls run through native Rust commands pinned to the explicitly paired origin. Native BLE reference commands allowlist the configured AiLink oximeter notify profile (`FFE0` service / `FFE2` characteristic); Home's bounded Native BLE acceptance probe consumes that command path and reports whether a notification was received without claiming it supplied session telemetry. The EXE does not rely on Chromium Web Bluetooth prompts for local-device discovery; BLE capture is handled by the bundled Python/WinRT sidecar path. The separate radar-firmware GATT path remains disabled by default pending physical acceptance. Windows 11 ships WebView2 preinstalled; the installer uses `downloadBootstrapper` for other systems.
 
 CI: [`.github/workflows/build-exe.yml`](./.github/workflows/build-exe.yml) builds the EXE on `windows-latest`. After each accepted push to `main`, [`.github/workflows/release-artifacts.yml`](./.github/workflows/release-artifacts.yml) attaches the NSIS installer to the versioned GitHub prerelease and generated changelog; every release stamps the same semantic version into the EXE and signs it when certificate secrets are configured.
+
+---
+
+## Model training
+
+The Python trainer keeps `gradient_boosting` as its default correction model and
+offers an explicit, optional `cnn_1d` research path with causal
+session-bounded windows. The CNN requires TensorFlow and enforces a
+500-valid-window floor per target unless a clearly labelled experimental
+override is supplied.
+
+See [`docs/model-family-guide.md`](./docs/model-family-guide.md) for commands,
+data-readiness requirements, artifact behavior, and thesis-claim boundaries.
 
 ---
 

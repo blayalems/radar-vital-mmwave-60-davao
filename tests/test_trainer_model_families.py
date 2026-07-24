@@ -1,0 +1,127 @@
+import builtins
+import inspect
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from rvt_trainer.modeling import (
+    Cnn1DConfig,
+    Keras1DCNNRegressor,
+    MODEL_FAMILY_CNN_1D,
+    MODEL_FAMILY_GRADIENT_BOOSTING,
+    build_causal_windows,
+)
+from rvt_trainer.monolith import (
+    _run_loso_evaluation,
+    build_parser,
+    fit_cnn_target_model,
+)
+
+
+def test_causal_windows_are_left_padded_and_session_bounded():
+    features = np.asarray([[1.0], [2.0], [3.0], [10.0], [11.0]], dtype=np.float32)
+    windows, endpoints = build_causal_windows(
+        features,
+        session_ids=["a", "a", "a", "b", "b"],
+        window_size=3,
+    )
+
+    assert endpoints.tolist() == [0, 1, 2, 3, 4]
+    assert windows[:, :, 0].tolist() == [
+        [1.0, 1.0, 1.0],
+        [1.0, 1.0, 2.0],
+        [1.0, 2.0, 3.0],
+        [10.0, 10.0, 10.0],
+        [10.0, 10.0, 11.0],
+    ]
+
+
+def test_causal_windows_only_materialize_selected_endpoints():
+    features = np.arange(12, dtype=np.float32).reshape(6, 2)
+    windows, endpoints = build_causal_windows(
+        features,
+        session_ids=["s"] * 6,
+        window_size=3,
+        endpoint_mask=[False, True, False, False, True, False],
+    )
+
+    assert endpoints.tolist() == [1, 4]
+    assert windows.shape == (2, 3, 2)
+    np.testing.assert_array_equal(windows[1], features[2:5])
+
+
+@pytest.mark.parametrize("window_size", [0, 1])
+def test_cnn_config_rejects_non_temporal_windows(window_size):
+    with pytest.raises(ValueError, match="window_size"):
+        Cnn1DConfig(window_size=window_size).validate()
+
+
+def test_train_cli_keeps_gradient_boosting_as_default():
+    args = build_parser().parse_args(
+        ["train", "--radar", "radar.csv", "--ref", "ref.csv"]
+    )
+    assert args.model_family == MODEL_FAMILY_GRADIENT_BOOSTING
+
+
+def test_train_cli_accepts_1d_cnn_as_explicit_option():
+    args = build_parser().parse_args(
+        [
+            "train",
+            "--radar",
+            "radar.csv",
+            "--ref",
+            "ref.csv",
+            "--model-family",
+            MODEL_FAMILY_CNN_1D,
+            "--cnn-window-size",
+            "48",
+        ]
+    )
+    assert args.model_family == MODEL_FAMILY_CNN_1D
+    assert args.cnn_window_size == 48
+
+
+def test_cnn_dependency_error_is_actionable(monkeypatch):
+    original_import = builtins.__import__
+
+    def reject_tensorflow(name, *args, **kwargs):
+        if name == "tensorflow":
+            raise ModuleNotFoundError("tensorflow unavailable in unit test")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", reject_tensorflow)
+    with pytest.raises(RuntimeError, match="pip install tensorflow"):
+        Keras1DCNNRegressor._tensorflow()
+
+
+def test_cnn_refuses_starved_dataset_before_loading_tensorflow():
+    rows = 30
+    frame = pd.DataFrame(
+        {
+            "session_id": ["s"] * rows,
+            "hr_valid_for_eval": [True] * rows,
+            "ref_hr": np.linspace(70.0, 75.0, rows),
+            "pqi_heart_mean": [0.8] * rows,
+        }
+    )
+    features = pd.DataFrame({"feature": np.linspace(0.0, 1.0, rows)})
+
+    with pytest.raises(ValueError, match="Fix upstream publish coverage"):
+        fit_cnn_target_model(
+            frame,
+            frame,
+            "hr",
+            features,
+            features,
+            Cnn1DConfig(window_size=8),
+            min_valid_windows=500,
+        )
+
+
+def test_loso_preprocessing_is_fit_inside_each_training_fold():
+    source = inspect.getsource(_run_loso_evaluation)
+    assert "pick_feature_columns(" in source
+    assert "prepare_feature_matrix(" in source
+    assert "fold_impute_values" in source
+    assert "fold_missing_flag_cols" in source

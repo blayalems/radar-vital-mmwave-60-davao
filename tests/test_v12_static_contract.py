@@ -11,12 +11,15 @@ LAYOUT = ROOT / "web" / "src" / "app" / "components" / "layout" / "layout.compon
 LAYOUT_TS = ROOT / "web" / "src" / "app" / "components" / "layout" / "layout.component.ts"
 API = ROOT / "web" / "src" / "app" / "services" / "api.service.ts"
 APP_META = ROOT / "web" / "src" / "app" / "services" / "app-meta.ts"
+SANDBOX_API = ROOT / "web" / "src" / "app" / "services" / "sandbox-api.service.ts"
 TELEMETRY = ROOT / "web" / "src" / "app" / "services" / "telemetry.service.ts"
+SSE_DRIVER = ROOT / "web" / "src" / "app" / "services" / "sse-driver.service.ts"
 BLUETOOTH = ROOT / "web" / "src" / "app" / "services" / "bluetooth.service.ts"
 SW_UPDATE = ROOT / "web" / "src" / "app" / "services" / "sw-update.service.ts"
 STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
+TRAINER_ROUTE_REGISTRY = ROOT / "rvt_trainer" / "api" / "route_registry"
 FW = ROOT / "radar_vital_v16_4_0.ino"
 SW = ROOT / "assets" / "sw.js"
 STYLES = ROOT / "web" / "src" / "styles.scss"
@@ -49,6 +52,7 @@ def test_dashboard_pwa_contract():
     layout_ts = text(LAYOUT_TS)
     api = text(API)
     telemetry = text(TELEMETRY)
+    sse_driver = text(SSE_DRIVER)
     state = text(STATE)
     assert "viewport-fit=cover" in html
     assert "interactive-widget=resizes-content" in html
@@ -64,8 +68,8 @@ def test_dashboard_pwa_contract():
     assert 'href="#mainContent"' in layout
     assert "rvt-pair-token" in api or "rvt-pair-token" in text(ROOT / "web" / "src" / "app" / "services" / "rvt-storage-keys.ts")
     assert "X-RVT-Auth" in api
-    assert "/api/events/subscribe" in telemetry
-    assert "new EventSource" in telemetry
+    assert "/api/events/subscribe" in sse_driver
+    assert "new EventSource" in sse_driver
     assert "document.documentElement.dataset['theme']" in state
     assert "this.state.demoSourceActive()" in telemetry
     assert "PersistenceService" in state
@@ -83,15 +87,19 @@ def test_dashboard_pwa_contract():
 
 def test_service_worker_contract():
     sw = text(SW)
-    # Cache version bumped v12.0.5 -> v12.0.6 (kept in the v12 lineage) so the
-    # activate handler purges stale pre-redesign shells and re-precaches the
-    # self-hosted icon/UI fonts — fixes icons rendering as ligature text on
-    # already-cached PWA clients.
-    assert "rvt-shell-v12.0.6" in sw
+    # Cache version stays in the v12 lineage and is bumped whenever cached shell
+    # semantics change so activate removes stale entries from older workers.
+    assert "rvt-shell-v12.0.7" in sw
     assert "text/event-stream" in sw
     assert "SKIP_WAITING" in sw
     assert "SW_UPDATED" in sw
     assert "request.mode === 'navigate'" in sw
+    assert "NAVIGATION_CACHE_KEY" in sw
+    assert "cacheRefreshRequest = null" in sw
+    assert "const shell = await fetch(cacheRefreshRequest)" in sw
+    assert "NAVIGATION_MONOLITH_KEY" in sw
+    assert "DASHBOARD\n    ));" in sw
+    assert "Pairing/support pages are network-only" in sw
     assert "/api/session/current/live_dashboard.json" in sw
     assert "/fonts/material-symbols-rounded.woff2" in sw
 
@@ -100,7 +108,7 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
     trainer = text(TRAINER_MONOLITH)
     firmware = text(FW)
     app_meta = text(APP_META)
-    api = text(API)
+    sandbox_api = text(SANDBOX_API)
     sw = text(SW)
 
     assert json.loads(text(ROOT_PACKAGE))["version"] == "16.4.0"
@@ -117,8 +125,8 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
     assert "PRODUCT_VERSION = '16.4.0';" in app_meta
     assert "PRODUCT_VERSION_SHORT = 'v16.4';" in app_meta
     assert "PRODUCT_VERSION_LABEL = 'App v16.4';" in app_meta
-    assert "import { PRODUCT_VERSION } from './app-meta';" in api
-    assert "product_version: PRODUCT_VERSION" in api
+    assert "import { PRODUCT_VERSION } from './app-meta';" in sandbox_api
+    assert "product_version: PRODUCT_VERSION" in sandbox_api
     assert '#define FW_VERSION "v16.4.0"' in firmware
     assert "#define SKETCH_VERSION_MAJOR 16" in firmware
     assert "#define SKETCH_VERSION_SUB 4" in firmware
@@ -135,7 +143,7 @@ def test_pr46_product_identity_bump_preserves_v12_lineage():
         "rvt-subject-profiles-v12.0",
     ]:
         assert schema_id in trainer
-    assert "rvt-shell-v12.0.6" in sw
+    assert "rvt-shell-v12.0.7" in sw
     assert "rvt-shell-v16" not in sw
 
 
@@ -218,6 +226,10 @@ def test_dark_inverse_hc_owns_angular_home_surfaces():
 
 def test_trainer_routes_and_security_contract():
     py = text(TRAINER_MONOLITH)
+    route_py = "\n".join(
+        text(path)
+        for path in sorted(TRAINER_ROUTE_REGISTRY.glob("*.py"))
+    )
     compile(py, str(TRAINER_MONOLITH), "exec")
     for route in [
         "/manifest.webmanifest",
@@ -228,8 +240,9 @@ def test_trainer_routes_and_security_contract():
         "/api/serial/ports",
         "/pair",
     ]:
-        assert route in py
-    assert 'path == "/rvt-sw.js"' in py
+        assert route in route_py
+    assert "/rvt-sw.js" in route_py
+    assert 'route_name == "legacy_service_worker"' in py
     assert '"application/javascript; charset=utf-8"' in py
     assert "LEGACY_SW_TOMBSTONE_NOT_FOUND" in py
     assert "SERVICE_WORKER_TOMBSTONE_REMOVED" not in py
@@ -249,7 +262,9 @@ def test_trainer_routes_and_security_contract():
     assert ".rvt_tls" in static_py and "target.relative_to(private_root)" in static_py
     
     assert "_qr_png_bytes" in py
-    assert '"/api/sessions/") and path.endswith("/signoff")' in py
+    assert "/api/sessions/*/signoff" in route_py
+    assert 'route_name == "session_signoff_get"' in py
+    assert 'route_name == "session_signoff_put"' in py
     assert 'public resource not found' in py
     assert "return super().do_GET()" not in py
 
@@ -475,4 +490,3 @@ def test_207_column_row_parses_without_warning():
     # Verify that the added columns (indices 207 to 221) are padded with empty strings
     for i in range(207, 222):
         assert row[i] == ""
-

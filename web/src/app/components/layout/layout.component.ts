@@ -30,6 +30,7 @@ import { OperatorHandoffDialogComponent } from '../operator-handoff-dialog/opera
 import { AuthService } from '../../services/auth.service';
 import { SwitchOperatorDialogComponent } from '../switch-operator-dialog/switch-operator-dialog.component';
 import { PRODUCT_VERSION_SHORT } from '../../services/app-meta';
+import { SourceModeService } from '../../services/source-mode.service';
 
 @Component({
   selector: 'app-layout',
@@ -62,6 +63,7 @@ export class LayoutComponent implements OnInit {
   protected readonly state = inject(StateService);
   protected readonly api = inject(ApiService);
   protected readonly auth = inject(AuthService);
+  private readonly sourceMode = inject(SourceModeService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
@@ -202,8 +204,7 @@ export class LayoutComponent implements OnInit {
   }
 
   exitDemoMode(): void {
-    this.state.demoMode.set(false);
-    this.state.autoDemoActive.set(false);
+    this.sourceMode.clearLocalSimulation();
     this.state.triggerHaptic('tap');
     void this.api.detectControlMode();
     this.snackBar.open('Leaving demo mode - reconnecting to trainer...', 'Dismiss', { duration: 3000 });
@@ -323,7 +324,7 @@ export class LayoutComponent implements OnInit {
     if (key === 'd') {
       event.preventDefault();
       const enabled = !this.state.demoMode();
-      if (!this.state.trySetDemoMode(enabled)) {
+      if (!this.sourceMode.setManualDemo(enabled)) {
         this.snackBar.open(
           'Stop the live session before switching to simulated data.',
           'Dismiss',

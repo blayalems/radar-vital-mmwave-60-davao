@@ -1,10 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit, effect, HostListener, signal, computed } from '@angular/core';
-import { DatePipe, UpperCasePipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { WaveCanvasComponent } from '../wave-canvas/wave-canvas.component';
 import { TrendCanvasComponent } from '../trend-canvas/trend-canvas.component';
-import { OverviewSparklineComponent } from '../overview-sparkline/overview-sparkline.component';
 
 // Angular Material 3 modules
 import { MatCardModule } from '@angular/material/card';
@@ -12,11 +9,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatTabChangeEvent } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatTableModule } from '@angular/material/table';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatChipsModule } from '@angular/material/chips';
@@ -31,9 +24,24 @@ import { AudioService } from '../../services/audio.service';
 import { UndoService } from '../../services/undo.service';
 import { AnnotationService } from '../../services/annotation.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
+import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
 import { ChartAnnotation, SnapshotRecord } from '../../models/rvt.models';
 import { ConfirmDialogComponent } from '../confirm-dialog/confirm-dialog.component';
-import { ChartDataTableComponent } from '../chart-data-table/chart-data-table.component';
+import { describeLiveStatus, LiveStatusDescription } from './live-status';
+import { LiveAuditTabComponent } from './tabs/live-audit-tab.component';
+import { LiveHrTabComponent } from './tabs/live-hr-tab.component';
+import { LiveOverviewTabComponent } from './tabs/live-overview-tab.component';
+import { LiveRrTabComponent } from './tabs/live-rr-tab.component';
+import { LiveSnapsTabComponent } from './tabs/live-snaps-tab.component';
+import { LiveWavesTabComponent } from './tabs/live-waves-tab.component';
+import {
+  LiveAuditTabViewModel,
+  LiveHrTabViewModel,
+  LiveOverviewTabViewModel,
+  LiveRrTabViewModel,
+  LiveSnapsTabViewModel,
+  LiveWavesTabViewModel
+} from './live-tab-view-models';
 
 type BlandAltmanMetric = 'hr' | 'rr';
 
@@ -56,33 +64,32 @@ interface BiasBucket {
 @Component({
   selector: 'app-live',
   imports: [
-    DatePipe,
-    UpperCasePipe,
-    FormsModule,
     MatCardModule,
     MatTabsModule,
     MatButtonModule,
     MatIconModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatTableModule,
     MatDialogModule,
-    MatMenuModule,
     MatSnackBarModule,
     MatButtonToggleModule,
     MatChipsModule,
     MatProgressBarModule,
     MatProgressSpinnerModule,
-    ChartDataTableComponent,
     WaveCanvasComponent,
     TrendCanvasComponent,
-    OverviewSparklineComponent
+    LiveAuditTabComponent,
+    LiveHrTabComponent,
+    LiveOverviewTabComponent,
+    LiveRrTabComponent,
+    LiveSnapsTabComponent,
+    LiveWavesTabComponent
   ],
   templateUrl: './live.component.html',
   styleUrl: './live.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
+  private static readonly LIVE_STATUS_DEBOUNCE_MS = 1500;
+
   protected readonly state = inject(StateService);
   protected readonly api = inject(ApiService);
   protected readonly telemetry = inject(TelemetryService);
@@ -93,6 +100,7 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly snackBar = inject(MatSnackBar);
   protected readonly undoService = inject(UndoService);
   protected readonly annotationService = inject(AnnotationService);
+  private readonly renderScheduler = inject(ChartRenderSchedulerService);
 
   protected readonly Math = Math;
   protected readonly NaN = Number.NaN;
@@ -112,14 +120,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   // Canvas element references for dynamic renderers
-  @ViewChild('breathCanvas', { static: false }) breathCanvas!: WaveCanvasComponent;
-  @ViewChild('heartCanvas', { static: false }) heartCanvas!: WaveCanvasComponent;
-  @ViewChild('hrTrendCanvas', { static: false }) hrTrendCanvas!: TrendCanvasComponent;
-  @ViewChild('rrTrendCanvas', { static: false }) rrTrendCanvas!: TrendCanvasComponent;
-  @ViewChild('targetCanvas', { static: false }) targetCanvas!: ElementRef<HTMLCanvasElement>;
-
-  // Mini sparkline references
-  @ViewChild('baCanvas', { static: false }) baCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild(LiveHrTabComponent) hrTab?: LiveHrTabComponent;
+  @ViewChild(LiveOverviewTabComponent) overviewTab?: LiveOverviewTabComponent;
+  @ViewChild(LiveRrTabComponent) rrTab?: LiveRrTabComponent;
+  // Mini chart references used by the split-screen secondary pane.
   @ViewChild('breathCanvasClone', { static: false }) breathCanvasClone?: WaveCanvasComponent;
   @ViewChild('heartCanvasClone', { static: false }) heartCanvasClone?: WaveCanvasComponent;
   @ViewChild('hrTrendCanvasClone', { static: false }) hrTrendCanvasClone?: TrendCanvasComponent;
@@ -138,6 +142,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly splitScreenActive = signal(false);
   protected readonly paneBTabIndex = signal<number>(2);
   protected readonly kpiOrder = signal<string[]>(['hr', 'rr', 'fps', 'dist']);
+  protected readonly liveStatusAnnouncement = signal('');
+  private announcedLiveStatusKey = '';
+  private pendingLiveStatusKey = '';
+  private liveStatusTimer: ReturnType<typeof setTimeout> | null = null;
   private draggedKpi: string | null = null;
   private dragStartX = 0;
   protected readonly baMetric = signal<BlandAltmanMetric>('hr');
@@ -170,16 +178,143 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly ghostHrData = signal<number[]>([]);
   protected readonly ghostRrData = signal<number[]>([]);
 
-  private animeFrameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private viewReady = false;
-  private readonly onVisibilityChange = () => this.requestCanvasDraw();
   
   // Local active tab selector
   activeTabIndex = 0;
   sessionNotesInput = '';
   customTagInput = '';
   protected readonly trendRange = signal<TrendRange>(120);
+  protected readonly overviewTabContext: LiveOverviewTabViewModel = {
+    state: this.state,
+    kpiOrder: this.kpiOrder,
+    liveStatusAnnouncement: this.liveStatusAnnouncement,
+    baMetric: this.baMetric,
+    baStats: this.baStats,
+    sessionNotes: () => this.sessionNotesInput,
+    customTag: () => this.customTagInput,
+    setCustomTag: value => { this.customTagInput = value; },
+    openKpiZoomDialog: metric => this.openKpiZoomDialog(metric),
+    onKpiKeydown: (event, kpi) => this.onKpiKeydown(event, kpi),
+    onKpiDragStart: (event, kpi) => this.onKpiDragStart(event, kpi),
+    onKpiDragMove: event => this.onKpiDragMove(event),
+    onKpiDragEnd: event => this.onKpiDragEnd(event),
+    kpiControlLabel: (label, key, unit) => this.kpiControlLabel(label, key, unit),
+    kpiReorderDescription: kpi => this.kpiReorderDescription(kpi),
+    kpiButtonTitle: kpi => this.kpiButtonTitle(kpi),
+    hrConfidencePct: computed(() => this.hrConfidencePct()),
+    hrConfidenceSource: computed(() => this.hrConfidenceSource()),
+    rrConfidencePct: computed(() => this.rrConfidencePct()),
+    rrConfidenceSource: computed(() => this.rrConfidenceSource()),
+    hrHolding: computed(() => this.hrHolding()),
+    rrHolding: computed(() => this.rrHolding()),
+    hrValueDisplay: () => this.hrValueDisplay(),
+    rrValueDisplay: () => this.rrValueDisplay(),
+    chartLabel: (label, key, unit) => this.chartLabel(label, key, unit),
+    frameRateControlLabel: () => this.frameRateControlLabel(),
+    frameRateLabel: () => this.frameRateLabel(),
+    computedFps: computed(() => this.computedFps()),
+    targetRangeControlLabel: () => this.targetRangeControlLabel(),
+    targetRangeDisplay: () => this.targetRangeDisplay(),
+    targetZoneLabel: () => this.targetZoneLabel(),
+    targetZoneTone: () => this.targetZoneTone(),
+    signalQualityDisplay: () => this.signalQualityDisplay(),
+    signalQualitySub: () => this.signalQualitySub(),
+    signalQualityTone: () => this.signalQualityTone(),
+    motionActive: computed(() => this.motionActive()),
+    motionSummary: () => this.motionSummary(),
+    motionSub: () => this.motionSub(),
+    exportSessionNotes: () => this.exportSessionNotes(),
+    saveSessionNotes: value => this.saveSessionNotes(value),
+    addQuickTag: tag => this.addQuickTag(tag),
+    recordObservation: () => this.recordObservation(),
+    addCustomTag: () => this.addCustomTag(),
+    captureSnapshot: () => this.captureSnapshot(),
+    metricState: key => this.metricState(key),
+    metricLabel: key => this.metricLabel(key),
+    metricText: (key, decimals, suffix) => this.metricText(key, decimals, suffix),
+    hasBleRef: () => this.hasBleRef(),
+    baChartAriaLabel: () => this.baChartAriaLabel(),
+    requestCanvasDraw: () => this.requestCanvasDraw(),
+    formatFault: fault => this.formatFault(fault)
+  };
+  protected readonly snapsTabContext: LiveSnapsTabViewModel = {
+    state: this.state,
+    selectedCompareSnaps: this.selectedCompareSnaps,
+    compareSelection: this.compareSelection,
+    sortedSnaps: () => this.sortedSnaps(),
+    captureSnapshot: () => this.captureSnapshot(),
+    clearAllSnaps: () => this.clearAllSnaps(),
+    snapDelta: key => this.snapDelta(key),
+    clearCompareSelection: () => this.clearCompareSelection(),
+    moveSnap: (snapId, direction) => this.moveSnap(snapId, direction),
+    toggleCompareSnap: snapId => this.toggleCompareSnap(snapId),
+    deleteSnap: snapId => this.deleteSnap(snapId),
+    updateSnapNote: (snapId, value) => this.updateSnapNote(snapId, value)
+  };
+  protected readonly auditTabContext: LiveAuditTabViewModel = {
+    state: this.state,
+    analysisMetric: key => this.analysisMetric(key),
+    analysisNested: (recordKey, key, decimals) => this.analysisNested(recordKey, key, decimals),
+    metricText: (key, decimals, suffix) => this.metricText(key, decimals, suffix),
+    histogramSummary: key => this.histogramSummary(key),
+    exportAuditLog: format => this.exportAuditLog(format),
+    eventTime: event => this.eventTime(event),
+    formatEvent: event => this.formatEvent(event)
+  };
+  protected readonly wavesTabContext: LiveWavesTabViewModel = {
+    state: this.state,
+    showBreathTable: this.showBreathTable,
+    showHeartTable: this.showHeartTable,
+    seriesNumbers: (...keys) => this.seriesNumbers(...keys),
+    chartLabel: (label, key, unit) => this.chartLabel(label, key, unit),
+    getAnnotationsFor: chartKey => this.getAnnotationsFor(chartKey),
+    deleteAnnotation: (chartKey, annotation) => this.deleteAnnotation(chartKey, annotation),
+    handleChartClick: (event, chartKey) => this.handleChartClick(event, chartKey),
+    downloadChart: (canvas, label) => this.downloadChart(canvas, label),
+    qualityPercent: key => this.qualityPercent(key),
+    qualityLabel: key => this.qualityLabel(key),
+    ribbonSegments: kind => this.ribbonSegments(kind),
+    ribbonLabel: kind => this.ribbonLabel(kind),
+    resetTrendRange: () => this.resetTrendRange()
+  };
+  private readonly trendTabContext = {
+    state: this.state,
+    trendRange: this.trendRange,
+    trendRangeLimit: this.trendRangeLimit,
+    ghostSessionActive: this.ghostSessionActive,
+    ghostSessionLabel: this.ghostSessionLabel,
+    ghostHrData: this.ghostHrData,
+    ghostRrData: this.ghostRrData,
+    seriesNumbers: (...keys: string[]) => this.seriesNumbers(...keys),
+    getAnnotationsFor: (chartKey: string) => this.getAnnotationsFor(chartKey),
+    deleteAnnotation: (chartKey: string, annotation: ChartAnnotation) => this.deleteAnnotation(chartKey, annotation),
+    handleChartClick: (event: MouseEvent, chartKey: string) => this.handleChartClick(event, chartKey),
+    downloadChart: (canvas: HTMLCanvasElement, label: string) => this.downloadChart(canvas, label),
+    setTrendRange: (range: TrendRange) => this.setTrendRange(range),
+    resetTrendRange: () => this.resetTrendRange(),
+    trendRangeLabel: () => this.trendRangeLabel(),
+    trimTrend: (points: number[]) => this.trimTrend(points),
+    trendChartLabel: (label: string, key: string, unit: string, type: 'hr' | 'rr') =>
+      this.trendChartLabel(label, key, unit, type),
+    ghostPointCount: (type: 'hr' | 'rr') => this.ghostPointCount(type),
+    ghostLegendText: (type: 'hr' | 'rr') => this.ghostLegendText(type),
+    toggleGhostSession: () => this.toggleGhostSession(),
+    metricState: (key: string) => this.metricState(key),
+    metricText: (key: string, decimals?: number, suffix?: string) => this.metricText(key, decimals, suffix),
+    metricLabel: (key: string) => this.metricLabel(key)
+  };
+  protected readonly hrTabContext: LiveHrTabViewModel = {
+    ...this.trendTabContext,
+    showTable: this.showHrTable,
+    biasBuckets: computed(() => this.hrBiasBuckets())
+  };
+  protected readonly rrTabContext: LiveRrTabViewModel = {
+    ...this.trendTabContext,
+    showTable: this.showRrTable,
+    warnings: computed(() => this.rrWarnings())
+  };
 
   constructor() {
     effect(() => {
@@ -227,6 +362,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     });
 
     effect(() => {
+      this.scheduleLiveStatusAnnouncement(this.currentLiveStatus());
+    });
+
+    effect(() => {
       const sid = this.state.currentSessionId();
       this.baHrPairs.length = 0;
       this.baRrPairs.length = 0;
@@ -250,20 +389,16 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     this.viewReady = true;
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.requestCanvasDraw());
-      [
-        this.targetCanvas, this.baCanvas
-      ].filter((ref): ref is ElementRef<HTMLCanvasElement> => !!ref).forEach(ref => this.resizeObserver?.observe(ref.nativeElement));
+      this.overviewCanvasRefs()
+        .forEach(ref => this.resizeObserver?.observe(ref.nativeElement));
     }
-    document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.requestCanvasDraw();
   }
 
   ngOnDestroy() {
-    if (this.animeFrameId !== null) {
-      cancelAnimationFrame(this.animeFrameId);
-    }
+    this.renderScheduler.cancel(this);
     this.resizeObserver?.disconnect();
-    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    if (this.liveStatusTimer !== null) clearTimeout(this.liveStatusTimer);
   }
 
   onTabChange(event: MatTabChangeEvent) {
@@ -365,19 +500,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     if (!this.draggedKpi) return;
     const deltaX = event.clientX - this.dragStartX;
     if (Math.abs(deltaX) > 80) { // threshold to swap
-      const order = [...this.kpiOrder()];
-      const idx = order.indexOf(this.draggedKpi);
-      if (idx !== -1) {
-        const targetIdx = deltaX > 0 ? idx + 1 : idx - 1;
-        if (targetIdx >= 0 && targetIdx < order.length) {
-          [order[idx], order[targetIdx]] = [order[targetIdx], order[idx]];
-          this.kpiOrder.set(order);
-          this.dragStartX = event.clientX;
-          try {
-            localStorage.setItem('rvt-kpi-order', JSON.stringify(order));
-          } catch (_) {}
-          this.state.triggerHaptic('tap');
-        }
+      if (this.moveKpi(this.draggedKpi, deltaX > 0 ? 1 : -1)) {
+        this.dragStartX = event.clientX;
       }
     }
   }
@@ -390,6 +514,41 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
         target.releasePointerCapture(event.pointerId);
       } catch (_) {}
     }
+  }
+
+  onKpiKeydown(event: KeyboardEvent, kpi: string): void {
+    if (!event.altKey || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+    event.preventDefault();
+    if (this.moveKpi(kpi, event.key === 'ArrowRight' ? 1 : -1)) {
+      this.snackBar.open(`${this.kpiName(kpi)} card moved ${event.key === 'ArrowRight' ? 'right' : 'left'}.`, 'Dismiss', {
+        duration: 2200
+      });
+    }
+  }
+
+  private moveKpi(kpi: string, direction: -1 | 1): boolean {
+    const order = [...this.kpiOrder()];
+    const index = order.indexOf(kpi);
+    const targetIndex = index + direction;
+    if (index === -1 || targetIndex < 0 || targetIndex >= order.length) return false;
+
+    [order[index], order[targetIndex]] = [order[targetIndex], order[index]];
+    this.kpiOrder.set(order);
+    try {
+      localStorage.setItem('rvt-kpi-order', JSON.stringify(order));
+    } catch (_) {}
+    this.state.triggerHaptic('tap');
+    return true;
+  }
+
+  private kpiName(kpi: string): string {
+    const names: Record<string, string> = {
+      hr: 'Heart rate',
+      rr: 'Respiration',
+      fps: 'Frame rate',
+      dist: 'Target range'
+    };
+    return names[kpi] || 'KPI';
   }
 
   hasBleRef(): boolean {
@@ -490,10 +649,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
     let xPct = Math.max(0, Math.min(1, (clickX - pad) / innerW));
 
-    if (chartKey === 'hr' && this.hrTrendCanvas) {
-      xPct = this.hrTrendCanvas.mapZoomedXPctToFull(xPct);
-    } else if (chartKey === 'rr' && this.rrTrendCanvas) {
-      xPct = this.rrTrendCanvas.mapZoomedXPctToFull(xPct);
+    if (chartKey === 'hr' && this.hrTab) {
+      xPct = this.hrTab.mapZoomedXPctToFull(xPct);
+    } else if (chartKey === 'rr' && this.rrTab) {
+      xPct = this.rrTab.mapZoomedXPctToFull(xPct);
     }
 
     const label = window.prompt('Enter label for new annotation:');
@@ -892,8 +1051,8 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   resetTrendRange(): void {
     this.trendRange.set(120);
-    if (this.hrTrendCanvas) this.hrTrendCanvas.resetZoom();
-    if (this.rrTrendCanvas) this.rrTrendCanvas.resetZoom();
+    this.hrTab?.resetZoom();
+    this.rrTab?.resetZoom();
     if (this.hrTrendCanvasClone) this.hrTrendCanvasClone.resetZoom();
     if (this.rrTrendCanvasClone) this.rrTrendCanvasClone.resetZoom();
     this.snackBar.open('Chart window reset to 120 seconds.', 'Dismiss', { duration: 2500 });
@@ -947,19 +1106,69 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
     return id ? `Ghost ${id} (${count} samples)` : `Ghost session (${count} samples)`;
   }
 
-  liveAlertAnnouncement(): string {
-    const alerts: string[] = [];
+  private currentLiveStatus(): LiveStatusDescription {
     const thresholds = this.state.kpiThresholds();
-    const hr = this.metricNumber('reported_hr');
-    const rr = this.metricNumber('reported_rr');
-    if (this.state.telemetryStale()) alerts.push('Live telemetry is stale. Do not treat displayed values as current.');
-    if (hr !== null && (hr < thresholds.hrLow || hr > thresholds.hrHigh)) {
-      alerts.push(`Heart rate outside threshold at ${Math.round(hr)} beats per minute.`);
+    return describeLiveStatus({
+      stale: this.state.telemetryStale(),
+      heartRate: this.metricNumber('reported_hr'),
+      respirationRate: this.metricNumber('reported_rr'),
+      heartRateLow: thresholds.hrLow,
+      heartRateHigh: thresholds.hrHigh,
+      respirationRateLow: thresholds.rrLow,
+      respirationRateHigh: thresholds.rrHigh
+    });
+  }
+
+  private scheduleLiveStatusAnnouncement(status: LiveStatusDescription): void {
+    if (status.key === this.announcedLiveStatusKey) {
+      if (this.liveStatusTimer !== null) clearTimeout(this.liveStatusTimer);
+      this.liveStatusTimer = null;
+      this.pendingLiveStatusKey = '';
+      return;
     }
-    if (rr !== null && (rr < thresholds.rrLow || rr > thresholds.rrHigh)) {
-      alerts.push(`Respiration outside threshold at ${Math.round(rr)} breaths per minute.`);
-    }
-    return alerts.join(' ');
+    if (status.key === this.pendingLiveStatusKey) return;
+
+    if (this.liveStatusTimer !== null) clearTimeout(this.liveStatusTimer);
+    this.pendingLiveStatusKey = status.key;
+    this.liveStatusTimer = setTimeout(() => {
+      const current = this.currentLiveStatus();
+      this.liveStatusTimer = null;
+      if (current.key !== this.pendingLiveStatusKey) {
+        this.pendingLiveStatusKey = '';
+        return;
+      }
+      this.announcedLiveStatusKey = current.key;
+      this.pendingLiveStatusKey = '';
+      this.liveStatusAnnouncement.set(current.message);
+    }, LiveComponent.LIVE_STATUS_DEBOUNCE_MS);
+  }
+
+  protected kpiControlLabel(label: string, key: string, unit: string): string {
+    const reading = this.readingLabel(label, key, unit);
+    return `${reading} Activate to zoom.`;
+  }
+
+  protected frameRateControlLabel(): string {
+    return `${this.frameRateLabel()} Activate to zoom.`;
+  }
+
+  protected targetRangeControlLabel(): string {
+    return this.kpiControlLabel('Target range', 'distance_cm', 'centimetres');
+  }
+
+  protected kpiPositionLabel(kpi: string): string {
+    const position = this.kpiOrder().indexOf(kpi) + 1;
+    if (position <= 0) return '';
+    return `Position ${position} of ${this.kpiOrder().length}.`;
+  }
+
+  protected kpiReorderDescription(kpi: string): string {
+    const position = this.kpiPositionLabel(kpi);
+    return `${position} Hold Alt and press Left or Right Arrow to reorder.`;
+  }
+
+  protected kpiButtonTitle(kpi: string): string {
+    return `${this.kpiName(kpi)}: activate to zoom; drag or use Alt+Left/Right to reorder.`;
   }
 
   metricLabel(key: string): string {
@@ -1262,17 +1471,30 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // --- Real-time Waveforms & Trends Canvas plots ---
   protected requestCanvasDraw(): void {
-    if (!this.viewReady || document.visibilityState === 'hidden' || this.animeFrameId !== null) return;
-    this.animeFrameId = requestAnimationFrame(() => {
-      this.animeFrameId = null;
-      this.drawTargetPosition();
-      this.drawBlandAltman();
-    });
+    if (!this.viewReady) return;
+    this.renderScheduler.request(
+      this,
+      () => {
+        this.drawTargetPosition();
+        this.drawBlandAltman();
+      },
+      () => this.activeTabIndex === 0 && this.overviewCanvasRefs()
+        .some(ref => this.renderScheduler.canvasVisible(ref?.nativeElement)),
+      100
+    );
+  }
+
+  private overviewCanvasRefs(): ElementRef<HTMLCanvasElement>[] {
+    return [
+      this.overviewTab?.targetCanvas,
+      this.overviewTab?.baCanvas
+    ].filter((ref): ref is ElementRef<HTMLCanvasElement> => !!ref);
   }
 
   private drawTargetPosition(): void {
-    if (this.activeTabIndex !== 0 || !this.targetCanvas) return;
-    const canvas = this.targetCanvas.nativeElement;
+    const targetCanvas = this.overviewTab?.targetCanvas;
+    if (this.activeTabIndex !== 0 || !targetCanvas) return;
+    const canvas = targetCanvas.nativeElement;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     const dpr = window.devicePixelRatio || 1;
@@ -1320,9 +1542,10 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private drawBlandAltman(): void {
     if (this.activeTabIndex !== 0) return;
-    if (!this.baCanvas) return;
+    const baCanvas = this.overviewTab?.baCanvas;
+    if (!baCanvas) return;
 
-    const canvas = this.baCanvas.nativeElement;
+    const canvas = baCanvas.nativeElement;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     const dpr = window.devicePixelRatio || 1;

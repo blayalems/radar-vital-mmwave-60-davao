@@ -8,6 +8,7 @@ import { AudioService } from './audio.service';
 import { AuthService } from './auth.service';
 import { PersistenceService } from './persistence.service';
 import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
+import { SseDriverService } from './sse-driver.service';
 
 let mockEventSourceInstance: MockEventSource | null = null;
 let mockEventSourceInstances: MockEventSource[] = [];
@@ -228,7 +229,7 @@ describe('TelemetryService', () => {
     await settle();
 
     expect(failedSource.closed).toBe(true);
-    expect((service as any).pollingOnly).toBe(true);
+    expect(TestBed.inject(SseDriverService).isPollingOnly()).toBe(true);
     const instancesAfterFallback = mockEventSourceInstances.length;
 
     await (service as any).startSse();
@@ -236,7 +237,7 @@ describe('TelemetryService', () => {
 
     service.reconnect();
     await settle();
-    expect((service as any).pollingOnly).toBe(false);
+    expect(TestBed.inject(SseDriverService).isPollingOnly()).toBe(false);
     expect(mockEventSourceInstances).toHaveLength(instancesAfterFallback + 1);
   });
 });

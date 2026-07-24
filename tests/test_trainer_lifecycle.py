@@ -15,6 +15,7 @@ import os
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest.mock import patch
 
 
 from rvt_trainer.monolith import _ControlServer
@@ -49,6 +50,54 @@ def _start_live_server(tmp_path: Path):
     server.start()
     base = f"http://127.0.0.1:{server.httpd.server_port}"
     return server, base, sessions
+
+
+def test_control_server_shutdown_owns_session_reap_without_analysis(tmp_path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer(
+        "127.0.0.1",
+        0,
+        str(sessions),
+        bind_mode="local",
+        mock=False,
+    )
+    calls = []
+
+    with (
+        patch.object(
+            server.supervisor,
+            "close_start_gate",
+            side_effect=lambda: calls.append("gate"),
+        ) as close_gate,
+        patch.object(
+            server.httpd,
+            "shutdown",
+            side_effect=lambda: calls.append("http_shutdown"),
+        ) as http_shutdown,
+        patch.object(
+            server.supervisor,
+            "stop",
+            side_effect=lambda **_kwargs: calls.append("session_stop"),
+        ) as session_stop,
+        patch.object(
+            server.httpd,
+            "server_close",
+            side_effect=lambda: calls.append("http_close"),
+        ) as http_close,
+    ):
+        server.stop()
+        server.stop()
+
+    assert calls == ["gate", "http_shutdown", "session_stop", "http_close"]
+    close_gate.assert_called_once_with()
+    http_shutdown.assert_called_once_with()
+    session_stop.assert_called_once_with(
+        reason="server_shutdown",
+        auto_analyse=False,
+        missing_ok=True,
+    )
+    http_close.assert_called_once_with()
 
 
 # ---------------------------------------------------------------------------

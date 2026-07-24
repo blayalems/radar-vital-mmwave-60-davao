@@ -5,50 +5,32 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
-### 2026-07-22 - Firmware plan completion sync
+### 2026-07-24 - Synchronize firmware recovery with integrated main
 
-- **Plan status**: Marked all four PR #79 source implementation items complete and recorded their source/model proof, including the exact 222-field header/payload gate.
-- **Release boundary**: Distinguished the six setup-only waits from the delay-free live parser/DSP recovery paths and retained Arduino/XIAO + MR60BHA2/LCD bench validation as the remaining physical release gate.
+- **Stack integration**: Merged the PR #80 integration head into PR #79 while preserving the firmware recovery sketch and dedicated recovery fixtures.
+- **Conflict policy**: Used integrated-main documentation and shared contracts as the base, then restored the bounded firmware-version capture assertions required by the updated sketch.
+- **Verification**: Focused firmware/static tests and an Arduino CLI compile for `esp32:esp32:XIAO_ESP32C6` pass before the synchronized merge commit is pushed.
 
-### 2026-07-22 - Frozen firmware serial-order proof
+### 2026-07-22 - Refresh frontend plan evidence base
 
-- **Exact schema gate**: Added a source-level contract that reconstructs the firmware's concatenated `DATA` header and proves all 222 names and positions match `RADAR_LOG_COLUMNS` exactly.
-- **Emitter count**: The same gate proves the row has 221 comma-terminated macro emitters plus the final `fw_uptime_s` field, preventing a correct header from masking a shifted payload.
+- **PR topology**: Merged `codex/lifecycle-race-privacy-closure` at `5bb5e21` so PR #76 carries the acceptance evidence for its lifecycle base before recording the frontend-decomposition evidence.
 
-### 2026-07-22 - Firmware stack base synchronization
+### 2026-07-22 - Record lifecycle acceptance evidence
 
-- **Stacked base**: Merged the canonical polling-fallback dashboard rebuild from PR #75 so PR #79 no longer inherits the failed Angular-to-monolith round-trip check.
-- **Conflict safety**: Preserved all firmware recovery entries while incorporating the base branch handoff entry and generated dashboard artifact.
+- **Audit closure**: Mapped every PR #77 acceptance bullet in the cross-stack plan to its implementation and named automated coverage, while retaining only packaged-EXE process validation and the native 12-hour reconnect soak as external release gates.
 
-### 2026-07-22 - Firmware live-loop delay closure
+### 2026-07-22 - Refresh frontend boundaries on lifecycle closure
 
-- **Deadline recovery**: Radar UART release, runtime I2C bus release, and the one-shot NVS namespace reopen now settle through explicit `millis()` deadlines instead of blocking the parser/DSP loop.
-- **Display/setup audit**: Removed the cosmetic LCD transition wait and documented all six remaining `delay()` sites as setup-only before watchdog activation.
-- **Coverage**: Added source-contract checks for recovery ordering, deferred restart/reopen states, zero live-path delays, and setup-delay classification while preserving the 222-column/BLE-off contracts.
+- **PR topology**: Merged `codex/lifecycle-race-privacy-closure` at `e1f2bbe` so PR #76 inherits the synchronized audit base and canonical service-worker CI contract while preserving the frontend-only review boundary.
 
-### 2026-07-18 - Firmware alignment and stale-packet closure
+### 2026-07-22 - Align service-worker static contract with canonical refresh
 
-- **LCD/I2C safety**: Placement storage now uses type-derived C++ alignment, while LCD scanning restores the normal I2C timeout through one exit path on success and failure.
-- **Presence safety**: An expired radar packet stream globally clears active/entering presence states before the FSM switch and suppresses stale latched evidence from immediately re-entering.
-- **Coverage**: Added source-contract checks for storage alignment, single timeout restoration/return, and the stale-packet transition ordering.
+- **CI repair**: Replaced a whitespace-sensitive single-line `networkFirst` assertion with explicit checks for the canonical dashboard refresh request, monolith fallback key, and `DASHBOARD` refresh argument.
+- **Reproduction**: The former PR #77 Python gate reached 334 passed / 1 skipped before failing only on the multiline call formatting; the focused service-worker contract now validates behavior instead of layout.
 
-### 2026-07-18 - Firmware-version capture state machine
+### 2026-07-22 - Refresh lifecycle stack on synchronized audit base
 
-- **Bounded capture**: Replaced the blocking boot poll and unbounded boolean probe with explicit `idle`, `armed`, `captured`, and `expired` states; each `mmWave.begin()` arms a 1.5 s deadline, and recovery expiration retains any previously captured module identity.
-- **Loop timing**: The live loop services capture only after its normal parser update and performs no extra parser pump, wait loop, or metadata delay; single parser pumps around existing setup-only hardware/splash waits preserve the module boot-TLV opportunity.
-- **Verification**: Firmware recovery host/static tests passed 6/6; focused BLE/default, nonblocking recovery, frozen 222-column serial, and power/thermal invariant tests passed 4/4; `git diff --check` passed. Arduino CLI is not installed in this worktree environment.
-
-### 2026-07-18 - Firmware LCD lifecycle recovery
-
-- **Lifecycle ownership**: Replaced the duplicated boot/runtime placement-new paths with idempotent attach/detach helpers that always destroy an allocated LCD object before clearing its pointer and restore `lcdConnected`, address, character cache, and display state together.
-- **Recovery truthfulness**: Runtime probe failure now detaches once and enters bounded backoff; a successful rescan marks the display connected and increments `lcd_reinit_count` exactly once, while boot discovery and repeated same-address attach calls do not inflate the counter.
-- **Verification**: Firmware recovery host/static tests passed 4/4; focused BLE/default, nonblocking recovery, frozen 222-column serial, and power/thermal invariant tests passed 4/4; `git diff --check` passed and no `delay()` call was added. Arduino CLI is not installed in this worktree environment.
-
-### 2026-07-18 - Firmware one-way presence ownership
-
-- **Presence pipeline**: Centralized the module raw snapshot, positive-evidence timestamp, debounce scores, and debounced flag under one packet-owned updater; negative packets no longer refresh positive evidence, and the derived FSM no longer writes raw/debounced state or scores back upstream.
-- **False-presence exit**: Hard-absence decisions now consume the packet-debounced result, while DSP-starvation exits update only the derived presence state, preventing an FSM transition from manufacturing a new raw-present latch.
-- **Verification**: Dependency-free host/static recovery tests passed 2/2; focused BLE/default, nonblocking recovery, frozen 222-column serial, and power/thermal invariant tests passed 4/4; `git diff --check` passed. Arduino CLI is not installed in this worktree environment.
+- **PR topology**: Merged `codex/cross-stack-audit-hardening` at `47fe522` so PR #77 inherits the synchronized polling-fallback dashboard and remains a strict ancestor base for PR #76.
 
 ### 2026-07-19 - Polling-fallback monolith synchronization
 
@@ -56,6 +38,163 @@
 - **CI reproduction**: Reproduced PR #75's failed `Verify web/ ↔ monolith round-trip` step locally and confirmed the only drift was the missing polling-fallback bundle update.
 - **Verification**: `npm run build:check` passes after the synchronized artifact is committed.
 
+### 2026-07-19 - Live KPI strip boundary
+
+- **Component boundary**: Extracted the four reorderable KPI controls, confidence/holding state, sparkline rendering, and debounced screen-reader status into a typed standalone OnPush `LiveKpiStripComponent`; Overview retains the remaining notes, target, analysis, and diagnostics presentation.
+- **Size contract**: The Overview template drops from 423 to 269 lines, and the source-boundary test now enforces a 400-line ceiling across every extracted Live presentation component TS/HTML/CSS file.
+- **Verification**: Angular production and generated-monolith builds pass at a 1.45 MB initial bundle with no warning; source-integrity, contrast, service-worker privacy 3/3, and web unit 218/218 gates pass.
+
+### 2026-07-18 - Live Overview component extraction
+
+- **Component boundary**: Moved the 423-line Overview template, its Material/sparkline imports, and both Overview canvas references into `LiveOverviewTabComponent`; `LiveComponent` now supplies the typed view model and owns only data/render orchestration.
+- **Visual continuity**: The child reuses the established Live stylesheet under its own emulated scope, preserving the existing responsive presentation without global CSS leakage.
+- **Coverage**: Added a source-boundary contract proving template and canvas ownership moved out of the parent; the Angular production build passes.
+
+### 2026-07-18 - Persistent fallback under SSE driver ownership
+
+- **Stack integration**: Ported the audit-base polling-only threshold into `SseDriverService`; driver cancellation preserves fallback, explicit reconnect/re-auth resets it, and no retry deadline or EventSource is created while polling-only.
+- **Verification**: Focused SSE-driver, telemetry, and diagnostic-privacy tests pass 45/45; the Angular production build passes.
+
+### 2026-07-18 - Live Overview boundary contract
+
+- **Partial extraction checkpoint**: Defined the complete typed Overview-tab view-model surface, including KPI interactions, confidence/readiness projections, notes/tags, snapshot capture, and Bland-Altman state, before moving the template into its standalone component.
+
+### 2026-07-18 - Preflight request coordinator boundary
+
+- **Async ownership**: Moved hardware-setup fingerprinting, newest-generation arbitration, aggregate/single-check transport, and valid-snapshot ownership into `PreflightRequestCoordinator`; Home now maps coordinator outcomes into view signals and haptics.
+- **Concurrency contract**: Superseded requests cannot clear the shared running gate while the newest request is pending, and setup-changed responses remain visibly stale instead of enabling Start.
+- **Verification**: Focused Home preflight request-ownership coverage passes 4/4 after extraction.
+
+### 2026-07-18 - Report request coordinator boundary
+
+- **Async ownership**: Moved primary-session and comparison epochs, six-endpoint report hydration, notes persistence, and validation sign-off transport into `ReportRequestCoordinator`; the component now owns only selected-view state and rendering.
+- **Race preservation**: Stale primary and comparison responses resolve as superseded results, while immutable save payloads remain bound to their captured session IDs.
+- **Verification**: Focused Report request-ownership coverage passes 4/4 after extraction.
+
+### 2026-07-18 - Stack frontend boundaries on lifecycle closure
+
+- **Integration**: Combined the frontend source/service/tab boundary work with the lifecycle, request-race, cache, diagnostics, and exact-origin credential closure so follow-up refactors inherit the hardened behavior.
+- **Generated artifact**: Rebuilt the root dashboard from the merged Angular sources rather than resolving generated output by hand.
+
+### 2026-07-18 - Extract Live waveform and funnel tabs
+
+- **Tab boundaries**: Moved Waves, HR funnel, and RR funnel into typed standalone OnPush presentation components while the Live container retains telemetry, annotation, export, and historical-session workflows.
+- **Canvas ownership**: Each extracted tab owns its rendered canvas reference and exposes only zoom mapping/reset behavior needed by the parent, eliminating cross-template `ViewChild` coupling.
+- **Style ownership**: Added encapsulated waveform and trend-panel styles; every extracted TS, HTML, and CSS file remains below 400 lines.
+
+### 2026-07-18 - Extract Live Snaps and Audit presentation
+
+- **Tab boundaries**: Moved the Snaps catalog/comparison flow and Audit diagnostics/export console into typed, standalone OnPush presentation components; the Live container remains the only workflow/state owner and passes narrow callback/signal view models.
+- **Style ownership**: Added a shared tab-panel stylesheet scoped by component encapsulation so extracted content retains card, table, console, comparison, and mobile behavior without making Live styles global.
+- **Coverage**: Production Angular and generated-monolith builds pass; desktop/Pixel snapshot capture and Audit export browser journeys pass 4/4, and every extracted component source stays below 400 lines.
+
+### 2026-07-18 - Compact mobile Live status and actions
+
+- **First-screen hierarchy**: Mobile Live keeps the persistent demo provenance and prominent Stop action while arranging Pause, Snapshot, and Stop in one touch-sized row and keeping the Simple/Advanced selector on one row.
+- **Coverage**: The 390 x 844 browser geometry contract caps the command strip and mode selector heights, requires the first KPI before 500 px, preserves 44 px targets, and checks provenance, Stop visibility, and horizontal containment.
+
+### 2026-07-18 - Remove redundant Live snapshot FAB
+
+- **Single clear action path**: Removed the fixed bottom-right snapshot FAB and its orphaned styling; snapshot capture remains available in the command strip, target-tracking card, and Snaps tab without covering Live content or duplicating the primary desktop action.
+- **Coverage**: The demo-mode browser journey proves the redundant instant-capture control is absent before exercising the supported Pin Snapshot flow on desktop and Pixel (2/2); the production dashboard rebuild is warning-free.
+
+### 2026-07-17 - Honest Live trend sample states
+
+- **Empty/warm-up truth**: Trend canvases now visibly distinguish no valid samples, bounded warm-up progress, and ready history instead of presenting an empty threshold grid as if a trace existed.
+- **Accessibility**: Canvas names include the current empty or warming state without adding another live region, while ready charts keep their existing metric and ghost-session description.
+- **Coverage**: Added focused policy tests for empty, warming, ready, configurable-minimum, invalid-count, and standby-zero behavior plus a desktop/Pixel browser journey that proves zero-only HR history renders the honest empty state; 195 web unit tests and the generated-dashboard round trip pass.
+
+### 2026-07-17 - Semantic Live KPI controls and aggregate status
+
+- **Control semantics**: Replaced four clickable Live KPI `div` surfaces and duplicate keyboard activation handlers with native buttons, preserved pointer reordering, and added Alt+Arrow keyboard reordering with position-aware descriptions and visible focus.
+- **Announcement policy**: Replaced per-card live regions and raw-value alert chatter with one 1.5-second debounced status channel keyed by stale/available/threshold bands; standby zeroes now announce as waiting rather than low.
+- **Coverage**: Added pure status-policy tests proving in-band telemetry churn keeps one announcement key while threshold, availability, and stale transitions remain distinguishable; full source/contrast/unit gates pass 190/190, the updated desktop/Pixel browser journey passes 2/2, and the production build is warning-free.
+
+### 2026-07-17 - Settings card header spacing correction
+
+- **Root cause**: The palette-level Material card rule zeroed every header's inline padding with higher specificity, placing Settings icon tiles directly against the rounded card clip despite the component's intended 20 px inset.
+- **Responsive fix**: Restored explicit icon/title/content alignment at 20 px on desktop and 16 px on narrow layouts while retaining the shared 12 px icon-to-title rhythm.
+- **Regression gate**: Added browser geometry assertions for the visually reordered Appearance and Source mode cards so both icon tiles remain inset and their titles stay separated.
+
+### 2026-07-17 - Route lazy boundaries and measured bundle budget
+
+- **Lazy routing**: Converted Connect, Layout, Home, and Live from eager imports to `loadComponent` boundaries, completing the route-level split already used by Report, Help, and Settings without changing guards, redirects, or route URLs.
+- **Bundle contract**: The production initial bundle falls from 2.52 MB to 1.45 MB; locked that measured improvement with a 1.55 MB warning and 1.70 MB error budget while keeping Live (210.61 kB), Layout (190.60 kB), and Home (70.42 kB) route chunks independently loadable.
+- **Verification**: Production Angular build passes without an initial-bundle warning; full source-integrity, contrast, and Angular unit gates pass 186/186; generated-monolith round-trip passes.
+
+### 2026-07-17 - Shared visible-chart render scheduler
+
+- **Render ownership**: Added one coalescing `ChartRenderSchedulerService` with per-owner rate limits, cancellation, document-visibility gating, and zero-size/hidden-canvas suppression; migrated Home radar/session sparklines, Live overview/analysis canvases, wave/trend canvases, KPI sparklines, and the KPI zoom dialog off independent animation-frame queues.
+- **Hidden-tab behavior**: Reactive updates can remain pending without repainting a hidden Material tab, while tab/resize/visibility changes request the latest frame; component teardown removes every pending owner and deferred session-sparkline request.
+- **Verification**: Scheduler tests pass 3/3 and full source-integrity, contrast, and Angular unit gates pass 186/186; production build and generated-monolith round-trip pass with the existing initial-bundle warning (2.52 MB before the planned lazy-boundary budget slice).
+
+### 2026-07-17 - Dedicated SSE transport driver
+
+- **Async ownership**: Extracted EventSource creation, token-mint single-flight protection, generation cancellation, deadline renewal, error-window fallback, reconnect backoff, and transport/retry signals into `SseDriverService`; `TelemetryService` now owns only telemetry-domain event handling and polling coordination.
+- **Contract coverage**: Added focused driver tests for typed event forwarding, in-flight cancellation, one-use token renewal, fourth-error polling fallback, visible retry deadlines, and cancellation of scheduled reconnects while retaining the existing telemetry session-state tests.
+- **Verification**: Focused SSE/telemetry Vitest passes 10/10; full source-integrity, contrast, and Angular unit suite passes 183/183; production build and generated-monolith round-trip pass with the existing 2.51 MB bundle warning.
+
+### 2026-07-17 - Sandbox API service extraction
+
+- **API boundary**: Moved the static-PWA/demo operator auth, session lifecycle, reports, preflight, defaults, and fallback payload emulator out of `ApiService` into `SandboxApiService`; the extracted service depends directly on `SessionStore` and never injects `ApiService`.
+- **Contract/storage parity**: Preserved public response aliases and payload shapes, sandbox start/stop behavior, report scorecards, lockout/session auth behavior, and the `demo:`-only operator profile/session storage boundary while `ApiService` retains live/native transport.
+- **Verification**: Focused sandbox/API/source/auth Vitest 36/36; full source-integrity, contrast, and web unit suite 179/179; Angular production build and generated-monolith round-trip pass with the existing 2.51 MB bundle warning.
+
+### 2026-07-17 - Frontend source-mode policy boundary
+
+- **Source ownership**: Added `SourceModeService` as the signal-policy owner for live, manual demo, automatic demo, and trainer-sandbox transitions using only `UiStore`/`SessionStore`; `StateService` keeps read/delegation compatibility while Settings, pairing, keyboard/command actions, telemetry fallback, topbar provenance, and API detection use the focused boundary directly.
+- **Safety**: Centralized real-session transition guards and sandbox-routing policy so a real `/api/session/stop` continues to use trainer transport even if stale demo state is present; demo/live persistence scopes remain derived without effect-based state propagation.
+- **Verification**: Clean root/web installs; focused source/state/API/telemetry Vitest 33/33; full source-integrity, contrast, and web unit suite 175/175; Angular production build and generated-monolith round-trip pass with the existing 2.51 MB bundle warning.
+### 2026-07-18 - Linearize lifecycle stack on audit base
+
+- **PR topology**: Merged the current `codex/cross-stack-audit-hardening` head so PR #75 is now an actual ancestor of PR #77 rather than a divergent sibling, preventing avoidable merge noise downstream.
+
+### 2026-07-18 - Review closure for diagnostics and shell caching
+
+- **Diagnostic categories**: Authentication terms now require complete word matches, so `repairing` and `spinlock` cannot be mislabeled while real pairing/token failures remain categorized.
+- **PIN redaction**: Pairing query and named-field sanitizers redact 3-8 digit PINs while leaving unrelated short numeric diagnostics intact.
+- **Offline shell integrity**: Online route responses are returned normally but never stored as the canonical shell; cache refreshes fetch `index.html` explicitly before replacing the one navigation cache key.
+- **Coverage**: Added false-positive error-category cases and executable route-versus-shell cache assertions.
+### 2026-07-18 - Integrate lifecycle, race, and privacy closure
+
+- **Stacked closure**: Combined bounded session shutdown ownership with report/preflight request gates, canonical navigation caching, de-identified issue diagnostics, and exact-origin trainer credential policy.
+- **Scope**: This branch is the consolidated PR base for subsequent frontend and backend follow-ups; all source commits remain individually reviewable below the merge.
+
+### 2026-07-17 - Session shutdown ownership and bounded reap
+
+- **Supervisor lifecycle**: Serialized start/stop/current transitions behind a closeable gate; parent-driven stops now suppress child inline analysis, reap with bounded interrupt/terminate/kill waits, clear only owned markers, and retain truthful state when reaping fails.
+- **Server shutdown policy**: Control-server shutdown closes the start gate, stops HTTP acceptance, reaps the detached capture child idempotently, preserves captured files, and never launches analysis; explicit user Stop may analyse only after successful cleanup.
+- **Verification**: Focused session-isolation and control-server lifecycle suites pass 42/42; trainer monolith `py_compile` passes.
+
+### 2026-07-18 - Exact-origin trainer authentication
+
+- **Credential boundary**: Browser, Capacitor, and download requests now attach trainer credentials only to relative trainer APIs or absolute API URLs on the exact configured origin; caller-supplied trainer headers are removed from untrusted destinations.
+- **Native routing**: Tauri no longer captures arbitrary absolute `/api/` URLs, while its restart-safe exception remains limited to HTTP loopback API URLs that are re-resolved and pinned by the native paired-origin transport.
+- **Verification**: Focused API/auth/Tauri coverage passes 24/24, including hostile absolute URLs and origin-prefix lookalikes; the Angular production build and `npm run build:check` pass with the existing 2.52 MB initial-bundle warning.
+
+### 2026-07-18 - De-identified issue diagnostics
+
+- **Control summary**: Issue previews and generated URLs now allowlist control status fields, normalize mode/latency, and replace raw error/reason/message text with a non-reversible failure category.
+- **Alert recency**: Diagnostic alert history is explicitly sorted newest-first before selecting five entries; messages remain excluded and unknown source strings collapse to `other`.
+- **Verification**: Issue-report coverage passes 33/33; the Angular production build and `npm run build:check` pass with the existing 2.52 MB initial-bundle warning.
+
+### 2026-07-18 - Canonical navigation cache privacy
+
+- **Service worker**: Angular navigations now write and read one scope-qualified `index.html` cache key instead of raw route/query URLs; the cache namespace bump removes existing route and pairing-PIN entries.
+- **Non-shell pages**: Pairing and support navigations remain network-only so a PIN-rendered response can neither enter Cache Storage nor replace the offline application shell.
+- **Verification**: Executable online/offline/pairing cache coverage passes 3/3, `node --check assets/sw.js` passes, and `npm run build:check` passes with the existing 2.51 MB initial-bundle warning.
+
+### 2026-07-17 - Preflight request ownership
+
+- **Latest-request gate**: Hardware preflight now snapshots radar/BLE inputs, applies only the newest generation, and leaves the shared running gate set until that generation settles; automatic defaults and serial discovery finish before the initial check.
+- **Start integrity**: Session Start captures the complete click-time payload and cancels if any submitted setup value changes while the fresh preflight is pending; stale or failed checks cannot enable Start.
+- **Verification**: Home helper/race coverage passes 9/9; the Angular production build and `npm run build:check` pass with the existing 2.51 MB initial-bundle warning.
+
+### 2026-07-17 - Report request ownership
+
+- **Race closure**: Added independent primary-session and comparison load epochs so late A responses cannot overwrite a newer B selection or reattach an obsolete comparison overlay.
+- **Immutable saves**: Notes and validation sign-offs now capture the target session and submitted values before awaiting transport; sign-off responses update the captured session without replacing a newly selected form.
+- **Verification**: Deferred A/B unit coverage passes 4/4; the Angular production build and `npm run build:check` pass with the existing 2.51 MB initial-bundle warning.
 ### 2026-07-18 - Headerless visual handoff support
 
 - **Visual refresh automation**: The Windows baseline workflow now appends its handoff entry when `HANDOFF.md` is empty or contains no existing dated headings instead of reporting success without recording the refresh.
@@ -65,7 +204,6 @@
 
 - **Transport fallback**: Crossing the SSE error-window threshold now enters an explicit polling-only state instead of scheduling another EventSource attempt; only manual reconnect or re-authentication clears the state.
 - **Coverage**: Added a threshold test proving repeated `startSse` calls cannot reopen a stream during fallback and manual reconnect restores SSE eligibility.
-
 ### 2026-07-18 - Atomic dashboard readiness proof
 
 - **Reviewer follow-up**: Confirmed every supervisor and trainer dashboard payload uses `save_json`, which fsyncs a same-directory temporary file and publishes it with `os.replace`; readiness therefore cannot observe a half-written first payload.

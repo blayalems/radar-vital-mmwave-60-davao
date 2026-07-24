@@ -292,6 +292,7 @@
 .kpi-metric-card {
   display: flex;
   flex-direction: column;
+  width: 100%;
   min-height: 0;
   padding: 18px;
   border-radius: var(--rv-r1, 22px);
@@ -300,6 +301,11 @@
   box-shadow: none;
   position: relative;
   overflow: hidden;
+  appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
   transition: transform var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
              border-color var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1)),
              box-shadow var(--dur-emphasized, 380ms) var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));
@@ -1501,31 +1507,6 @@
   font-size: 0.8rem;
 }
 
-/* Quick-Pin FAB styling */
-.quick-pin-fab-container {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 999;
-}
-
-.fab-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  background: var(--md-sys-color-error, #ba1a1a);
-  color: var(--md-sys-color-on-error, #ffffff);
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
 /* Annotation chip layout */
 .annotation-chips {
   display: flex;
@@ -1772,6 +1753,46 @@
 
   .simple-info-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .command-strip-card {
+    padding: 10px;
+  }
+
+  .command-strip-inner {
+    gap: 10px;
+  }
+
+  .session-timer-group {
+    width: 100%;
+  }
+
+  .command-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .command-actions button {
+    width: auto;
+    min-width: 0;
+    padding-inline: 8px;
+  }
+
+  .live-mode-toolbar {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .live-mode-segment {
+    display: flex;
+  }
+
+  .live-mode-segment mat-button-toggle {
+    flex: 1 1 0;
+    width: auto;
   }
 }
 

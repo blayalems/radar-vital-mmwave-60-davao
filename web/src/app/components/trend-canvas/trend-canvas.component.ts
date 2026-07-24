@@ -3,15 +3,53 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { StateService } from '../../services/state.service';
 import { ChartAnnotation } from '../../models/rvt.models';
+import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
+
+export type TrendSampleState = 'empty' | 'warming' | 'ready';
+
+export interface TrendSampleStatus {
+  state: TrendSampleState;
+  title: string;
+  detail: string;
+}
+
+export function countValidTrendSamples(samples: readonly number[]): number {
+  return samples.filter(value => Number.isFinite(value) && value > 0).length;
+}
+
+export function describeTrendSamples(sampleCount: number, minimumReadySamples = 10): TrendSampleStatus {
+  const count = Math.max(0, Math.floor(Number.isFinite(sampleCount) ? sampleCount : 0));
+  const minimum = Math.max(2, Math.floor(Number.isFinite(minimumReadySamples) ? minimumReadySamples : 10));
+  if (count === 0) {
+    return {
+      state: 'empty',
+      title: 'No trend samples yet',
+      detail: 'Waiting for the first valid published reading.'
+    };
+  }
+  if (count < minimum) {
+    return {
+      state: 'warming',
+      title: 'Trend warming up',
+      detail: `${count} of ${minimum} valid samples collected.`
+    };
+  }
+  return {
+    state: 'ready',
+    title: 'Trend ready',
+    detail: `${count} samples available.`
+  };
+}
 
 @Component({
   selector: 'trend-canvas',
   standalone: true,
   imports: [MatButtonModule, MatIconModule],
   template: `
-    <div class="trend-canvas-container" style="position: relative; width: 100%; height: 100%;">
+    <div class="trend-canvas-container" [attr.data-sample-state]="sampleStatus().state">
       <canvas #canvas class="large-trend-canvas" style="display: block; width: 100%; height: 100%;"
-              [attr.aria-label]="ariaLabel()"
+              role="img"
+              [attr.aria-label]="accessibleLabel()"
               (wheel)="onWheel($event)"
               (touchstart)="onTouchStart($event)"
               (touchmove)="onTouchMove($event)"
@@ -25,13 +63,67 @@ import { ChartAnnotation } from '../../models/rvt.models';
           <mat-icon style="font-size: 20px; width: 20px; height: 20px;">zoom_out_map</mat-icon>
         </button>
       }
+      @if (sampleStatus().state !== 'ready') {
+        <div class="trend-sample-state" aria-hidden="true">
+          <mat-icon>{{ sampleStatus().state === 'empty' ? 'monitor_heart' : 'hourglass_top' }}</mat-icon>
+          <strong>{{ sampleStatus().title }}</strong>
+          <span>{{ sampleStatus().detail }}</span>
+        </div>
+      }
     </div>
   `,
-  styles: [':host { display: block; width: 100%; height: 100%; }'],
+  styles: [`
+    :host {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .trend-canvas-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .trend-sample-state {
+      position: absolute;
+      inset: 16px;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: 6px;
+      padding: 18px;
+      border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
+      border-radius: 14px;
+      color: var(--md-sys-color-on-surface-variant, #64748b);
+      background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest, #ffffff) 90%, transparent);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .trend-sample-state mat-icon {
+      width: 28px;
+      height: 28px;
+      color: var(--md-sys-color-primary, #36618e);
+      font-size: 28px;
+    }
+
+    .trend-sample-state strong {
+      color: var(--md-sys-color-on-surface, #16212e);
+      font-size: 0.95rem;
+    }
+
+    .trend-sample-state span {
+      max-width: 32ch;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+  `],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
   protected readonly state = inject(StateService);
+  private readonly renderScheduler = inject(ChartRenderSchedulerService);
 
   // Inputs
   data = input<number[]>([]);
@@ -44,6 +136,7 @@ export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
   ghostSessionLabel = input<string | null>(null);
   ghostSessionActive = input<boolean>(false);
   annotations = input<ChartAnnotation[]>([]);
+  minimumReadySamples = input<number>(10);
 
   @ViewChild('canvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;
 
@@ -57,6 +150,16 @@ export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
 
   isZoomed = computed(() => this.zoomStartFraction() > 0 || this.zoomEndFraction() < 1);
   totalPointsCount = computed(() => this.data().length);
+  protected readonly sampleStatus = computed(() => (
+    describeTrendSamples(countValidTrendSamples(this.data()), this.minimumReadySamples())
+  ));
+  protected readonly accessibleLabel = computed(() => {
+    const base = this.ariaLabel().trim();
+    const status = this.sampleStatus();
+    if (status.state === 'ready') return base;
+    const separator = base && !base.endsWith('.') ? '.' : '';
+    return `${base}${separator} ${status.title}. ${status.detail}`.trim();
+  });
   visiblePointsCount = computed(() => {
     const N = this.data().length;
     if (N < 10) return N;
@@ -71,7 +174,6 @@ export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
     return endIdx - startIdx + 1;
   });
 
-  private animeFrameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
   // Touch gesture state
@@ -107,9 +209,7 @@ export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    if (this.animeFrameId !== null) {
-      cancelAnimationFrame(this.animeFrameId);
-    }
+    this.renderScheduler.cancel(this);
     this.resizeObserver?.disconnect();
   }
 
@@ -248,11 +348,12 @@ export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
   }
 
   requestDraw(): void {
-    if (document.visibilityState === 'hidden' || this.animeFrameId !== null) return;
-    this.animeFrameId = requestAnimationFrame(() => {
-      this.animeFrameId = null;
-      this.draw();
-    });
+    this.renderScheduler.request(
+      this,
+      () => this.draw(),
+      () => this.renderScheduler.canvasVisible(this.canvasRef?.nativeElement),
+      100
+    );
   }
 
   private draw() {
@@ -388,18 +489,25 @@ export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
     ctx.strokeStyle = this.color();
     ctx.lineWidth = 3;
     ctx.beginPath();
-
+    let segmentOpen = false;
+    let validPointCount = 0;
     visibleData.forEach((val, idx) => {
+      if (!Number.isFinite(val) || val <= 0) {
+        segmentOpen = false;
+        return;
+      }
       const x = pad + (idx / (count - 1)) * innerW;
       const y = pad + innerH - ((val - minV) / diff) * innerH;
 
-      if (idx === 0) {
+      if (!segmentOpen) {
         ctx.moveTo(x, y);
       } else {
         ctx.lineTo(x, y);
       }
+      segmentOpen = true;
+      validPointCount += 1;
     });
-    ctx.stroke();
+    if (validPointCount >= 2) ctx.stroke();
 
     // Draw annotations
     const anns = this.annotations();

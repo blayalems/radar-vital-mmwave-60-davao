@@ -16,6 +16,7 @@ describe('ApiService', () => {
     localStorage.clear();
     sessionStorage.clear();
     delete (window as Window & { __TAURI__?: unknown }).__TAURI__;
+    delete (window as Window & { Capacitor?: unknown }).Capacitor;
     mockPersistence = {
       quarantineLegacyLocalStorage: vi.fn().mockResolvedValue(undefined),
       get: vi.fn().mockResolvedValue(undefined),
@@ -44,6 +45,8 @@ describe('ApiService', () => {
     localStorage.clear();
     sessionStorage.clear();
     delete (window as Window & { __TAURI__?: unknown }).__TAURI__;
+    delete (window as Window & { Capacitor?: unknown }).Capacitor;
+    vi.unstubAllGlobals();
   });
 
   it('should be created', () => {
@@ -75,11 +78,11 @@ describe('ApiService', () => {
 
   it('never sandbox-routes Stop for a real active session', async () => {
     state.ctlStatus.set({ ok: true, mode: 'live' });
-    state.sessionActive.set(true);
-    state.currentSessionId.set('session-live-1');
     // Defense in depth for stale UI code or restored preferences that bypass
     // the guarded source-mode setter.
-    state.demoMode.set(true);
+    expect(state.trySetDemoMode(true)).toBe(true);
+    state.sessionActive.set(true);
+    state.currentSessionId.set('session-live-1');
 
     const pending = service.request<{ ok: boolean }>('/api/session/stop', { method: 'POST' });
     const request = httpMock.expectOne('/api/session/stop');
@@ -149,6 +152,96 @@ describe('ApiService', () => {
     request.flush({ ok: true });
 
     await expect(pending).resolves.toEqual({ ok: true });
+  });
+
+  it('does not send trainer credentials to an untrusted absolute API URL', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    sessionStorage.setItem(OPERATOR_TOKEN_KEY, 'operator-token-private');
+
+    const pending = service.request<{ ok: boolean }>('https://untrusted.example/api/status', {
+      headers: {
+        'X-RVT-Auth': 'caller-supplied-token',
+        Authorization: 'Bearer caller-supplied-token'
+      }
+    }, true);
+    const request = httpMock.expectOne('https://untrusted.example/api/status');
+    expect(request.request.headers.has('X-RVT-Auth')).toBe(false);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    request.flush({ ok: true });
+
+    await expect(pending).resolves.toEqual({ ok: true });
+  });
+
+  it('requires an exact configured origin before authenticating an absolute API URL', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    service.setApiBase('https://trainer.example');
+    sessionStorage.setItem(OPERATOR_TOKEN_KEY, 'exact-origin-token');
+
+    const exactPending = service.request<{ ok: boolean }>(
+      'https://trainer.example/api/status',
+      undefined,
+      true
+    );
+    const exactRequest = httpMock.expectOne('https://trainer.example/api/status');
+    expect(exactRequest.request.headers.get('X-RVT-Auth')).toBe('exact-origin-token');
+    exactRequest.flush({ ok: true });
+    await expect(exactPending).resolves.toEqual({ ok: true });
+
+    const lookalikePending = service.request<{ ok: boolean }>(
+      'https://trainer.example.evil.test/api/status',
+      undefined,
+      true
+    );
+    const lookalikeRequest = httpMock.expectOne('https://trainer.example.evil.test/api/status');
+    expect(lookalikeRequest.request.headers.has('X-RVT-Auth')).toBe(false);
+    lookalikeRequest.flush({ ok: true });
+    await expect(lookalikePending).resolves.toEqual({ ok: true });
+  });
+
+  it('does not send trainer credentials through native HTTP to an untrusted absolute URL', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    sessionStorage.setItem(OPERATOR_TOKEN_KEY, 'native-private-token');
+    const nativeRequest = vi.fn().mockResolvedValue({ status: 200, data: { ok: true } });
+    (window as Window & { Capacitor?: unknown }).Capacitor = {
+      isNativePlatform: () => true,
+      Plugins: { CapacitorHttp: { request: nativeRequest } }
+    };
+
+    await expect(service.request(
+      'https://untrusted.example/api/status',
+      { headers: { 'X-RVT-Auth': 'caller-token', Authorization: 'Bearer caller-token' } },
+      true
+    )).resolves.toEqual({ ok: true });
+
+    expect(nativeRequest).toHaveBeenCalledOnce();
+    expect(nativeRequest.mock.calls[0][0]).toMatchObject({
+      url: 'https://untrusted.example/api/status',
+      headers: {}
+    });
+  });
+
+  it('does not send trainer credentials when downloading an untrusted absolute URL', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    sessionStorage.setItem(OPERATOR_TOKEN_KEY, 'download-private-token');
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(
+      service.download('https://untrusted.example/api/export', 'export.csv')
+    ).rejects.toThrow('Download failed: HTTP 401');
+
+    const init = fetchSpy.mock.calls[0][1] as RequestInit;
+    const headers = new Headers(init.headers);
+    expect(headers.has('X-RVT-Auth')).toBe(false);
+    expect(headers.has('Authorization')).toBe(false);
   });
 
   it('creates and validates sandbox operator sessions without a trainer API', async () => {

@@ -1,1 +1,1 @@
-Trigger the PR79 synchronization gate with full static-contract runtime dependencies.
+Trigger the PR79 synchronization gate with split Arduino provisioning diagnostics.

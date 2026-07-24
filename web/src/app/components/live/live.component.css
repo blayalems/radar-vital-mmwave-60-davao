@@ -1385,6 +1385,12 @@
     width: 100%;
   }
 
+  .command-actions .cmd-btn,
+  .quick-tags-toolbar .tag-btn {
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+
   .trend-actions mat-button-toggle-group {
     width: 100%;
   }

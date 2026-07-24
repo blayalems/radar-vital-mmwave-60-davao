@@ -482,16 +482,44 @@ test.describe('Dashboard smoke', () => {
           mainRect.left <= railRect.right + 1;
       })).toBe(true);
     } else if (viewportWidth >= 600) {
-      // Tablet band (600–1023px, e.g. iPad): the rail rides in its collapsed
-      // icon form and the bottom nav stays hidden. (Bottom nav is reserved for
-      // the compact <600 breakpoint.)
-      await expect(page.locator('.rail')).toBeVisible();
-      await expect(page.locator('.bottom-nav')).toBeHidden();
+      // Tablet band (600–1023px, e.g. iPad): Simple/zen mode removes the
+      // desktop rail and restores bottom navigation so primary routes remain
+      // reachable without reintroducing the desktop shell.
+      await expect(page.locator('.rail')).toBeHidden();
+      await expect(page.locator('.bottom-nav')).toBeVisible();
       await expectNoHorizontalOverflow(page);
     } else {
       await expect(page.locator('.bottom-nav')).toBeVisible();
       await expectNoHorizontalOverflow(page);
     }
+  });
+
+  test('keeps compact Live controls touch-sized without horizontal overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedDemoMode(page);
+    await gotoDashboardRoute(page, '/live');
+
+    const targets = page.locator([
+      '.demo-banner-action',
+      '.command-actions .cmd-btn',
+      '.live-mode-segment .mat-button-toggle-button',
+      '.quick-tags-toolbar .tag-btn'
+    ].join(','));
+    const boxes = await targets.evaluateAll(elements => elements.map(element => {
+      const rect = element.getBoundingClientRect();
+      return {
+        label: element.getAttribute('aria-label') || element.textContent?.trim() || element.tagName,
+        width: rect.width,
+        height: rect.height
+      };
+    }));
+
+    expect(boxes.length).toBeGreaterThanOrEqual(10);
+    for (const box of boxes) {
+      expect(box.width, `${box.label} width`).toBeGreaterThanOrEqual(44);
+      expect(box.height, `${box.label} height`).toBeGreaterThanOrEqual(44);
+    }
+    await expectNoHorizontalOverflow(page);
   });
 
   test('renders desktop topbar controls without duplicate surfaces or selection indicators', async ({ page }) => {
@@ -776,11 +804,12 @@ test.describe('Dashboard smoke', () => {
     await expect(page.getByText('AA:BB:CC:DD:EE:01').first()).toBeVisible();
   });
 
-  test('labels automatic fallback as DEMO and does not write unscoped telemetry stores', async ({ page }) => {
+  test('labels trainer sandbox mode truthfully and does not write unscoped telemetry stores', async ({ page }) => {
     await page.route('**/api/status', route => route.fulfill({ status: 503, body: '{"error":"offline"}' }));
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#demoBanner')).toBeVisible();
-    await expect(page.locator('#demoBanner')).toContainText('simulated vitals only');
+    await expect(page.locator('#demoBanner')).toContainText('TRAINER SANDBOX');
+    await expect(page.locator('#demoBanner')).toContainText('restart the trainer without --sandbox for live data');
     const legacyKeys = await page.evaluate(() => [
       'rvt-snaps',
       'rvt-snap-notes',
@@ -931,11 +960,21 @@ test.describe('Dashboard smoke', () => {
     const chip = page.locator('.placement-zone-chip');
     await expect(chip).toBeVisible();
     // Demo telemetry oscillates around 50 cm — inside the optimal band.
-    await expect(chip).toHaveText(/Optimal|Good|Too close|Acceptable|Out of range|No target/);
+    await expect(chip).toHaveText('Sweet spot');
+    await expect(chip).toHaveAttribute('data-zone', 'optimal');
     await expect(page.locator('.placement-hint')).not.toBeEmpty();
   });
 
-  test('wires Ctrl+H handoff, Ctrl+Z undo feedback and D demo-toggle shortcuts', async ({ page }) => {
+  test('wires Ctrl+H handoff, Ctrl+Z undo feedback and the guarded D demo shortcut', async ({ page }) => {
+    await page.route('**/api/status', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        mode: 'live',
+        active_session: { session_id: 'active-shortcut-session' }
+      })
+    }));
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => {
       sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
@@ -955,16 +994,17 @@ test.describe('Dashboard smoke', () => {
     await page.keyboard.press('Control+z');
     await expect(page.locator('simple-snack-bar').last()).toContainText(/Nothing to undo|Undid/);
 
-    // D toggles demo mode off and back on with an explanatory snackbar.
+    // D can leave demo mode, but an active live session must block switching
+    // simulated data back on until the operator stops that session.
     await page.keyboard.press('d');
     await expect(page.locator('simple-snack-bar').last()).toContainText('Demo mode off');
     await page.keyboard.press('d');
-    await expect(page.locator('simple-snack-bar').last()).toContainText('Demo mode on');
-    await expect(page.locator('#demoBanner')).toBeVisible();
+    await expect(page.locator('simple-snack-bar').last()).toContainText(
+      'Stop the live session before switching to simulated data.'
+    );
   });
 
   test('renders the session quality scorecard from the summary payload', async ({ page }) => {
-    await mockDemoReportSession(page);
     await seedDemoMode(page);
     await gotoDashboardRoute(page, '/report');
 
@@ -973,10 +1013,13 @@ test.describe('Dashboard smoke', () => {
     await expect(card.getByText('PQI lock')).toBeVisible();
     await expect(card.getByText('84.2%')).toBeVisible();
     await expect(card.locator('.quality-metrics-table tbody tr')).toHaveCount(2);
-    await expect(card.locator('.quality-gate-chip[data-passed="true"]')).toContainText('primary');
-    await expect(card.locator('.quality-gate-chip[data-passed="false"]')).toContainText('secondary');
-    // Non-pass categories show their remediation text.
-    await expect(card.locator('.quality-remediation')).toContainText('oximeter');
+    await expect(card.locator('.quality-gate-chip[data-passed="true"]')).toHaveText([
+      /Coverage gate/,
+      /Agreement gate/,
+      /Motion gate/,
+      /Reference gate/
+    ]);
+    await expect(card.locator('.quality-gate-chip[data-passed="false"]')).toHaveCount(0);
   });
 
   test('overlays an operator-selected comparison session with a delta table', async ({ page }) => {
@@ -986,7 +1029,7 @@ test.describe('Dashboard smoke', () => {
     const picker = page.getByLabel('Compare against another session');
     await picker.click();
     // Demo mode seeds two sandbox sessions; pick the one that is not selected.
-    await page.locator('.cdk-overlay-pane mat-option').nth(1).click();
+    await page.locator('.cdk-overlay-pane mat-option').filter({ hasNotText: 'None' }).first().click();
 
     await expect(page.locator('.compare-overlay-note')).toContainText('dashed line');
     const table = page.locator('.compare-delta-table');
@@ -995,8 +1038,7 @@ test.describe('Dashboard smoke', () => {
     await expect(table).toContainText('Verdict');
 
     // Switching the selected session clears the stale overlay.
-    await page.locator('.selector-card mat-select').first().click();
-    await page.locator('.cdk-overlay-pane mat-option').nth(1).click();
+    await page.locator('.session-chip[aria-pressed="false"]').first().click();
     await expect(table).toHaveCount(0);
   });
 
@@ -1011,6 +1053,7 @@ test.describe('Dashboard smoke', () => {
   test('exposes command search in the condensed mobile action menu', async ({ page }) => {
     if ((page.viewportSize()?.width || 0) > 760) return;
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await waitForUnlockedShell(page);
     await page.getByRole('button', { name: 'More console actions' }).click();
     await page.getByRole('menuitem', { name: /Search commands/ }).click();
     const dialog = page.getByRole('dialog');

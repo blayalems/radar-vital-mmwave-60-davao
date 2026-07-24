@@ -1190,6 +1190,23 @@ html[data-palette] body app-topbar .topbar-actions .tb-more mat-icon {
   color: inherit !important;
 }
 
+/* The imported legacy mobile shell only recognizes its old `.tb-overflow`
+   control and therefore hides Angular's real `.tb-more` menu trigger. Keep the
+   single overflow action reachable on phones; alerts, theme, lock, operator
+   switching, and command search are available inside this menu. */
+@media (max-width: 760px) {
+  html[data-palette] body[data-view] app-topbar .topbar .topbar-actions > .tb-more {
+    align-items: center !important;
+    display: inline-flex !important;
+    flex: 0 0 44px !important;
+    height: 44px !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+    min-width: 44px !important;
+    width: 44px !important;
+  }
+}
+
 /* ---- v17 eyebrow: muted uppercase, never the primary/brand blue. */
 html[data-palette] body app-topbar .crumb-eyebrow {
   color: var(--md-sys-color-on-surface-variant) !important;
@@ -1401,8 +1418,8 @@ html[data-palette] body #demoBanner .demo-banner-action {
   font-size: 11px !important;
   font-weight: 800 !important;
   border-radius: 999px !important;
-  padding: 2px 11px !important;
-  min-height: 0 !important;
+  padding: 3px 11px !important;
+  min-height: 28px !important;
   height: auto !important;
   box-shadow: none !important;
   cursor: pointer;
@@ -1410,6 +1427,21 @@ html[data-palette] body #demoBanner .demo-banner-action {
 html[data-palette] body #demoBanner .demo-banner-action .material-symbols-rounded {
   font-size: 14px !important;
   color: inherit !important;
+}
+
+@media (max-width: 760px) {
+  html[data-palette] body #demoBanner .demo-banner-action {
+    min-height: 44px !important;
+  }
+
+  app-live .live-mode-segment .mat-button-toggle-appearance-standard .mat-button-toggle-button {
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+
+  app-live .live-mode-segment .mat-button-toggle-appearance-standard .mat-button-toggle-label-content {
+    line-height: 42px !important;
+  }
 }
 
 /* ---- v17 Simple/Advanced segment: the active segment is a filled primary

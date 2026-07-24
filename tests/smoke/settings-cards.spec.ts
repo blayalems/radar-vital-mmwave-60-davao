@@ -56,30 +56,64 @@ test.describe('Settings support cards and help links', () => {
     // <h2 class="settings-title"> was removed); assert it there.
     await expect(page.locator('app-topbar .crumb-title')).toHaveText('Settings');
 
-    const groupTitles = page.locator('.settings-grid .settings-group-card > mat-card-header mat-card-title');
+    const groupTitles = page.locator('.settings-grid > .settings-card > mat-card-header mat-card-title');
     const titles = (await groupTitles.allTextContents()).map(title => title.trim());
     expect(titles).toEqual([
-      'Connections & sources',
-      'Display',
-      'Sound & haptics',
-      'Alerts & thresholds',
-      'Telemetry & rendering',
-      'Privacy & security',
-      'Backup & reset',
-      'System & about'
+      'Source mode',
+      'Python server',
+      'BLE reference scanner',
+      'Disconnect behavior',
+      'Appearance',
+      'Material You dynamic color',
+      'Privacy & idle lock',
+      'Haptic feedback',
+      'Preferences portability',
+      'Alert thresholds',
+      'Audio alerts',
+      'Live rendering',
+      'Updates & version info',
+      'Data & diagnostics',
+      'About & legal'
     ]);
 
     const search = page.getByLabel('Search settings');
     await expect(search).toBeVisible();
     await search.fill('privacy');
-    await expect(groupTitles).toHaveText(['Privacy & security']);
+    await expect(groupTitles).toHaveText(['Privacy & idle lock']);
     await search.fill('');
-    await expect(groupTitles).toHaveCount(8);
+    await expect(groupTitles).toHaveCount(15);
 
     await expect(page.getByRole('button', { name: /Review diagnostics toggle/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /View terms/i })).toHaveAttribute('href', /TERMS\.md$/);
     await expect(page.getByRole('link', { name: /View privacy/i })).toHaveAttribute('href', /PRIVACY\.md$/);
     await expect(page.getByRole('button', { name: /Withdraw consent/i })).toBeVisible();
+  });
+
+  test('keeps the text-scale control readable and accessibly named', async ({ page }) => {
+    await gotoUnlocked(page, '/settings');
+
+    const slider = page.getByRole('slider', { name: 'Text scale' });
+    const sliderHost = slider.locator('xpath=ancestor::mat-slider');
+    const output = page.locator('.text-scale-control output');
+    await expect(slider).toBeVisible();
+    await expect(output).toHaveText('100%');
+
+    const sliderBox = await sliderHost.boundingBox();
+    const outputBox = await output.boundingBox();
+    expect(sliderBox).not.toBeNull();
+    expect(outputBox).not.toBeNull();
+    expect(sliderBox!.width).toBeGreaterThan(120);
+    expect(sliderBox!.x + sliderBox!.width).toBeLessThanOrEqual(outputBox!.x + 1);
+
+    await slider.press('End');
+    await expect(output).toHaveText('125%');
+    await expect(slider).toHaveAttribute('aria-valuetext', '125%');
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('rvt-font-scale'))).toBe('1.25');
+
+    const exitDemo = page.getByRole('button', { name: /Exit demo/i });
+    const exitDemoBox = await exitDemo.boundingBox();
+    expect(exitDemoBox).not.toBeNull();
+    expect(exitDemoBox!.height).toBeGreaterThanOrEqual(24);
   });
 
   test('exposes support commands in the command palette', async ({ page }) => {

@@ -191,11 +191,17 @@ export class ApiService {
   }
 
   async request<T = unknown>(path: string, init?: RequestInit, bypassSandbox = false, timeoutMs = 10000): Promise<T> {
-    const isSandbox = !bypassSandbox && (
+    const sandboxRequested = (
       this.state.autoDemoActive()
       || this.state.demoMode()
       || (this.state.ctlOn() && this.state.ctlStatus()?.mode === 'sandbox')
     );
+    const activeSessionId = this.state.currentSessionId() || '';
+    const protectsRealSessionStop = this.state.sessionActive()
+      && this.state.ctlStatus()?.mode !== 'sandbox'
+      && !activeSessionId.startsWith('sandbox_')
+      && String(path).split('?', 1)[0] === '/api/session/stop';
+    const isSandbox = !bypassSandbox && sandboxRequested && !protectsRealSessionStop;
 
     if (isSandbox && path.startsWith('/api/')) {
       return this.sandboxApiJson(path, init) as T;
@@ -350,12 +356,22 @@ export class ApiService {
     }
   }
 
-  enableSandboxControlMode(reason: string) {
+  enableSandboxControlMode(reason: string): boolean {
     this.connectionAttempt++;
+    if (!this.state.trySetAutoDemoActive(true)) {
+      this.state.ctlOn.set(true);
+      this.state.ctlStatus.update(status => ({
+        ...(status ?? {}),
+        ok: false,
+        mode: 'live',
+        reason
+      }));
+      this.connectionLoading.set(false);
+      return false;
+    }
     this.state.ctlOn.set(true);
     this.state.sessionActive.set(false);
     this.state.ctlStopPending.set(false);
-    this.state.autoDemoActive.set(true);
     this.state.ctlStatus.set({
       ok: true,
       mode: 'sandbox',
@@ -363,6 +379,7 @@ export class ApiService {
     });
     this.sandboxLoadSessions();
     this.connectionLoading.set(false);
+    return true;
   }
 
   private errorMessage(body: unknown, fallback: string): string {

@@ -5,6 +5,79 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-19 - Polling-fallback monolith synchronization
+
+- **Generated dashboard**: Rebuilt the self-contained dashboard from the Angular source so the persistent SSE polling-only fallback shipped in `web/` is present in the committed monolith.
+- **CI reproduction**: Reproduced PR #75's failed `Verify web/ ↔ monolith round-trip` step locally and confirmed the only drift was the missing polling-fallback bundle update.
+- **Verification**: `npm run build:check` passes after the synchronized artifact is committed.
+
+### 2026-07-18 - Headerless visual handoff support
+
+- **Visual refresh automation**: The Windows baseline workflow now appends its handoff entry when `HANDOFF.md` is empty or contains no existing dated headings instead of reporting success without recording the refresh.
+- **Coverage**: Added a workflow contract guard for the headerless-log fallback.
+
+### 2026-07-18 - Persistent SSE polling fallback
+
+- **Transport fallback**: Crossing the SSE error-window threshold now enters an explicit polling-only state instead of scheduling another EventSource attempt; only manual reconnect or re-authentication clears the state.
+- **Coverage**: Added a threshold test proving repeated `startSse` calls cannot reopen a stream during fallback and manual reconnect restores SSE eligibility.
+
+### 2026-07-18 - Atomic dashboard readiness proof
+
+- **Reviewer follow-up**: Confirmed every supervisor and trainer dashboard payload uses `save_json`, which fsyncs a same-directory temporary file and publishes it with `os.replace`; readiness therefore cannot observe a half-written first payload.
+- **Regression gate**: Added a test that inspects the existing placeholder while the replacement temporary file is being serialized, then proves the complete new JSON appears only after replacement and no temporary file remains.
+
+### 2026-07-17 - Mobile operator smoke synchronization
+
+- **Operator journey**: Replaced synthetic create-profile clicks with enabled, actionable clicks that explicitly await both the profile-create and automatic-login responses before asserting dialog transitions; extended only this multi-stage lockout journey to a 120-second budget.
+- **CI/browser evidence**: The final PR #75 matrix passed 331/332 cases; its sole iPhone failure waited on the switch dialog while the test had no synchronization with the two-request create-and-login operation. The patched exact iPhone WebKit journey passes 1/1, including both operator switches and the five-attempt lockout, in 1.4 minutes.
+
+### 2026-07-17 - Visual refresh bootstrap retirement
+
+- **Workflow scope**: Removed the one-shot PR #75 push trigger after the Windows runner regenerated, verified, committed, and pushed all 80 active baselines; the guarded manual refresh workflow and failure artifacts remain available for intentional future UI changes.
+- **Verification**: The bootstrap job completed 96/96 visual cases on its clean second pass and deleted exactly the four obsolete high-contrast Live snapshots.
+
+### 2026-07-17 - Tablet Simple-view smoke contract
+
+- **Navigation contract**: Aligned the iPad Simple/zen-mode smoke assertion with the shipped responsive shell: the desktop rail is removed and bottom navigation remains available through the 600–1023 px tablet band.
+- **Browser evidence**: The full PR smoke run passed 331/332 cases; its only failure was the superseded assertion expecting the hidden rail while the rendered bottom navigation correctly preserved primary routes.
+
+### 2026-07-17 - Deterministic Settings visual capture
+
+- **Visual fixture**: Fixed the Settings-only test clock and random source so the live topbar latency and in-memory pairing PIN cannot differ between baseline capture and verification; the global 200-pixel threshold remains unchanged.
+- **Refresh diagnostics**: Baseline and Playwright failure artifacts now upload even when the clean verification pass fails.
+- **Verification**: The first Windows refresh regenerated all snapshots, removed the four obsolete HC files, and reproduced 94/96 cases; only dark/night desktop Settings differed by 384-473 dynamic pixels. Focused system-Chrome capture/verify passed 2/2 before the deterministic fixture was added.
+
+### 2026-07-17 - Visual refresh expression correction
+
+- **Workflow parser**: Quoted the two `REFRESH_REASON` expressions so YAML does not interpret the `#75` fallback text as an inline comment and reject the workflow before job creation.
+- **Verification**: `actionlint` validates the corrected workflow; the failed bootstrap run created no job and changed no baselines.
+
+### 2026-07-17 - Windows visual baseline refresh bootstrap
+
+- **Refresh workflow**: Added a one-shot PR #75 branch trigger, exact obsolete-snapshot cleanup, a same-commit runtime HANDOFF entry, and a seven-day artifact fallback to the existing Windows visual-baseline maintenance workflow.
+- **Check semantics**: Corrected the workflow guidance for GitHub-token pushes; a maintainer-authenticated follow-up push will run the complete PR checks after the generated baseline commit.
+- **Safety/verification**: Strict pixel thresholds remain unchanged; the runner will regenerate all 80 active baselines and prove them with a clean second visual-suite run before committing.
+
+### 2026-07-17 - Playwright contract alignment and mobile console recovery
+
+- **Mobile console actions**: Restored the 44 px Angular `.tb-more` overflow trigger on phone layouts where the imported legacy shell only allowlisted `.tb-overflow`, making command search, profile lock, and operator switching visibly reachable again instead of test-only DOM dispatches.
+- **Smoke contract alignment**: Installed Connect status stubs before bootstrap, pinned trainer-sandbox provenance, `Sweet spot` placement, active-session demo guards, granular readiness gates, report session chips, current Settings cards/search, stale-state punctuation, and stable Material mobile interactions.
+- **Verification**: The fresh desktop/Pixel system-Chrome matrix reached 20/22 before exposing the hidden mobile trigger; after the production CSS rebuild, the two failing Pixel operator/PIN journeys passed 2/2 and command-menu search rechecked 1/1. `npm run build:web` and monolith round-trip passed with the known 2.51 MB warning; all 332 smoke cases discover; source-integrity, contrast, and `git diff --check` pass.
+
+### 2026-07-17 - Chrome-audited Settings and mobile touch-target fixes
+
+- **Settings**: Fixed the Text Scale slider's `0 x 0` flex collapse and percentage overlap with a full-width control row; added a percentage `displayWith` formatter, accessible slider name, semantic output, and Playwright geometry/state regression.
+- **Mobile Live/demo**: Restored a 28 px compact desktop demo action and raised the mobile demo action, primary Live actions, Simple/Advanced controls, and quick tags to 44 px without horizontal overflow.
+- **Browser evidence/verification**: Documented the seven-view Chrome walkthrough and deferred visual findings in `docs/cross-stack-audit-plan-2026-07.md`; post-fix captures confirm the Settings slider at 233 x 48 and targeted mobile controls at least 44 x 44. Focused installed-Chrome smoke 2/2, `npm run test:unit:web` 170/170, `npm run build:check`, and `git diff --check` pass; the existing 2.51 MB initial-bundle warning remains.
+
+### 2026-07-17 - Cross-stack audit hardening and staged refactor plan
+
+- **Frontend safety/telemetry**: Centralized manual, automatic, and trainer-sandbox source truth; blocked simulated-source entry during real recordings; kept real Stop requests on the trainer; made SSE token minting single-flight/cancellable and rotated the one-use stream token on the 12 h warning without clearing session state.
+- **Backend integrity**: Session start now ignores its supervisor-owned placeholder and checks child exit before readiness; profile mutations return `503 OPERATOR_STORE_UNAVAILABLE` without changing a corrupt operator DB.
+- **Firmware/build/dependencies**: Replaced the recovery-time 400 ms firmware-version wait with a nonblocking parser probe; pinned/fail-closed esbuild bundling; updated Angular/pytest security floors; retained the 222-column order and `ENABLE_BLE false`.
+- **Audit plan**: Added `docs/cross-stack-audit-plan-2026-07.md` with prioritized frontend/backend/firmware findings and four characterization-first follow-up PRs.
+- **Verification**: `python -m pytest -q` 326 passed/1 skipped; Python compileall + CLI help pending final handoff; `npm run test:unit:web` 170/170; root/web `npm audit --audit-level=low` clean; `pip-audit -r requirements.txt -r requirements-v12.txt` clean; `npm run build:check` clean. Angular retains the existing 2.51 MB initial-bundle warning. Playwright browser capture and Arduino compile are pending because their local browser/toolchain binaries are not installed.
+
 ### 2026-07-05 - PR72 README/docs contract sync
 
 - **Docs sync**: Updated README, AGENTS, CONTRIBUTING, changelog, milestones, operator quickstart, physical acceptance, wiki install/troubleshooting pages, audit ledger, packaged help schema, firmware header comments, demo preflight copy, and smoke fixture wording to reflect PR71/PR72 behavior: v16.4 firmware, v15.2 222-column CSV, packaged AiLink BLE sidecar capture, radar-only fallback, persistent preflight, inferred session metadata, PR72 data-audit checks, and module firmware readback.

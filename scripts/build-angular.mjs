@@ -9,6 +9,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
 import { execSync } from 'node:child_process';
+import { build as buildWithEsbuild } from 'esbuild';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -32,7 +33,11 @@ async function main() {
   }
 
   console.log('--- Phase 2: Copying Static SW & Manifest Assets ---');
+  // Angular 21.2.19 rejects asset inputs outside the web workspace. Preserve
+  // the public /assets/* compatibility tree explicitly after compilation.
+  await fs.cp(SRC_ASSETS, path.join(WWW, 'assets'), { recursive: true });
   await fs.copyFile(path.join(SRC_ASSETS, 'manifest.webmanifest'), path.join(WWW, 'manifest.webmanifest'));
+  await fs.copyFile(path.join(SRC_ASSETS, 'pair.html'), path.join(WWW, 'pair.html'));
   await fs.copyFile(path.join(SRC_ASSETS, 'sw.js'), path.join(WWW, 'sw.js'));
   await fs.rm(path.join(WWW, 'rvt-sw.js'), { force: true });
   for (const directory of ['fonts', 'icons', 'lib']) {
@@ -90,19 +95,19 @@ async function main() {
     }
     inlinedScripts.add(jsPath);
     console.log(`Inlining JS bundle: ${jsPath}`);
-    let jsContent = '';
-    let scriptType = ' type="module"';
-    try {
-      console.log(`Bundling JS bundle with esbuild to resolve all chunks: ${jsPath}`);
-      const bundledPath = path.join(WWW, `bundled-${path.basename(jsPath)}`);
-      execSync(`npx esbuild "${path.join(WWW, jsPath)}" --bundle --minify --allow-overwrite --outfile="${bundledPath}" --format=iife --global-name=RVTDashboardBundle`, { cwd: ROOT, stdio: 'ignore' });
-      jsContent = await fs.readFile(bundledPath, 'utf8');
-      scriptType = '';
-    } catch (e) {
-      console.warn(`Esbuild bundling failed or skipped for ${jsPath}, falling back to direct read.`);
-      jsContent = await fs.readFile(path.join(WWW, jsPath), 'utf8');
-    }
-    indexHtml = indexHtml.replace(fullTag, () => `<script${scriptType}>\n${jsContent}\n</script>`);
+    console.log(`Bundling JS bundle with pinned esbuild to resolve all chunks: ${jsPath}`);
+    const bundledPath = path.join(WWW, `bundled-${path.basename(jsPath)}`);
+    await buildWithEsbuild({
+      entryPoints: [path.join(WWW, jsPath)],
+      bundle: true,
+      minify: true,
+      allowOverwrite: true,
+      outfile: bundledPath,
+      format: 'iife',
+      globalName: 'RVTDashboardBundle'
+    });
+    const jsContent = await fs.readFile(bundledPath, 'utf8');
+    indexHtml = indexHtml.replace(fullTag, () => `<script>\n${jsContent}\n</script>`);
   }
   // Remove unused modulepreload link tags since all JS chunks are fully bundled by esbuild
   indexHtml = indexHtml.replace(/<link[^>]*rel="modulepreload"[^>]*>/g, '');

@@ -323,7 +323,14 @@ export class LayoutComponent implements OnInit {
     if (key === 'd') {
       event.preventDefault();
       const enabled = !this.state.demoMode();
-      this.state.demoMode.set(enabled);
+      if (!this.state.trySetDemoMode(enabled)) {
+        this.snackBar.open(
+          'Stop the live session before switching to simulated data.',
+          'Dismiss',
+          { duration: 4000 }
+        );
+        return;
+      }
       this.state.triggerHaptic('tap');
       this.snackBar.open(
         enabled

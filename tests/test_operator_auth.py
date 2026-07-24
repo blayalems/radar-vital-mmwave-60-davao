@@ -90,6 +90,28 @@ def test_bootstrapping_and_profile_creation(temp_sessions_root):
     assert payload2["ok"] is True
 
 
+@pytest.mark.parametrize(
+    "stored_bytes",
+    [
+        b"{not valid json",
+        b'{"schema_version":"rvt-operator-profiles-v12.0","profiles":[]}',
+    ],
+)
+def test_profile_creation_preserves_unreadable_operator_store(temp_sessions_root, stored_bytes):
+    server = MockServer(temp_sessions_root)
+    store = Path(temp_sessions_root) / "operator_profiles.json"
+    store.write_bytes(stored_bytes)
+
+    status, payload = create_operator_profile(
+        server,
+        {"display_name": "Sarah Connor", "initials": "SC", "pin": "123456"},
+    )
+
+    assert status == 503
+    assert payload["error"]["code"] == "OPERATOR_STORE_UNAVAILABLE"
+    assert store.read_bytes() == stored_bytes
+
+
 def test_login_success_and_brute_force_lockout(temp_sessions_root):
     server = MockServer(temp_sessions_root)
 

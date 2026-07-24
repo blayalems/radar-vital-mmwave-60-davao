@@ -113,6 +113,7 @@ export class SettingsComponent {
   protected readonly updateService = inject(UpdateService);
   private readonly router = inject(Router);
   protected readonly Math = Math;
+  protected readonly formatFontScale = (value: number): string => `${Math.round(value * 100)}%`;
   protected readonly productVersion = PRODUCT_VERSION;
   protected readonly schemaVersion = SCHEMA_VERSION_LABEL;
   protected readonly termsVersion = TERMS_VERSION;
@@ -258,7 +259,14 @@ export class SettingsComponent {
   }
 
   async setDemoMode(enabled: boolean): Promise<void> {
-    this.state.demoMode.set(enabled);
+    if (!this.state.trySetDemoMode(enabled)) {
+      this.snackBar.open(
+        'Stop the live session before switching to simulated data.',
+        'Dismiss',
+        { duration: 4000 }
+      );
+      return;
+    }
     if (!enabled) await this.reconnectTrainer();
   }
 

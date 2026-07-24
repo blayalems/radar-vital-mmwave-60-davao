@@ -1,4 +1,4 @@
-import { Injectable, effect, inject } from '@angular/core';
+import { Injectable, computed, effect, inject } from '@angular/core';
 import {
   AlertEvent,
   AlertSeverity,
@@ -139,6 +139,9 @@ export class StateService {
   sessionItems = this.sessionStore.sessionItems;
   currentSessionId = this.sessionStore.currentSessionId;
   sessionActive = this.sessionStore.sessionActive;
+  readonly demoSourceActive = computed(() =>
+    this.demoMode() || this.autoDemoActive() || this.ctlStatus()?.mode === 'sandbox'
+  );
   preflightChecks = this.sessionStore.preflightChecks;
   preflightRunning = this.sessionStore.preflightRunning;
   preflightUpdatedAtMs = this.sessionStore.preflightUpdatedAtMs;
@@ -294,7 +297,7 @@ export class StateService {
       localStorage.setItem('rvt-auto-demo-on-disconnect', this.autoDemoOnDisconnect() ? '1' : '0');
       document.body.classList.toggle(
         'demo-mode',
-        this.demoMode() || this.autoDemoActive() || this.ctlStatus()?.mode === 'sandbox'
+        this.demoSourceActive()
       );
     });
   }
@@ -395,9 +398,23 @@ export class StateService {
   }
 
   storageScope(): StorageScope {
-    return this.demoMode() || this.autoDemoActive() || this.ctlStatus()?.mode === 'sandbox'
-      ? 'demo'
-      : 'live';
+    return this.demoSourceActive() ? 'demo' : 'live';
+  }
+
+  trySetDemoMode(enabled: boolean): boolean {
+    if (enabled && this.sessionActive() && !this.demoSourceActive()) {
+      return false;
+    }
+    this.demoMode.set(enabled);
+    return true;
+  }
+
+  trySetAutoDemoActive(enabled: boolean): boolean {
+    if (enabled && this.sessionActive() && !this.demoSourceActive()) {
+      return false;
+    }
+    this.autoDemoActive.set(enabled);
+    return true;
   }
 
   private async hydrateScopedRecords(scope: StorageScope): Promise<void> {

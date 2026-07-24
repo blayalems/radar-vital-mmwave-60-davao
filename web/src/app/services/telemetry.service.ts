@@ -19,9 +19,12 @@ export class TelemetryService {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private staleTimer: ReturnType<typeof setTimeout> | null = null;
   private sseReconnectAttempts = 0;
+  private sseConnectGeneration = 0;
+  private sseConnecting = false;
   private running = false;
   private sse: EventSource | null = null;
   private sseMode = false;
+  private pollingOnly = false;
   private sseErrors: number[] = [];
   private httpPollFailures = 0;
   private demoT = 0;
@@ -33,7 +36,7 @@ export class TelemetryService {
     this.start();
     window.addEventListener('rvt-operator-authenticated', () => this.reconnect());
     effect(() => {
-      const simulating = this.state.demoMode() || this.state.autoDemoActive();
+      const simulating = this.state.demoSourceActive();
       const isLocked = this.auth.isLocked();
       if (isLocked) {
         this.stopSse();
@@ -68,6 +71,7 @@ export class TelemetryService {
     this.clearPollTimer();
     this.clearReconnectTimer();
     this.sseReconnectAttempts = 0;
+    this.pollingOnly = false;
     this.httpPollFailures = 0;
     if (!this.running) {
       this.running = true;
@@ -112,7 +116,7 @@ export class TelemetryService {
       return;
     }
 
-    if (this.state.demoMode() || this.state.autoDemoActive()) {
+    if (this.state.demoSourceActive()) {
       this.runSimulationStep();
       this.scheduleNextPoll(1000);
       return;
@@ -151,8 +155,7 @@ export class TelemetryService {
         this.scheduleNextPoll(1000);
       } else {
         this.emitAlert(`Live connection unavailable: ${message}`, 'critical');
-        if (this.state.autoDemoOnDisconnect()) {
-          this.state.autoDemoActive.set(true);
+        if (this.state.autoDemoOnDisconnect() && this.state.trySetAutoDemoActive(true)) {
           this.scheduleNextPoll(0);
         } else {
           this.httpPollFailures++;
@@ -169,15 +172,19 @@ export class TelemetryService {
     // Tauri keeps browser CSP at connect-src 'self'. EventSource bypasses the
     // HttpClient interceptor, so the native shell uses origin-pinned polling.
     if (this.isTauriNative()) return;
-    if (this.state.demoMode() || this.state.autoDemoActive()) return;
+    if (this.state.demoSourceActive()) return;
     if (!this.running) return;
-    // Guard: prevent duplicate EventSource if one is already connected
-    if (this.sse) return;
+    if (this.pollingOnly) return;
+    // Token minting is asynchronous. Keep it single-flight so rapid auth,
+    // reconnect, and mode-change signals cannot leak orphan EventSources.
+    if (this.sse || this.sseConnecting) return;
     if (this.api.hasPairToken() && !sessionStorage.getItem(OPERATOR_TOKEN_KEY)) {
       this.scheduleNextPoll(0);
       return;
     }
 
+    const generation = ++this.sseConnectGeneration;
+    this.sseConnecting = true;
     try {
       const base = this.api.currentApiBase();
       let sseToken = '';
@@ -193,10 +200,17 @@ export class TelemetryService {
         console.warn('Failed to obtain sse-token', err);
       }
 
+      if (!this.canOpenSse(generation)) return;
       const url = sseToken ? `${base}/api/events/subscribe?token=${encodeURIComponent(sseToken)}` : `${base}/api/events/subscribe`;
-      this.sse = new EventSource(url);
+      const source = new EventSource(url);
+      if (!this.canOpenSse(generation)) {
+        source.close();
+        return;
+      }
+      this.sse = source;
 
-      this.sse.onopen = () => {
+      source.onopen = () => {
+        if (!this.isCurrentSse(source, generation)) return;
         console.log('SSE connection successfully opened.');
         this.sseMode = true;
         this.sseErrors = [];
@@ -206,7 +220,8 @@ export class TelemetryService {
         this.clearReconnectTimer();
       };
 
-      this.sse.addEventListener('live', (ev: MessageEvent) => {
+      source.addEventListener('live', (ev: MessageEvent) => {
+        if (!this.isCurrentSse(source, generation)) return;
         try {
           const raw = JSON.parse(ev.data || '{}');
           this.applyLivePayload(raw);
@@ -215,42 +230,73 @@ export class TelemetryService {
         }
       });
 
-      this.sse.addEventListener('session_warning', (ev: MessageEvent) => {
+      source.addEventListener('session_warning', (ev: MessageEvent) => {
+        if (!this.isCurrentSse(source, generation)) return;
         const payload = this.parseSseJson(ev);
         // The contractual 12 h stream deadline (AGENTS.md invariant 11) is routine:
-        // tell the operator it is automatic instead of raising a scary warning.
+        // tell the operator it is automatic and immediately rotate the one-use token.
         const isDeadline = !!payload && (payload as Record<string, unknown>)['reason'] === 'deadline_approaching';
         const message = isDeadline
-          ? 'Live stream renews in 60 seconds — automatic, no action needed.'
+          ? 'Live stream is renewing automatically — no action needed.'
           : this.eventMessage(payload, 'Session warning from telemetry stream.');
         this.emitAlert(message, 'warn', 'sse-session-warning');
+        if (isDeadline) this.renewSseConnection();
       });
 
-      this.sse.addEventListener('stopped', (ev: MessageEvent) => {
+      source.addEventListener('stopped', (ev: MessageEvent) => {
+        if (!this.isCurrentSse(source, generation)) return;
         const payload = this.parseSseJson(ev);
         const message = this.eventMessage(payload, 'Telemetry session stopped.');
         this.reconcileStoppedEvent(payload, message);
       });
 
-      this.sse.addEventListener('data_update', () => {
+      source.addEventListener('data_update', () => {
+        if (!this.isCurrentSse(source, generation)) return;
         this.state.ctlStatus.update((s) => ({ ...(s ?? { ok: true }), ok: true, last_data_update_ms: Date.now() }));
       });
 
-      this.sse.onerror = () => {
+      source.onerror = () => {
+        if (!this.isCurrentSse(source, generation)) return;
         const now = Date.now();
         this.sseErrors = this.sseErrors.filter((t) => now - t < 60000);
         this.sseErrors.push(now);
         if (this.sseErrors.length > 3) {
           console.warn('SSE failure threshold reached. Falling back to polling.');
+          this.pollingOnly = true;
           this.stopSse();
           this.scheduleNextPoll(0);
-          this.scheduleSseReconnect();
+          this.clearReconnectTimer();
+          this.nextRetryAtMs.set(null);
         }
       };
     } catch (e) {
+      if (generation !== this.sseConnectGeneration || !this.running) return;
       console.warn('SSE connection failed', e);
       this.scheduleSseReconnect();
+    } finally {
+      if (generation === this.sseConnectGeneration) {
+        this.sseConnecting = false;
+      }
     }
+  }
+
+  private canOpenSse(generation: number): boolean {
+    return generation === this.sseConnectGeneration
+      && this.running
+      && !this.auth.isLocked()
+      && !this.state.demoSourceActive()
+      && !this.sse;
+  }
+
+  private isCurrentSse(source: EventSource, generation: number): boolean {
+    return generation === this.sseConnectGeneration && this.sse === source;
+  }
+
+  private renewSseConnection(): void {
+    this.stopSse();
+    this.clearReconnectTimer();
+    this.sseReconnectAttempts = 0;
+    void this.startSse();
   }
 
   private isTauriNative(): boolean {
@@ -294,7 +340,7 @@ export class TelemetryService {
   }
 
   private scheduleSseReconnect() {
-    if (!this.running) return;
+    if (!this.running || this.pollingOnly) return;
     this.clearReconnectTimer();
     const backoffSeconds = this.sseReconnectAttempts === 0 ? 15 : this.sseReconnectAttempts === 1 ? 30 : 60;
     const jitterMs = Math.floor(Math.random() * 2000) - 1000;
@@ -305,11 +351,13 @@ export class TelemetryService {
       this.nextRetryAtMs.set(null);
       if (!this.running) return;
       this.sseReconnectAttempts++;
-      this.startSse();
+      void this.startSse();
     }, delayMs);
   }
 
   private stopSse() {
+    this.sseConnectGeneration++;
+    this.sseConnecting = false;
     if (this.sse) {
       try {
         this.sse.close();

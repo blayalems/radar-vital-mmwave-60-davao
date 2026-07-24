@@ -129,7 +129,10 @@ export class ConnectWizardComponent implements OnDestroy {
   }
 
   demoNow() {
-    this.state.demoMode.set(true);
+    if (!this.state.trySetDemoMode(true)) {
+      this.error.set('Stop the live session before switching to simulated data.');
+      return;
+    }
     try {
       localStorage.setItem('rvt-demo-mode', '1');
     } catch (_) {}

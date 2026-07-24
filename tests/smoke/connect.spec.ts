@@ -41,18 +41,24 @@ test.describe('Connect Wizard first-run onboarding', () => {
   });
 
   test('Demo Now button configures sandbox mode and redirects to /live', async ({ page }) => {
-    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
-    await page.waitForURL(/\/connect$/);
-
-    // Mock api/status and other endpoints that /live might query
+    // Install the status route before boot so connection detection cannot
+    // hydrate a stale active-session flag that correctly blocks demo entry.
     await page.route('**/api/status', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ trainer_version: '1.0.0', dashboard_version: '1.0.0', active_session: null })
+        body: JSON.stringify({
+          ok: true,
+          mode: 'live',
+          trainer_version: '16.4.0',
+          dashboard_version: '16.4.0',
+          active_session: null
+        })
       });
     });
 
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL(/\/connect$/);
     await page.getByRole('button', { name: /Demo Now/ }).click();
     await page.waitForURL(/\/live$/);
 

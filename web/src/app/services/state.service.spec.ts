@@ -42,6 +42,24 @@ describe('StateService', () => {
     expect(service.theme()).toBe('night');
   });
 
+  it('treats a trainer sandbox response as a demo data source', () => {
+    service.ctlStatus.set({ ok: true, mode: 'sandbox' });
+
+    expect(service.demoSourceActive()).toBe(true);
+    expect(service.storageScope()).toBe('demo');
+  });
+
+  it('refuses to switch a real active session to simulated data', () => {
+    service.ctlStatus.set({ ok: true, mode: 'live' });
+    service.sessionActive.set(true);
+
+    expect(service.trySetDemoMode(true)).toBe(false);
+    expect(service.trySetAutoDemoActive(true)).toBe(false);
+    expect(service.demoMode()).toBe(false);
+    expect(service.autoDemoActive()).toBe(false);
+    expect(service.storageScope()).toBe('live');
+  });
+
   it('should handle alert updates', () => {
     service.pushAlert('Test warning', 'warn', 'unit-test');
     const alerts = service.alertHistory();

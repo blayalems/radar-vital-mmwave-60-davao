@@ -1,15 +1,6 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 import { API_BASE_KEY, SERVER_URL_KEY, TOKEN_KEY, OPERATOR_TOKEN_KEY } from '../rvt-storage-keys';
-
-function isApiUrl(value: string): boolean {
-  if (value.startsWith('/api/')) return true;
-  try {
-    const parsed = new URL(value, 'http://rvt.local');
-    return /^https?:$/.test(parsed.protocol) && parsed.pathname.startsWith('/api/');
-  } catch (_) {
-    return false;
-  }
-}
+import { isTrustedTrainerApiTarget, normalizeHttpOrigin } from '../api-target-policy';
 
 export const rvtAuthInterceptor: HttpInterceptorFn = (req, next) => {
   let token = '';
@@ -21,22 +12,23 @@ export const rvtAuthInterceptor: HttpInterceptorFn = (req, next) => {
   let base = '';
   try {
     const storedBase = localStorage.getItem(API_BASE_KEY) || localStorage.getItem(SERVER_URL_KEY);
-    const raw = String(storedBase || '').trim().replace(/\/+$/, '');
-    if (raw) {
-      const u = new URL(raw, window.location.href);
-      if (/^https?:$/.test(u.protocol)) {
-        base = u.origin;
-      }
-    }
+    base = normalizeHttpOrigin(storedBase || '');
   } catch (_) {}
 
-  const isApi = isApiUrl(req.url) || Boolean(base && req.url.startsWith(base));
+  const hasTauriTransport = Boolean((window as any).__TAURI__?.core?.invoke);
+  const isApi = isTrustedTrainerApiTarget(req.url, base, {
+    allowTauriLoopback: hasTauriTransport
+  });
 
   if (token && isApi) {
     req = req.clone({
       setHeaders: {
         'X-RVT-Auth': token
       }
+    });
+  } else if (!isApi && req.headers.has('X-RVT-Auth')) {
+    req = req.clone({
+      headers: req.headers.delete('X-RVT-Auth')
     });
   }
   return next(req);

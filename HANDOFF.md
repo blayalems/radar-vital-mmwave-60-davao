@@ -5,12 +5,76 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-22 - Record lifecycle acceptance evidence
+
+- **Audit closure**: Mapped every PR #77 acceptance bullet in the cross-stack plan to its implementation and named automated coverage, while retaining only packaged-EXE process validation and the native 12-hour reconnect soak as external release gates.
+
+### 2026-07-22 - Align service-worker static contract with canonical refresh
+
+- **CI repair**: Replaced a whitespace-sensitive single-line `networkFirst` assertion with explicit checks for the canonical dashboard refresh request, monolith fallback key, and `DASHBOARD` refresh argument.
+- **Reproduction**: The former PR #77 Python gate reached 334 passed / 1 skipped before failing only on the multiline call formatting; the focused service-worker contract now validates behavior instead of layout.
+
+### 2026-07-22 - Refresh lifecycle stack on synchronized audit base
+
+- **PR topology**: Merged `codex/cross-stack-audit-hardening` at `47fe522` so PR #77 inherits the synchronized polling-fallback dashboard and remains a strict ancestor base for PR #76.
+
 ### 2026-07-19 - Polling-fallback monolith synchronization
 
 - **Generated dashboard**: Rebuilt the self-contained dashboard from the Angular source so the persistent SSE polling-only fallback shipped in `web/` is present in the committed monolith.
 - **CI reproduction**: Reproduced PR #75's failed `Verify web/ ↔ monolith round-trip` step locally and confirmed the only drift was the missing polling-fallback bundle update.
 - **Verification**: `npm run build:check` passes after the synchronized artifact is committed.
 
+### 2026-07-18 - Linearize lifecycle stack on audit base
+
+- **PR topology**: Merged the current `codex/cross-stack-audit-hardening` head so PR #75 is now an actual ancestor of PR #77 rather than a divergent sibling, preventing avoidable merge noise downstream.
+
+### 2026-07-18 - Review closure for diagnostics and shell caching
+
+- **Diagnostic categories**: Authentication terms now require complete word matches, so `repairing` and `spinlock` cannot be mislabeled while real pairing/token failures remain categorized.
+- **PIN redaction**: Pairing query and named-field sanitizers redact 3-8 digit PINs while leaving unrelated short numeric diagnostics intact.
+- **Offline shell integrity**: Online route responses are returned normally but never stored as the canonical shell; cache refreshes fetch `index.html` explicitly before replacing the one navigation cache key.
+- **Coverage**: Added false-positive error-category cases and executable route-versus-shell cache assertions.
+
+### 2026-07-18 - Integrate lifecycle, race, and privacy closure
+
+- **Stacked closure**: Combined bounded session shutdown ownership with report/preflight request gates, canonical navigation caching, de-identified issue diagnostics, and exact-origin trainer credential policy.
+- **Scope**: This branch is the consolidated PR base for subsequent frontend and backend follow-ups; all source commits remain individually reviewable below the merge.
+
+### 2026-07-17 - Session shutdown ownership and bounded reap
+
+- **Supervisor lifecycle**: Serialized start/stop/current transitions behind a closeable gate; parent-driven stops now suppress child inline analysis, reap with bounded interrupt/terminate/kill waits, clear only owned markers, and retain truthful state when reaping fails.
+- **Server shutdown policy**: Control-server shutdown closes the start gate, stops HTTP acceptance, reaps the detached capture child idempotently, preserves captured files, and never launches analysis; explicit user Stop may analyse only after successful cleanup.
+- **Verification**: Focused session-isolation and control-server lifecycle suites pass 42/42; trainer monolith `py_compile` passes.
+
+### 2026-07-18 - Exact-origin trainer authentication
+
+- **Credential boundary**: Browser, Capacitor, and download requests now attach trainer credentials only to relative trainer APIs or absolute API URLs on the exact configured origin; caller-supplied trainer headers are removed from untrusted destinations.
+- **Native routing**: Tauri no longer captures arbitrary absolute `/api/` URLs, while its restart-safe exception remains limited to HTTP loopback API URLs that are re-resolved and pinned by the native paired-origin transport.
+- **Verification**: Focused API/auth/Tauri coverage passes 24/24, including hostile absolute URLs and origin-prefix lookalikes; the Angular production build and `npm run build:check` pass with the existing 2.52 MB initial-bundle warning.
+
+### 2026-07-18 - De-identified issue diagnostics
+
+- **Control summary**: Issue previews and generated URLs now allowlist control status fields, normalize mode/latency, and replace raw error/reason/message text with a non-reversible failure category.
+- **Alert recency**: Diagnostic alert history is explicitly sorted newest-first before selecting five entries; messages remain excluded and unknown source strings collapse to `other`.
+- **Verification**: Issue-report coverage passes 33/33; the Angular production build and `npm run build:check` pass with the existing 2.52 MB initial-bundle warning.
+
+### 2026-07-18 - Canonical navigation cache privacy
+
+- **Service worker**: Angular navigations now write and read one scope-qualified `index.html` cache key instead of raw route/query URLs; the cache namespace bump removes existing route and pairing-PIN entries.
+- **Non-shell pages**: Pairing and support navigations remain network-only so a PIN-rendered response can neither enter Cache Storage nor replace the offline application shell.
+- **Verification**: Executable online/offline/pairing cache coverage passes 3/3, `node --check assets/sw.js` passes, and `npm run build:check` passes with the existing 2.51 MB initial-bundle warning.
+
+### 2026-07-17 - Preflight request ownership
+
+- **Latest-request gate**: Hardware preflight now snapshots radar/BLE inputs, applies only the newest generation, and leaves the shared running gate set until that generation settles; automatic defaults and serial discovery finish before the initial check.
+- **Start integrity**: Session Start captures the complete click-time payload and cancels if any submitted setup value changes while the fresh preflight is pending; stale or failed checks cannot enable Start.
+- **Verification**: Home helper/race coverage passes 9/9; the Angular production build and `npm run build:check` pass with the existing 2.51 MB initial-bundle warning.
+
+### 2026-07-17 - Report request ownership
+
+- **Race closure**: Added independent primary-session and comparison load epochs so late A responses cannot overwrite a newer B selection or reattach an obsolete comparison overlay.
+- **Immutable saves**: Notes and validation sign-offs now capture the target session and submitted values before awaiting transport; sign-off responses update the captured session without replacing a newly selected form.
+- **Verification**: Deferred A/B unit coverage passes 4/4; the Angular production build and `npm run build:check` pass with the existing 2.51 MB initial-bundle warning.
 ### 2026-07-18 - Headerless visual handoff support
 
 - **Visual refresh automation**: The Windows baseline workflow now appends its handoff entry when `HANDOFF.md` is empty or contains no existing dated headings instead of reporting success without recording the refresh.
@@ -20,7 +84,6 @@
 
 - **Transport fallback**: Crossing the SSE error-window threshold now enters an explicit polling-only state instead of scheduling another EventSource attempt; only manual reconnect or re-authentication clears the state.
 - **Coverage**: Added a threshold test proving repeated `startSse` calls cannot reopen a stream during fallback and manual reconnect restores SSE eligibility.
-
 ### 2026-07-18 - Atomic dashboard readiness proof
 
 - **Reviewer follow-up**: Confirmed every supervisor and trainer dashboard payload uses `save_json`, which fsyncs a same-directory temporary file and publishes it with `os.replace`; readiness therefore cannot observe a half-written first payload.

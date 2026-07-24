@@ -1,4 +1,5 @@
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 
@@ -42,7 +43,8 @@ describe('rvtTauriInterceptor', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(withInterceptors([rvtAuthInterceptor, rvtTauriInterceptor]))
+        provideHttpClient(withInterceptors([rvtAuthInterceptor, rvtTauriInterceptor])),
+        provideHttpClientTesting()
       ]
     });
     const http = TestBed.inject(HttpClient);
@@ -86,7 +88,8 @@ describe('rvtTauriInterceptor', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(withInterceptors([rvtAuthInterceptor, rvtTauriInterceptor]))
+        provideHttpClient(withInterceptors([rvtAuthInterceptor, rvtTauriInterceptor])),
+        provideHttpClientTesting()
       ]
     });
     const http = TestBed.inject(HttpClient);
@@ -110,5 +113,29 @@ describe('rvtTauriInterceptor', () => {
         }
       }
     });
+  });
+
+  it('passes an untrusted absolute API URL through without native routing or authentication', async () => {
+    const invoke = vi.fn();
+    (window as Window & { __TAURI__?: unknown }).__TAURI__ = { core: { invoke } };
+    sessionStorage.setItem(OPERATOR_TOKEN_KEY, 'operator-token-private');
+
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptors([rvtAuthInterceptor, rvtTauriInterceptor])),
+        provideHttpClientTesting()
+      ]
+    });
+    const http = TestBed.inject(HttpClient);
+    const httpMock = TestBed.inject(HttpTestingController);
+
+    const pending = firstValueFrom(http.get('https://untrusted.example/api/status'));
+    const request = httpMock.expectOne('https://untrusted.example/api/status');
+    expect(request.request.headers.has('X-RVT-Auth')).toBe(false);
+    request.flush({ ok: true });
+
+    await expect(pending).resolves.toEqual({ ok: true });
+    expect(invoke).not.toHaveBeenCalled();
+    httpMock.verify();
   });
 });

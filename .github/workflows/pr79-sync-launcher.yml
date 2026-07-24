@@ -2,7 +2,7 @@ name: Launch PR79 integration resolver
 
 on:
   pull_request_target:
-    types: [reopened]
+    types: [opened, reopened]
     branches: [main]
 
 permissions:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   launch:
-    if: github.event.pull_request.number == 79
+    if: github.event.pull_request.number == 79 || github.event.pull_request.head.ref == 'codex/trigger-pr79-resolver'
     runs-on: ubuntu-latest
     steps:
       - name: Check out main
@@ -27,16 +27,16 @@ jobs:
           from pathlib import Path
           path = Path('.github/workflows/pr79-sync-main.yml')
           text = path.read_text(encoding='utf-8')
-          old = '''on:
+          old = """on:
             push:
               branches:
                 - main
               paths:
                 - .github/workflows/pr79-sync-main.yml
-          '''
-          new = '''on:
+          """
+          new = """on:
             workflow_dispatch:
-          '''
+          """
           if old not in text and new not in text:
               raise RuntimeError('resolver trigger block not found')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')

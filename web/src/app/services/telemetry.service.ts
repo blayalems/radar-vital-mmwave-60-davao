@@ -1,10 +1,12 @@
-import { Injectable, effect, inject, signal, untracked } from '@angular/core';
+import { Injectable, effect, inject, untracked } from '@angular/core';
 import { LivePayload } from '../models/rvt.models';
 import { AudioService } from './audio.service';
 import { StateService } from './state.service';
 import { ApiService } from './api.service';
 import { AuthService } from './auth.service';
 import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
+import { SourceModeService } from './source-mode.service';
+import { SseDriverEvent, SseDriverService } from './sse-driver.service';
 
 @Injectable({
   providedIn: 'root',
@@ -14,23 +16,17 @@ export class TelemetryService {
   private api = inject(ApiService);
   private audio = inject(AudioService);
   private auth = inject(AuthService);
+  private sourceMode = inject(SourceModeService);
+  private sseDriver = inject(SseDriverService);
 
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private staleTimer: ReturnType<typeof setTimeout> | null = null;
-  private sseReconnectAttempts = 0;
-  private sseConnectGeneration = 0;
-  private sseConnecting = false;
   private running = false;
-  private sse: EventSource | null = null;
-  private sseMode = false;
-  private pollingOnly = false;
-  private sseErrors: number[] = [];
   private httpPollFailures = 0;
   private demoT = 0;
   private readonly alertCooldownUntil = new Map<string, number>();
   /** Epoch ms of the next scheduled SSE reconnect attempt (null when connected). */
-  readonly nextRetryAtMs = signal<number | null>(null);
+  readonly nextRetryAtMs = this.sseDriver.nextRetryAtMs;
 
   constructor() {
     this.start();
@@ -41,15 +37,12 @@ export class TelemetryService {
       if (isLocked) {
         this.stopSse();
         this.clearPollTimer();
-        this.clearReconnectTimer();
       } else if (simulating) {
         this.stopSse();
-        this.clearReconnectTimer();
         this.scheduleNextPoll(0);
       } else if (this.running) {
         this.stopSse();
         this.clearPollTimer();
-        this.clearReconnectTimer();
         untracked(() => {
           void this.api.detectControlMode().then(() => {
             this.scheduleNextPoll(0);
@@ -67,11 +60,8 @@ export class TelemetryService {
   }
 
   reconnect(): void {
-    this.stopSse();
+    this.sseDriver.reset();
     this.clearPollTimer();
-    this.clearReconnectTimer();
-    this.sseReconnectAttempts = 0;
-    this.pollingOnly = false;
     this.httpPollFailures = 0;
     if (!this.running) {
       this.running = true;
@@ -84,7 +74,6 @@ export class TelemetryService {
     this.running = false;
     this.clearPollTimer();
     this.stopSse();
-    this.clearReconnectTimer();
     if (this.staleTimer) clearTimeout(this.staleTimer);
   }
 
@@ -92,13 +81,6 @@ export class TelemetryService {
     if (this.pollTimer) {
       clearTimeout(this.pollTimer);
       this.pollTimer = null;
-    }
-  }
-
-  private clearReconnectTimer() {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
     }
   }
 
@@ -122,7 +104,7 @@ export class TelemetryService {
       return;
     }
 
-    if (this.sseMode) return;
+    if (this.sseDriver.isConnected()) return;
 
     this.state.ctlStatus.set(this.state.ctlStatus() || { ok: true, mode: 'loading' });
 
@@ -155,7 +137,7 @@ export class TelemetryService {
         this.scheduleNextPoll(1000);
       } else {
         this.emitAlert(`Live connection unavailable: ${message}`, 'critical');
-        if (this.state.autoDemoOnDisconnect() && this.state.trySetAutoDemoActive(true)) {
+        if (this.state.autoDemoOnDisconnect() && this.sourceMode.setAutomaticDemoActive(true)) {
           this.scheduleNextPoll(0);
         } else {
           this.httpPollFailures++;
@@ -167,145 +149,90 @@ export class TelemetryService {
     }
   }
 
-  private async startSse() {
-    if (typeof EventSource === 'undefined') return;
+  private async startSse(): Promise<void> {
     // Tauri keeps browser CSP at connect-src 'self'. EventSource bypasses the
     // HttpClient interceptor, so the native shell uses origin-pinned polling.
     if (this.isTauriNative()) return;
     if (this.state.demoSourceActive()) return;
     if (!this.running) return;
-    if (this.pollingOnly) return;
-    // Token minting is asynchronous. Keep it single-flight so rapid auth,
-    // reconnect, and mode-change signals cannot leak orphan EventSources.
-    if (this.sse || this.sseConnecting) return;
     if (this.api.hasPairToken() && !sessionStorage.getItem(OPERATOR_TOKEN_KEY)) {
       this.scheduleNextPoll(0);
       return;
     }
 
-    const generation = ++this.sseConnectGeneration;
-    this.sseConnecting = true;
-    try {
-      const base = this.api.currentApiBase();
-      let sseToken = '';
-      try {
-        const hasOperatorToken = sessionStorage.getItem(OPERATOR_TOKEN_KEY);
-        if (hasOperatorToken) {
-          const res = await this.api.request<{ sse_token: string }>('/api/auth/sse-token', { method: 'POST' });
-          if (res?.sse_token) {
-            sseToken = res.sse_token;
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to obtain sse-token', err);
-      }
+    await this.sseDriver.connect({
+      canConnect: () => this.running
+        && !this.auth.isLocked()
+        && !this.state.demoSourceActive()
+        && !this.isTauriNative(),
+      baseUrl: () => this.api.currentApiBase(),
+      mintToken: async () => {
+        if (!sessionStorage.getItem(OPERATOR_TOKEN_KEY)) return '';
+        const response = await this.api.request<{ sse_token: string }>(
+          '/api/auth/sse-token',
+          { method: 'POST' }
+        );
+        return response?.sse_token || '';
+      },
+      onEvent: event => this.handleSseEvent(event)
+    });
+  }
 
-      if (!this.canOpenSse(generation)) return;
-      const url = sseToken ? `${base}/api/events/subscribe?token=${encodeURIComponent(sseToken)}` : `${base}/api/events/subscribe`;
-      const source = new EventSource(url);
-      if (!this.canOpenSse(generation)) {
-        source.close();
-        return;
-      }
-      this.sse = source;
+  private renewSseConnection(): void {
+    this.sseDriver.renew();
+  }
 
-      source.onopen = () => {
-        if (!this.isCurrentSse(source, generation)) return;
+  private handleSseEvent(event: SseDriverEvent): void {
+    switch (event.type) {
+      case 'open':
         console.log('SSE connection successfully opened.');
-        this.sseMode = true;
-        this.sseErrors = [];
-        this.sseReconnectAttempts = 0;
-        this.nextRetryAtMs.set(null);
         this.clearPollTimer();
-        this.clearReconnectTimer();
-      };
-
-      source.addEventListener('live', (ev: MessageEvent) => {
-        if (!this.isCurrentSse(source, generation)) return;
+        return;
+      case 'live':
         try {
-          const raw = JSON.parse(ev.data || '{}');
-          this.applyLivePayload(raw);
-        } catch (e) {
-          console.warn('SSE live parse failed', e);
+          this.applyLivePayload(JSON.parse(event.data || '{}'));
+        } catch (error) {
+          console.warn('SSE live parse failed', error);
         }
-      });
-
-      source.addEventListener('session_warning', (ev: MessageEvent) => {
-        if (!this.isCurrentSse(source, generation)) return;
-        const payload = this.parseSseJson(ev);
+        return;
+      case 'session_warning': {
+        const payload = this.parseSseJson(event.data);
         // The contractual 12 h stream deadline (AGENTS.md invariant 11) is routine:
         // tell the operator it is automatic and immediately rotate the one-use token.
-        const isDeadline = !!payload && (payload as Record<string, unknown>)['reason'] === 'deadline_approaching';
+        const isDeadline = payload['reason'] === 'deadline_approaching';
         const message = isDeadline
           ? 'Live stream is renewing automatically — no action needed.'
           : this.eventMessage(payload, 'Session warning from telemetry stream.');
         this.emitAlert(message, 'warn', 'sse-session-warning');
         if (isDeadline) this.renewSseConnection();
-      });
-
-      source.addEventListener('stopped', (ev: MessageEvent) => {
-        if (!this.isCurrentSse(source, generation)) return;
-        const payload = this.parseSseJson(ev);
+        return;
+      }
+      case 'stopped': {
+        const payload = this.parseSseJson(event.data);
         const message = this.eventMessage(payload, 'Telemetry session stopped.');
         this.reconcileStoppedEvent(payload, message);
-      });
-
-      source.addEventListener('data_update', () => {
-        if (!this.isCurrentSse(source, generation)) return;
-        this.state.ctlStatus.update((s) => ({ ...(s ?? { ok: true }), ok: true, last_data_update_ms: Date.now() }));
-      });
-
-      source.onerror = () => {
-        if (!this.isCurrentSse(source, generation)) return;
-        const now = Date.now();
-        this.sseErrors = this.sseErrors.filter((t) => now - t < 60000);
-        this.sseErrors.push(now);
-        if (this.sseErrors.length > 3) {
-          console.warn('SSE failure threshold reached. Falling back to polling.');
-          this.pollingOnly = true;
-          this.stopSse();
-          this.scheduleNextPoll(0);
-          this.clearReconnectTimer();
-          this.nextRetryAtMs.set(null);
-        }
-      };
-    } catch (e) {
-      if (generation !== this.sseConnectGeneration || !this.running) return;
-      console.warn('SSE connection failed', e);
-      this.scheduleSseReconnect();
-    } finally {
-      if (generation === this.sseConnectGeneration) {
-        this.sseConnecting = false;
+        return;
       }
+      case 'data_update':
+        this.state.ctlStatus.update((status) => ({
+          ...(status ?? { ok: true }),
+          ok: true,
+          last_data_update_ms: Date.now()
+        }));
+        return;
+      case 'fallback':
+        this.scheduleNextPoll(0);
+        return;
     }
-  }
-
-  private canOpenSse(generation: number): boolean {
-    return generation === this.sseConnectGeneration
-      && this.running
-      && !this.auth.isLocked()
-      && !this.state.demoSourceActive()
-      && !this.sse;
-  }
-
-  private isCurrentSse(source: EventSource, generation: number): boolean {
-    return generation === this.sseConnectGeneration && this.sse === source;
-  }
-
-  private renewSseConnection(): void {
-    this.stopSse();
-    this.clearReconnectTimer();
-    this.sseReconnectAttempts = 0;
-    void this.startSse();
   }
 
   private isTauriNative(): boolean {
     return Boolean((window as any).__TAURI__?.core?.invoke);
   }
 
-  private parseSseJson(ev: MessageEvent): Record<string, unknown> {
+  private parseSseJson(data: string): Record<string, unknown> {
     try {
-      const parsed = JSON.parse(ev.data || '{}');
+      const parsed = JSON.parse(data || '{}');
       return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
     } catch (_) {
       return {};
@@ -339,32 +266,8 @@ export class TelemetryService {
     this.scheduleNextPoll(0);
   }
 
-  private scheduleSseReconnect() {
-    if (!this.running || this.pollingOnly) return;
-    this.clearReconnectTimer();
-    const backoffSeconds = this.sseReconnectAttempts === 0 ? 15 : this.sseReconnectAttempts === 1 ? 30 : 60;
-    const jitterMs = Math.floor(Math.random() * 2000) - 1000;
-    const delayMs = Math.max(1000, backoffSeconds * 1000 + jitterMs);
-    this.nextRetryAtMs.set(Date.now() + delayMs);
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      this.nextRetryAtMs.set(null);
-      if (!this.running) return;
-      this.sseReconnectAttempts++;
-      void this.startSse();
-    }, delayMs);
-  }
-
-  private stopSse() {
-    this.sseConnectGeneration++;
-    this.sseConnecting = false;
-    if (this.sse) {
-      try {
-        this.sse.close();
-      } catch (_) {}
-      this.sse = null;
-    }
-    this.sseMode = false;
+  private stopSse(): void {
+    this.sseDriver.cancel();
   }
 
   private runSimulationStep() {

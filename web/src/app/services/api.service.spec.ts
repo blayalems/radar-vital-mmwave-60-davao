@@ -78,11 +78,11 @@ describe('ApiService', () => {
 
   it('never sandbox-routes Stop for a real active session', async () => {
     state.ctlStatus.set({ ok: true, mode: 'live' });
-    state.sessionActive.set(true);
-    state.currentSessionId.set('session-live-1');
     // Defense in depth for stale UI code or restored preferences that bypass
     // the guarded source-mode setter.
-    state.demoMode.set(true);
+    expect(state.trySetDemoMode(true)).toBe(true);
+    state.sessionActive.set(true);
+    state.currentSessionId.set('session-live-1');
 
     const pending = service.request<{ ok: boolean }>('/api/session/stop', { method: 'POST' });
     const request = httpMock.expectOne('/api/session/stop');

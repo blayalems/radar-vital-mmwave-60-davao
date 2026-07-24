@@ -1,0 +1,107 @@
+<div class="tab-content-grid">
+  <mat-card class="waveforms-container-card">
+    <mat-card-header class="section-header-row">
+      <div>
+        <mat-card-title>Real-Time Phase Waveforms</mat-card-title>
+        <mat-card-subtitle>Live breath_phase and heart_phase outputs parsed from module telemetry feed.</mat-card-subtitle>
+      </div>
+      <button mat-flat-button type="button" (click)="context().resetTrendRange()" class="mat-tonal-button">
+        <mat-icon>restart_alt</mat-icon>Reset Window
+      </button>
+    </mat-card-header>
+
+    <mat-card-content class="waveforms-grid">
+      <div class="waveform-chart-wrap">
+        <div class="chart-header">
+          <strong>Breathing Waveform</strong>
+          <span>
+            <button mat-icon-button type="button" [attr.aria-label]="context().showBreathTable() ? 'Hide data table' : 'Show data table'" (click)="context().showBreathTable.set(!context().showBreathTable()); context().state.triggerHaptic('tap')" [color]="context().showBreathTable() ? 'primary' : null">
+              <mat-icon>{{ context().showBreathTable() ? 'grid_on' : 'grid_off' }}</mat-icon>
+            </button>
+            <button mat-icon-button type="button" aria-label="Download breathing waveform image" (click)="downloadBreath()">
+              <mat-icon>download</mat-icon>
+            </button>
+          </span>
+        </div>
+        @if (context().showBreathTable()) {
+          <div class="canvas-plot-container">
+            <rvt-chart-data-table [series]="context().state.lastPayload()?.series" [limit]="120" label="Breathing Waveform Samples" />
+          </div>
+        } @else {
+          <div class="canvas-plot-container bg-pink-tint">
+            <wave-canvas #breathCanvas
+              [data]="context().seriesNumbers('breath_phase', 'breath')"
+              color="rgba(97, 105, 198, 0.95)"
+              chartKey="breath"
+              [ariaLabel]="context().chartLabel('Breathing waveform', 'reported_rr', 'breaths per minute')"
+              [annotations]="context().getAnnotationsFor('breath')"
+              (click)="context().handleChartClick($event, 'breath')" />
+          </div>
+          @if (context().getAnnotationsFor('breath').length > 0) {
+            <div class="annotation-chips">
+              @for (ann of context().getAnnotationsFor('breath'); track ann.id) {
+                <mat-chip-row (removed)="context().deleteAnnotation('breath', ann)">
+                  {{ ann.label }} ({{ (ann.xPct * 100).toFixed(0) }}%)
+                  <button matChipRemove [attr.aria-label]="'Remove annotation ' + ann.label"><mat-icon>cancel</mat-icon></button>
+                </mat-chip-row>
+              }
+            </div>
+          }
+        }
+        <mat-progress-bar mode="determinate" [value]="context().qualityPercent('pqi_breath')" class="quality-bar rr-quality" />
+        <span class="quality-label">{{ context().qualityLabel('pqi_breath') }}</span>
+        <div class="sqi-ribbon" role="img" [attr.aria-label]="context().ribbonLabel('breath')">
+          @for (seg of context().ribbonSegments('breath'); track $index) {
+            <span [class]="seg"></span>
+          }
+        </div>
+      </div>
+
+      <div class="waveform-chart-wrap">
+        <div class="chart-header">
+          <strong>Heartbeat Waveform</strong>
+          <span>
+            <button mat-icon-button type="button" [attr.aria-label]="context().showHeartTable() ? 'Hide data table' : 'Show data table'" (click)="context().showHeartTable.set(!context().showHeartTable()); context().state.triggerHaptic('tap')" [color]="context().showHeartTable() ? 'primary' : null">
+              <mat-icon>{{ context().showHeartTable() ? 'grid_on' : 'grid_off' }}</mat-icon>
+            </button>
+            <button mat-icon-button type="button" aria-label="Download heartbeat waveform image" (click)="downloadHeart()">
+              <mat-icon>download</mat-icon>
+            </button>
+          </span>
+        </div>
+        @if (context().showHeartTable()) {
+          <div class="canvas-plot-container">
+            <rvt-chart-data-table [series]="context().state.lastPayload()?.series" [limit]="120" label="Heartbeat Waveform Samples" />
+          </div>
+        } @else {
+          <div class="canvas-plot-container bg-teal-tint">
+            <wave-canvas #heartCanvas
+              [data]="context().seriesNumbers('heart_phase', 'heart')"
+              color="rgba(0, 164, 150, 0.95)"
+              chartKey="heart"
+              [ariaLabel]="context().chartLabel('Heartbeat waveform', 'reported_hr', 'beats per minute')"
+              [annotations]="context().getAnnotationsFor('heart')"
+              (click)="context().handleChartClick($event, 'heart')" />
+          </div>
+          @if (context().getAnnotationsFor('heart').length > 0) {
+            <div class="annotation-chips">
+              @for (ann of context().getAnnotationsFor('heart'); track ann.id) {
+                <mat-chip-row (removed)="context().deleteAnnotation('heart', ann)">
+                  {{ ann.label }} ({{ (ann.xPct * 100).toFixed(0) }}%)
+                  <button matChipRemove [attr.aria-label]="'Remove annotation ' + ann.label"><mat-icon>cancel</mat-icon></button>
+                </mat-chip-row>
+              }
+            </div>
+          }
+        }
+        <mat-progress-bar mode="determinate" [value]="context().qualityPercent('pqi_heart')" class="quality-bar hr-quality" />
+        <span class="quality-label">{{ context().qualityLabel('pqi_heart') }}</span>
+        <div class="sqi-ribbon" role="img" [attr.aria-label]="context().ribbonLabel('heart')">
+          @for (seg of context().ribbonSegments('heart'); track $index) {
+            <span [class]="seg"></span>
+          }
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

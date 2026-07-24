@@ -47,7 +47,7 @@
               <span class="row-title">Auto-enable Demo on Disconnect</span>
               <span class="row-description">If live polling fails repeatedly, switch to demo automatically. Default is off.</span>
             </div>
-            <mat-slide-toggle [checked]="state.autoDemoOnDisconnect()" (change)="state.autoDemoOnDisconnect.set($event.checked)"></mat-slide-toggle>
+            <mat-slide-toggle [checked]="state.autoDemoOnDisconnect()" (change)="sourceMode.setAutoDemoOnDisconnect($event.checked)"></mat-slide-toggle>
           </div>
           <mat-form-field appearance="outline" class="form-field-full">
             <mat-label>Trainer server origin</mat-label>

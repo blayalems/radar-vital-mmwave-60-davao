@@ -3,6 +3,7 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { StateService } from '../../services/state.service';
+import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
 
 export interface KpiZoomDialogData {
   metric: 'hr' | 'rr' | 'fps' | 'dist';
@@ -163,9 +164,9 @@ export class KpiZoomDialogComponent implements AfterViewInit, OnDestroy {
   readonly data = inject<KpiZoomDialogData>(MAT_DIALOG_DATA);
   readonly dialogRef = inject(MatDialogRef<KpiZoomDialogComponent>);
   private readonly state = inject(StateService);
+  private readonly renderScheduler = inject(ChartRenderSchedulerService);
 
   @ViewChild('zoomCanvas', { static: false }) zoomCanvas!: ElementRef<HTMLCanvasElement>;
-  private animeFrameId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private viewReady = false;
 
@@ -190,9 +191,7 @@ export class KpiZoomDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    if (this.animeFrameId !== null) {
-      cancelAnimationFrame(this.animeFrameId);
-    }
+    this.renderScheduler.cancel(this);
     this.resizeObserver?.disconnect();
   }
 
@@ -256,11 +255,13 @@ export class KpiZoomDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   private requestDraw() {
-    if (!this.viewReady || this.animeFrameId !== null) return;
-    this.animeFrameId = requestAnimationFrame(() => {
-      this.animeFrameId = null;
-      this.drawChart();
-    });
+    if (!this.viewReady) return;
+    this.renderScheduler.request(
+      this,
+      () => this.drawChart(),
+      () => this.renderScheduler.canvasVisible(this.zoomCanvas?.nativeElement),
+      100
+    );
   }
 
   private drawChart() {

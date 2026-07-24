@@ -25,6 +25,7 @@ import { IdleLockService } from '../../services/idle-lock.service';
 import { IssueReportService } from '../../services/issue-report.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { UpdateService } from '../../services/update.service';
+import { SourceModeService } from '../../services/source-mode.service';
 import { CONSENT_KEY } from '../../services/rvt-storage-keys';
 import { GITHUB_REPO_URL, PRODUCT_VERSION, SCHEMA_VERSION_LABEL, TERMS_VERSION } from '../../services/app-meta';
 import { BleScanDevice, PaletteId } from '../../models/rvt.models';
@@ -111,6 +112,7 @@ export class SettingsComponent {
   protected readonly issueReport = inject(IssueReportService);
   protected readonly serverLifecycle = inject(ServerLifecycleService);
   protected readonly updateService = inject(UpdateService);
+  protected readonly sourceMode = inject(SourceModeService);
   private readonly router = inject(Router);
   protected readonly Math = Math;
   protected readonly formatFontScale = (value: number): string => `${Math.round(value * 100)}%`;
@@ -259,7 +261,7 @@ export class SettingsComponent {
   }
 
   async setDemoMode(enabled: boolean): Promise<void> {
-    if (!this.state.trySetDemoMode(enabled)) {
+    if (!this.sourceMode.setManualDemo(enabled)) {
       this.snackBar.open(
         'Stop the live session before switching to simulated data.',
         'Dismiss',
@@ -273,7 +275,7 @@ export class SettingsComponent {
   async reconnectTrainer(): Promise<void> {
     this.connectionBusy.set(true);
     this.serverLifecycle.setServerAddress(this.endpointInput());
-    this.state.demoMode.set(false);
+    this.sourceMode.setManualDemo(false);
     try {
       await this.serverLifecycle.retryConnection();
       const connected = this.serverLifecycle.status() === 'running';
@@ -294,7 +296,7 @@ export class SettingsComponent {
       await this.api.exchangePairPin(this.pinInput());
       this.pinInput.set('');
       await this.serverLifecycle.retryConnection();
-      this.state.demoMode.set(false);
+      this.sourceMode.setManualDemo(false);
       this.snackBar.open('LAN trainer paired for this browser session.', 'Dismiss', { duration: 5000 });
     } catch (error: unknown) {
       this.snackBar.open(error instanceof Error ? error.message : 'Pairing failed.', 'Dismiss', { duration: 6000 });
@@ -627,7 +629,7 @@ export class SettingsComponent {
       if (typeof raw['voiceAlertsEnabled'] === 'boolean') this.state.voiceAlertsEnabled.set(raw['voiceAlertsEnabled']);
       const audioVolume = Number(raw['audioVolume']);
       if (Number.isFinite(audioVolume)) this.state.audioVolume.set(Math.max(0, Math.min(1, audioVolume)));
-      if (typeof raw['autoDemoOnDisconnect'] === 'boolean') this.state.autoDemoOnDisconnect.set(raw['autoDemoOnDisconnect']);
+      if (typeof raw['autoDemoOnDisconnect'] === 'boolean') this.sourceMode.setAutoDemoOnDisconnect(raw['autoDemoOnDisconnect']);
       this.state.triggerHaptic('confirm');
       this.snackBar.open('Dashboard preferences imported.', 'Dismiss', { duration: 4000 });
     } catch (_) {
@@ -658,9 +660,7 @@ export class SettingsComponent {
       this.state.audioVolume.set(0.7);
       this.state.liveBufferSeconds.set(60);
       this.state.maxChartPoints.set(3600);
-      this.state.demoMode.set(false);
-      this.state.autoDemoOnDisconnect.set(false);
-      this.state.autoDemoActive.set(false);
+      this.sourceMode.resetPreferences();
       this.state.freezeOnStale.set(true);
       this.state.hxMode.set('auto');
       this.state.activeSubjectProfileId.set('adult_default');

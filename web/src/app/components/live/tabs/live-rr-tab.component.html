@@ -1,0 +1,123 @@
+<div class="tab-content-grid">
+  <mat-card class="trend-large-card">
+    <mat-card-header class="trend-header-row">
+      <div>
+        <mat-card-title>Respiration Funnel Trends</mat-card-title>
+        <mat-card-subtitle>Reported respiration sequence and recovery context.</mat-card-subtitle>
+      </div>
+      <div class="trend-actions">
+        <span class="range-caption">{{ context().trendRangeLabel() }}</span>
+        <button mat-icon-button type="button" [attr.aria-label]="context().showTable() ? 'Hide data table' : 'Show data table'" (click)="context().showTable.set(!context().showTable()); context().state.triggerHaptic('tap')" [color]="context().showTable() ? 'primary' : null">
+          <mat-icon>{{ context().showTable() ? 'grid_on' : 'grid_off' }}</mat-icon>
+        </button>
+        <button mat-icon-button type="button" [color]="context().ghostSessionActive() ? 'accent' : null" aria-label="Toggle ghost session overlay" (click)="context().toggleGhostSession()">
+          <mat-icon>{{ context().ghostSessionActive() ? 'layers_clear' : 'layers' }}</mat-icon>
+        </button>
+        <button mat-flat-button type="button" aria-label="Reset respiration chart window" (click)="context().resetTrendRange()" class="mat-tonal-button"><mat-icon>restart_alt</mat-icon></button>
+        <button mat-icon-button type="button" aria-label="Download respiration trend image" (click)="downloadTrend()"><mat-icon>download</mat-icon></button>
+      </div>
+    </mat-card-header>
+    <mat-card-content class="trend-large-content">
+      @if (context().showTable()) {
+        <div class="large-canvas-container">
+          <rvt-chart-data-table [series]="context().state.lastPayload()?.series" [limit]="context().trendRangeLimit()" label="Respiration Funnel Samples" />
+        </div>
+      } @else {
+        @if (context().ghostPointCount('rr') > 1) {
+          <div class="trend-legend" role="group" aria-label="Respiration trend legend">
+            <span class="trend-legend-item"><span class="trend-line current rr" aria-hidden="true"></span>Current session</span>
+            <span class="trend-legend-item"><span class="trend-line ghost" aria-hidden="true"></span>{{ context().ghostLegendText('rr') }}</span>
+          </div>
+        }
+        <div class="large-canvas-container">
+          <trend-canvas #trendCanvas
+            [data]="context().trimTrend(context().seriesNumbers('reported_rr', 'rr'))"
+            color="rgba(97, 105, 198, 0.95)"
+            [minV]="Math.max(0, context().state.kpiThresholds().rrLow - 5)"
+            [maxV]="context().state.kpiThresholds().rrHigh + 5"
+            type="rr"
+            [ariaLabel]="context().trendChartLabel('Respiration trend', 'reported_rr', 'breaths per minute', 'rr')"
+            [ghostData]="context().ghostRrData()"
+            [ghostSessionLabel]="context().ghostSessionLabel()"
+            [ghostSessionActive]="context().ghostSessionActive()"
+            [annotations]="context().getAnnotationsFor('rr')"
+            (click)="context().handleChartClick($event, 'rr')" />
+        </div>
+        @if (context().getAnnotationsFor('rr').length > 0) {
+          <div class="annotation-chips">
+            @for (ann of context().getAnnotationsFor('rr'); track ann.id) {
+              <mat-chip-row (removed)="context().deleteAnnotation('rr', ann)">
+                {{ ann.label }} ({{ (ann.xPct * 100).toFixed(0) }}%)
+                <button matChipRemove [attr.aria-label]="'Remove annotation ' + ann.label"><mat-icon>cancel</mat-icon></button>
+              </mat-chip-row>
+            }
+          </div>
+        }
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <div class="diagnostics-double-column">
+    <mat-card class="diagnostics-card">
+      <mat-card-header><mat-card-title>RR Funnel Telemetry</mat-card-title></mat-card-header>
+      <mat-card-subtitle>Selector to accept to blend to Kalman to publish.</mat-card-subtitle>
+      <mat-card-content class="diagnostics-table-wrap">
+        <mat-chip-set class="signal-chip-set" aria-label="Respiration status flags">
+          <mat-chip [class.status-good]="context().metricState('rr_anchor_fresh') === 'Yes'">Anchor fresh {{ context().metricState('rr_anchor_fresh') }}</mat-chip>
+          <mat-chip [class.status-good]="context().metricState('rr_raw_agree_ok') === 'Yes'">Raw agree {{ context().metricState('rr_raw_agree_ok') }}</mat-chip>
+          <mat-chip [class.status-warn]="context().metricState('rr_fundamental_recovery_triggered') === 'Yes'">Recovery {{ context().metricState('rr_fundamental_recovery_triggered') }}</mat-chip>
+        </mat-chip-set>
+        <table class="diagnostics-table"><tbody>
+          <tr><td>Gate reason</td><td>{{ context().metricLabel('rr_gate_reason_name') }}</td></tr>
+          <tr><td>Publish reason</td><td>{{ context().metricLabel('rr_publish_reason_name') }}</td></tr>
+          <tr><td>ZC bpm / confidence</td><td>{{ context().metricText('rr_zc_bpm', 2) }} / {{ context().metricText('rr_zc_conf', 3) }}</td></tr>
+          <tr><td>Spec bpm / confidence</td><td>{{ context().metricText('rr_spec_bpm', 2) }} / {{ context().metricText('rr_spec_conf', 3) }}</td></tr>
+          <tr><td>Raw anchor error</td><td>{{ context().metricText('rr_raw_anchor_err_bpm', 2, ' bpm') }}</td></tr>
+        </tbody></table>
+      </mat-card-content>
+    </mat-card>
+    <mat-card class="diagnostics-card">
+      <mat-card-header><mat-card-title>RR Stage Values</mat-card-title></mat-card-header>
+      <mat-card-subtitle>Anchor, recovery, and final stage values.</mat-card-subtitle>
+      <mat-card-content class="diagnostics-table-wrap">
+        <table class="diagnostics-table"><tbody>
+          <tr><td>Pre accept-phase</td><td>{{ context().metricText('rr_pre_acceptphase', 2, ' br/min') }}</td></tr>
+          <tr><td>Post accept-phase</td><td>{{ context().metricText('rr_post_acceptphase', 2, ' br/min') }}</td></tr>
+          <tr><td>Post blend</td><td>{{ context().metricText('rr_post_blend', 2, ' br/min') }}</td></tr>
+          <tr><td>Post Kalman</td><td>{{ context().metricText('rr_post_kalman', 2, ' br/min') }}</td></tr>
+          <tr><td>Final publish</td><td>{{ context().metricText('rr_final_publish_candidate', 2, ' br/min') }}</td></tr>
+          <tr><td>Anchor confidence</td><td>{{ context().metricText('rr_anchor_confidence', 2) }}</td></tr>
+        </tbody></table>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <div class="diagnostics-double-column">
+    <mat-card class="diagnostics-card">
+      <mat-card-header><mat-card-title>RR Recovery Diagnostics</mat-card-title></mat-card-header>
+      <mat-card-subtitle>Confidence, recovery, and seed consistency.</mat-card-subtitle>
+      <mat-card-content class="diagnostics-table-wrap">
+        <table class="diagnostics-table"><tbody>
+          <tr><td>Recovery count</td><td>{{ context().metricLabel('rr_fundamental_recovery_count') }}</td></tr>
+          <tr><td>Recovery triggered</td><td>{{ context().metricState('rr_fundamental_recovery_triggered') }}</td></tr>
+          <tr><td>Seed consistency</td><td>{{ context().metricLabel('rr_raw_seed_consistent_count') }}</td></tr>
+          <tr><td>Re-anchor allowed</td><td>{{ context().metricState('rr_midsession_raw_reanchor_allowed') }}</td></tr>
+          <tr><td>Trust fresh</td><td>{{ context().metricState('trusted_rr_fresh') }}</td></tr>
+        </tbody></table>
+      </mat-card-content>
+    </mat-card>
+    <mat-card class="diagnostics-card warning-card">
+      <mat-card-header><mat-card-title>RR / Stale-State Warnings</mat-card-title></mat-card-header>
+      <mat-card-subtitle>Anchor, candidate aging, and integrity warnings.</mat-card-subtitle>
+      <mat-card-content class="warning-list">
+        @if (context().warnings().length > 0) {
+          @for (warning of context().warnings(); track warning) {
+            <div class="warning-item"><mat-icon>warning</mat-icon><span>{{ warning }}</span></div>
+          }
+        } @else {
+          <div class="good-state"><mat-icon>verified</mat-icon><span>No RR-specific warnings in this payload.</span></div>
+        }
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

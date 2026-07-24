@@ -36,10 +36,18 @@ test.describe('v12 dashboard visual baseline', () => {
         })
       });
     });
+    await page.route('**/api/sessions', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, sessions: [], items: [] })
+      });
+    });
     await page.addInitScript(() => {
       sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
       const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
       setup.operator_label = 'Operator A';
+      setup.ble_address = '10:22:33:9E:8F:63';
       localStorage.setItem('rvt-setup', JSON.stringify(setup));
     });
   });
@@ -52,29 +60,40 @@ test.describe('v12 dashboard visual baseline', () => {
         const stabilizeHighContrastDesktop = theme === 'hc' && testInfo.project.name === 'desktop';
         // Block external font loading to prevent screenshot hanging in offline/sandboxed environments
         await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
-        if (stabilizeHomeTelemetry) {
-          await page.route('**/api/status', async (route) => {
-            await route.fulfill({
-              status: 200,
-              contentType: 'application/json',
-              body: JSON.stringify({
-                ok: true,
-                trainer_version: 'visual',
-                dashboard_version: 'visual',
-                firmware_expected: 'visual',
-                control_server_started_at: '2026-01-01T00:00:00Z',
-                active_session: {
-                  session_id: 'mock',
-                  session_dir: '',
-                  mock: true,
-                  started_at: '2026-01-01T00:00:00Z'
-                },
-                feature_flags: {}
-              })
-            });
+        // The measured trainer latency and session state are valid runtime data,
+        // but visual baselines must not depend on whichever async response wins.
+        await page.route('**/api/status', async (route) => {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              ok: true,
+              latency: 100,
+              trainer_version: 'visual',
+              dashboard_version: 'visual',
+              firmware_expected: 'visual',
+              control_server_started_at: '2026-01-01T00:00:00Z',
+              active_session: null,
+              feature_flags: {}
+            })
           });
-        }
+        });
         if (view === 'home') {
+          if (stabilizeTabletHome) {
+            // The iPad baseline intentionally reserves the hidden empty-data
+            // card's space. Pin only this fixture to no-session so a late
+            // trainer payload cannot remove the card and shift the form.
+            await page.route('**/api/session/current/live_dashboard.json*', async (route) => {
+              await route.fulfill({
+                status: 404,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                  ok: false,
+                  error: 'NO_ACTIVE_SESSION: no active session'
+                })
+              });
+            });
+          }
           // Suppress streamed changes before taking the Home layout/theme capture.
           // Plot rendering remains asserted on the Live route.
           await page.addInitScript(({ stabilizeHomeTelemetry }) => {
@@ -168,6 +187,24 @@ test.describe('v12 dashboard visual baseline', () => {
         await page.goto(`/${view}`, { waitUntil: 'domcontentloaded' });
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
         await expect(page.locator('app-layout')).toBeVisible();
+
+        // ApiService reports the measured request round-trip rather than the
+        // latency value in the mocked response. Keep that useful runtime
+        // behavior while locking only the screenshot text node.
+        await page.evaluate(() => {
+          const statusSub = document.querySelector<HTMLElement>('#statusPill .status-sub');
+          if (!statusSub) return;
+          const lockLatency = () => {
+            if (statusSub.textContent !== '100 ms') statusSub.textContent = '100 ms';
+          };
+          lockLatency();
+          new MutationObserver(lockLatency).observe(statusSub, {
+            childList: true,
+            characterData: true,
+            subtree: true
+          });
+        });
+
         if (view === 'home') {
           try {
             await expect(page.locator('.preflight-row')).toHaveCount(10, { timeout: 5000 });
@@ -177,6 +214,10 @@ test.describe('v12 dashboard visual baseline', () => {
             await page.reload({ waitUntil: 'domcontentloaded' });
             await expect(page.locator('.preflight-row')).toHaveCount(10);
           }
+          if (stabilizeTabletHome) {
+            await expect(page.locator('.home-empty-card')).toHaveCount(1);
+          }
+          await expect(page.locator('input[aria-labelledby="bleAddressLabel"]')).toHaveValue('10:22:33:9E:8F:63');
           // Home owns continuously redrawn preview canvases. Live-route
           // baselines still cover rendered plots; hide only these moving
           // pixels so home comparisons validate layout and theme surfaces.

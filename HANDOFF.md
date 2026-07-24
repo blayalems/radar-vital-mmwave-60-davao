@@ -5,9 +5,17 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-22 - Refresh frontend plan evidence base
+
+- **PR topology**: Merged `codex/lifecycle-race-privacy-closure` at `5bb5e21` so PR #76 carries the acceptance evidence for its lifecycle base before recording the frontend-decomposition evidence.
+
 ### 2026-07-22 - Record lifecycle acceptance evidence
 
 - **Audit closure**: Mapped every PR #77 acceptance bullet in the cross-stack plan to its implementation and named automated coverage, while retaining only packaged-EXE process validation and the native 12-hour reconnect soak as external release gates.
+
+### 2026-07-22 - Refresh frontend boundaries on lifecycle closure
+
+- **PR topology**: Merged `codex/lifecycle-race-privacy-closure` at `e1f2bbe` so PR #76 inherits the synchronized audit base and canonical service-worker CI contract while preserving the frontend-only review boundary.
 
 ### 2026-07-22 - Align service-worker static contract with canonical refresh
 
@@ -24,6 +32,113 @@
 - **CI reproduction**: Reproduced PR #75's failed `Verify web/ ↔ monolith round-trip` step locally and confirmed the only drift was the missing polling-fallback bundle update.
 - **Verification**: `npm run build:check` passes after the synchronized artifact is committed.
 
+### 2026-07-19 - Live KPI strip boundary
+
+- **Component boundary**: Extracted the four reorderable KPI controls, confidence/holding state, sparkline rendering, and debounced screen-reader status into a typed standalone OnPush `LiveKpiStripComponent`; Overview retains the remaining notes, target, analysis, and diagnostics presentation.
+- **Size contract**: The Overview template drops from 423 to 269 lines, and the source-boundary test now enforces a 400-line ceiling across every extracted Live presentation component TS/HTML/CSS file.
+- **Verification**: Angular production and generated-monolith builds pass at a 1.45 MB initial bundle with no warning; source-integrity, contrast, service-worker privacy 3/3, and web unit 218/218 gates pass.
+
+### 2026-07-18 - Live Overview component extraction
+
+- **Component boundary**: Moved the 423-line Overview template, its Material/sparkline imports, and both Overview canvas references into `LiveOverviewTabComponent`; `LiveComponent` now supplies the typed view model and owns only data/render orchestration.
+- **Visual continuity**: The child reuses the established Live stylesheet under its own emulated scope, preserving the existing responsive presentation without global CSS leakage.
+- **Coverage**: Added a source-boundary contract proving template and canvas ownership moved out of the parent; the Angular production build passes.
+
+### 2026-07-18 - Persistent fallback under SSE driver ownership
+
+- **Stack integration**: Ported the audit-base polling-only threshold into `SseDriverService`; driver cancellation preserves fallback, explicit reconnect/re-auth resets it, and no retry deadline or EventSource is created while polling-only.
+- **Verification**: Focused SSE-driver, telemetry, and diagnostic-privacy tests pass 45/45; the Angular production build passes.
+
+### 2026-07-18 - Live Overview boundary contract
+
+- **Partial extraction checkpoint**: Defined the complete typed Overview-tab view-model surface, including KPI interactions, confidence/readiness projections, notes/tags, snapshot capture, and Bland-Altman state, before moving the template into its standalone component.
+
+### 2026-07-18 - Preflight request coordinator boundary
+
+- **Async ownership**: Moved hardware-setup fingerprinting, newest-generation arbitration, aggregate/single-check transport, and valid-snapshot ownership into `PreflightRequestCoordinator`; Home now maps coordinator outcomes into view signals and haptics.
+- **Concurrency contract**: Superseded requests cannot clear the shared running gate while the newest request is pending, and setup-changed responses remain visibly stale instead of enabling Start.
+- **Verification**: Focused Home preflight request-ownership coverage passes 4/4 after extraction.
+
+### 2026-07-18 - Report request coordinator boundary
+
+- **Async ownership**: Moved primary-session and comparison epochs, six-endpoint report hydration, notes persistence, and validation sign-off transport into `ReportRequestCoordinator`; the component now owns only selected-view state and rendering.
+- **Race preservation**: Stale primary and comparison responses resolve as superseded results, while immutable save payloads remain bound to their captured session IDs.
+- **Verification**: Focused Report request-ownership coverage passes 4/4 after extraction.
+
+### 2026-07-18 - Stack frontend boundaries on lifecycle closure
+
+- **Integration**: Combined the frontend source/service/tab boundary work with the lifecycle, request-race, cache, diagnostics, and exact-origin credential closure so follow-up refactors inherit the hardened behavior.
+- **Generated artifact**: Rebuilt the root dashboard from the merged Angular sources rather than resolving generated output by hand.
+
+### 2026-07-18 - Extract Live waveform and funnel tabs
+
+- **Tab boundaries**: Moved Waves, HR funnel, and RR funnel into typed standalone OnPush presentation components while the Live container retains telemetry, annotation, export, and historical-session workflows.
+- **Canvas ownership**: Each extracted tab owns its rendered canvas reference and exposes only zoom mapping/reset behavior needed by the parent, eliminating cross-template `ViewChild` coupling.
+- **Style ownership**: Added encapsulated waveform and trend-panel styles; every extracted TS, HTML, and CSS file remains below 400 lines.
+
+### 2026-07-18 - Extract Live Snaps and Audit presentation
+
+- **Tab boundaries**: Moved the Snaps catalog/comparison flow and Audit diagnostics/export console into typed, standalone OnPush presentation components; the Live container remains the only workflow/state owner and passes narrow callback/signal view models.
+- **Style ownership**: Added a shared tab-panel stylesheet scoped by component encapsulation so extracted content retains card, table, console, comparison, and mobile behavior without making Live styles global.
+- **Coverage**: Production Angular and generated-monolith builds pass; desktop/Pixel snapshot capture and Audit export browser journeys pass 4/4, and every extracted component source stays below 400 lines.
+
+### 2026-07-18 - Compact mobile Live status and actions
+
+- **First-screen hierarchy**: Mobile Live keeps the persistent demo provenance and prominent Stop action while arranging Pause, Snapshot, and Stop in one touch-sized row and keeping the Simple/Advanced selector on one row.
+- **Coverage**: The 390 x 844 browser geometry contract caps the command strip and mode selector heights, requires the first KPI before 500 px, preserves 44 px targets, and checks provenance, Stop visibility, and horizontal containment.
+
+### 2026-07-18 - Remove redundant Live snapshot FAB
+
+- **Single clear action path**: Removed the fixed bottom-right snapshot FAB and its orphaned styling; snapshot capture remains available in the command strip, target-tracking card, and Snaps tab without covering Live content or duplicating the primary desktop action.
+- **Coverage**: The demo-mode browser journey proves the redundant instant-capture control is absent before exercising the supported Pin Snapshot flow on desktop and Pixel (2/2); the production dashboard rebuild is warning-free.
+
+### 2026-07-17 - Honest Live trend sample states
+
+- **Empty/warm-up truth**: Trend canvases now visibly distinguish no valid samples, bounded warm-up progress, and ready history instead of presenting an empty threshold grid as if a trace existed.
+- **Accessibility**: Canvas names include the current empty or warming state without adding another live region, while ready charts keep their existing metric and ghost-session description.
+- **Coverage**: Added focused policy tests for empty, warming, ready, configurable-minimum, invalid-count, and standby-zero behavior plus a desktop/Pixel browser journey that proves zero-only HR history renders the honest empty state; 195 web unit tests and the generated-dashboard round trip pass.
+
+### 2026-07-17 - Semantic Live KPI controls and aggregate status
+
+- **Control semantics**: Replaced four clickable Live KPI `div` surfaces and duplicate keyboard activation handlers with native buttons, preserved pointer reordering, and added Alt+Arrow keyboard reordering with position-aware descriptions and visible focus.
+- **Announcement policy**: Replaced per-card live regions and raw-value alert chatter with one 1.5-second debounced status channel keyed by stale/available/threshold bands; standby zeroes now announce as waiting rather than low.
+- **Coverage**: Added pure status-policy tests proving in-band telemetry churn keeps one announcement key while threshold, availability, and stale transitions remain distinguishable; full source/contrast/unit gates pass 190/190, the updated desktop/Pixel browser journey passes 2/2, and the production build is warning-free.
+
+### 2026-07-17 - Settings card header spacing correction
+
+- **Root cause**: The palette-level Material card rule zeroed every header's inline padding with higher specificity, placing Settings icon tiles directly against the rounded card clip despite the component's intended 20 px inset.
+- **Responsive fix**: Restored explicit icon/title/content alignment at 20 px on desktop and 16 px on narrow layouts while retaining the shared 12 px icon-to-title rhythm.
+- **Regression gate**: Added browser geometry assertions for the visually reordered Appearance and Source mode cards so both icon tiles remain inset and their titles stay separated.
+
+### 2026-07-17 - Route lazy boundaries and measured bundle budget
+
+- **Lazy routing**: Converted Connect, Layout, Home, and Live from eager imports to `loadComponent` boundaries, completing the route-level split already used by Report, Help, and Settings without changing guards, redirects, or route URLs.
+- **Bundle contract**: The production initial bundle falls from 2.52 MB to 1.45 MB; locked that measured improvement with a 1.55 MB warning and 1.70 MB error budget while keeping Live (210.61 kB), Layout (190.60 kB), and Home (70.42 kB) route chunks independently loadable.
+- **Verification**: Production Angular build passes without an initial-bundle warning; full source-integrity, contrast, and Angular unit gates pass 186/186; generated-monolith round-trip passes.
+
+### 2026-07-17 - Shared visible-chart render scheduler
+
+- **Render ownership**: Added one coalescing `ChartRenderSchedulerService` with per-owner rate limits, cancellation, document-visibility gating, and zero-size/hidden-canvas suppression; migrated Home radar/session sparklines, Live overview/analysis canvases, wave/trend canvases, KPI sparklines, and the KPI zoom dialog off independent animation-frame queues.
+- **Hidden-tab behavior**: Reactive updates can remain pending without repainting a hidden Material tab, while tab/resize/visibility changes request the latest frame; component teardown removes every pending owner and deferred session-sparkline request.
+- **Verification**: Scheduler tests pass 3/3 and full source-integrity, contrast, and Angular unit gates pass 186/186; production build and generated-monolith round-trip pass with the existing initial-bundle warning (2.52 MB before the planned lazy-boundary budget slice).
+
+### 2026-07-17 - Dedicated SSE transport driver
+
+- **Async ownership**: Extracted EventSource creation, token-mint single-flight protection, generation cancellation, deadline renewal, error-window fallback, reconnect backoff, and transport/retry signals into `SseDriverService`; `TelemetryService` now owns only telemetry-domain event handling and polling coordination.
+- **Contract coverage**: Added focused driver tests for typed event forwarding, in-flight cancellation, one-use token renewal, fourth-error polling fallback, visible retry deadlines, and cancellation of scheduled reconnects while retaining the existing telemetry session-state tests.
+- **Verification**: Focused SSE/telemetry Vitest passes 10/10; full source-integrity, contrast, and Angular unit suite passes 183/183; production build and generated-monolith round-trip pass with the existing 2.51 MB bundle warning.
+
+### 2026-07-17 - Sandbox API service extraction
+
+- **API boundary**: Moved the static-PWA/demo operator auth, session lifecycle, reports, preflight, defaults, and fallback payload emulator out of `ApiService` into `SandboxApiService`; the extracted service depends directly on `SessionStore` and never injects `ApiService`.
+- **Contract/storage parity**: Preserved public response aliases and payload shapes, sandbox start/stop behavior, report scorecards, lockout/session auth behavior, and the `demo:`-only operator profile/session storage boundary while `ApiService` retains live/native transport.
+- **Verification**: Focused sandbox/API/source/auth Vitest 36/36; full source-integrity, contrast, and web unit suite 179/179; Angular production build and generated-monolith round-trip pass with the existing 2.51 MB bundle warning.
+
+### 2026-07-17 - Frontend source-mode policy boundary
+
+- **Source ownership**: Added `SourceModeService` as the signal-policy owner for live, manual demo, automatic demo, and trainer-sandbox transitions using only `UiStore`/`SessionStore`; `StateService` keeps read/delegation compatibility while Settings, pairing, keyboard/command actions, telemetry fallback, topbar provenance, and API detection use the focused boundary directly.
+- **Safety**: Centralized real-session transition guards and sandbox-routing policy so a real `/api/session/stop` continues to use trainer transport even if stale demo state is present; demo/live persistence scopes remain derived without effect-based state propagation.
+- **Verification**: Clean root/web installs; focused source/state/API/telemetry Vitest 33/33; full source-integrity, contrast, and web unit suite 175/175; Angular production build and generated-monolith round-trip pass with the existing 2.51 MB bundle warning.
 ### 2026-07-18 - Linearize lifecycle stack on audit base
 
 - **PR topology**: Merged the current `codex/cross-stack-audit-hardening` head so PR #75 is now an actual ancestor of PR #77 rather than a divergent sibling, preventing avoidable merge noise downstream.
@@ -34,7 +149,6 @@
 - **PIN redaction**: Pairing query and named-field sanitizers redact 3-8 digit PINs while leaving unrelated short numeric diagnostics intact.
 - **Offline shell integrity**: Online route responses are returned normally but never stored as the canonical shell; cache refreshes fetch `index.html` explicitly before replacing the one navigation cache key.
 - **Coverage**: Added false-positive error-category cases and executable route-versus-shell cache assertions.
-
 ### 2026-07-18 - Integrate lifecycle, race, and privacy closure
 
 - **Stacked closure**: Combined bounded session shutdown ownership with report/preflight request gates, canonical navigation caching, de-identified issue diagnostics, and exact-origin trainer credential policy.

@@ -116,6 +116,28 @@ test.describe('Settings support cards and help links', () => {
     expect(exitDemoBox!.height).toBeGreaterThanOrEqual(24);
   });
 
+  test('keeps Settings card icons and titles inset from rounded card edges', async ({ page }) => {
+    await gotoUnlocked(page, '/settings');
+
+    for (const selector of ['.appearance-card', '.connection-card']) {
+      const card = page.locator(selector);
+      const avatar = card.locator('mat-card-header [mat-card-avatar]');
+      const title = card.locator('mat-card-title');
+      const [cardBox, avatarBox, titleBox] = await Promise.all([
+        card.boundingBox(),
+        avatar.boundingBox(),
+        title.boundingBox()
+      ]);
+
+      expect(cardBox).not.toBeNull();
+      expect(avatarBox).not.toBeNull();
+      expect(titleBox).not.toBeNull();
+      expect(avatarBox!.x - cardBox!.x).toBeGreaterThanOrEqual(15);
+      expect(avatarBox!.y - cardBox!.y).toBeGreaterThanOrEqual(15);
+      expect(titleBox!.x - (avatarBox!.x + avatarBox!.width)).toBeGreaterThanOrEqual(10);
+    }
+  });
+
   test('exposes support commands in the command palette', async ({ page }) => {
     await gotoUnlocked(page, '/settings');
     await page.keyboard.press('Control+K');

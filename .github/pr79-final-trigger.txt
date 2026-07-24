@@ -1,1 +1,1 @@
-Trigger the PR79 synchronization gate with split Arduino provisioning diagnostics.
+Trigger the PR79 synchronization gate with the published Seeed Arduino mmWave package.

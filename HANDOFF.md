@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-29 - Make v16.5.4 session Start idempotent
+
+- **Start identity**: One operator Start intent carries a stable idempotency key through dashboard retries and trainer execution so duplicate activation cannot allocate multiple participant/trial sessions.
+- **Replay safety**: Same-key/same-request retries replay the original result; same-key/different-request reuse is rejected with a stable conflict instead of silently changing capture provenance.
+- **Release identity**: Advanced all shipped carriers exactly one patch to `16.5.4`; study schema v16.5.1 and the frozen v15.2/222-column serial contract remain stable.
+- **Verification**: Full Python passes 433/433 with 3 environment skips; Angular passes 247/247. Trainer compile/help, v16.5.3 -> v16.5.4 patch/version graph, feedback-loop export, production build, and generated-dashboard round trip pass. Twelve idempotency browser cases enumerate across desktop, Pixel 7, iPhone 14, and iPad; execution plus firmware/APK/EXE/Pages builds remain required CI gates.
+
 ### 2026-07-29 - Gate v16.5.3 release compatibility and preserve failed starts
 
 - **Compatibility gate**: Added a structured dashboard/trainer/firmware/serial/API-schema handshake; known version, protocol, width, or schema splits block real Start with actionable reload/restart/flash guidance, while legacy clients remain explicitly unverified.

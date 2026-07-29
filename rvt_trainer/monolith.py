@@ -124,9 +124,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.3"
-DASHBOARD_VERSION = "16.5.3"
-FIRMWARE_VERSION_EXPECTED = "v16.5.3"
+VERSION = "16.5.4"
+DASHBOARD_VERSION = "16.5.4"
+FIRMWARE_VERSION_EXPECTED = "v16.5.4"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -4585,7 +4585,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_3.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_4.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -6503,6 +6503,7 @@ HELP_SCHEMA = _build_help_schema()
 
 
 from rvt_trainer.session.supervisor import (  # noqa: E402
+    SessionStartPreflightError,
     SessionSupervisor as _SessionSupervisor,
     _check_stale_session_lock,
     _clear_supervisor_stop_request,
@@ -6518,6 +6519,7 @@ from rvt_trainer.session.supervisor import (  # noqa: E402
     _write_session_lock,
     _write_supervisor_stop_request,
 )
+from rvt_trainer.session.start_idempotency import StartIdempotencyError  # noqa: E402
 
 
 def _effective_defaults(sessions_root: str) -> Dict[str, object]:
@@ -7464,9 +7466,22 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             if str(radar_port).strip().lower() in {"auto", "autodetect", "auto-detect"}:
                 radar_port = _auto_detect_radar_port(DEFAULT_RADAR_PORT)
             ble_address = str(body.get("ble_address") or DEFAULT_BLE_ADDRESS).strip() or DEFAULT_BLE_ADDRESS
-            if self.server.supervisor.current():
-                self._send_json(409, {"ok": False, "error": {"code": "SESSION_IN_PROGRESS", "message": "active session already running"}})
+            header_key = (
+                self.headers.get("Idempotency-Key")
+                or self.headers.get("X-RVT-Idempotency-Key")
+                or ""
+            ).strip()
+            body_key = str(body.get("idempotency_key") or "").strip()
+            if header_key and body_key and header_key != body_key:
+                self._send_json(
+                    400,
+                    _api_error(
+                        "IDEMPOTENCY_KEY_MISMATCH",
+                        "body idempotency_key and Idempotency-Key header must match",
+                    ),
+                )
                 return
+            idempotency_key = body_key or header_key or None
             client_compatibility = _validate_client_compatibility(
                 body,
                 product_version=VERSION,
@@ -7513,53 +7528,87 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "model_bundle": body.get("model_bundle"),
                 "client_compatibility": client_compatibility,
             }
+            advanced = body.get("advanced") if isinstance(body.get("advanced"), dict) else {}
+            timeout_s = float(body.get("timeout_s", 30.0) or 30.0)
+            idempotency_payload = {
+                "server_product_version": VERSION,
+                "duration_s": duration_s,
+                "radar_port": radar_port,
+                "ble_address": ble_address,
+                "ble_profile": body.get("ble_profile", "ailink_oximeter"),
+                "timeout_s": timeout_s,
+                "subject_label": body.get("subject_label"),
+                "operator_label": body.get("operator_label"),
+                "subject_profile_id": body.get("subject_profile_id", "adult_default"),
+                "notify_char": advanced.get("notify_char"),
+                "dashboard_refresh_s": advanced.get("dashboard_refresh_s"),
+                **study_assignment,
+                "model_family": body.get("model_family"),
+                "model_bundle": body.get("model_bundle"),
+                "client_compatibility": client_compatibility,
+            }
+
             try:
-                report = _run_preflight_all(sessions_root=self.server.sessions_root, port=radar_port, address=ble_address, include=SESSION_START_PREFLIGHT_IDS)
-            except Exception as e:
-                failed_record = self.server.supervisor.record_failed_start(
-                    stage="preflight",
-                    code="PREFLIGHT_ERROR",
-                    reason=e,
-                    duration_s=duration_s,
-                    **start_provenance,
+                replay = self.server.supervisor.lookup_idempotent_start(
+                    idempotency_key,
+                    idempotency_payload,
+                )
+                if replay is not None:
+                    self._send_json(200, replay)
+                    return
+            except StartIdempotencyError as exc:
+                status = 400 if exc.code == "INVALID_IDEMPOTENCY_KEY" else 409
+                if exc.code == "PREFLIGHT_FAILED":
+                    status = 424
+                elif exc.code in {"PREFLIGHT_ERROR", "SPAWN_ERROR", "SPAWN_TIMEOUT"}:
+                    status = 500
+                error_details = (
+                    dict(exc.details) if isinstance(exc.details, dict) else {}
                 )
                 self._send_json(
-                    500,
-                    _api_error(
-                        "PREFLIGHT_ERROR",
-                        str(e),
-                        failed_session_id=failed_record["session_id"],
-                    ),
+                    status,
+                    _api_error(exc.code, str(exc), **error_details),
                 )
                 return
-            failed = _session_start_blocking_failures(report)
-            if failed:
-                failed_record = self.server.supervisor.record_failed_start(
-                    stage="preflight",
-                    code="PREFLIGHT_FAILED",
-                    reason="one or more required start checks failed",
-                    details={"failed": failed},
-                    duration_s=duration_s,
-                    **start_provenance,
-                )
-                self._send_json(
-                    424,
-                    _api_error(
+
+            if self.server.supervisor.current():
+                self._send_json(409, {"ok": False, "error": {"code": "SESSION_IN_PROGRESS", "message": "active session already running"}})
+                return
+
+            def run_start_preflight():
+                try:
+                    report = _run_preflight_all(
+                        sessions_root=self.server.sessions_root,
+                        port=radar_port,
+                        address=ble_address,
+                        include=SESSION_START_PREFLIGHT_IDS,
+                    )
+                except Exception as exc:
+                    raise SessionStartPreflightError(
+                        "PREFLIGHT_ERROR",
+                        str(exc),
+                        http_status=500,
+                    ) from exc
+                failed = _session_start_blocking_failures(report)
+                if failed:
+                    raise SessionStartPreflightError(
                         "PREFLIGHT_FAILED",
                         "one or more required start checks failed",
-                        failed=failed,
-                        failed_session_id=failed_record["session_id"],
-                    ),
-                )
-                return
+                        details={"failed": failed},
+                        http_status=424,
+                    )
+                return report
+
             try:
-                advanced = body.get("advanced") if isinstance(body.get("advanced"), dict) else {}
                 result = self.server.supervisor.start(
                     duration_s=duration_s,
                     radar_port=radar_port,
                     ble_address=ble_address,
                     ble_profile=body.get("ble_profile", "ailink_oximeter"),
-                    timeout_s=float(body.get("timeout_s", 30.0) or 30.0),
+                    timeout_s=timeout_s,
+                    idempotency_key=idempotency_key,
+                    idempotency_payload=idempotency_payload,
+                    preflight=run_start_preflight,
                     subject_label=body.get("subject_label"),
                     operator_label=body.get("operator_label"),
                     subject_profile_id=body.get("subject_profile_id", "adult_default"),
@@ -7570,8 +7619,22 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     model_bundle=body.get("model_bundle"),
                     client_compatibility=client_compatibility,
                 )
-                result["client_compatibility"] = client_compatibility
                 self._send_json(200, result)
+            except SessionStartPreflightError as e:
+                details = dict(e.details) if isinstance(e.details, dict) else {}
+                details["failed_session_id"] = e.failed_session_id
+                self._send_json(
+                    e.http_status,
+                    _api_error(e.code, str(e), **details),
+                )
+            except StartIdempotencyError as e:
+                status = 400 if e.code == "INVALID_IDEMPOTENCY_KEY" else 409
+                if e.code in {"PREFLIGHT_FAILED"}:
+                    status = 424
+                elif e.code in {"PREFLIGHT_ERROR", "SPAWN_ERROR", "SPAWN_TIMEOUT"}:
+                    status = 500
+                error_details = dict(e.details) if isinstance(e.details, dict) else {}
+                self._send_json(status, _api_error(e.code, str(e), **error_details))
             except RuntimeError as e:
                 code = "SESSION_IN_PROGRESS" if "SESSION_IN_PROGRESS" in str(e) else "SPAWN_ERROR"
                 self._send_json(409 if code == "SESSION_IN_PROGRESS" else 500, {"ok": False, "error": {"code": code, "message": str(e)}})
@@ -7989,7 +8052,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_3.ino"),
+        Path("radar_vital_v16_5_4.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),

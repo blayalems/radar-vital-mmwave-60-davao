@@ -307,7 +307,14 @@
             {{ preflightChecks.length - getChecksPassedCount() }} preflight {{ preflightChecks.length - getChecksPassedCount() === 1 ? 'check needs' : 'checks need' }} review — starting is still allowed.
           </p>
         }
-        <button mat-flat-button color="primary" class="start-session-btn" (click)="startSession()" [disabled]="!canStartSession() || isStartingSession">
+        <button
+          mat-flat-button
+          color="primary"
+          class="start-session-btn"
+          (click)="startSession()"
+          [disabled]="!canStartSession() || isStartingSession"
+          [attr.aria-busy]="isStartingSession"
+          [attr.aria-describedby]="isStartingSession ? 'sessionStartBusyStatus' : null">
           @if (isStartingSession) {
             <mat-spinner diameter="20" style="margin-right: 8px;"></mat-spinner>
             Starting...
@@ -318,6 +325,11 @@
             </ng-container>
           }
         </button>
+        @if (isStartingSession) {
+          <p id="sessionStartBusyStatus" class="session-start-busy-status" role="status" aria-live="assertive">
+            Starting session. Please wait; repeated Start commands are ignored.
+          </p>
+        }
       </mat-card-actions>
     </mat-card>
 
@@ -537,7 +549,13 @@
             @if (sessionFilter !== 'all') {
               <button mat-flat-button type="button" class="mat-tonal-button" (click)="setSessionFilter('all')">Show all</button>
             }
-            <button mat-flat-button type="button" color="primary" (click)="startSession()" [disabled]="!canStartSession() || isStartingSession">
+            <button
+              mat-flat-button
+              type="button"
+              color="primary"
+              (click)="startSession()"
+              [disabled]="!canStartSession() || isStartingSession"
+              [attr.aria-busy]="isStartingSession">
               <mat-icon>play_arrow</mat-icon>
               Start session
             </button>

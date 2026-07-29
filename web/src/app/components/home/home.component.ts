@@ -166,6 +166,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly serverLifecycle = inject(ServerLifecycleService);
   protected readonly i18n = inject(I18nService);
   protected readonly compatibility = inject(ReleaseCompatibilityService);
+  protected participantRosterValid = false;
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
   private readonly renderScheduler = inject(ChartRenderSchedulerService);
@@ -597,6 +598,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private canStartWithoutCompatibility(): boolean {
     return !this.isPreflightRunning
+      && this.participantRosterValid
       && this.preflightRequests.lastValidFingerprint === this.currentPreflightFingerprint()
       && this.preflightChecks.length > 0
       && !this.hasBlockingPreflightFailure()
@@ -605,6 +607,11 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   studySetupError(): string {
     return studySetupError({ ...this.state.setup(), duration_s: this.selectedDuration });
+  }
+
+  protected setParticipantRosterValidity(valid: boolean): void {
+    this.participantRosterValid = valid;
+    if (!valid) this.cancelStartIntent();
   }
 
   protected checkPasses(check: PreflightCheck): boolean {
@@ -817,6 +824,16 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private async performStartSession(): Promise<void> {
     this.state.triggerHaptic('sessionStart');
+    if (!this.participantRosterValid) {
+      this.cancelStartIntent();
+      this.snackBar.open(
+        'Start blocked: refresh the participant roster and select an active coded participant.',
+        'Dismiss',
+        { duration: 7000 }
+      );
+      this.state.triggerHaptic('reject');
+      return;
+    }
     const setupError = this.studySetupError();
     if (setupError) {
       this.cancelStartIntent();

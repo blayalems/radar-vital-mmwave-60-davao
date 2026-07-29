@@ -2,7 +2,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 import { seedFirstRunComplete } from './helpers/first-run';
 
 const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
-const PRODUCT_VERSION = '16.5.5';
+const PRODUCT_VERSION = '16.5.6';
 
 type StartPayload = {
   idempotency_key?: unknown;
@@ -56,7 +56,11 @@ async function seedParticipantSession(page: Page): Promise<void> {
   });
 }
 
-async function mockControlApi(page: Page, startHandler: StartHandler): Promise<void> {
+async function mockControlApi(
+  page: Page,
+  startHandler: StartHandler,
+  participantStatus: 'active' | 'withdrawn' = 'active'
+): Promise<void> {
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -143,7 +147,7 @@ async function mockControlApi(page: Page, startHandler: StartHandler): Promise<v
         participants: [{
           participant_id: 'P-001',
           display_code: 'P-001',
-          status: 'active',
+          status: participantStatus,
           completed_trials: 0
         }]
       });
@@ -276,5 +280,27 @@ test.describe('session Start browser idempotency', () => {
     expect(keys[0]).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
     expect(keys[1]).toMatch(/^[A-Za-z0-9_-]{16,128}$/);
     expect(keys[1]).not.toBe(keys[0]);
+  });
+
+  test('fails closed when the cached participant has withdrawn from the live roster', async ({ page }) => {
+    let startPosts = 0;
+    await seedParticipantSession(page);
+    await mockControlApi(page, async route => {
+      startPosts += 1;
+      await json(route, { ok: true, session_id: 'must-not-start' });
+    }, 'withdrawn');
+
+    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+
+    const withdrawnParticipant = page.getByRole('radio', { name: /P-001, status withdrawn/i });
+    await expect(withdrawnParticipant).toBeDisabled();
+    await expect(withdrawnParticipant).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('.start-session-btn')).toBeDisabled();
+    await expect(page.getByText('Select a coded participant profile.')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => {
+      const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');
+      return { participantId: setup.participant_id, subjectLabel: setup.subject_label };
+    })).toEqual({ participantId: '', subjectLabel: '' });
+    expect(startPosts).toBe(0);
   });
 });

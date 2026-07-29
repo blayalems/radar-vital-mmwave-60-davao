@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from fnmatch import fnmatchcase
+import re
 from typing import FrozenSet
 
 
@@ -35,10 +35,16 @@ class RouteSpec:
     auth: AuthPolicy
 
     def matches(self, method: str, path: str) -> bool:
-        return str(method).upper() in self.methods and fnmatchcase(
-            str(path),
-            self.pattern,
-        )
+        if str(method).upper() not in self.methods:
+            return False
+        # Route wildcards are path aware: ``*`` is exactly one non-empty
+        # segment, while ``**`` is an explicitly recursive tail.  fnmatch's
+        # plain ``*`` also consumes "/", which previously let malformed paths
+        # such as /api/sessions/a/b/summary select a one-session handler.
+        expression = re.escape(self.pattern)
+        expression = expression.replace(r"\*\*", r".+")
+        expression = expression.replace(r"\*", r"[^/]+")
+        return re.fullmatch(expression, str(path)) is not None
 
 
 def route(

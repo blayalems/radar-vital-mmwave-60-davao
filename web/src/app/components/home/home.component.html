@@ -144,7 +144,8 @@
 
       <mat-card-content class="setup-card-content">
         <app-participant-study-setup
-          (durationSelected)="selectedDuration = $event">
+          (durationSelected)="selectedDuration = $event"
+          (rosterValidityChanged)="setParticipantRosterValidity($event)">
         </app-participant-study-setup>
 
         <!-- DURATION CHOICE CHIPS -->

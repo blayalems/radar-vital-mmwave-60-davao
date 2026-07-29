@@ -73,6 +73,7 @@ export class ParticipantStudySetupComponent implements OnInit {
   private readonly snackBar = inject(MatSnackBar);
 
   readonly durationSelected = output<number>();
+  readonly rosterValidityChanged = output<boolean>();
   readonly participants = signal<ParticipantProfile[]>([]);
   readonly loading = signal(false);
   readonly creating = signal(false);
@@ -89,6 +90,7 @@ export class ParticipantStudySetupComponent implements OnInit {
   async loadParticipants(): Promise<void> {
     this.loading.set(true);
     this.loadError.set('');
+    this.rosterValidityChanged.emit(false);
     try {
       const response = await this.api.request<ParticipantProfilesResponse>('/api/participants');
       const participants = (response.participants ?? response.items ?? [])
@@ -96,16 +98,20 @@ export class ParticipantStudySetupComponent implements OnInit {
         .slice(0, 41);
       this.participants.set(participants);
       const selected = this.state.setup().participant_id;
-      if (selected && !participants.some(item => item.participant_id === selected)) {
-        this.updateSetup({ participant_id: '' });
+      const selectedParticipant = participants.find(item => item.participant_id === selected);
+      if (selected && (!selectedParticipant || selectedParticipant.status === 'withdrawn')) {
+        this.clearParticipantSelection();
       }
       const demo = participants.find(item => item.participant_id === 'P-DEMO');
       if (!this.state.setup().participant_id && demo && this.state.demoSourceActive()) {
         this.selectParticipant(demo);
       }
+      this.rosterValidityChanged.emit(this.hasActiveSelection());
     } catch (error: unknown) {
       this.participants.set([]);
+      this.clearParticipantSelection();
       this.loadError.set(error instanceof Error ? error.message : 'Participant profiles are unavailable.');
+      this.rosterValidityChanged.emit(false);
     } finally {
       this.loading.set(false);
     }
@@ -147,6 +153,7 @@ export class ParticipantStudySetupComponent implements OnInit {
       participant_id: participant.participant_id,
       subject_label: participant.display_code
     });
+    this.rosterValidityChanged.emit(true);
     this.state.triggerHaptic('tap');
   }
 
@@ -202,5 +209,16 @@ export class ParticipantStudySetupComponent implements OnInit {
 
   private updateSetup(change: Partial<SetupState>): void {
     this.state.setup.update(setup => ({ ...setup, ...change }));
+  }
+
+  private hasActiveSelection(): boolean {
+    const selected = this.state.setup().participant_id;
+    return Boolean(selected && this.participants().some(
+      participant => participant.participant_id === selected && participant.status !== 'withdrawn'
+    ));
+  }
+
+  private clearParticipantSelection(): void {
+    this.updateSetup({ participant_id: '', subject_label: '' });
   }
 }

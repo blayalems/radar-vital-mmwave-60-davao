@@ -13,11 +13,14 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 - Added ISO 9001:2015-aligned controlled-document, requirement/test traceability, PR change-control, release authorization, checksum, and build-provenance records without claiming certification.
 
 ### Changed
+- Promoted every shipped product-version carrier exactly one patch to v16.5.6 and advanced only the controlled-document revisions affected by the release change.
 - Promoted the firmware, trainer, Angular dashboard, Capacitor package, Tauri package, and issue-report identity together to v16.5.5 while preserving the frozen v15.2 / 222-column serial contract and stable v12 compatibility entrypoints.
 - Added an executable cross-language version contract so Python, TypeScript, Rust, C++, package locks, help text, and packaging metadata cannot drift silently.
 - Added a canonical hardware–software feedback-loop and dual-model reproducibility figure contract for GBR, experimental 1-D CNN, shared statistical reporting, and direct manuscript integration.
 
 ### Fixed
+- Made route wildcards segment-aware, blocked inherited `HEAD` filesystem probing, authenticated protected POSTs before body parsing, rejected invalid session-root aliases, and standardized unknown API errors.
+- Invalidated cached participant consent identity when the current roster is unavailable, missing the participant, or marks them withdrawn; Start now remains blocked until an active roster selection is verified.
 - Corrected adversarial session-state and onboarding truthfulness issues found with the real mock trainer on desktop and Pixel-sized viewports.
 - Blocked known release/protocol/schema splits before capture and retained immutable study provenance plus failure evidence when session startup fails.
 - Made session Start retry-safe so duplicate browser activation or response-loss retries cannot allocate multiple sessions for one participant/trial intent.

@@ -124,9 +124,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.5"
-DASHBOARD_VERSION = "16.5.5"
-FIRMWARE_VERSION_EXPECTED = "v16.5.5"
+VERSION = "16.5.6"
+DASHBOARD_VERSION = "16.5.6"
+FIRMWARE_VERSION_EXPECTED = "v16.5.6"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -4585,7 +4585,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_5.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_6.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -5710,8 +5710,10 @@ def _evict_completed_analysis_jobs() -> None:
 def _session_path(sessions_root: str, session_id: str) -> Path:
     root = Path(sessions_root).resolve()
     target = (root / session_id).resolve()
-    target.relative_to(root)
-    if not target.exists():
+    # Session routes address one direct child of sessions_root.  Requiring a
+    # strict child (rather than merely "under root") rejects "." / empty IDs
+    # that otherwise alias the sessions root itself, as well as nested IDs.
+    if target.parent != root or not target.is_dir():
         raise FileNotFoundError(session_id)
     return target
 
@@ -6798,6 +6800,25 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         self.send_response(204)
         self.end_headers()
 
+    def do_HEAD(self):
+        # SimpleHTTPRequestHandler's inherited HEAD implementation serves from
+        # the process working directory and bypasses this server's route and
+        # asset allowlists.  Reject HEAD explicitly so private repo paths cannot
+        # be probed through that fallback.
+        payload = _json_safe_response(
+            _schema_wrap(
+                _api_error(
+                    "METHOD_NOT_ALLOWED",
+                    "HEAD is not supported; use a documented route method",
+                )
+            )
+        )
+        self.send_response(405)
+        self.send_header("Allow", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+
     def _send_sse(self, session_id_hint: Optional[str] = None):
         from rvt_trainer.api.sse import handle_sse_subscription
         handle_sse_subscription(self, session_id_hint=session_id_hint)
@@ -7160,10 +7181,10 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             except Exception:
                 self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": "session not found"}})
                 return
-            target = (root / rel).resolve()
             try:
+                target = (root / rel).resolve()
                 target.relative_to(root)
-            except ValueError:
+            except (OSError, ValueError):
                 self._send_json(404, {"ok": False, "error": {"code": "FILE_NOT_FOUND", "message": "session file not found"}})
                 return
             if not target.exists() or not target.is_file():
@@ -7310,7 +7331,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": str(e)}})
             return
         if path.startswith("/api/"):
-            self._send_json(404, {"ok": False, "error": "not_found"})
+            self._send_json(404, _api_error("NOT_FOUND", "API route not found"))
             return
         dashboard_routes = {f"/{str(name)}" for name in _DASHBOARD_HTML_FALLBACK_NAMES}
         if route_name in {
@@ -7359,6 +7380,16 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         route_spec = _match_route("POST", path)
         route_name = route_spec.name if route_spec is not None else None
+        # Authenticate protected/discovery/bootstrap routes before consuming
+        # the request body.  This keeps an unauthenticated request from forcing
+        # JSON parsing or using parser errors to distinguish protected routes.
+        # The pairing exchange is the sole public POST and needs its PIN body.
+        if (
+            path.startswith("/api/")
+            and route_name != "auth_exchange"
+            and not self._require_control_auth()
+        ):
+            return
         body = self._read_body()
         if body is None:
             return
@@ -7366,8 +7397,6 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             client_ip = (self.client_address[0] if self.client_address else "") or "unknown"
             status, payload = _exchange_pair_pin(self.server, str(body.get("pin") or ""), client_ip)
             self._send_json(status, payload, cache_control="no-store")
-            return
-        if path.startswith("/api/") and not self._require_control_auth():
             return
         if route_name == "operator_profiles_create":
             status, payload = _create_operator_profile(self.server, body)
@@ -7695,9 +7724,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": "session not found"}})
             return
         if path.startswith("/api/"):
-            self._send_json(404, {"ok": False, "error": "not_found"})
+            self._send_json(404, _api_error("NOT_FOUND", "API route not found"))
             return
-        self._send_json(404, {"ok": False, "error": "not_found"})
+        self._send_json(404, _api_error("NOT_FOUND", "route not found"))
 
     def do_PUT(self):
         if self._reject_untrusted():
@@ -7792,7 +7821,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             save_json(manifest, str(manifest_path))
             self._send_json(200, {"ok": True, "session_id": sid, "tags": manifest["tags"]})
             return
-        self._send_json(404, {"ok": False, "error": "not_found"})
+        self._send_json(404, _api_error("NOT_FOUND", "API route not found"))
 
     def do_DELETE(self):
         if self._reject_untrusted():
@@ -7827,7 +7856,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             shutil.move(str(root), str(target))
             self._send_json(200, {"ok": True, "session_id": sid, "trashed_path": str(target), "retention_hint": "soft-deleted; clean .trash after local retention review"})
             return
-        self._send_json(404, {"ok": False, "error": "not_found"})
+        self._send_json(404, _api_error("NOT_FOUND", "API route not found"))
 
 
 class _ControlServer:
@@ -8052,7 +8081,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_5.ino"),
+        Path("radar_vital_v16_5_6.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),

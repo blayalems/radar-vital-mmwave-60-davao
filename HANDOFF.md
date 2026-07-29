@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-29 - Refresh vulnerable transitive dependencies
+
+- **Supply chain**: Refreshed the root and Angular lockfiles to patched transitive releases and pinned the vulnerable MCP SDK subtree through an npm override without changing the application dependency surface.
+- **Verification**: Clean root and Angular npm audits report zero known vulnerabilities; Angular build and 218 unit tests remain green.
+
 ### 2026-07-29 - Establish the coordinated v16.5 release baseline
 
 - **Release identity**: Promoted firmware, trainer, Angular UI, Capacitor, Tauri, package locks, issue metadata, help, tests, and generated dashboard together to `16.5.0`; renamed the active sketch to `radar_vital_v16_5_0.ino` while preserving the v15.2/222-column protocol, 207/219 replay widths, v16.4 provenance of columns 220-222, and stable v12 compatibility filenames.

@@ -240,6 +240,89 @@ describe('TelemetryService', () => {
     expect(TestBed.inject(SseDriverService).isPollingOnly()).toBe(false);
     expect(mockEventSourceInstances).toHaveLength(instancesAfterFallback + 1);
   });
+
+  it('marks live telemetry stale and disconnects transport synchronously when the browser goes offline', async () => {
+    service = TestBed.inject(TelemetryService);
+    const state = TestBed.inject(StateService);
+    await settle();
+    const liveSource = mockEventSourceInstances.at(-1)!;
+    state.sessionActive.set(true);
+    state.currentSessionId.set('session-live-offline');
+    (service as any).applyLivePayload({
+      meta: { status: 'running', session_id: 'session-live-offline' },
+      radar: { reported_hr: 72, reported_rr: 15 }
+    });
+
+    window.dispatchEvent(new Event('offline'));
+
+    expect(state.telemetryStale()).toBe(true);
+    expect(state.ctlStatus()).toMatchObject({
+      ok: false,
+      mode: 'live',
+      reason: 'browser_offline'
+    });
+    expect(liveSource.closed).toBe(true);
+    expect(state.sessionActive()).toBe(true);
+    expect(state.currentSessionId()).toBe('session-live-offline');
+  });
+
+  it('reconnects online without clobbering the active session identity', async () => {
+    service = TestBed.inject(TelemetryService);
+    const state = TestBed.inject(StateService);
+    await settle();
+    state.sessionActive.set(true);
+    state.currentSessionId.set('session-live-recover');
+    const instancesBeforeOffline = mockEventSourceInstances.length;
+
+    window.dispatchEvent(new Event('offline'));
+    window.dispatchEvent(new Event('online'));
+    await settle();
+
+    expect(mockEventSourceInstances).toHaveLength(instancesBeforeOffline + 1);
+    expect(state.ctlStatus()).toMatchObject({
+      ok: false,
+      mode: 'live',
+      reason: 'browser_online'
+    });
+    expect(state.telemetryStale()).toBe(true);
+    expect(state.sessionActive()).toBe(true);
+    expect(state.currentSessionId()).toBe('session-live-recover');
+
+    mockEventSourceInstances.at(-1)!.triggerEvent(
+      'live',
+      new MessageEvent('live', {
+        data: JSON.stringify({
+          meta: { status: 'running', session_id: 'session-live-recover' },
+          radar: { reported_hr: 73, reported_rr: 15 }
+        })
+      })
+    );
+
+    expect(state.ctlStatus()?.ok).toBe(true);
+    expect(state.telemetryStale()).toBe(false);
+    expect(state.sessionActive()).toBe(true);
+    expect(state.currentSessionId()).toBe('session-live-recover');
+  });
+
+  it('drops a poll response that arrives after the browser goes offline', async () => {
+    service = TestBed.inject(TelemetryService);
+    const state = TestBed.inject(StateService);
+    await settle();
+    const response = deferred<Record<string, unknown>>();
+    (mockApi.request as ReturnType<typeof vi.fn>).mockImplementation(() => response.promise);
+
+    const poll = (service as any).poll();
+    window.dispatchEvent(new Event('offline'));
+    response.resolve({
+      meta: { status: 'running', session_id: 'late-session' },
+      radar: { reported_hr: 88, reported_rr: 18 }
+    });
+    await poll;
+
+    expect(state.telemetryStale()).toBe(true);
+    expect(state.currentSessionId()).not.toBe('late-session');
+    expect(state.lastLivePayload()?.radar.reported_hr).not.toBe(88);
+  });
 });
 
 function deferred<T>() {

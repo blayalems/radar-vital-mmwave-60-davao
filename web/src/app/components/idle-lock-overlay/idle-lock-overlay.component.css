@@ -73,6 +73,10 @@ h2 {
   width: 100%;
 }
 
+.character-count {
+  font-variant-numeric: tabular-nums;
+}
+
 .full-width {
   width: 100%;
 }

@@ -213,21 +213,21 @@ def test_release_provenance_carries_cross_stack_and_model_identity(monkeypatch):
 
     monkeypatch.setattr(contract, "_SOURCE_COMMIT", None)
     payload = release_provenance(
-        product_version="16.5.1",
-        trainer_version="16.5.1",
-        dashboard_version="16.5.1",
-        firmware_expected="v16.5.1",
-        firmware_observed="v16.5.1",
+        product_version="16.5.2",
+        trainer_version="16.5.2",
+        dashboard_version="16.5.2",
+        firmware_expected="v16.5.2",
+        firmware_observed="v16.5.2",
         serial_width_observed=222,
         model_family="gradient_boosting",
         model_bundle="bundle-sha256",
     )
     assert payload == {
-        "product_version": "16.5.1",
-        "trainer_version": "16.5.1",
-        "dashboard_version": "16.5.1",
-        "firmware_expected": "v16.5.1",
-        "firmware_observed": "v16.5.1",
+        "product_version": "16.5.2",
+        "trainer_version": "16.5.2",
+        "dashboard_version": "16.5.2",
+        "firmware_expected": "v16.5.2",
+        "firmware_observed": "v16.5.2",
         "serial_protocol": "v15.2",
         "serial_width_expected": 222,
         "serial_width_observed": 222,

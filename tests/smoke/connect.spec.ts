@@ -40,19 +40,24 @@ test.describe('Connect Wizard first-run onboarding', () => {
     await expect(page.getByRole('button', { name: /Scan Pairing QR Code/ })).toBeVisible();
   });
 
-  test('Demo Now button configures sandbox mode and redirects to /live', async ({ page }) => {
-    // Install the status route before boot so connection detection cannot
-    // hydrate a stale active-session flag that correctly blocks demo entry.
+  test('Demo Now accepts an integrated mock preview and redirects to /live', async ({ page }) => {
+    // The trainer's --mock mode continuously publishes realistic telemetry,
+    // but that simulated session must not trip the real-capture source guard.
     await page.route('**/api/status', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
           ok: true,
-          mode: 'live',
-          trainer_version: '16.5.1',
-          dashboard_version: '16.5.1',
-          active_session: null
+          mode: 'sandbox',
+          trainer_version: '16.5.2',
+          dashboard_version: '16.5.2',
+          active_session: null,
+          preview_session: {
+            session_id: 'mock',
+            mock: true,
+            started_at: '2026-07-29T00:00:00Z'
+          }
         })
       });
     });

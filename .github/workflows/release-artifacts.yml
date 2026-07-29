@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag to publish, for example v16.5.4-alpha.1'
+        description: 'Release tag to publish, for example v16.5.5-alpha.1'
         required: true
         type: string
       prerelease:
@@ -19,6 +19,8 @@ on:
         type: boolean
 
 permissions:
+  actions: read
+  attestations: write
   contents: write
   pages: write
   id-token: write
@@ -36,6 +38,7 @@ jobs:
       release_version: ${{ steps.version.outputs.release_version }}
       android_version_code: ${{ steps.version.outputs.android_version_code }}
       released_at: ${{ steps.version.outputs.released_at }}
+      publication_class: ${{ steps.version.outputs.publication_class }}
     steps:
       - uses: actions/checkout@v4
 
@@ -44,6 +47,7 @@ jobs:
         shell: bash
         env:
           REQUESTED_TAG: ${{ inputs.tag_name }}
+          NAMED_PRERELEASE: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
         run: |
           base_version="$(node -p "require('./src-tauri/tauri.conf.json').version.split('-')[0]")"
           if [ "$GITHUB_REF" = "refs/heads/main" ]; then
@@ -53,9 +57,14 @@ jobs:
           else
             release_tag="$GITHUB_REF_NAME"
           fi
+          if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag must start with v and carry a semantic version, received: ${release_tag}" >&2
+            exit 1
+          fi
           release_version="${release_tag#v}"
-          if [[ ! "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Release tag must carry a semantic version, received: ${release_tag}" >&2
+          tag_product_version="${release_version%%[-+]*}"
+          if [ "$tag_product_version" != "$base_version" ]; then
+            echo "Release tag product version ${tag_product_version} must match package product version ${base_version}." >&2
             exit 1
           fi
           echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
@@ -64,12 +73,21 @@ jobs:
           echo "android_version_code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           released_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           echo "released_at=${released_at}" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "${{ inputs.prerelease }}" = "false" ]; then
+            echo "publication_class=production" >> "$GITHUB_OUTPUT"
+          elif [ "$NAMED_PRERELEASE" = "true" ]; then
+            echo "publication_class=diagnostic" >> "$GITHUB_OUTPUT"
+          else
+            echo "publication_class=diagnostic" >> "$GITHUB_OUTPUT"
+          fi
 
   android:
     name: Android APK
     runs-on: ubuntu-latest
     timeout-minutes: 35
     needs: release_metadata
+    outputs:
+      signature_state: ${{ steps.android_signature_state.outputs.signature_state }}
     steps:
       - uses: actions/checkout@v4
 
@@ -174,6 +192,16 @@ jobs:
           mkdir -p ../dist
           cp app/build/outputs/apk/debug/*.apk ../dist/radar-vital-debug.apk
 
+      - name: Record Android artifact signature state
+        id: android_signature_state
+        shell: bash
+        run: |
+          if [ "${{ steps.android_signing.outputs.enabled }}" = "true" ]; then
+            echo "signature_state=signed_release" >> "$GITHUB_OUTPUT"
+          else
+            echo "signature_state=unsigned_debug_fallback" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload APK release asset
         uses: actions/upload-artifact@v4
         with:
@@ -189,6 +217,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 80
     needs: release_metadata
+    outputs:
+      signature_state: ${{ steps.windows_signature_state.outputs.signature_state }}
     steps:
       - uses: actions/checkout@v4
 
@@ -384,6 +414,16 @@ jobs:
             Write-Host "No Tauri updater signature found; Windows install automation will remain disabled in the manifest."
           }
 
+      - name: Record Windows Authenticode signature state
+        id: windows_signature_state
+        shell: pwsh
+        run: |
+          $exe = Get-Item "dist\radar-vital-windows-installer.exe"
+          $signature = Get-AuthenticodeSignature -LiteralPath $exe.FullName
+          $state = if ($signature.Status -eq 'Valid') { 'authenticode_verified' } else { "not_verified_$($signature.Status.ToString().ToLowerInvariant())" }
+          "signature_state=$state" >> $env:GITHUB_OUTPUT
+          Write-Host "Windows signature state: $state"
+
       - name: Upload EXE release asset
         uses: actions/upload-artifact@v4
         with:
@@ -401,7 +441,7 @@ jobs:
       group: pages
       cancel-in-progress: false
     environment:
-      name: github-pages
+      name: ${{ needs.release_metadata.outputs.publication_class == 'production' && 'release-production' || 'diagnostic-release' }}
       url: ${{ steps.pages_deployment.outputs.page_url }}
     needs:
       - release_metadata
@@ -409,6 +449,9 @@ jobs:
       - windows
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -419,6 +462,41 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             web/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-v12.txt
+
+      - name: Validate exact release source and required gates
+        shell: bash
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$GITHUB_SHA" ]; then
+            echo "Release checkout ${actual_sha} does not equal triggering commit ${GITHUB_SHA}." >&2
+            exit 1
+          fi
+          npm ci
+          npm --prefix web ci
+          python -m pip install --upgrade pip
+          pip install -r requirements-v12.txt
+          npm run test:source-integrity
+          npm run test:qms-contract
+          node scripts/generate-rvt-latest.mjs --self-test
+          node scripts/generate-qms-release-record.mjs --self-test
+          python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer
+          python -m pytest tests -q
+          npm run test:unit:web
+          npm run build:check
+
+      - name: Validate browser smoke on the exact release source
+        run: |
+          npx playwright install --with-deps chromium webkit
+          npx playwright test tests/smoke
+        env:
+          PYTHON: python3
+          RVT_TEST_PORT: 8989
 
       - uses: actions/download-artifact@v4
         with:
@@ -480,7 +558,83 @@ jobs:
           ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}
           BUILD_NUMBER: ${{ github.run_number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          ANDROID_SIGNATURE_STATE: ${{ needs.android.outputs.signature_state }}
+          WINDOWS_SIGNATURE_STATE: ${{ needs.windows.outputs.signature_state }}
         run: node scripts/generate-rvt-latest.mjs
+
+      - name: Resolve fail-closed release authorization
+        id: authorization
+        shell: bash
+        env:
+          PUBLICATION_CLASS: ${{ needs.release_metadata.outputs.publication_class }}
+          RELEASED_AT: ${{ needs.release_metadata.outputs.released_at }}
+          PRODUCTION_APPROVAL_SENTINEL: ${{ secrets.QMS_PRODUCTION_RELEASE_APPROVAL }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$PUBLICATION_CLASS" != "production" ]; then
+            echo "state=pending" >> "$GITHUB_OUTPUT"
+            echo "authorized_by=" >> "$GITHUB_OUTPUT"
+            echo "authorized_at=" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "Diagnostic publication remains pending and can only be a prerelease."
+            exit 0
+          fi
+
+          if [ -z "$PRODUCTION_APPROVAL_SENTINEL" ]; then
+            echo "Production publication requires QMS_PRODUCTION_RELEASE_APPROVAL from the protected release-production environment." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Production source ${GITHUB_SHA} is not reachable from protected main." >&2
+            exit 1
+          fi
+          approval_history="$(curl --fail --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/approvals")"
+          authorizer="$(jq -r '
+            [.[] |
+              select(.state == "approved") |
+              select(any(.environments[]?; .name == "release-production")) |
+              .user.login
+            ] | last // empty
+          ' <<<"$approval_history")"
+          if [ -z "$authorizer" ]; then
+            echo "No named release-production approval was found in this workflow run's durable review history." >&2
+            exit 1
+          fi
+          echo "state=authorized" >> "$GITHUB_OUTPUT"
+          echo "authorized_by=${authorizer}" >> "$GITHUB_OUTPUT"
+          echo "authorized_at=${RELEASED_AT}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=false" >> "$GITHUB_OUTPUT"
+
+      - name: Generate QMS release provenance and checksums
+        env:
+          RELEASE_TAG: ${{ needs.release_metadata.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.release_metadata.outputs.release_version }}
+          RELEASED_AT: ${{ needs.release_metadata.outputs.released_at }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          ANDROID_SIGNATURE_STATE: ${{ needs.android.outputs.signature_state }}
+          WINDOWS_SIGNATURE_STATE: ${{ needs.windows.outputs.signature_state }}
+          QMS_ATTESTATION_CONFIGURED: 'true'
+          QMS_AUTHORIZATION_STATE: ${{ steps.authorization.outputs.state }}
+          QMS_AUTHORIZED_BY: ${{ steps.authorization.outputs.authorized_by }}
+          QMS_AUTHORIZED_AT: ${{ steps.authorization.outputs.authorized_at }}
+        run: node scripts/generate-qms-release-record.mjs
+
+      - name: Verify QMS release evidence
+        shell: pwsh
+        run: scripts/verify-release-artifacts.ps1 -DistDirectory dist
 
       - name: Resolve release upload file list
         id: release_files
@@ -488,7 +642,7 @@ jobs:
         run: |
           {
             find release-assets -type f \( -name '*.apk' -o -name '*.aab' -o -name '*.exe' -o -name '*.sig' \)
-            printf '%s\n' dist/rvt-latest.json dist/rvt-latest-tauri.json
+            printf '%s\n' dist/rvt-latest.json dist/rvt-latest-tauri.json dist/qms-release-record.json dist/controlled-document-revisions.json dist/SHA256SUMS
           } | sort > release-files.txt
           cat release-files.txt
           {
@@ -497,13 +651,18 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
+      - name: Attest release build provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.release_metadata.outputs.release_tag }}
           name: ${{ needs.release_metadata.outputs.release_name }}
           target_commitish: ${{ github.sha }}
-          prerelease: ${{ github.ref == 'refs/heads/main' || inputs.prerelease || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
+          prerelease: ${{ steps.authorization.outputs.prerelease }}
           make_latest: false
           generate_release_notes: true
           body: |
@@ -511,26 +670,30 @@ jobs:
 
             The Windows installer includes the bundled Python trainer sidecar. APK builds remain LAN companion clients that connect to a trainer over Wi-Fi/LAN. When Android signing secrets are configured, the release also includes the signed AAB for Google Play closed testing.
 
-            `rvt-latest.json` is published with SHA-256 hashes, byte sizes, release URLs, and compatibility metadata for manual update guidance. Automated `main` releases use a monotonically increasing `v<app-version>-main.<workflow-run>` tag. GitHub-generated release notes below are the changelog for this build.
+            `rvt-latest.json`, `qms-release-record.json`, and `SHA256SUMS` publish source/workflow provenance, controlled-document revision hashes, artifact byte sizes, SHA-256 hashes, and recorded signature states. This evidence supports change control and does not claim regulatory certification or medical-device approval. Automated `main` releases use a monotonically increasing `v<app-version>-main.<workflow-run>` tag. GitHub-generated release notes below are the changelog for this build.
           fail_on_unmatched_files: true
           files: ${{ steps.release_files.outputs.files }}
 
       - name: Build Pages artifact with latest manifest
+        if: steps.authorization.outputs.state == 'authorized'
         run: |
-          npm ci
-          npm --prefix web ci
-          npm run build:web
           cp dist/rvt-latest.json www/rvt-latest.json
           cp dist/rvt-latest-tauri.json www/rvt-latest-tauri.json
+          cp dist/qms-release-record.json www/qms-release-record.json
+          cp dist/controlled-document-revisions.json www/controlled-document-revisions.json
+          cp dist/SHA256SUMS www/SHA256SUMS
 
       - name: Configure Pages
+        if: steps.authorization.outputs.state == 'authorized'
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
+        if: steps.authorization.outputs.state == 'authorized'
         uses: actions/upload-pages-artifact@v3
         with:
           path: www
 
       - name: Deploy latest manifest to Pages
+        if: steps.authorization.outputs.state == 'authorized'
         id: pages_deployment
         uses: actions/deploy-pages@v4

@@ -1,0 +1,40 @@
+# RVT-QMS-CFG-001, revision R01.
+# CODEOWNERS requests review; the main ruleset is the authoritative approval
+# control. Roles and actual reviewers are recorded in the pull request.
+
+# QMS policy, registers, schemas, and change-record template
+/quality/ @blayalems
+/.github/PULL_REQUEST_TEMPLATE.md @blayalems
+/.github/CODEOWNERS @blayalems
+
+# Build, verification, release, and dependency control
+/.github/workflows/ @blayalems
+/scripts/ @blayalems
+/package.json @blayalems
+/package-lock.json @blayalems
+/web/package.json @blayalems
+/web/package-lock.json @blayalems
+/pyproject.toml @blayalems
+/requirements*.txt @blayalems
+/src-tauri/Cargo.toml @blayalems
+/src-tauri/Cargo.lock @blayalems
+
+# Repository operating contract and permanent engineering records
+/AGENTS.md @blayalems
+/HANDOFF.md @blayalems
+/CHANGELOG.md @blayalems
+/README.md @blayalems
+/CONTRIBUTING.md @blayalems
+
+# Release, research, protocol, model, and validation documentation
+/docs/release-and-protection.md @blayalems
+/docs/system-feedback-loop.md @blayalems
+/docs/model-family-guide.md @blayalems
+/docs/physical-acceptance-checklist.md @blayalems
+
+# Coupled shipped sources
+/radar_vital_v*.ino @blayalems
+/rvt_trainer/ @blayalems
+/web/src/ @blayalems
+/src-tauri/ @blayalems
+/packaging/ @blayalems

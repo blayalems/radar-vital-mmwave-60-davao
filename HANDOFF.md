@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-29 - Establish v16.5.5 QMS change and release control
+
+- **Document control**: Added an ISO 9001:2015-aligned (not certification-claiming) QMS policy, controlled-document register, stable revisions/roles/retention, PR change record, and protected-branch guidance.
+- **Traceability**: Added machine-readable requirement-to-implementation-to-test mappings and CI gates for schemas, controlled paths/revisions, test selectors, one-version-step releases, and a `HANDOFF.md` update in every commit.
+- **Release evidence**: Added tag/product matching, source/workflow provenance, final artifact sizes/hashes/signature states, `qms-release-record.json`, `SHA256SUMS`, and GitHub artifact attestations.
+- **Release identity**: Advanced all shipped carriers exactly one patch to `16.5.5`; QMS, study, API, and serial schemas retain independent identities and advance only when their contracts change.
+- **Verification**: QMS contract passes 9/9 across 17 controlled documents and 13 traced requirements; release/QMS/static tests pass 36/36; full Python passes 436/436 with 3 environment skips; Angular passes 247/247. Release generators, trainer compile/help, v16.5.4 -> v16.5.5 patch/version graph, source integrity, feedback-loop export, production build, and generated-dashboard round trip pass. Exact-source browser/APK/EXE/Pages execution remains a required CI/release gate.
+
 ### 2026-07-29 - Make v16.5.4 session Start idempotent
 
 - **Start identity**: One operator Start intent carries a stable idempotency key through dashboard retries and trainer execution so duplicate activation cannot allocate multiple participant/trial sessions.

@@ -8,6 +8,7 @@ only when the CNN family is selected.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import random
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
@@ -141,7 +142,17 @@ class Keras1DCNNRegressor:
 
     def _build_model(self, input_shape: Tuple[int, int]):
         tf = self._tensorflow()
+        tf.keras.backend.clear_session()
+        random.seed(self.random_state)
+        np.random.seed(self.random_state)
         tf.keras.utils.set_random_seed(self.random_state)
+        try:
+            tf.config.experimental.enable_op_determinism()
+        except (AttributeError, RuntimeError):
+            # Older TensorFlow releases or already-initialized accelerators may
+            # not expose/allow this switch. The bundle records that deterministic
+            # ops were requested, not that every platform guarantees bit identity.
+            pass
         inputs = tf.keras.Input(shape=input_shape, name="radar_window")
         x = tf.keras.layers.Conv1D(
             self.config.filters,

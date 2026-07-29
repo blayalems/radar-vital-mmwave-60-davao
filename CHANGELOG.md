@@ -13,7 +13,7 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 - Added ISO 9001:2015-aligned controlled-document, requirement/test traceability, PR change-control, release authorization, checksum, and build-provenance records without claiming certification.
 
 ### Changed
-- Promoted every shipped product-version carrier exactly one patch to v16.5.6 and advanced only the controlled-document revisions affected by the release change.
+- Promoted every shipped product-version carrier exactly one patch to v16.5.7, renamed the active firmware source accordingly, and advanced only the controlled-document revisions affected by the dual-model readiness release.
 - Promoted the firmware, trainer, Angular dashboard, Capacitor package, Tauri package, and issue-report identity together to v16.5.5 while preserving the frozen v15.2 / 222-column serial contract and stable v12 compatibility entrypoints.
 - Added an executable cross-language version contract so Python, TypeScript, Rust, C++, package locks, help text, and packaging metadata cannot drift silently.
 - Added a canonical hardware–software feedback-loop and dual-model reproducibility figure contract for GBR, experimental 1-D CNN, shared statistical reporting, and direct manuscript integration.

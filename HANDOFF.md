@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-29 - Deliver v16.5.7 leakage-safe dual-model readiness
+
+- **Release identity**: Advanced firmware, trainer, Angular dashboard, package, installer, help, issue, test, and generated-artifact carriers exactly one patch to `16.5.7`; the firmware source is now `radar_vital_v16_5_7.ino` while stable trainer/dashboard compatibility filenames and the frozen v15.2 / 222-column serial contract remain unchanged.
+- **Leakage-safe evaluation**: Added deterministic participant-disjoint train/early-stop/test ledgers shared by GBR and 1-D CNN, session-bounded temporal features/windows, leave-one-participant-out evaluation, and a fail-closed confirmatory gate for the complete 0.6/0.8/1.0 m by none/cardboard by three-trial, 150-second protocol.
+- **Reproducible bundles**: Added signed model-bundle metadata for ordered feature contracts, split-ledger hash, training policy, seeds, dependency/runtime/source provenance, artifact hashes, and conservative deployment qualification; GBR remains the default and TensorFlow stays optional/lazy for experimental CNN runs.
+- **Controlled documents**: Advanced the controlled-document and requirements registers to `R03`, the model-family guide to `R02`, and only the other controlled records changed by the v16.5.7 release and dual-model evidence.
+- **Verification**: Full Python passes 474/474 with 3 environment skips; focused model/split coverage passes 90/90; Angular passes 249/249. Trainer compile/help, v16.5.6 -> v16.5.7 patch/version graph, source integrity, feedback-loop export, production build, generated-dashboard round trip, and QMS checks pass (9/9 contract tests; 17 controlled documents and 13 traced requirements). Playwright API smoke begins green, but browser execution remains environment-blocked by the missing Chromium headless-shell binary; firmware/APK/EXE/Pages remain required CI gates.
+
 ### 2026-07-29 - Harden v16.5.6 routes, authorization, and participant consent state
 
 - **Release identity**: Advanced firmware, trainer, Angular dashboard, package, installer, help, issue, and generated-artifact version carriers exactly one patch to `16.5.6`; the firmware source is now `radar_vital_v16_5_6.ino` while the frozen v15.2 / 222-column serial contract and stable compatibility filenames remain unchanged.

@@ -85,3 +85,46 @@ The optional embedded TFLite surrogate is a separate teacher-distillation
 experiment. Selecting `cnn_1d` does not mean CNN inference is deployed on the
 ESP32-C6, and producing a TFLite artifact does not establish hardware
 acceptance.
+
+## Reproducibility and bundle contract
+
+Treat a trained directory as a versioned bundle, not as three interchangeable
+pickle files. A reproducible bundle records:
+
+- the model family and trained targets;
+- the exact ordered base and expanded feature names;
+- the feature-engineering version, schema version, and schema hash;
+- a canonical feature-contract hash;
+- all model, sequence, and preprocessing configuration;
+- the root seed and the target seed policy (`HR = seed`, `RR = seed + 1`);
+- Python, operating-system, machine, and dependency versions;
+- artifact SHA-256 values and, for controlled use, a verified signature; and
+- the source commit and trainer release that produced the bundle.
+
+Preprocessing parameters must be fitted on the training partition only.
+Validation, early-stop, test, and LOSO-held-out participants may be transformed
+with the fitted values but must never influence imputation, missing-indicator
+selection, feature selection, or CNN normalization. The saved feature contract
+is order-sensitive: inference must fail closed when feature membership, order,
+schema hash, model family, or CNN window size differs.
+
+A fixed seed is necessary but not sufficient for bit-identical CNN results.
+Record dependency and hardware/runtime versions, request deterministic
+TensorFlow operations, and disclose when a deterministic kernel is unavailable.
+TensorFlow remains an optional dependency and must not be imported while
+training, loading metadata for, or running the default gradient-boosting path.
+
+## Deployment trade-off gate
+
+| Gate | Gradient boosting | 1-D CNN |
+|---|---|---|
+| Host status | Supported CPU baseline | Experimental; TensorFlow required |
+| Feature input | Ordered 2-D tabular rows | Ordered causal 3-D windows |
+| Main advantage | Strong small-data baseline and explainable importances | Learns temporal patterns within a session |
+| Main risk | Limited representation of temporal dynamics | Higher data, dependency, memory, and reproducibility cost |
+| ESP32-C6 status | Not qualified | Not qualified |
+| Required embedded evidence | Conversion/distillation, flash, RAM, latency, parity, physical accuracy | Integer quantization, operator support, tensor arena, flash, latency, parity, physical accuracy |
+
+Do not select the CNN because its training loss is lower. Select a deployable
+family only after participant-held-out comparison at the protocol distances and
+barriers, with identical preprocessing rules and accuracy/statistical gates.

@@ -1,8 +1,8 @@
 # Radar Vital v16.5 High-Yield Engineering Roadmap
 
-Date: 2026-07-28  
-Audit base: `codex/firmware-state-recovery` at `d3e32ceb`  
-Release identity: firmware, trainer, dashboard, APK, and EXE `16.5.0`  
+Date: 2026-07-29
+Audit base: `codex/firmware-state-recovery` at `d3e32ceb`
+Release identity: firmware, trainer, dashboard, APK, and EXE `16.5.0`
 Wire compatibility: v15.2 CSV, 222 columns, 207/219-column replay support
 
 This roadmap ranks the hardest changes by long-term safety, reproducibility,

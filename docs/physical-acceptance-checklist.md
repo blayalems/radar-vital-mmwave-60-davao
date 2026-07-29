@@ -10,7 +10,7 @@ Ensure the following hardware components are available:
 1. **Target Mobile Device**: Android 10+ (tested against Pixel baseline).
 2. **Target Windows Machine**: Windows 10 or 11 with a working Bluetooth 4.2+ BLE USB adapter or integrated chip.
 3. **Reference BLE Device**: AiLink Pulse Oximeter or compatible GATT simulator.
-4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_4_0.ino`.
+4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_5_0.ino`.
 5. **LAN Test Environment**: Both the trainer server (PC) and the mobile device must be connected to the exact same subnet (e.g., local Wi-Fi router).
 
 ---
@@ -71,7 +71,7 @@ Ensure the following hardware components are available:
 - [ ] Verify that the notes or annotations for Session A remain isolated within `s01/session_notes.json` and are not copied or exposed in `s02/session_notes.json`.
 - [ ] Check `s02/session_notes.json` and verify it is either empty or only contains annotations specific to Session B.
 
-### Phase G: v16.4 Shell, Dialogs, and Store-Readiness QA
+### Phase G: v16.5 Shell, Dialogs, and Store-Readiness QA
 - [ ] Android APK: verify edge-to-edge layout does not clip the topbar, bottom navigation, consent dialog, onboarding tutorial, recovery-code dialog, or issue-report preview on a Pixel-class phone.
 - [ ] Android APK: open each new dialog (consent, tutorial, recovery code, issue preview), use the system back gesture, and verify it either dismisses only when allowed or returns to the previous step without losing operator/session state.
 - [ ] PWA on Android Chrome: verify the Home install banner appears after `beforeinstallprompt`, can be dismissed, and does not reappear in the same accepted/dismissed session.
@@ -84,7 +84,7 @@ Ensure the following hardware components are available:
 - [ ] PWA privacy URL: from the hosted Pages build, open `/privacy.html` and `/terms.html`; verify both render without the trainer API and match the in-app legal copy version.
 
 ### Phase H: PR72 Session-Data Audit Regression
-- [ ] Record or replay a v16.4 session and verify the trainer reports the on-disk CSV contract length as 222 columns, not the loader-augmented feature width.
+- [ ] Record or replay a v16.5 session and verify the trainer reports the on-disk CSV contract length as 222 columns, not the loader-augmented feature width.
 - [ ] Verify `module_fw_major`, `module_fw_sub`, `module_fw_mod`, and `module_fw_valid` populate after boot/recovery when the MR60BHA2 version TLV is observed.
 - [ ] Confirm BLE reference quality uses time-based `coverage_pct` and does not label expected AiLink protocol gaps as decode errors.
 - [ ] Confirm `ref_ble_summary.json` is present after a Windows-side BLE reference run, including interrupted/terminated child-process cases.

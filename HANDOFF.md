@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-29 - Establish the coordinated v16.5 release baseline
+
+- **Release identity**: Promoted firmware, trainer, Angular UI, Capacitor, Tauri, package locks, issue metadata, help, tests, and generated dashboard together to `16.5.0`; renamed the active sketch to `radar_vital_v16_5_0.ino` while preserving the v15.2/222-column protocol, 207/219 replay widths, v16.4 provenance of columns 220-222, and stable v12 compatibility filenames.
+- **Drift prevention**: Added executable cross-language version validation and a CI-enforced rule that every successor PR advances exactly one patch or minor release; added the participant/release-bound session invariant for new real and simulated captures.
+- **Reproducibility**: Added the canonical hardware-firmware-trainer-UI feedback loop, shared GBR/experimental 1-D CNN process, statistical/manuscript export contract, and ranked high-yield successor roadmap.
+- **Verification**: PR version, full version graph, diagram export, generated-dashboard round trip, Python compile/help, focused Python regressions (125/125), and Angular unit tests (218/218) pass; the ESP32-C6 compile is running with the pinned core and explicit Seeed/LCD/sensor libraries.
+
 ### 2026-07-24 - Synchronize firmware recovery with integrated main
 
 - **Stack integration**: Merged the PR #80 integration head into PR #79 while preserving the firmware recovery sketch and dedicated recovery fixtures.

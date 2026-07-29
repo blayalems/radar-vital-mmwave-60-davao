@@ -2,7 +2,7 @@ import { compareSemver } from './update.service';
 
 describe('compareSemver (SemVer 2.0.0 precedence)', () => {
   it('orders numeric core versions', () => {
-    expect(compareSemver('16.4.0', '16.3.0')).toBeGreaterThan(0);
+    expect(compareSemver('16.5.0', '16.4.0')).toBeGreaterThan(0);
     expect(compareSemver('16.3.0', '16.3.1')).toBeLessThan(0);
     expect(compareSemver('17.0.0', '16.9.9')).toBeGreaterThan(0);
     expect(compareSemver('16.3.0', '16.3.0')).toBe(0);
@@ -34,7 +34,7 @@ describe('compareSemver (SemVer 2.0.0 precedence)', () => {
 
   it('ignores build metadata and a leading v', () => {
     expect(compareSemver('v16.3.0+build.9', '16.3.0+build.1')).toBe(0);
-    expect(compareSemver('v16.4.0', '16.3.0')).toBeGreaterThan(0);
+    expect(compareSemver('v16.5.0', '16.4.0')).toBeGreaterThan(0);
   });
 
   it('treats a main prerelease build as older than the stable release of the same core', () => {

@@ -6,7 +6,7 @@ radar directly.
 
 ## Closed testing
 
-The v16.4 release plan targets Google Play closed testing before production.
+The v16.5 release plan targets Google Play closed testing before production.
 Play personal-account promotion has practical gates: a closed-testing cohort
 needs at least 12 opted-in testers and 14 days of active testing before
 production eligibility. AAB signing, Play listing review, data-safety answers,

@@ -65,7 +65,7 @@ def test_milestones_track_release_blockers_honestly():
         "Play closed testing",
         "Signing identity",
         "Legal review sign-off",
-        "v16.4 backlog",
+        "v16.5 backlog",
     ):
         assert milestone in body
     assert "12 testers" in body

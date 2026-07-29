@@ -19,6 +19,7 @@ import {
   normalizeHttpOrigin,
   resolveTrainerRequestTarget
 } from './api-target-policy';
+import { clientReleaseHandshake } from './release-contract';
 
 interface NativeHttpPlugin {
   request(options: {
@@ -381,6 +382,7 @@ export class ApiService {
       planned_duration_s: setup.duration_s,
       ble_profile: setup.ble_profile,
       skip_countdown: setup.skip_countdown,
+      client_handshake: clientReleaseHandshake(),
       advanced: { notify_char: setup.notify_char }
     };
     const result = await this.request<{ session_id?: string }>('/api/session/start', {

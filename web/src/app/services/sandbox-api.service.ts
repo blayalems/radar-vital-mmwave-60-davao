@@ -46,7 +46,20 @@ export class SandboxApiService {
     const method = String(init?.method || 'GET').toUpperCase();
     if (url.pathname === '/api/status') return { ok: true, mode: 'sandbox', active_session: this.sessionStore.sessionActive() ? { session_id: this.sessionStore.currentSessionId() || 'sandbox_active', sandbox: true } : null };
     if (url.pathname === '/api/health') return { ok: true, version: 'sandbox' };
-    if (url.pathname === '/api/version') return { product_version: PRODUCT_VERSION, trainer: 'sandbox', dashboard: 'sandbox', firmware_expected: 'sandbox' };
+    if (url.pathname === '/api/version') return {
+      product_version: PRODUCT_VERSION,
+      trainer: PRODUCT_VERSION,
+      dashboard: PRODUCT_VERSION,
+      firmware_expected: `v${PRODUCT_VERSION}`,
+      firmware_observed: `v${PRODUCT_VERSION}`,
+      serial_protocol: 'v15.2',
+      serial_width_expected: 222,
+      serial_width_observed: 222,
+      schema_versions: {
+        control_api: 'rvt-control-api-v12.0',
+        study_session: 'rvt-study-session-v16.5.1'
+      }
+    };
     if (url.pathname === '/api/auth/validate') return this.validateOperator();
     if (url.pathname === '/api/auth/login' && method === 'POST') {
       const login = this.login(init);

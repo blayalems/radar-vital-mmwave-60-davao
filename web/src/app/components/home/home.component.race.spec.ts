@@ -9,6 +9,7 @@ import { AudioService } from '../../services/audio.service';
 import { BluetoothService } from '../../services/bluetooth.service';
 import { I18nService } from '../../services/i18n.service';
 import { InstallPromptService } from '../../services/install-prompt.service';
+import { clientReleaseHandshake } from '../../services/release-contract';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { StateService } from '../../services/state.service';
 import { TelemetryService } from '../../services/telemetry.service';
@@ -161,6 +162,15 @@ describe('HomeComponent preflight request ownership', () => {
   it('posts the exact click-time setup after a current successful preflight', async () => {
     request.mockImplementation((path: string) => {
       if (path.startsWith('/api/preflight?')) return Promise.resolve({ checks: passingChecks('COM7') });
+      if (path === '/api/version') return Promise.resolve({
+        product_version: clientReleaseHandshake().product_version,
+        trainer: clientReleaseHandshake().product_version,
+        dashboard: clientReleaseHandshake().dashboard_version,
+        firmware_expected: `v${clientReleaseHandshake().product_version}`,
+        serial_protocol: clientReleaseHandshake().serial_protocol,
+        serial_width_expected: clientReleaseHandshake().serial_width_expected,
+        schema_versions: clientReleaseHandshake().schema_versions
+      });
       if (path === '/api/session/start') return Promise.resolve({ session_id: 'session-1' });
       throw new Error(`Unexpected request: ${path}`);
     });
@@ -187,6 +197,7 @@ describe('HomeComponent preflight request ownership', () => {
         planned_duration_s: 30,
         ble_profile: 'ailink_oximeter',
         skip_countdown: false,
+        client_handshake: clientReleaseHandshake(),
         advanced: { notify_char: '0000ffe2-0000-1000-8000-00805f9b34fb' }
       })
     }));

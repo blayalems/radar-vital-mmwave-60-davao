@@ -22,6 +22,11 @@ import numpy as np
 def nan_safe(obj: Any) -> Any:
     """Return the trainer's historical JSON-safe representation of ``obj``."""
 
+    # ``bool`` is an ``int`` subclass in Python. Preserve JSON booleans before
+    # the NumPy/integer conversion below or durable manifests encode them as
+    # 0/1 and lose their schema type.
+    if isinstance(obj, bool):
+        return obj
     if isinstance(obj, dict):
         return {key: nan_safe(value) for key, value in obj.items()}
     if isinstance(obj, list):

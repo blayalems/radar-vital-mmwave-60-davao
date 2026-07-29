@@ -260,6 +260,66 @@ export class ReportComponent implements OnInit, AfterViewInit {
     return this.selectedSummary || this.selectedSession || { session_id: '' };
   }
 
+  primarySessionMetadata(): Array<{ label: string; value: string }> {
+    const records = this.metadataRecords();
+    const value = (...keys: string[]): unknown => {
+      for (const record of records) {
+        for (const key of keys) {
+          const candidate = record[key];
+          if (candidate !== undefined && candidate !== null && String(candidate).trim() !== '') return candidate;
+        }
+      }
+      return null;
+    };
+    const text = (candidate: unknown): string => candidate === null ? '' : String(candidate).trim();
+    const rows: Array<{ label: string; value: string }> = [];
+    const add = (label: string, candidate: unknown, suffix = '') => {
+      const normalized = text(candidate);
+      if (normalized) rows.push({ label, value: `${normalized}${suffix}` });
+    };
+
+    add('Participant', value('participant_id', 'participant_code', 'profile_code'));
+    add('Trial', value('trial_id'));
+    add('Condition', value('condition_id'));
+    add('Distance', value('distance_m'), ' m');
+    add('Barrier', value('barrier_type', 'barrier'));
+    add('Study classification', value('study_classification', 'study_mode'));
+    add('Model family', value('model_family'));
+    add('Model bundle', value('model_bundle', 'model_bundle_id', 'model_bundle_hash'));
+    add('Product release', value('product_version'));
+    add('Trainer release', value('trainer_version'));
+    add('Dashboard release', value('dashboard_version'));
+    add('Expected firmware', value('firmware_expected'));
+    add('Observed firmware', value('firmware_observed', 'firmware_version'));
+
+    const serialProtocol = text(value('serial_protocol'));
+    const serialWidth = text(value('serial_width_observed', 'serial_width_expected'));
+    if (serialProtocol || serialWidth) {
+      rows.push({
+        label: 'Serial contract',
+        value: [serialProtocol, serialWidth ? `${serialWidth} columns` : ''].filter(Boolean).join(' / ')
+      });
+    }
+    add('Source commit', value('source_commit'));
+    return rows;
+  }
+
+  private metadataRecords(): Array<Record<string, unknown>> {
+    const records: Array<Record<string, unknown>> = [];
+    const visit = (candidate: unknown): void => {
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return;
+      const record = candidate as Record<string, unknown>;
+      if (records.includes(record)) return;
+      records.push(record);
+      for (const key of ['params', 'study', 'release', 'release_provenance', 'provenance', 'metadata', 'session_manifest']) {
+        visit(record[key]);
+      }
+    };
+    visit(this.selectedSummary);
+    visit(this.selectedSession);
+    return records;
+  }
+
   // ---- Session quality scorecard (all values come from the existing
   // /api/sessions/<id>/summary payload; nothing here adds API surface) ----
 

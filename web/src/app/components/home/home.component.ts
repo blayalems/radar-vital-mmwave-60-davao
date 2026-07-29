@@ -32,6 +32,11 @@ import {
   PreflightSetup,
   preflightSetupFingerprint
 } from './preflight-request-coordinator.service';
+import {
+  ParticipantStudySetupComponent,
+  studySetupError,
+  studyTrialId
+} from '../participant-study-setup/participant-study-setup.component';
 export { preflightSetupFingerprint } from './preflight-request-coordinator.service';
 
 const FALLBACK_RADAR_PORT = 'COM10';
@@ -52,6 +57,15 @@ interface SessionStartPayload {
   operator_label: string;
   station_label: string;
   subject_profile_id: string;
+  participant_id: string;
+  trial_id: string;
+  study_mode: 'confirmatory' | 'exploratory';
+  study_classification: 'confirmatory' | 'exploratory';
+  condition_id: string;
+  distance_m: number;
+  barrier_type: 'none' | 'cardboard';
+  trial_number: number;
+  planned_duration_s: number;
   ble_profile: string;
   skip_countdown: boolean;
   advanced: { notify_char: string };
@@ -105,7 +119,8 @@ export function sessionStartTimestampMs(session: Pick<SessionRecord, 'started_at
     MatProgressSpinnerModule,
     MatChipsModule,
     MatSnackBarModule,
-    TranslatePipe
+    TranslatePipe,
+    ParticipantStudySetupComponent
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
@@ -546,7 +561,12 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     return !this.isPreflightRunning
       && this.preflightRequests.lastValidFingerprint === this.currentPreflightFingerprint()
       && this.preflightChecks.length > 0
-      && !this.hasBlockingPreflightFailure();
+      && !this.hasBlockingPreflightFailure()
+      && !this.studySetupError();
+  }
+
+  studySetupError(): string {
+    return studySetupError({ ...this.state.setup(), duration_s: this.selectedDuration });
   }
 
   protected checkPasses(check: PreflightCheck): boolean {
@@ -750,6 +770,12 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async startSession() {
     this.state.triggerHaptic('sessionStart');
+    const setupError = this.studySetupError();
+    if (setupError) {
+      this.snackBar.open(`Start blocked: ${setupError}`, 'Dismiss', { duration: 7000 });
+      this.state.triggerHaptic('reject');
+      return;
+    }
     this.isStartingSession = true;
     const payload = this.captureSessionStartPayload();
     const setupFingerprint = JSON.stringify(payload);
@@ -809,6 +835,15 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       operator_label: setup.operator_label,
       station_label: setup.station_label,
       subject_profile_id: setup.subject_profile_id,
+      participant_id: setup.participant_id,
+      trial_id: studyTrialId(setup),
+      study_mode: setup.study_mode,
+      study_classification: setup.study_mode,
+      condition_id: setup.condition_id,
+      distance_m: setup.distance_m,
+      barrier_type: setup.barrier_type,
+      trial_number: setup.trial_number,
+      planned_duration_s: this.selectedDuration,
       ble_profile: setup.ble_profile,
       skip_countdown: setup.skip_countdown,
       advanced: { notify_char: setup.notify_char }

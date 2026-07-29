@@ -6,8 +6,12 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### Added
+- Added release-aware, pseudonymous participant profiles and immutable trial assignment for confirmatory and exploratory study sessions.
+- Added explicit confirmatory validation for the proposal's 0.6/0.8/1.0 m, no-barrier/cardboard, three-trial, 150-second protocol while retaining labelled exploratory captures from 0.5 to 1.0 m.
+
 ### Changed
-- Promoted the firmware, trainer, Angular dashboard, Capacitor package, Tauri package, and issue-report identity together to v16.5.0 while preserving the frozen v15.2 / 222-column serial contract and stable v12 compatibility entrypoints.
+- Promoted the firmware, trainer, Angular dashboard, Capacitor package, Tauri package, and issue-report identity together to v16.5.1 while preserving the frozen v15.2 / 222-column serial contract and stable v12 compatibility entrypoints.
 - Added an executable cross-language version contract so Python, TypeScript, Rust, C++, package locks, help text, and packaging metadata cannot drift silently.
 - Added a canonical hardware–software feedback-loop and dual-model reproducibility figure contract for GBR, experimental 1-D CNN, shared statistical reporting, and direct manuscript integration.
 

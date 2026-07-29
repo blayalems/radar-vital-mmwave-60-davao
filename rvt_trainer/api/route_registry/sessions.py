@@ -3,6 +3,9 @@
 from .types import AuthPolicy, RouteGroup, route
 
 ROUTES = (
+    route("participants_list", "GET", "/api/participants", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),
+    route("participants_create", "POST", "/api/participants", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),
+    route("participant_status", "PUT", "/api/participants/*", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),
     route("session_start", "POST", "/api/session/start", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),
     route("session_stop", "POST", "/api/session/stop", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),
     route("session_annotate", "POST", "/api/session/annotate", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),

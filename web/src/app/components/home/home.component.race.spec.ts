@@ -39,6 +39,12 @@ const initialSetup = (): SetupState => ({
   operator_label: 'Operator A',
   station_label: 'Lab 1',
   subject_profile_id: 'adult_default',
+  participant_id: 'P-001',
+  study_mode: 'exploratory',
+  condition_id: 'd060_none',
+  distance_m: 0.6,
+  barrier_type: 'none',
+  trial_number: 1,
   skip_countdown: false
 });
 
@@ -170,6 +176,15 @@ describe('HomeComponent preflight request ownership', () => {
         operator_label: 'Operator A',
         station_label: 'Lab 1',
         subject_profile_id: 'adult_default',
+        participant_id: 'P-001',
+        trial_id: 'P-001-d060_none-t1',
+        study_mode: 'exploratory',
+        study_classification: 'exploratory',
+        condition_id: 'd060_none',
+        distance_m: 0.6,
+        barrier_type: 'none',
+        trial_number: 1,
+        planned_duration_s: 30,
         ble_profile: 'ailink_oximeter',
         skip_countdown: false,
         advanced: { notify_char: '0000ffe2-0000-1000-8000-00805f9b34fb' }

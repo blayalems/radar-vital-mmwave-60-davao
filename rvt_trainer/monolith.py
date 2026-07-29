@@ -100,6 +100,17 @@ from rvt_trainer.modeling import (
     MODEL_FAMILY_GRADIENT_BOOSTING,
     build_causal_windows,
 )
+from rvt_trainer.session.study_contract import (
+    PARTICIPANT_REGISTRY_SCHEMA_VERSION,
+    STUDY_SESSION_SCHEMA_VERSION,
+    StudyContractError,
+    create_participant_profile as _create_participant_profile,
+    load_participant_registry as _load_participant_registry,
+    merge_immutable_study_assignment as _merge_immutable_study_assignment,
+    release_provenance as _release_provenance,
+    update_participant_status as _update_participant_status,
+    validate_study_assignment as _validate_study_assignment,
+)
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -108,9 +119,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.0"
-DASHBOARD_VERSION = "16.5.0"
-FIRMWARE_VERSION_EXPECTED = "v16.5.0"
+VERSION = "16.5.1"
+DASHBOARD_VERSION = "16.5.1"
+FIRMWARE_VERSION_EXPECTED = "v16.5.1"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -130,8 +141,8 @@ SESSION_NOTES_SCHEMA_VERSION = "rvt-session-notes-v12.0"
 SESSION_SIGNOFF_SCHEMA_VERSION = "rvt-session-signoff-v12.0"
 TRAINING_PROGRESS_SCHEMA_VERSION = "rvt-training-progress-v12.0"
 LIVE_EVENT_SCHEMA_VERSION = "rvt-live-events-v12.0"
-SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v12.0"
-SESSION_MANIFEST_VERSION = "v12-session-manifest-2026-05-15"
+SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v16.5.1"
+SESSION_MANIFEST_VERSION = "v16.5.1-session-manifest-2026-07-29"
 CHART_ANNOTATIONS_SCHEMA_VERSION = "rvt-chart-annotations-v12.0"
 FEATURE_FLAGS = {
     "enable_sse": True,
@@ -1488,7 +1499,7 @@ def _session_root_for_outputs(out_dir: str) -> str:
 
 def _manifest_identity(fw_truthfulness: Optional[Dict[str, object]] = None) -> Dict[str, object]:
     fw_truthfulness = fw_truthfulness if isinstance(fw_truthfulness, dict) else {}
-    return {
+    identity = {
         "sketch_version": fw_truthfulness.get("version", "unknown"),
         "module_version": fw_truthfulness.get("module_version"),
         "module_version_valid": bool(fw_truthfulness.get("module_version_valid", False)),
@@ -1499,6 +1510,16 @@ def _manifest_identity(fw_truthfulness: Optional[Dict[str, object]] = None) -> D
         "feature_schema_hash": feature_schema_hash(),
         "scoring_weights_hash": _scoring_weights_hash(),
     }
+    identity.update(_release_provenance(
+        product_version=VERSION,
+        trainer_version=VERSION,
+        dashboard_version=DASHBOARD_VERSION,
+        firmware_expected=FIRMWARE_VERSION_EXPECTED,
+        firmware_observed=fw_truthfulness.get("version"),
+        serial_width_expected=EXPECTED_RADAR_LOG_COLUMN_COUNT,
+        serial_width_observed=fw_truthfulness.get("contract_length"),
+    ))
+    return identity
 
 
 def _warn_on_manifest_mismatch(session_root: str, fw_truthfulness: Optional[Dict[str, object]] = None) -> None:
@@ -1549,6 +1570,9 @@ def _write_session_manifest(
             file_hashes[key] = {p: _file_sha256(p) for p in value if os.path.exists(p)}
         elif os.path.exists(value):
             file_hashes[key] = _file_sha256(value)
+    existing_manifest = _read_json_if_exists(
+        os.path.join(session_root, "session_manifest.json")
+    ) or {}
     manifest = {
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
@@ -1556,12 +1580,30 @@ def _write_session_manifest(
         "session_root": session_root,
         **_manifest_identity(fw_truthfulness),
         "auto_analysed": os.path.exists(os.path.join(analysis_dir, "analyse_summary.json")),
-        "tags": list((_read_json_if_exists(os.path.join(session_root, "session_manifest.json")) or {}).get("tags", [])),
+        "tags": list(existing_manifest.get("tags", [])),
         "notes_count": len((_read_json_if_exists(os.path.join(session_root, "session_notes.json")) or {}).get("notes", [])),
-        "subject_profile_id": (_read_json_if_exists(os.path.join(session_root, "session_manifest.json")) or {}).get("subject_profile_id", "adult_default"),
+        "subject_profile_id": existing_manifest.get("subject_profile_id", "adult_default"),
         "outputs": outputs,
         "file_hashes_sha256": file_hashes,
     }
+    manifest = _merge_immutable_study_assignment(existing_manifest, manifest)
+    for key in (
+        "study_session_schema_version",
+        "participant_id",
+        "trial_id",
+        "condition_id",
+        "distance_m",
+        "barrier_type",
+        "trial_number",
+        "planned_duration_s",
+        "study_classification",
+        "provenance_state",
+        "confirmatory_eligible",
+        "model_family",
+        "model_bundle",
+    ):
+        if key in existing_manifest:
+            manifest[key] = existing_manifest[key]
     save_json(manifest, os.path.join(session_root, "session_manifest.json"))
     return manifest
 
@@ -4534,7 +4576,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_0.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_1.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -6868,7 +6910,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     "live_events": LIVE_EVENT_SCHEMA_VERSION,
                     "session_manifest": SESSION_MANIFEST_SCHEMA_VERSION,
                     "chart_annotations": CHART_ANNOTATIONS_SCHEMA_VERSION,
-                    "subject_profile": SUBJECT_PROFILE_SCHEMA_VERSION
+                    "subject_profile": SUBJECT_PROFILE_SCHEMA_VERSION,
+                    "participant_registry": PARTICIPANT_REGISTRY_SCHEMA_VERSION,
+                    "study_session": STUDY_SESSION_SCHEMA_VERSION,
                 },
                 "update_manifest_url": UPDATE_MANIFEST_URL
             })
@@ -6880,6 +6924,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         if route_name == "subject_profiles":
             self._send_json(200, _load_subject_profiles(self.server.sessions_root))
+            return
+        if route_name == "participants_list":
+            registry = _load_participant_registry(self.server.sessions_root)
+            self._send_json(200, {
+                "schema_version": registry["schema_version"],
+                "participants": list(registry["profiles"].values()),
+                "profiles": list(registry["profiles"].values()),
+            })
             return
         if route_name == "operator_profiles_get":
             db = _load_operator_profiles(self.server.sessions_root)
@@ -7231,6 +7283,19 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             status, payload = _create_operator_profile(self.server, body)
             self._send_json(status, payload)
             return
+        if route_name == "participants_create":
+            try:
+                profile = _create_participant_profile(self.server.sessions_root, body)
+                self._send_json(201, {
+                    "ok": True,
+                    "schema_version": PARTICIPANT_REGISTRY_SCHEMA_VERSION,
+                    "participant": profile,
+                    "profile": profile,
+                })
+            except StudyContractError as exc:
+                status = 409 if exc.code == "PARTICIPANT_EXISTS" else 400
+                self._send_json(status, _api_error(exc.code, str(exc)))
+            return
         if route_name == "auth_login":
             status, payload = _login_operator(self.server, str(body.get("operator_id") or ""), str(body.get("pin") or ""))
             self._send_json(status, payload)
@@ -7315,6 +7380,17 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(409, {"ok": False, "error": {"code": "SESSION_IN_PROGRESS", "message": "active session already running"}})
                 return
             try:
+                study_assignment = _validate_study_assignment(
+                    {
+                        **body,
+                        "duration_s": body.get("duration_s"),
+                    },
+                    sessions_root=self.server.sessions_root,
+                )
+            except StudyContractError as exc:
+                self._send_json(400, _api_error(exc.code, str(exc)))
+                return
+            try:
                 report = _run_preflight_all(sessions_root=self.server.sessions_root, port=radar_port, address=ble_address, include=SESSION_START_PREFLIGHT_IDS)
             except Exception as e:
                 self._send_json(500, {"ok": False, "error": {"code": "PREFLIGHT_ERROR", "message": str(e)}})
@@ -7326,7 +7402,10 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             try:
                 advanced = body.get("advanced") if isinstance(body.get("advanced"), dict) else {}
                 result = self.server.supervisor.start(
-                    duration_s=body.get("duration_s"),
+                    duration_s=body.get(
+                        "duration_s",
+                        study_assignment.get("planned_duration_s"),
+                    ),
                     radar_port=radar_port,
                     ble_address=ble_address,
                     ble_profile=body.get("ble_profile", "ailink_oximeter"),
@@ -7336,6 +7415,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     subject_profile_id=body.get("subject_profile_id", "adult_default"),
                     notify_char=advanced.get("notify_char"),
                     dashboard_refresh_s=advanced.get("dashboard_refresh_s"),
+                    **study_assignment,
+                    model_family=body.get("model_family"),
+                    model_bundle=body.get("model_bundle"),
                 )
                 self._send_json(200, result)
             except RuntimeError as e:
@@ -7412,6 +7494,23 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         route_name = route_spec.name if route_spec is not None else None
         body = self._read_body()
         if body is None:
+            return
+        if route_name == "participant_status":
+            participant_id = unquote(path.rsplit("/", 1)[-1])
+            try:
+                profile = _update_participant_status(
+                    self.server.sessions_root,
+                    participant_id,
+                    body.get("status"),
+                )
+                self._send_json(200, {
+                    "ok": True,
+                    "schema_version": PARTICIPANT_REGISTRY_SCHEMA_VERSION,
+                    "profile": profile,
+                })
+            except StudyContractError as exc:
+                status = 404 if exc.code == "PARTICIPANT_NOT_FOUND" else 400
+                self._send_json(status, _api_error(exc.code, str(exc)))
             return
         if route_name == "session_notes_put":
             sid = unquote(path.split("/")[3])
@@ -7738,7 +7837,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_0.ino"),
+        Path("radar_vital_v16_5_1.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
@@ -8931,6 +9030,21 @@ def cmd_session(args):
         session_dir = os.path.abspath(args.session_dir)
     os.makedirs(session_dir, exist_ok=True)
     lock_root = os.path.abspath(args.sessions_root) if auto_session_dir else os.path.dirname(session_dir)
+    study_payload = {
+        "participant_id": getattr(args, "participant_id", None),
+        "trial_id": getattr(args, "trial_id", None),
+        "condition_id": getattr(args, "condition_id", None),
+        "distance_m": getattr(args, "distance_m", None),
+        "barrier_type": getattr(args, "barrier_type", None),
+        "trial_number": getattr(args, "trial_number", None),
+        "planned_duration_s": getattr(args, "planned_duration_s", None),
+        "study_classification": getattr(args, "study_classification", None),
+        "duration_s": getattr(args, "duration_s", None),
+    }
+    study_assignment = _validate_study_assignment(
+        study_payload,
+        sessions_root=lock_root,
+    )
     _check_stale_session_lock(lock_root)
     if _session_is_active(lock_root):
         raise RuntimeError(f"SESSION_IN_PROGRESS: active session lock exists at {_lock_path(lock_root)}")
@@ -8943,13 +9057,29 @@ def cmd_session(args):
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
         "generated_at": _report_stamp(),
-        "trainer_version": VERSION,
-        "dashboard_version": DASHBOARD_VERSION,
+        "study_session_schema_version": study_assignment.pop("schema_version"),
+        **study_assignment,
+        **_release_provenance(
+            product_version=VERSION,
+            trainer_version=VERSION,
+            dashboard_version=DASHBOARD_VERSION,
+            firmware_expected=FIRMWARE_VERSION_EXPECTED,
+            serial_width_expected=EXPECTED_RADAR_LOG_COLUMN_COUNT,
+            model_family=getattr(args, "model_family", None),
+            model_bundle=getattr(args, "model_bundle", None),
+        ),
         "auto_analysed": False,
         "tags": [],
         "notes_count": 0,
         "subject_profile_id": getattr(args, "subject_profile_id", "adult_default"),
     }
+    existing_manifest = _read_json_if_exists(
+        os.path.join(session_dir, "session_manifest.json")
+    ) or {}
+    initial_manifest = _merge_immutable_study_assignment(
+        existing_manifest,
+        initial_manifest,
+    )
     try:
         save_json(initial_manifest, os.path.join(session_dir, "session_manifest.json"))
     except Exception:
@@ -14609,6 +14739,27 @@ def build_parser() -> argparse.ArgumentParser:
                       help="optional auto-stop duration in seconds; omit to stop with Ctrl-C")
     p_ss.add_argument("--subject-profile-id", default="adult_default",
                       help="subject profile id from subject_profiles.json (default: adult_default)")
+    p_ss.add_argument("--participant-id", default=None,
+                      help="pseudonymous study participant code, for example P-001")
+    p_ss.add_argument("--trial-id", default=None,
+                      help="immutable study trial identifier")
+    p_ss.add_argument("--condition-id", default=None,
+                      help="condition identifier derived from distance/barrier, for example d060_none")
+    p_ss.add_argument("--distance-m", type=float, default=None,
+                      help="study distance in metres (0.5 through 1.0)")
+    p_ss.add_argument("--barrier-type", choices=["none", "cardboard"], default=None,
+                      help="study barrier condition")
+    p_ss.add_argument("--trial-number", type=int, default=None,
+                      help="within-condition trial number")
+    p_ss.add_argument("--planned-duration-s", type=float, default=None,
+                      help="protocol-planned capture duration")
+    p_ss.add_argument("--study-classification",
+                      choices=["confirmatory", "exploratory"], default=None,
+                      help="study protocol classification; required when study fields are supplied")
+    p_ss.add_argument("--model-family", choices=sorted(MODEL_FAMILIES), default=None,
+                      help="model family active during inference, if any")
+    p_ss.add_argument("--model-bundle", default=None,
+                      help="immutable model-bundle identifier active during inference")
     p_ss.add_argument("--auto-analyse", dest="auto_analyse", action="store_true", default=True,
                       help="run analysis after capture (default: enabled)")
     p_ss.add_argument("--no-auto-analyse", dest="auto_analyse", action="store_false",

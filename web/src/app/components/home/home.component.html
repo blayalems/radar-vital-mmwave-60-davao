@@ -143,9 +143,19 @@
       </mat-card-header>
 
       <mat-card-content class="setup-card-content">
+        <app-participant-study-setup
+          (durationSelected)="selectedDuration = $event">
+        </app-participant-study-setup>
+
         <!-- DURATION CHOICE CHIPS -->
         <div class="setup-field span-full">
           <label class="field-label" id="recDurationLabel">{{ 'home.recordingDuration' | translate:i18n.locale():i18n.revision() }}</label>
+          @if (state.setup().study_mode === 'confirmatory') {
+          <div class="confirmatory-duration-lock" role="status" aria-labelledby="recDurationLabel">
+            <mat-icon aria-hidden="true">lock</mat-icon>
+            <span><strong>2m 30s</strong> · locked by the confirmatory thesis protocol</span>
+          </div>
+          } @else {
           <div class="duration-chips" role="group" aria-labelledby="recDurationLabel">
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 30" [attr.aria-pressed]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 60" [attr.aria-pressed]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
@@ -159,6 +169,7 @@
               <input matInput type="number" min="1" max="60" step="1" [ngModel]="state.setup().customDuration" (ngModelChange)="selectCustomDurationMinutes($event)" aria-label="Custom recording duration in minutes">
             </mat-form-field>
           </div>
+          }
         </div>
 
         <!-- PORT SELECT AND DISCOVERY -->
@@ -248,14 +259,6 @@
           </mat-form-field>
         </div>
 
-        <!-- SUBJECT LABELS -->
-        <div class="setup-field">
-          <label class="field-label" id="subjectLabelLabel">Subject label</label>
-          <mat-form-field appearance="outline" class="form-field-full">
-            <input matInput [ngModel]="state.setup().subject_label" (ngModelChange)="updateSetup('subject_label', $event)" placeholder="P-014" aria-labelledby="subjectLabelLabel">
-          </mat-form-field>
-        </div>
-
         <!-- OPERATOR LABELS -->
         <div class="setup-field">
           <label class="field-label" id="operatorLabelLabel">Operator label</label>
@@ -281,6 +284,12 @@
       </mat-card-content>
 
       <mat-card-actions class="setup-card-actions">
+        @if (studySetupError()) {
+          <p class="study-start-blocker" role="status">
+            <mat-icon aria-hidden="true">assignment_late</mat-icon>
+            {{ studySetupError() }}
+          </p>
+        }
         @if (preflightChecks.length && getChecksPassedCount() < preflightChecks.length && !hasBlockingPreflightFailure()) {
           <p class="start-gate-hint" role="status">
             <mat-icon aria-hidden="true">info</mat-icon>

@@ -4,6 +4,8 @@ export type PaletteId = 'azure' | 'bloom' | 'mint';
 export type HapticMode = 'on' | 'off' | 'auto';
 export type AlertSeverity = 'info' | 'warn' | 'critical';
 export type StorageScope = 'demo' | 'live' | 'legacy-unclassified';
+export type StudyMode = 'confirmatory' | 'exploratory';
+export type BarrierType = 'none' | 'cardboard';
 
 export interface ControlStatus {
   ok: boolean;
@@ -29,7 +31,26 @@ export interface SetupState {
   operator_label: string;
   station_label: string;
   subject_profile_id: string;
+  participant_id: string;
+  study_mode: StudyMode;
+  condition_id: string;
+  distance_m: number;
+  barrier_type: BarrierType;
+  trial_number: number;
   skip_countdown: boolean;
+}
+
+export interface ParticipantProfile {
+  participant_id: string;
+  display_code: string;
+  status: 'active' | 'completed' | 'withdrawn' | string;
+  completed_trials?: number;
+  created_at?: string;
+}
+
+export interface ParticipantProfilesResponse {
+  participants?: ParticipantProfile[];
+  items?: ParticipantProfile[];
 }
 
 export interface AlertEvent {

@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-30 - Tech-debt governance: PR template and CI audit (Claude Opus 4.6)
+
+- **PR template**: Added `.github/PULL_REQUEST_TEMPLATE.md` aligned with CONTRIBUTING.md verification protocol and HANDOFF.md entry rule. Provides default checklist for tests, CHANGELOG, manifest-lock, lint, and reviewer assignment.
+- **CI audit**: Confirmed all five core workflows (Playwright, security-audit, pages, build-apk, build-exe) already carry `pull_request` triggers. Recommended branch-protection config: require `Playwright tests / test` as the sole blocking check; defer required-approval rules until a collaborator is available; disable squash/rebase merge to preserve tested SHAs.
+- **Playwright failures**: #93 functional passes but visual-regression diffs (~1 %) on Help views need baseline review. #100 functional skipped due to QMS validation failure on stacked-base checkout; also carries 2–3 % Home screenshot diffs. Fix #100's base resolution first, then inspect visuals.
+- **PR #79 gate**: Automated CI all green; hardware bench acceptance (ESP32-C6 + MR60BHA2 + LCD) remains the sole merge blocker.
+
 ### 2026-07-22 - Refresh frontend plan evidence base
 
 - **PR topology**: Merged `codex/lifecycle-race-privacy-closure` at `5bb5e21` so PR #76 carries the acceptance evidence for its lifecycle base before recording the frontend-decomposition evidence.

@@ -218,12 +218,30 @@
 #error "radar_vital_v16_4_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
 #endif
 
+// =====================================================
+// DIAGNOSTIC BUILD SELECTOR (RCA four-build experiment)
+// Change DIAG_BUILD to select the build variant:
+//   'A' — UART0 (current wiring), LOG_MODE 0
+//   'B' — UART1 on D6/D7,        LOG_MODE 0
+//   'C' — UART1 on D6/D7,        LOG_MODE 1, LOG_INTERVAL_MS 1000
+//   'D' — UART1 on D6/D7,        LOG_MODE 1, LOG_INTERVAL_MS 200
+// *** VERIFY: RADAR_RX_PIN and RADAR_TX_PIN must match your
+//     physical wiring from the MR60BHA2 to the XIAO ESP32-C6. ***
+// =====================================================
+#define DIAG_BUILD 'A'
+
 #ifdef ESP32
 #include <HardwareSerial.h>
 #if defined(CONFIG_IDF_TARGET_ESP32C6) || \
     defined(CONFIG_IDF_TARGET_ESP32C3) || \
     defined(CONFIG_IDF_TARGET_ESP32H2)
-HardwareSerial mmWaveSerial(0);
+#if DIAG_BUILD == 'A'
+HardwareSerial mmWaveSerial(0);   // Build A: UART0 (current config)
+#else
+HardwareSerial mmWaveSerial(1);   // Builds B/C/D: UART1 (dedicated)
+static constexpr int RADAR_RX_PIN = 17;  // D7/GPIO17 — ESP32 RX ← MR60BHA2 TX
+static constexpr int RADAR_TX_PIN = 16;  // D6/GPIO16 — ESP32 TX → MR60BHA2 RX
+#endif
 #else
 HardwareSerial mmWaveSerial(1);
 #endif
@@ -276,14 +294,22 @@ static inline float applyRawHrCorrection(float rawHrValue) {
 // =========================================================================
 // LOGGING & OBSERVABILITY
 // =========================================================================
-#define LOG_MODE 1       // 1 = Enable CSV "DATA,..." logging
+#if DIAG_BUILD == 'A' || DIAG_BUILD == 'B'
+#define LOG_MODE 0       // Builds A/B: logging disabled for isolation
+#else
+#define LOG_MODE 1       // Builds C/D: CSV "DATA,..." logging enabled
+#endif
 #define FW_VERSION "v16.4.0"
 #define SKETCH_VERSION_MAJOR 16
 #define SKETCH_VERSION_SUB 4
 #define SKETCH_VERSION_MOD 0
 
 #define DIAG_PLOTTER 0   // 1 = Enable live Serial Plotter DSP diagnostics, 0 = Off
-#define LOG_INTERVAL_MS 200
+#if DIAG_BUILD == 'C'
+#define LOG_INTERVAL_MS 1000  // Build C: 1 row/s (moderate output)
+#else
+#define LOG_INTERVAL_MS 200   // Build D: 5 rows/s (full output pressure)
+#endif
 
 // =========================================================================
 // BUZZER TIMING CONSTANTS
@@ -3134,7 +3160,12 @@ static bool serviceRadarRecovery(unsigned long now) {
   if ((int32_t)(now - radarRecoveryAfterMs) < 0) return false;
 
   mmWaveSerial.setRxBufferSize(MMWAVE_RX_BUFFER_SIZE);
+#if DIAG_BUILD != 'A' && (defined(CONFIG_IDF_TARGET_ESP32C6) || \
+    defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32H2))
+  mmWaveSerial.begin(115200, SERIAL_8N1, RADAR_RX_PIN, RADAR_TX_PIN);
+#else
   mmWaveSerial.begin(115200);
+#endif
   mmWave.begin(&mmWaveSerial);
   armModuleFirmwareVersionCapture(now);
   radarWatchdogStartMs = now;
@@ -4502,6 +4533,17 @@ void setup() {
   delay(100);
   Serial.println("\n[BOOT] RVital " FW_VERSION);
 
+#if ARDUINO_USB_CDC_ON_BOOT
+  Serial.println("[CONFIG] Serial is USB CDC");
+#else
+  Serial.println("[CONFIG] WARNING: Serial is UART0 — possible CONFLICT with mmWaveSerial(0)");
+#endif
+  Serial.printf("[DIAG] Build %c | radar_uart=%d | log_mode=%d | log_interval=%d\n",
+                DIAG_BUILD,
+                DIAG_BUILD == 'A' ? 0 : 1,
+                LOG_MODE,
+                LOG_INTERVAL_MS);
+
   buzzerInit();
   buildSinLUT(); i2cRecoverDuringSetup();
   pixel.begin(); pixel.setBrightness(40);
@@ -4510,7 +4552,13 @@ void setup() {
 #ifdef ESP32
   mmWaveSerial.setRxBufferSize(MMWAVE_RX_BUFFER_SIZE);
 #endif
-  mmWaveSerial.begin(115200); mmWave.begin(&mmWaveSerial);
+#if DIAG_BUILD != 'A' && (defined(CONFIG_IDF_TARGET_ESP32C6) || \
+    defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32H2))
+  mmWaveSerial.begin(115200, SERIAL_8N1, RADAR_RX_PIN, RADAR_TX_PIN);
+#else
+  mmWaveSerial.begin(115200);
+#endif
+  mmWave.begin(&mmWaveSerial);
   // Module metadata is captured by a bounded state machine. Setup-only sensor
   // stabilization and splash delays remain below, with single parser pumps
   // around them so the boot TLV is observed without a polling loop.
@@ -4738,6 +4786,16 @@ void loop() {
 
   // Calibration timeout
   if (!calibrationDone&&now-calibStartMs>=CALIB_TIMEOUT_MS) {
+    Serial.printf(
+        "[CAL] TIMEOUT count=%d nvs_valid=%d nvs_gain=%.3f "
+        "current_gain=%.3f packets_age=%lu phase_age=%lu uart_avail=%d\n",
+        calibrationCount,
+        static_cast<int>(nvsGainValid),
+        nvsRestoredGain,
+        radarGain,
+        lastRadarPacketMs ? safeElapsedMs(now, lastRadarPacketMs) : 999999UL,
+        lastPhaseDataMs ? safeElapsedMs(now, lastPhaseDataMs) : 999999UL,
+        mmWaveSerial.available());
     radarGain=nvsGainValid?nvsRestoredGain:1.0f;
     rollingEnergy=TARGET_ENERGY; motionLP=TARGET_ENERGY;
     calibrationDone=true; presentVotes=0; absentVotes=0; presenceState = PRESENCE_ABSENT; presenceStateSinceMs = now;

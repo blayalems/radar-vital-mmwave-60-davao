@@ -119,9 +119,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.1"
-DASHBOARD_VERSION = "16.5.1"
-FIRMWARE_VERSION_EXPECTED = "v16.5.1"
+VERSION = "16.5.2"
+DASHBOARD_VERSION = "16.5.2"
+FIRMWARE_VERSION_EXPECTED = "v16.5.2"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -4576,7 +4576,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_1.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_2.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -6996,8 +6996,23 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self._send_json(200, {"ok": True, "lines": list(_TRAINER_LOG)[-200:]})
             return
         if route_name == "status":
-            active = {"session_id": "mock", "session_dir": "", "mock": True, "started_at": self.server.started_at} if getattr(self.server, "mock", False) else self.server.supervisor.current()
-            self._send_json(200, {"ok": True, "trainer_version": VERSION, "dashboard_version": DASHBOARD_VERSION, "firmware_expected": FIRMWARE_VERSION_EXPECTED, "control_server_started_at": self.server.started_at, "active_session": active, "feature_flags": FEATURE_FLAGS})
+            is_mock = bool(getattr(self.server, "mock", False))
+            active = None if is_mock else self.server.supervisor.current()
+            self._send_json(200, {
+                "ok": True,
+                "mode": "sandbox" if is_mock else "live",
+                "trainer_version": VERSION,
+                "dashboard_version": DASHBOARD_VERSION,
+                "firmware_expected": FIRMWARE_VERSION_EXPECTED,
+                "control_server_started_at": self.server.started_at,
+                "active_session": active,
+                "preview_session": (
+                    {"session_id": "mock", "mock": True, "started_at": self.server.started_at}
+                    if is_mock
+                    else None
+                ),
+                "feature_flags": FEATURE_FLAGS,
+            })
             return
         if route_name == "defaults":
             self._send_json(200, _effective_defaults(self.server.sessions_root))
@@ -7837,7 +7852,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_1.ino"),
+        Path("radar_vital_v16_5_2.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),

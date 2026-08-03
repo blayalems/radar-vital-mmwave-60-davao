@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-29 - Fix adversarial v16.5.2 session-state truthfulness
+
+- **Mock state**: The real `serve --mock` control API now identifies sandbox preview separately from active capture, so Demo Now, Live Stop controls, and navigation guards cannot mistake continuous mock telemetry for a real recording.
+- **Offline state**: Browser offline/online events synchronously stale live telemetry, cancel or restart transports without clobbering session identity, and reject late poll responses from an obsolete transport generation.
+- **Onboarding**: Operator display-name entry exposes the backend's 64-character limit before submission with accessible guidance and matching client-side validation.
+- **Release identity**: Advanced every shipped carrier exactly one patch to `16.5.2`; study schema v16.5.1 and the frozen v15.2/222-column serial contract remain stable.
+- **Verification**: Selected backend regressions pass (135/135), Angular tests pass (232/232), trainer compile/help, version graph, patch increment, diagram export, production build, and generated-dashboard round trip pass. The desktop Playwright cases compile but local execution remains gated by a stalled Chromium headless-shell installation; CI/browser verification remains required.
+
 ### 2026-07-29 - Bind v16.5.1 sessions to pseudonymous participants and releases
 
 - **Study identity**: Added coded participant profiles, immutable participant/trial assignment, and release/firmware/protocol/model provenance to real, CLI, supervised, and sandbox session manifests.

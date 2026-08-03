@@ -2,7 +2,7 @@
 
 This document is the canonical source for the system-process figures used by
 the repository and manuscript. It describes the shipped v16.5 product while
-keeping the wire protocol identity explicit: firmware v16.5.1 emits the frozen
+keeping the wire protocol identity explicit: firmware v16.5.2 emits the frozen
 v15.2 CSV contract (222 columns, including the three fields introduced in
 v16.4 at columns 220–222).
 
@@ -32,9 +32,9 @@ figure IDs and captions below are stable integration points.
 flowchart LR
     subject["Participant and reference device"]
     radar["MR60BHA2 60 GHz radar"]
-    mcu["XIAO ESP32-C6<br/>firmware v16.5.1"]
+    mcu["XIAO ESP32-C6<br/>firmware v16.5.2"]
     serial["USB serial<br/>v15.2 CSV, 222 columns"]
-    capture["Python trainer v16.5.1<br/>capture and quality ledger"]
+    capture["Python trainer v16.5.2<br/>capture and quality ledger"]
     dataset["Immutable session artifacts<br/>participant, session, timestamps"]
     features["Causal feature pipeline<br/>train-only fit and schema hash"]
     split["Recorded group split manifest<br/>outer participant holdout"]
@@ -44,7 +44,7 @@ flowchart LR
     evidence["Hashed evidence bundle<br/>JSON, CSV, plots and LaTeX tables"]
     registry["Signed model artifact and manifest<br/>family, split, seed, hashes"]
     api["Trainer prediction and report API"]
-    ui["Angular dashboard v16.5.1<br/>provenance, status and comparison"]
+    ui["Angular dashboard v16.5.2<br/>provenance, status and comparison"]
     manuscript["LaTeX manuscript<br/>figures, methods and results"]
     protocol["Reviewed protocol decision<br/>acquisition, firmware and software changes"]
     operator["Operator action<br/>placement, capture quality, retraining"]

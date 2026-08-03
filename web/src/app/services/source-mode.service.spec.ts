@@ -38,6 +38,28 @@ describe('SourceModeService', () => {
     expect(service.mode()).toBe('live');
   });
 
+  it('does not treat integrated mock telemetry as a real capture session', () => {
+    service.applyTrainerStatus({
+      ok: true,
+      mode: 'sandbox',
+      active_session: { session_id: 'mock', mock: true }
+    });
+
+    expect(service.realSessionActive()).toBe(false);
+    expect(service.setManualDemo(true)).toBe(true);
+    expect(service.mode()).toBe('manual-demo');
+  });
+
+  it('recognizes the mock-session flag from older trainers without a mode field', () => {
+    service.applyTrainerStatus({
+      ok: true,
+      active_session: { session_id: 'mock', mock: true }
+    });
+
+    expect(service.realSessionActive()).toBe(false);
+    expect(service.setManualDemo(true)).toBe(true);
+  });
+
   it('enters automatic demo only after the real-session guard passes', () => {
     expect(service.enterAutomaticDemo('trainer unavailable')).toBe(true);
     expect(service.mode()).toBe('automatic-demo');

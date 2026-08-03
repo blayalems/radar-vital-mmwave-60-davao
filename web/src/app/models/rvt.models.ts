@@ -111,6 +111,7 @@ export interface SessionRecord {
   summary?: string;
   analysis_status?: string;
   sandbox?: boolean;
+  mock?: boolean;
   params?: Record<string, unknown>;
   downloads?: DownloadRecord[];
   [key: string]: unknown;

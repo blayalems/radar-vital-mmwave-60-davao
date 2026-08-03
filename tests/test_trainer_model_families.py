@@ -14,6 +14,7 @@ from rvt_trainer.modeling import (
 )
 from rvt_trainer.monolith import (
     _run_loso_evaluation,
+    apply_causal_slew_limit,
     build_parser,
     fit_cnn_target_model,
 )
@@ -49,6 +50,29 @@ def test_causal_windows_only_materialize_selected_endpoints():
     assert endpoints.tolist() == [1, 4]
     assert windows.shape == (2, 3, 2)
     np.testing.assert_array_equal(windows[1], features[2:5])
+
+
+def test_causal_slew_limit_is_prefix_invariant():
+    prefix = pd.DataFrame({
+        "session_id": ["s", "s"],
+        "timestamp_s": [0.0, 1.0],
+        "prediction": [10.0, 100.0],
+    })
+    extended = pd.concat(
+        [prefix, pd.DataFrame({
+            "session_id": ["s"],
+            "timestamp_s": [2.0],
+            "prediction": [100.0],
+        })],
+        ignore_index=True,
+    )
+    prefix_out = apply_causal_slew_limit(prefix, "prediction", 1.0)
+    extended_out = apply_causal_slew_limit(extended, "prediction", 1.0)
+    np.testing.assert_array_equal(
+        prefix_out["prediction"].to_numpy(),
+        extended_out["prediction"].to_numpy()[: len(prefix)],
+    )
+    assert extended_out["prediction"].iloc[0] == pytest.approx(10.0)
 
 
 @pytest.mark.parametrize("window_size", [0, 1])

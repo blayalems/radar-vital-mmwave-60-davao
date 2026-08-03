@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-03 - Remove causal OOF lookahead in v16.5.8
+
+- **Postprocessing**: Slew limiting now seeds each session from the first finite current prediction instead of a median that included future samples.
+- **Regression coverage**: Added a prefix-invariance test proving appending later predictions cannot change earlier outputs.
+- **Verification**: Focused model-family tests pass; the frozen raw/postprocessed OOF distinction remains intact.
+
 ### 2026-08-03 - Contain QMS fixture event leakage in v16.5.8
 
 - **CI root cause**: Temporary QMS fixtures could inherit `GITHUB_EVENT_PATH` and validate the live PR body instead of the fixture; event payload lookup is now limited to the repository root or explicit PR-body validation.

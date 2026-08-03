@@ -13051,8 +13051,12 @@ def apply_causal_slew_limit(df, col, max_delta_per_s):
         ts   = pd.to_numeric(g["timestamp_s"], errors="coerce").to_numpy(dtype=float)
         fi   = np.where(np.isfinite(vals) & np.isfinite(ts))[0]
         if len(fi) >= 1:
-            anchor = float(np.median(vals[fi[:min(3, len(fi))]]))
             first_idx = fi[0]
+            # The first output may only depend on the current sample (or a
+            # persisted prior state supplied by a future streaming wrapper).
+            # Seeding from the first three predictions would look ahead into
+            # t+1/t+2 and make the declared causal postprocessor non-causal.
+            anchor = float(vals[first_idx])
             vals[first_idx] = anchor
             prev_time = ts[first_idx]
             prev_out = vals[first_idx]
@@ -13764,6 +13768,7 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
             "participant_id", "session_id", "trial_id", "condition_id", "distance_m",
             "barrier_type", "timestamp_s", "ref_hr", "pred_hr_raw", "pred_hr",
             "hr_valid_for_eval", "ref_rr", "pred_rr_raw", "pred_rr", "rr_valid_for_eval",
+            "confirmatory_eligible",
         ]
         oof = pd.concat(outer_oof_frames, ignore_index=True)
         for column in oof_columns:

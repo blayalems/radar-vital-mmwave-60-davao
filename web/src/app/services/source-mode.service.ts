@@ -30,7 +30,8 @@ export class SourceModeService {
     const status = this.sessionStore.ctlStatus();
     const activeSession = status?.active_session ?? status?.session;
     const sessionId = this.sessionStore.currentSessionId() || '';
-    return this.sessionStore.sessionActive()
+    const statusHasActiveSession = Boolean(activeSession?.session_id);
+    return (this.sessionStore.sessionActive() || statusHasActiveSession)
       && status?.mode !== 'sandbox'
       && activeSession?.sandbox !== true
       && activeSession?.mock !== true

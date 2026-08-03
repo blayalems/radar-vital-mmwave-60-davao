@@ -146,14 +146,32 @@ export class TelemetryService {
       this.state.ctlStatus.update((s) => ({ ...(s ?? { ok: false }), ok: false, error: message }));
       const noActiveSession = /NO_ACTIVE_SESSION|NO_LIVE_DASHBOARD|no active session|active live_dashboard\.json/i.test(message);
       if (noActiveSession) {
-        this.state.sessionActive.set(false);
-        this.state.currentSessionId.set(null);
-        this.state.ctlStatus.update((s) => ({
-          ...(s ?? { ok: true }),
-          ok: true,
-          error: undefined,
-          last_stop_reason: 'No active telemetry session'
-        }));
+        // A status probe can report a real active session before its first
+        // dashboard payload is written. Keep that authoritative witness so a
+        // transient NO_LIVE_DASHBOARD response cannot let the operator switch
+        // to simulated data over a live capture.
+        const status = this.state.ctlStatus();
+        const activeSession = status?.active_session ?? status?.session;
+        const activeSessionId = String(activeSession?.session_id || '');
+        if (status?.mode !== 'sandbox' && activeSessionId) {
+          this.state.sessionActive.set(true);
+          this.state.currentSessionId.set(activeSessionId);
+          this.state.ctlStatus.update((s) => ({
+            ...(s ?? { ok: true }),
+            ok: true,
+            error: undefined,
+            last_poll_reason: 'No active telemetry payload yet'
+          }));
+        } else {
+          this.state.sessionActive.set(false);
+          this.state.currentSessionId.set(null);
+          this.state.ctlStatus.update((s) => ({
+            ...(s ?? { ok: true }),
+            ok: true,
+            error: undefined,
+            last_stop_reason: 'No active telemetry session'
+          }));
+        }
         this.scheduleNextPoll(1000);
       } else {
         this.emitAlert(`Live connection unavailable: ${message}`, 'critical');

@@ -101,4 +101,17 @@ describe('SourceModeService', () => {
     expect(service.shouldUseSandboxApi('/api/session/stop')).toBe(false);
     expect(service.shouldUseSandboxApi('/api/session/stop?reason=test')).toBe(false);
   });
+
+  it('blocks demo when the status witness survives a stale local session flag', () => {
+    sessionStore.ctlStatus.set({
+      ok: true,
+      mode: 'live',
+      active_session: { session_id: 'session-status-witness' }
+    });
+    sessionStore.currentSessionId.set(null);
+    sessionStore.sessionActive.set(false);
+
+    expect(service.realSessionActive()).toBe(true);
+    expect(service.setManualDemo(true)).toBe(false);
+  });
 });

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Preserve status witnesses across live-payload gaps
+
+- **Frontend guard**: Treat a non-sandbox `active_session` in trainer status as authoritative even when the local session flag has been cleared; a transient `NO_LIVE_DASHBOARD` response now keeps the active-session guard and marks the payload as not ready instead of permitting a demo switch.
+- **Browser regression**: Run 553 exposed the race in desktop, iPhone, and iPad smoke shards while Pixel 7 passed; the D-shortcut fixture now matches status requests with optional query strings, and the source/telemetry contracts cover the stale-witness path.
+- **Verification**: Local system-Chrome D-shortcut smoke passed after the fix; the regenerated monolith and focused changes are ready for a fresh four-viewport CI run.
+
 ### 2026-08-04 - Close live-trainer browser smoke regressions
 
 - **Frontend contract**: Bound the Angular release handshake and sandbox status/participant storage to the v16.5.9 study-session schema; manual demo mode now keeps its explicit exit/reconnect action visible even when the trainer reports sandbox mode.

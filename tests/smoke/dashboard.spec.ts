@@ -1040,7 +1040,7 @@ test.describe('Dashboard smoke', () => {
       contentType: 'text/event-stream',
       body: 'event: ping\ndata: {"ok":true}\n\n'
     }));
-    await page.route('**/api/status', route => route.fulfill({
+    await page.route('**/api/status**', route => route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({

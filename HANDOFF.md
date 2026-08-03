@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-03 - Rename firmware carrier for v16.5.9
+
+- **Release identity**: Renamed the coordinated firmware source to `radar_vital_v16_5_9.ino`; the wire protocol remains frozen.
+
 ### 2026-08-03 - Fail closed confirmatory statistics in v16.5.8
 
 - **Analysis unit**: Confirmatory OOF rows now form unique 30-second windows at 5-second stride before the 15-window/2-trial participant-balanced gates; short endpoint bursts and duplicate timestamps cannot qualify.

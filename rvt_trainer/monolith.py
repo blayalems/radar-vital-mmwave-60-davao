@@ -17,7 +17,7 @@ Change highlights
   - write_text_report now forces UTF-8 so Windows auto-analyse runs do not crash on Unicode arrows in the text report
   - training now defaults away from policy-leaking publish/gate fields for physiology regression and emits explicit audit masks.
   - dashboard loader prefers a same-version external HTML template when present; embedded template is also patched
-  - contributions blended from Opus 4.6/4.7, Sonnet 4.5/4.6, Claude Ultrareview, ChatGPT 5.4 Codex/Pro, Gemini, Grok, GLM, Muse, DeepSeek, and Qwen audits, with only code-backed or low-risk changes applied.
+  - contributions blended from independent technical audits, with only code-backed or low-risk changes applied.
 
 Primary workflow
 ────────────────

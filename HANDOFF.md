@@ -9,6 +9,10 @@
 
 - **Visual evidence**: Replaced the 18 intentional v16.5.9 snapshot variants that failed on the Windows runner with the runner-captured actual images; the other 78 visual cases already passed. Local Playwright browser installation was unavailable, so the refresh is sourced from the CI artifact and must be revalidated by the next Windows workflow.
 
+### 2026-08-03 - Remove model branding from release carriers
+
+- **Artifact hygiene**: Replaced audit/model-name attribution in the trainer and v16.5.9 firmware comments with neutral technical-review wording; runtime behavior and the frozen serial contract are unchanged.
+
 ### 2026-08-03 - Refresh QMS change-record evidence after PR-body correction
 
 - **CI follow-up**: The first pushed workflow read the pre-correction PR body and rejected its legacy field labels; the canonical risk-class and requirement-ID fields are now present, and this HANDOFF-only commit retriggers the QMS validation against the current body.

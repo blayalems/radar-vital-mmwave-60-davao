@@ -89,12 +89,10 @@
 *   versus fresh-latched-source truth visible in the CSV contract.
 * + Keep behavior changes narrow: no blanket bias retune, no global stale-time change,
 *   and no always-on host override in this release.
-* + LLM contribution synthesis used for this release:
-*   - Opus 4.6 Extended: missing trust / pre-gate / dead-zone observability.
-*   - Opus 4.7 revised: keep truthfulness-first scope and avoid speculative one-theory bets.
-*   - Sonnet 4.6 / 4.5: operator truthfulness, blocker semantics, and dashboard clarity.
-*   - ChatGPT 5.4 XHigh Codex: RR source/freshness contract focus.
-*   - Gemini / Grok / GLM / Muse / DeepSeek / Qwen / GPT-5.4 Pro: strengthen masking,
+* + Independent technical review synthesis used for this release:
+*   - Preserve trust, pre-gate, and dead-zone observability.
+*   - Keep operator truthfulness, blocker semantics, and dashboard clarity explicit.
+*   - Keep RR source/freshness provenance visible and strengthen masking,
 *     stale-state hygiene, and guarded experiment boundaries.
 *
 * =========================================================================

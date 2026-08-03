@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Fix first-run demo navigation and sandbox probes
+
+- **Frontend fix**: Persisted the manual-demo guard marker synchronously before navigation and kept manual-demo API discovery/metadata calls on the sandbox adapter even when callers request a live bypass; this prevents `/connect` bounce loops and CSP noise against the placeholder trainer origin.
+- **Browser evidence**: Installed Chrome smoke probe reached `/live` from “Demo Now”, showed the sandbox banner, rendered `/report`, and recorded zero page/console errors; Angular unit tests passed (32 files, 253 tests), `npm run build:web`, and `npm run build:check` passed.
+
 ### 2026-08-04 - Preserve sharded Playwright reports
 
 - **CI diagnostics**: Kept the GitHub and line reporters while explicitly retaining the HTML reporter, so every viewport shard has named failure output and an uploadable `playwright-report` directory.

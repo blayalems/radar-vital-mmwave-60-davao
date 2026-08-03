@@ -40,6 +40,7 @@ export class SourceModeService {
   setManualDemo(enabled: boolean): boolean {
     if (enabled && this.realSessionActive()) return false;
     this.uiStore.demoMode.set(enabled);
+    this.persistManualDemo(enabled);
     return true;
   }
 
@@ -55,11 +56,13 @@ export class SourceModeService {
 
   restorePreferences(manualDemo: boolean, autoDemoOnDisconnect: boolean): void {
     this.uiStore.demoMode.set(manualDemo);
+    this.persistManualDemo(manualDemo);
     this.uiStore.autoDemoOnDisconnect.set(autoDemoOnDisconnect);
   }
 
   clearLocalSimulation(): void {
     this.uiStore.demoMode.set(false);
+    this.persistManualDemo(false);
     this.uiStore.autoDemoActive.set(false);
   }
 
@@ -111,8 +114,23 @@ export class SourceModeService {
   }
 
   shouldUseSandboxApi(path: string, bypassSandbox = false): boolean {
-    if (bypassSandbox || !this.simulated() || !path.startsWith('/api/')) return false;
+    if (!this.simulated() || !path.startsWith('/api/')) return false;
+    // Manual demo is intentionally offline from the trainer. Even calls that
+    // normally bypass the sandbox for connection discovery must stay local;
+    // otherwise the placeholder 127.0.0.1:8765 origin triggers CSP errors.
+    if (bypassSandbox && !this.manualDemoActive()) return false;
     const pathname = String(path).split('?', 1)[0];
     return !(pathname === '/api/session/stop' && this.realSessionActive());
+  }
+
+  /**
+   * Route guards run during the same navigation turn as Demo Now. Persist the
+   * marker synchronously so a guard cannot bounce the user back to /connect
+   * before StateService's persistence effect is scheduled.
+   */
+  private persistManualDemo(enabled: boolean): void {
+    try {
+      localStorage.setItem('rvt-demo-mode', enabled ? '1' : '0');
+    } catch (_) {}
   }
 }

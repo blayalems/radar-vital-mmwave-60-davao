@@ -15,14 +15,17 @@ describe('SourceModeService', () => {
   });
 
   it('owns explicit source transitions and their storage scope', () => {
+    localStorage.removeItem('rvt-demo-mode');
     expect(service.mode()).toBe('live');
     expect(service.storageScope()).toBe('live');
 
     expect(service.setManualDemo(true)).toBe(true);
     expect(service.mode()).toBe('manual-demo');
     expect(service.storageScope()).toBe('demo');
+    expect(localStorage.getItem('rvt-demo-mode')).toBe('1');
 
     service.clearLocalSimulation();
+    expect(localStorage.getItem('rvt-demo-mode')).toBe('0');
     service.applyTrainerStatus({ ok: true, mode: 'sandbox' });
     expect(service.mode()).toBe('trainer-sandbox');
     expect(service.storageScope()).toBe('demo');
@@ -92,6 +95,8 @@ describe('SourceModeService', () => {
     sessionStore.currentSessionId.set('session-live-3');
     sessionStore.sessionActive.set(true);
 
+    expect(service.shouldUseSandboxApi('/api/status', true)).toBe(true);
+    expect(service.shouldUseSandboxApi('/api/health', true)).toBe(true);
     expect(service.shouldUseSandboxApi('/api/defaults')).toBe(true);
     expect(service.shouldUseSandboxApi('/api/session/stop')).toBe(false);
     expect(service.shouldUseSandboxApi('/api/session/stop?reason=test')).toBe(false);

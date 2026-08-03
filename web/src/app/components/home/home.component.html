@@ -290,6 +290,17 @@
             {{ studySetupError() }}
           </p>
         }
+        @if (compatibility.summary().state === 'incompatible') {
+          <p class="release-start-blocker" role="alert">
+            <mat-icon aria-hidden="true">sync_problem</mat-icon>
+            {{ compatibility.summary().headline }}. {{ compatibility.summary().guidance.join(' ') }}
+          </p>
+        } @else if (compatibility.summary().state === 'unverified') {
+          <p class="start-gate-hint" role="status">
+            <mat-icon aria-hidden="true">help</mat-icon>
+            Legacy release handshake is unverified. Operational capture is allowed; do not use it for confirmatory analysis.
+          </p>
+        }
         @if (preflightChecks.length && getChecksPassedCount() < preflightChecks.length && !hasBlockingPreflightFailure()) {
           <p class="start-gate-hint" role="status">
             <mat-icon aria-hidden="true">info</mat-icon>
@@ -361,6 +372,47 @@
       </mat-card-content>
     </mat-card>
   </div>
+
+  <mat-card
+    class="release-compatibility-card"
+    [attr.data-state]="compatibility.summary().state"
+    role="region"
+    aria-labelledby="releaseCompatibilityTitle">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="header-avatar-ic" aria-hidden="true">
+        {{ compatibility.summary().state === 'compatible' ? 'verified' :
+           compatibility.summary().state === 'incompatible' ? 'sync_problem' :
+           compatibility.summary().state === 'checking' ? 'sync' : 'help' }}
+      </mat-icon>
+      <div>
+        <mat-card-title id="releaseCompatibilityTitle">Release compatibility</mat-card-title>
+        <mat-card-subtitle>Dashboard, trainer, firmware, serial, and schema handshake.</mat-card-subtitle>
+      </div>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="release-compatibility-summary" role="status" aria-live="polite" aria-atomic="true">
+        <strong>{{ compatibility.summary().headline }}</strong>
+        <span>{{ compatibility.summary().message }}</span>
+      </div>
+      @if (compatibility.summary().details.length) {
+        <dl class="release-compatibility-details" aria-label="Release compatibility details">
+          @for (detail of compatibility.summary().details; track detail.id) {
+            <div [attr.data-state]="detail.state">
+              <dt>{{ detail.label }}</dt>
+              <dd>{{ detail.observed }}</dd>
+            </div>
+          }
+        </dl>
+      }
+      @if (compatibility.summary().guidance.length) {
+        <ul class="release-compatibility-guidance">
+          @for (step of compatibility.summary().guidance; track step) {
+            <li>{{ step }}</li>
+          }
+        </ul>
+      }
+    </mat-card-content>
+  </mat-card>
 
   <!-- QUICKCHECK / PREFLIGHT CHECKLIST CARDS -->
   <mat-card class="preflight-card-stack">

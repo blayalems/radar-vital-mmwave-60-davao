@@ -87,6 +87,10 @@ from rvt_trainer.api.common import (
     read_json_if_exists as _read_json_if_exists,
     wait_for_process_exit as _wait_for_process_exit,
 )
+from rvt_trainer.api.compatibility import (
+    build_compatibility_handshake as _build_compatibility_handshake,
+    validate_client_compatibility as _validate_client_compatibility,
+)
 from rvt_trainer.api.route_registry import (
     AuthPolicy as _RouteAuthPolicy,
     authorization_for as _route_authorization_for,
@@ -108,6 +112,7 @@ from rvt_trainer.session.study_contract import (
     load_participant_registry as _load_participant_registry,
     merge_immutable_study_assignment as _merge_immutable_study_assignment,
     release_provenance as _release_provenance,
+    source_commit as _source_commit,
     update_participant_status as _update_participant_status,
     validate_study_assignment as _validate_study_assignment,
 )
@@ -119,9 +124,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.2"
-DASHBOARD_VERSION = "16.5.2"
-FIRMWARE_VERSION_EXPECTED = "v16.5.2"
+VERSION = "16.5.3"
+DASHBOARD_VERSION = "16.5.3"
+FIRMWARE_VERSION_EXPECTED = "v16.5.3"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -1601,6 +1606,10 @@ def _write_session_manifest(
         "confirmatory_eligible",
         "model_family",
         "model_bundle",
+        "client_compatibility",
+        "client_handshake",
+        "release_compatibility_state",
+        "release_compatibility_verified",
     ):
         if key in existing_manifest:
             manifest[key] = existing_manifest[key]
@@ -4576,7 +4585,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_2.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_3.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -6536,6 +6545,63 @@ SESSION_START_PREFLIGHT_IDS = [
 ]
 
 
+def _control_schema_versions() -> Dict[str, str]:
+    return {
+        "control_api": CONTROL_API_SCHEMA_VERSION,
+        "session_notes": SESSION_NOTES_SCHEMA_VERSION,
+        "session_signoff": SESSION_SIGNOFF_SCHEMA_VERSION,
+        "training_progress": TRAINING_PROGRESS_SCHEMA_VERSION,
+        "live_event": LIVE_EVENT_SCHEMA_VERSION,
+        "live_events": LIVE_EVENT_SCHEMA_VERSION,
+        "session_manifest": SESSION_MANIFEST_SCHEMA_VERSION,
+        "chart_annotations": CHART_ANNOTATIONS_SCHEMA_VERSION,
+        "subject_profile": SUBJECT_PROFILE_SCHEMA_VERSION,
+        "participant_registry": PARTICIPANT_REGISTRY_SCHEMA_VERSION,
+        "study_session": STUDY_SESSION_SCHEMA_VERSION,
+    }
+
+
+def _observed_release_identity(server) -> Tuple[object, object]:
+    """Best-effort firmware/width observation from the active session."""
+
+    supervisor = getattr(server, "supervisor", None)
+    current = supervisor.current() if supervisor is not None else None
+    session_dir = str((current or {}).get("session_dir") or "")
+    if not session_dir:
+        return None, None
+    manifest = _read_json_if_exists(str(Path(session_dir) / "session_manifest.json"))
+    manifest = manifest if isinstance(manifest, dict) else {}
+    firmware_observed = manifest.get("firmware_observed")
+    width_observed = manifest.get("serial_width_observed")
+    live = _read_json_if_exists(str(Path(session_dir) / "live_dashboard.json"))
+    if isinstance(live, dict):
+        analysis = live.get("analysis")
+        truth = (
+            analysis.get("fw_truthfulness")
+            if isinstance(analysis, dict)
+            and isinstance(analysis.get("fw_truthfulness"), dict)
+            else {}
+        )
+        firmware_observed = truth.get("version") or firmware_observed
+        width_observed = truth.get("contract_length") or width_observed
+    return firmware_observed, width_observed
+
+
+def _server_release_handshake(server) -> Dict[str, object]:
+    firmware_observed, width_observed = _observed_release_identity(server)
+    return _build_compatibility_handshake(
+        product_version=VERSION,
+        trainer_version=VERSION,
+        dashboard_version=DASHBOARD_VERSION,
+        firmware_expected=FIRMWARE_VERSION_EXPECTED,
+        firmware_observed=firmware_observed,
+        serial_width_expected=EXPECTED_RADAR_LOG_COLUMN_COUNT,
+        serial_width_observed=width_observed,
+        source_commit=_source_commit(),
+        schema_versions=_control_schema_versions(),
+    )
+
+
 def _session_start_blocking_failures(report: Dict[str, object]) -> List[Dict[str, object]]:
     blocking_ids = set(SESSION_START_PREFLIGHT_IDS)
     failures = []
@@ -6896,24 +6962,21 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self._send_json(200, payload)
             return
         if route_name == "version":
+            handshake = _server_release_handshake(self.server)
             self._send_json(200, {
                 "trainer": VERSION,
                 "firmware_expected": FIRMWARE_VERSION_EXPECTED,
                 "dashboard": DASHBOARD_VERSION,
                 "product_version": VERSION,
-                "schema_versions": {
-                    "control_api": CONTROL_API_SCHEMA_VERSION,
-                    "session_notes": SESSION_NOTES_SCHEMA_VERSION,
-                    "session_signoff": SESSION_SIGNOFF_SCHEMA_VERSION,
-                    "training_progress": TRAINING_PROGRESS_SCHEMA_VERSION,
-                    "live_event": LIVE_EVENT_SCHEMA_VERSION,
-                    "live_events": LIVE_EVENT_SCHEMA_VERSION,
-                    "session_manifest": SESSION_MANIFEST_SCHEMA_VERSION,
-                    "chart_annotations": CHART_ANNOTATIONS_SCHEMA_VERSION,
-                    "subject_profile": SUBJECT_PROFILE_SCHEMA_VERSION,
-                    "participant_registry": PARTICIPANT_REGISTRY_SCHEMA_VERSION,
-                    "study_session": STUDY_SESSION_SCHEMA_VERSION,
-                },
+                "firmware_observed": handshake["identity"]["firmware_observed"],
+                "serial_protocol": handshake["identity"]["serial_protocol"],
+                "serial_width_expected": handshake["identity"]["serial_width_expected"],
+                "serial_width_observed": handshake["identity"]["serial_width_observed"],
+                "source_commit": handshake["identity"]["source_commit"],
+                "identity": handshake["identity"],
+                "schema_versions": handshake["schema_versions"],
+                "compatibility": handshake["compatibility"],
+                "compatibility_schema_version": handshake["schema_version"],
                 "update_manifest_url": UPDATE_MANIFEST_URL
             })
             return
@@ -6998,12 +7061,22 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if route_name == "status":
             is_mock = bool(getattr(self.server, "mock", False))
             active = None if is_mock else self.server.supervisor.current()
+            handshake = _server_release_handshake(self.server)
             self._send_json(200, {
                 "ok": True,
                 "mode": "sandbox" if is_mock else "live",
                 "trainer_version": VERSION,
                 "dashboard_version": DASHBOARD_VERSION,
                 "firmware_expected": FIRMWARE_VERSION_EXPECTED,
+                "firmware_observed": handshake["identity"]["firmware_observed"],
+                "serial_protocol": handshake["identity"]["serial_protocol"],
+                "serial_width_expected": handshake["identity"]["serial_width_expected"],
+                "serial_width_observed": handshake["identity"]["serial_width_observed"],
+                "source_commit": handshake["identity"]["source_commit"],
+                "identity": handshake["identity"],
+                "schema_versions": handshake["schema_versions"],
+                "compatibility": handshake["compatibility"],
+                "compatibility_schema_version": handshake["schema_version"],
                 "control_server_started_at": self.server.started_at,
                 "active_session": active,
                 "preview_session": (
@@ -7394,6 +7467,27 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             if self.server.supervisor.current():
                 self._send_json(409, {"ok": False, "error": {"code": "SESSION_IN_PROGRESS", "message": "active session already running"}})
                 return
+            client_compatibility = _validate_client_compatibility(
+                body,
+                product_version=VERSION,
+                dashboard_version=DASHBOARD_VERSION,
+                control_api_schema=CONTROL_API_SCHEMA_VERSION,
+                study_session_schema=STUDY_SESSION_SCHEMA_VERSION,
+                session_manifest_schema=SESSION_MANIFEST_SCHEMA_VERSION,
+                serial_width_expected=EXPECTED_RADAR_LOG_COLUMN_COUNT,
+            )
+            if client_compatibility["blocks_start"]:
+                self._send_json(
+                    409,
+                    _api_error(
+                        "RELEASE_COMPATIBILITY_MISMATCH",
+                        "Dashboard and trainer release contracts are incompatible. Reload the PWA or restart the native app and trainer, then retry.",
+                        compatibility=client_compatibility,
+                        details={"compatibility": client_compatibility},
+                        remediation="Reload the PWA or restart the native app and trainer, then retry.",
+                    ),
+                )
+                return
             try:
                 study_assignment = _validate_study_assignment(
                     {
@@ -7405,22 +7499,63 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             except StudyContractError as exc:
                 self._send_json(400, _api_error(exc.code, str(exc)))
                 return
+            duration_s = body.get(
+                "duration_s",
+                study_assignment.get("planned_duration_s"),
+            )
+            start_provenance = {
+                **study_assignment,
+                "subject_profile_id": body.get(
+                    "subject_profile_id",
+                    "adult_default",
+                ),
+                "model_family": body.get("model_family"),
+                "model_bundle": body.get("model_bundle"),
+                "client_compatibility": client_compatibility,
+            }
             try:
                 report = _run_preflight_all(sessions_root=self.server.sessions_root, port=radar_port, address=ble_address, include=SESSION_START_PREFLIGHT_IDS)
             except Exception as e:
-                self._send_json(500, {"ok": False, "error": {"code": "PREFLIGHT_ERROR", "message": str(e)}})
+                failed_record = self.server.supervisor.record_failed_start(
+                    stage="preflight",
+                    code="PREFLIGHT_ERROR",
+                    reason=e,
+                    duration_s=duration_s,
+                    **start_provenance,
+                )
+                self._send_json(
+                    500,
+                    _api_error(
+                        "PREFLIGHT_ERROR",
+                        str(e),
+                        failed_session_id=failed_record["session_id"],
+                    ),
+                )
                 return
             failed = _session_start_blocking_failures(report)
             if failed:
-                self._send_json(424, {"ok": False, "error": {"code": "PREFLIGHT_FAILED", "message": "one or more required start checks failed", "failed": failed}})
+                failed_record = self.server.supervisor.record_failed_start(
+                    stage="preflight",
+                    code="PREFLIGHT_FAILED",
+                    reason="one or more required start checks failed",
+                    details={"failed": failed},
+                    duration_s=duration_s,
+                    **start_provenance,
+                )
+                self._send_json(
+                    424,
+                    _api_error(
+                        "PREFLIGHT_FAILED",
+                        "one or more required start checks failed",
+                        failed=failed,
+                        failed_session_id=failed_record["session_id"],
+                    ),
+                )
                 return
             try:
                 advanced = body.get("advanced") if isinstance(body.get("advanced"), dict) else {}
                 result = self.server.supervisor.start(
-                    duration_s=body.get(
-                        "duration_s",
-                        study_assignment.get("planned_duration_s"),
-                    ),
+                    duration_s=duration_s,
                     radar_port=radar_port,
                     ble_address=ble_address,
                     ble_profile=body.get("ble_profile", "ailink_oximeter"),
@@ -7433,7 +7568,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     **study_assignment,
                     model_family=body.get("model_family"),
                     model_bundle=body.get("model_bundle"),
+                    client_compatibility=client_compatibility,
                 )
+                result["client_compatibility"] = client_compatibility
                 self._send_json(200, result)
             except RuntimeError as e:
                 code = "SESSION_IN_PROGRESS" if "SESSION_IN_PROGRESS" in str(e) else "SPAWN_ERROR"
@@ -7852,7 +7989,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_2.ino"),
+        Path("radar_vital_v16_5_3.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),

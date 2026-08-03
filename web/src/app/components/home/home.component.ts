@@ -25,6 +25,10 @@ import { InstallPromptService } from '../../services/install-prompt.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { I18nService } from '../../services/i18n.service';
 import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
+import {
+  ReleaseCompatibilityService
+} from '../../services/release-compatibility.service';
+import type { ClientReleaseHandshake } from '../../services/release-compatibility.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
 import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload, SetupState } from '../../models/rvt.models';
 import {
@@ -68,6 +72,7 @@ interface SessionStartPayload {
   planned_duration_s: number;
   ble_profile: string;
   skip_countdown: boolean;
+  client_handshake: ClientReleaseHandshake;
   advanced: { notify_char: string };
 }
 
@@ -136,6 +141,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly installPrompt = inject(InstallPromptService);
   protected readonly serverLifecycle = inject(ServerLifecycleService);
   protected readonly i18n = inject(I18nService);
+  protected readonly compatibility = inject(ReleaseCompatibilityService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
   private readonly renderScheduler = inject(ChartRenderSchedulerService);
@@ -207,7 +213,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     await Promise.all([
       this.refreshDefaults(),
       this.loadSubjectProfiles(),
-      this.loadSessions()
+      this.loadSessions(),
+      this.compatibility.refresh(this.state.ctlStatus())
     ]);
     await this.scanSerialPorts(false);
     await this.runPreflight();
@@ -558,6 +565,11 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   canStartSession(): boolean {
+    return this.canStartWithoutCompatibility()
+      && this.compatibility.summary().state !== 'incompatible';
+  }
+
+  private canStartWithoutCompatibility(): boolean {
     return !this.isPreflightRunning
       && this.preflightRequests.lastValidFingerprint === this.currentPreflightFingerprint()
       && this.preflightChecks.length > 0
@@ -786,9 +798,25 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         this.state.triggerHaptic('reject');
         return;
       }
-      if (!preflightReady || !this.canStartSession()) {
+      if (!preflightReady || !this.canStartWithoutCompatibility()) {
         this.snackBar.open('Start blocked: resolve failed preflight checks first.', 'Dismiss', { duration: 7000 });
         return;
+      }
+
+      const compatibility = await this.compatibility.refresh(this.state.ctlStatus());
+      if (compatibility.blocksStart) {
+        const actions = compatibility.guidance.join(' ');
+        this.snackBar.open(`Start blocked: ${compatibility.message} ${actions}`, 'Dismiss', { duration: 12000 });
+        this.state.triggerHaptic('reject');
+        return;
+      }
+      if (compatibility.state === 'unverified') {
+        this.snackBar.open(
+          'Compatibility is unverified. Operational capture is allowed, but exclude this legacy session from confirmatory analysis.',
+          'Dismiss',
+          { duration: 9000 }
+        );
+        this.state.triggerHaptic('warn');
       }
 
       const r = await this.api.request<SessionRecord>('/api/session/start', {
@@ -846,6 +874,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       planned_duration_s: this.selectedDuration,
       ble_profile: setup.ble_profile,
       skip_countdown: setup.skip_countdown,
+      client_handshake: this.compatibility.handshake(),
       advanced: { notify_char: setup.notify_char }
     };
   }

@@ -325,6 +325,167 @@ class SessionSupervisor:
             str(Path(self.session_dir) / "dashboard.json"),
         )
 
+    def _allocate_session_manifest(
+        self,
+        *,
+        duration_s: object = None,
+        **kwargs,
+    ) -> Dict[str, object]:
+        """Allocate a session directory and persist immutable start provenance."""
+
+        legacy = _legacy()
+        self.session_dir = str(Path(legacy._next_session_dir(self.sessions_root)))
+        Path(self.session_dir).mkdir(parents=True, exist_ok=True)
+        study_payload = dict(kwargs)
+        study_payload["duration_s"] = duration_s
+        if str(study_payload.get("study_classification") or "") in {
+            "confirmatory",
+            "exploratory",
+        }:
+            study_assignment = validate_study_assignment(
+                study_payload,
+                sessions_root=self.sessions_root,
+            )
+        else:
+            study_assignment = {
+                "schema_version": "rvt-study-session-v16.5.1",
+                "study_classification": "operational",
+                "provenance_state": "legacy_unassigned",
+                "confirmatory_eligible": False,
+            }
+        study_assignment = dict(study_assignment)
+        client_compatibility = kwargs.get("client_compatibility")
+        if not isinstance(client_compatibility, dict):
+            client_compatibility = {
+                "schema_version": "rvt-release-compatibility-v1",
+                "decision": "unverified",
+                "verified": False,
+                "blocks_start": False,
+                "confirmatory_eligible": False,
+                "client_handshake": None,
+                "client_metadata": None,
+                "reasons": [
+                    {
+                        "code": "CLIENT_METADATA_MISSING",
+                        "message": "Legacy client supplied no release compatibility metadata.",
+                    }
+                ],
+            }
+        release_compatible = client_compatibility.get("decision") == "compatible"
+        initial_manifest = {
+            "schema_version": legacy.SESSION_MANIFEST_SCHEMA_VERSION,
+            "manifest_version": legacy.SESSION_MANIFEST_VERSION,
+            "generated_at": _iso_now(),
+            "status": "starting",
+            "terminal": False,
+            "study_session_schema_version": study_assignment.pop("schema_version"),
+            **study_assignment,
+            **release_provenance(
+                product_version=legacy.VERSION,
+                trainer_version=legacy.VERSION,
+                dashboard_version=legacy.DASHBOARD_VERSION,
+                firmware_expected=legacy.FIRMWARE_VERSION_EXPECTED,
+                serial_width_expected=legacy.EXPECTED_RADAR_LOG_COLUMN_COUNT,
+                model_family=kwargs.get("model_family"),
+                model_bundle=kwargs.get("model_bundle"),
+            ),
+            "client_compatibility": client_compatibility,
+            "client_handshake": client_compatibility.get("client_handshake"),
+            "release_compatibility_state": client_compatibility.get(
+                "decision",
+                "unverified",
+            ),
+            "release_compatibility_verified": bool(
+                client_compatibility.get("verified", False)
+            ),
+            "confirmatory_eligible": bool(
+                study_assignment.get("confirmatory_eligible", False)
+                and release_compatible
+            ),
+            "auto_analysed": False,
+            "tags": [],
+            "notes_count": 0,
+            "subject_profile_id": kwargs.get(
+                "subject_profile_id",
+                "adult_default",
+            ),
+        }
+        atomic_write_json(
+            initial_manifest,
+            str(Path(self.session_dir) / "session_manifest.json"),
+        )
+        return initial_manifest
+
+    def _record_start_failure(
+        self,
+        *,
+        stage: str,
+        code: str,
+        reason: object,
+        details: object = None,
+    ) -> Dict[str, object]:
+        """Make an allocated but failed start a durable terminal session record."""
+
+        if not self.session_dir:
+            raise RuntimeError("cannot persist failed start without a session directory")
+        path = Path(self.session_dir) / "session_manifest.json"
+        manifest = read_json_if_exists(str(path))
+        manifest = dict(manifest) if isinstance(manifest, dict) else {}
+        failed_at = _iso_now()
+        failure = {
+            "stage": str(stage),
+            "code": str(code),
+            "reason": str(reason),
+            "failed_at": failed_at,
+        }
+        if details not in (None, "", [], {}):
+            failure["details"] = details
+        manifest.update(
+            {
+                "status": "failed_start",
+                "terminal": True,
+                "ended_at": failed_at,
+                "failure": failure,
+            }
+        )
+        atomic_write_json(manifest, str(path))
+        return manifest
+
+    def record_failed_start(
+        self,
+        *,
+        stage: str,
+        code: str,
+        reason: object,
+        details: object = None,
+        duration_s: object = None,
+        **kwargs,
+    ) -> Dict[str, object]:
+        """Reserve a failed-session record when a preflight blocks capture."""
+
+        with self._lifecycle_lock:
+            if self._closing:
+                raise RuntimeError("SUPERVISOR_CLOSING: session starts are disabled")
+            self._poll()
+            if self.proc is not None and self.proc.poll() is None:
+                raise RuntimeError("SESSION_IN_PROGRESS: active session already running")
+            if _session_is_active(self.sessions_root):
+                raise RuntimeError("SESSION_IN_PROGRESS: session lock active")
+            self._allocate_session_manifest(duration_s=duration_s, **kwargs)
+            manifest = self._record_start_failure(
+                stage=stage,
+                code=code,
+                reason=reason,
+                details=details,
+            )
+            result = {
+                "session_id": Path(self.session_dir).name,
+                "session_dir": self.session_dir,
+                "manifest": manifest,
+            }
+            self._reset_runtime_state()
+            return result
+
     def _poll(self) -> bool:
         with self._lifecycle_lock:
             if self.proc is not None and self.proc.poll() is not None:
@@ -375,49 +536,7 @@ class SessionSupervisor:
         ble_address = (
             str(ble_address or DEFAULT_BLE_ADDRESS).strip() or DEFAULT_BLE_ADDRESS
         )
-        self.session_dir = str(Path(legacy._next_session_dir(self.sessions_root)))
-        Path(self.session_dir).mkdir(parents=True, exist_ok=True)
-        study_payload = dict(kwargs)
-        study_payload["duration_s"] = duration_s
-        if str(study_payload.get("study_classification") or "") in {
-            "confirmatory",
-            "exploratory",
-        }:
-            study_assignment = validate_study_assignment(
-                study_payload,
-                sessions_root=self.sessions_root,
-            )
-        else:
-            study_assignment = {
-                "schema_version": "rvt-study-session-v16.5.1",
-                "study_classification": "operational",
-                "provenance_state": "legacy_unassigned",
-                "confirmatory_eligible": False,
-            }
-        initial_manifest = {
-            "schema_version": legacy.SESSION_MANIFEST_SCHEMA_VERSION,
-            "manifest_version": legacy.SESSION_MANIFEST_VERSION,
-            "generated_at": _iso_now(),
-            "study_session_schema_version": study_assignment.pop("schema_version"),
-            **study_assignment,
-            **release_provenance(
-                product_version=legacy.VERSION,
-                trainer_version=legacy.VERSION,
-                dashboard_version=legacy.DASHBOARD_VERSION,
-                firmware_expected=legacy.FIRMWARE_VERSION_EXPECTED,
-                serial_width_expected=legacy.EXPECTED_RADAR_LOG_COLUMN_COUNT,
-                model_family=kwargs.get("model_family"),
-                model_bundle=kwargs.get("model_bundle"),
-            ),
-            "auto_analysed": False,
-            "tags": [],
-            "notes_count": 0,
-            "subject_profile_id": kwargs.get("subject_profile_id", "adult_default"),
-        }
-        atomic_write_json(
-            initial_manifest,
-            str(Path(self.session_dir) / "session_manifest.json"),
-        )
+        self._allocate_session_manifest(duration_s=duration_s, **kwargs)
         argv = [
             sys.executable,
             str(legacy._TRAINER_ENTRYPOINT),
@@ -471,8 +590,17 @@ class SessionSupervisor:
             if os.name == "nt"
             else 0
         )
-        self._write_starting_live_payload(duration_s=duration_s)
-        self.proc = subprocess.Popen(argv, creationflags=creationflags)
+        try:
+            self._write_starting_live_payload(duration_s=duration_s)
+            self.proc = subprocess.Popen(argv, creationflags=creationflags)
+        except Exception as exc:
+            self._record_start_failure(
+                stage="process_launch",
+                code="SPAWN_ERROR",
+                reason=exc,
+            )
+            self._reset_runtime_state()
+            raise RuntimeError(f"SPAWN_ERROR: {exc}") from exc
         self.started_at = _iso_now()
         self.started_monotonic = time.monotonic()
         self.params = {
@@ -490,6 +618,12 @@ class SessionSupervisor:
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
                 proc = self.proc
+                self._record_start_failure(
+                    stage="startup_exit",
+                    code="SPAWN_ERROR",
+                    reason="session exited before live_dashboard.json appeared",
+                    details={"returncode": proc.poll()},
+                )
                 self._clear_current(pid=proc.pid, session_dir=self.session_dir)
                 self._reset_runtime_state()
                 raise RuntimeError(
@@ -517,6 +651,12 @@ class SessionSupervisor:
                 pass
         finally:
             proc = self.proc
+            self._record_start_failure(
+                stage="startup_timeout",
+                code="SPAWN_TIMEOUT",
+                reason="live_dashboard.json did not appear before timeout",
+                details={"timeout_s": float(timeout_s)},
+            )
             self._clear_current(
                 pid=getattr(proc, "pid", None),
                 session_dir=self.session_dir,

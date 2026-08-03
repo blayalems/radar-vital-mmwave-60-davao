@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-29 - Gate v16.5.3 release compatibility and preserve failed starts
+
+- **Compatibility gate**: Added a structured dashboard/trainer/firmware/serial/API-schema handshake; known version, protocol, width, or schema splits block real Start with actionable reload/restart/flash guidance, while legacy clients remain explicitly unverified.
+- **Failure provenance**: Startup failures retain the immutable participant/trial assignment, release and model identity, terminal failure code/reason, and timestamps in the allocated session manifest for later diagnosis.
+- **Operator evidence**: Home exposes compatibility state before Start and Report promotes participant, condition, release, firmware, protocol, and model provenance into the primary session metadata.
+- **Release identity**: Advanced all shipped carriers exactly one patch to `16.5.3`; study schema v16.5.1 and the frozen v15.2/222-column serial contract remain stable.
+- **Verification**: Full Python passes 428/428 with 3 environment skips; Angular passes 241/241. Trainer compile/help, v16.5.2 -> v16.5.3 patch/version graph, feedback-loop export, production build, and generated-dashboard round trip pass. The new desktop/Pixel/iPhone/iPad Playwright cases compile; local execution remains gated by the missing Chromium headless-shell binary, so CI/browser verification remains required.
+
 ### 2026-07-29 - Fix adversarial v16.5.2 session-state truthfulness
 
 - **Mock state**: The real `serve --mock` control API now identifies sandbox preview separately from active capture, so Demo Now, Live Stop controls, and navigation guards cannot mistake continuous mock telemetry for a real recording.

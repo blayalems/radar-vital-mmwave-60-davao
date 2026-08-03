@@ -115,11 +115,11 @@ export class SourceModeService {
 
   shouldUseSandboxApi(path: string, bypassSandbox = false): boolean {
     if (!this.simulated() || !path.startsWith('/api/')) return false;
-    // Manual demo is intentionally offline from the trainer. Even calls that
-    // normally bypass the sandbox for connection discovery must stay local;
-    // otherwise the placeholder 127.0.0.1:8765 origin triggers CSP errors.
-    if (bypassSandbox && !this.manualDemoActive()) return false;
     const pathname = String(path).split('?', 1)[0];
+    // Manual demo keeps data and metadata local, but status discovery is the
+    // one safe exception: it must be able to observe a real active session so
+    // the D shortcut cannot switch simulated data on over a live capture.
+    if (bypassSandbox && (!this.manualDemoActive() || pathname === '/api/status')) return false;
     return !(pathname === '/api/session/stop' && this.realSessionActive());
   }
 

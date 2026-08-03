@@ -173,7 +173,9 @@ export class LiveComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly canStopSession = computed(() => {
     const status = this.state.ctlStatus();
     if (status && !status.active_session && !status.session) return false;
-    return this.state.sessionActive();
+    // The trainer status is authoritative during the first live-page render;
+    // the local session signal can still be one change-detection turn behind.
+    return this.state.sessionActive() || Boolean(status?.active_session || status?.session);
   });
   protected readonly ghostHrData = signal<number[]>([]);
   protected readonly ghostRrData = signal<number[]>([]);

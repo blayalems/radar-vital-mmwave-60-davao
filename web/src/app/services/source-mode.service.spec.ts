@@ -89,13 +89,13 @@ describe('SourceModeService', () => {
     expect(sessionStore.currentSessionId()).toBe('session-live-2');
   });
 
-  it('keeps a real-session Stop on trainer transport despite stale demo state', () => {
+  it('keeps live status and Stop on trainer transport despite stale demo state', () => {
     expect(service.setManualDemo(true)).toBe(true);
     sessionStore.ctlStatus.set({ ok: true, mode: 'live' });
     sessionStore.currentSessionId.set('session-live-3');
     sessionStore.sessionActive.set(true);
 
-    expect(service.shouldUseSandboxApi('/api/status', true)).toBe(true);
+    expect(service.shouldUseSandboxApi('/api/status', true)).toBe(false);
     expect(service.shouldUseSandboxApi('/api/health', true)).toBe(true);
     expect(service.shouldUseSandboxApi('/api/defaults')).toBe(true);
     expect(service.shouldUseSandboxApi('/api/session/stop')).toBe(false);

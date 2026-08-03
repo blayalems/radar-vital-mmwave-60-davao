@@ -1035,6 +1035,11 @@ test.describe('Dashboard smoke', () => {
   });
 
   test('wires Ctrl+H handoff, Ctrl+Z undo feedback and the guarded D demo shortcut', async ({ page }) => {
+    await page.route('**/api/events/subscribe**', route => route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: 'event: ping\ndata: {"ok":true}\n\n'
+    }));
     await page.route('**/api/status', route => route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -1227,7 +1232,7 @@ test.describe('Dashboard smoke', () => {
     await page.getByRole('link', { name: /Home/ }).first().click();
     await expect(page.getByRole('dialog')).toContainText('Leave active session?');
     await page.getByRole('dialog').getByRole('button', { name: /Leave view/ }).click();
-    await expect(page.getByText('Subject A')).toBeVisible();
+    await expect(page.getByText('Subject A', { exact: true })).toBeVisible();
     await expect(page.locator('.session-verdict-badge')).toHaveText('READY');
 
     active = false;
@@ -1239,6 +1244,11 @@ test.describe('Dashboard smoke', () => {
   test('stopping through the command palette clears the active-session navigation guard', async ({ page }) => {
     // Keep this component-flow test on browser fetch; PWA routing is covered separately.
     await page.route('**/sw.js', route => route.abort());
+    await page.route('**/api/events/subscribe**', route => route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: 'event: ping\ndata: {"ok":true}\n\n'
+    }));
     await page.route('**/api/status', route => route.fulfill({
       status: 200,
       contentType: 'application/json',

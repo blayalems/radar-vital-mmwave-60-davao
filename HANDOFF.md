@@ -11,6 +11,13 @@
 - **Start reliability**: Bind the Home Start in-flight guard to an Angular signal so rejected or ambiguous requests re-render immediately and re-enable the idempotency retry action; smoke fixtures enter `/home` directly, and status assertions target visible retry/status semantics.
 - **Verification**: System Chrome Pixel 7 browser run passed all 14 targeted session-idempotency, release, polish, and settings tests; `npm run build:web` and monolith regeneration passed. CI smoke shards must confirm all viewports.
 
+### 2026-08-04 - Preserve live-session guards in manual-demo probes
+
+- **Source-mode guard**: Manual demo keeps telemetry and metadata local, while `/api/status` remains a live discovery exception so a real active capture cannot be hidden before the operator toggles simulated data.
+- **Smoke isolation**: Active-session dashboard scenarios now hold an SSE ping stream and use exact subject locators; this prevents the live trainer’s idle stream and substring matching from masking the assertions.
+- **Stop readiness**: Live controls and the command palette now accept an active-session witness directly from trainer status while the local signal catches up, preventing a visible Stop action from remaining disabled during first render.
+- **Verification**: A system-Chrome desktop rerun passed all three corrected active-session scenarios; the full four-viewport matrix still needs to confirm the same live-trainer behavior in CI.
+
 ### 2026-08-04 - Run smoke/API shards against the live trainer surface
 
 - **Test contract**: Added `RVT_TEST_MOCK=0` for smoke/API and release-artifact runs, `RVT_TEST_MOCK=1` for visual runs, and made the local Playwright default live so `npm test` exercises the same protected HTTP surface as CI; this prevents sandbox adapter state from bypassing endpoint fixtures and falsely clearing seeded operator tokens.

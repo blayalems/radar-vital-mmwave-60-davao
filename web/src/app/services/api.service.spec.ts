@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ApiService } from './api.service';
+import { ApiRequestError, ApiService } from './api.service';
 import { StateService } from './state.service';
 import { PersistenceService } from './persistence.service';
 import { OPERATOR_TOKEN_KEY, SERVER_URL_KEY } from './rvt-storage-keys';
@@ -103,6 +103,43 @@ describe('ApiService', () => {
     const preflight = await service.request<{ ok: boolean; checks: any[] }>('/api/preflight');
     expect(preflight.ok).toBe(true);
     expect(preflight.checks.length).toBeGreaterThan(0);
+  });
+
+  it('requires and forwards the caller-owned session Start idempotency key', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    await service.whenInitialized();
+
+    await expect(service.startSession('')).rejects.toThrow('idempotency key');
+
+    const pending = service.startSession('22222222-2222-4222-8222-222222222222');
+    const request = httpMock.expectOne('/api/session/start');
+    expect(request.request.method).toBe('POST');
+    expect(JSON.parse(String(request.request.body))).toMatchObject({
+      idempotency_key: '22222222-2222-4222-8222-222222222222'
+    });
+    request.flush({ session_id: 'session-idempotent' });
+
+    await expect(pending).resolves.toEqual({ session_id: 'session-idempotent' });
+  });
+
+  it('preserves the HTTP status on definitive API rejections', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    await service.whenInitialized();
+
+    const pending = service.request('/api/session/start', { method: 'POST' });
+    const request = httpMock.expectOne('/api/session/start');
+    request.flush(
+      { error: { message: 'Study assignment rejected' } },
+      { status: 409, statusText: 'Conflict' }
+    );
+
+    const error = await pending.catch(candidate => candidate);
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect(error).toMatchObject({ status: 409, message: 'Study assignment rejected' });
   });
 
   it('should manage API base and store it in localStorage', () => {

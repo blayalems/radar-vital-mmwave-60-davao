@@ -17,18 +17,44 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Mapping, Optional
 
 from rvt_trainer.api.common import (
     atomic_write_json,
     read_json_if_exists,
     wait_for_process_exit,
 )
+from rvt_trainer.session.study_contract import (
+    release_provenance,
+    validate_study_assignment,
+)
+from rvt_trainer.session.start_idempotency import (
+    StartIdempotencyError,
+    StartIdempotencyStore,
+    canonical_start_request_hash,
+    validate_idempotency_key,
+)
 
 DEFAULT_RADAR_PORT = "COM10"
 DEFAULT_BLE_ADDRESS = "10:22:33:9E:8F:63"
 CONTROL_API_SCHEMA_VERSION = "rvt-control-api-v12.0"
 LIVE_EVENT_SCHEMA_VERSION = "rvt-live-events-v12.0"
+
+
+class SessionStartPreflightError(RuntimeError):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        details: object = None,
+        http_status: int = 500,
+    ):
+        super().__init__(message)
+        self.code = code
+        self.details = details
+        self.http_status = int(http_status)
+        self.failed_session_id: Optional[str] = None
 
 
 def _legacy():
@@ -233,6 +259,7 @@ class SessionSupervisor:
         self._stop_grace_s = 10.0
         self._terminate_grace_s = 3.0
         self._kill_grace_s = 2.0
+        self._start_idempotency = StartIdempotencyStore(self.sessions_root)
 
     def _current_path(self) -> Path:
         return Path(self.sessions_root) / "current_session.json"
@@ -321,6 +348,169 @@ class SessionSupervisor:
             str(Path(self.session_dir) / "dashboard.json"),
         )
 
+    def _allocate_session_manifest(
+        self,
+        *,
+        duration_s: object = None,
+        **kwargs,
+    ) -> Dict[str, object]:
+        """Allocate a session directory and persist immutable start provenance."""
+
+        legacy = _legacy()
+        self.session_dir = str(Path(legacy._next_session_dir(self.sessions_root)))
+        Path(self.session_dir).mkdir(parents=True, exist_ok=True)
+        study_payload = dict(kwargs)
+        study_payload["duration_s"] = duration_s
+        if str(study_payload.get("study_classification") or "") in {
+            "confirmatory",
+            "exploratory",
+        }:
+            study_assignment = validate_study_assignment(
+                study_payload,
+                sessions_root=self.sessions_root,
+            )
+        else:
+            study_assignment = {
+                "schema_version": "rvt-study-session-v16.5.1",
+                "study_classification": "operational",
+                "provenance_state": "legacy_unassigned",
+                "confirmatory_eligible": False,
+            }
+        study_assignment = dict(study_assignment)
+        client_compatibility = kwargs.get("client_compatibility")
+        if not isinstance(client_compatibility, dict):
+            client_compatibility = {
+                "schema_version": "rvt-release-compatibility-v1",
+                "decision": "unverified",
+                "verified": False,
+                "blocks_start": False,
+                "confirmatory_eligible": False,
+                "client_handshake": None,
+                "client_metadata": None,
+                "reasons": [
+                    {
+                        "code": "CLIENT_METADATA_MISSING",
+                        "message": "Legacy client supplied no release compatibility metadata.",
+                    }
+                ],
+            }
+        release_compatible = client_compatibility.get("decision") == "compatible"
+        initial_manifest = {
+            "schema_version": legacy.SESSION_MANIFEST_SCHEMA_VERSION,
+            "manifest_version": legacy.SESSION_MANIFEST_VERSION,
+            "generated_at": _iso_now(),
+            "status": "starting",
+            "terminal": False,
+            "study_session_schema_version": study_assignment.pop("schema_version"),
+            **study_assignment,
+            **release_provenance(
+                product_version=legacy.VERSION,
+                trainer_version=legacy.VERSION,
+                dashboard_version=legacy.DASHBOARD_VERSION,
+                firmware_expected=legacy.FIRMWARE_VERSION_EXPECTED,
+                serial_width_expected=legacy.EXPECTED_RADAR_LOG_COLUMN_COUNT,
+                model_family=kwargs.get("model_family"),
+                model_bundle=kwargs.get("model_bundle"),
+            ),
+            "client_compatibility": client_compatibility,
+            "client_handshake": client_compatibility.get("client_handshake"),
+            "release_compatibility_state": client_compatibility.get(
+                "decision",
+                "unverified",
+            ),
+            "release_compatibility_verified": bool(
+                client_compatibility.get("verified", False)
+            ),
+            "start_idempotency_key": kwargs.get("start_idempotency_key"),
+            "start_request_hash": kwargs.get("start_request_hash"),
+            "confirmatory_eligible": bool(
+                study_assignment.get("confirmatory_eligible", False)
+                and release_compatible
+            ),
+            "auto_analysed": False,
+            "tags": [],
+            "notes_count": 0,
+            "subject_profile_id": kwargs.get(
+                "subject_profile_id",
+                "adult_default",
+            ),
+        }
+        atomic_write_json(
+            initial_manifest,
+            str(Path(self.session_dir) / "session_manifest.json"),
+        )
+        return initial_manifest
+
+    def _record_start_failure(
+        self,
+        *,
+        stage: str,
+        code: str,
+        reason: object,
+        details: object = None,
+    ) -> Dict[str, object]:
+        """Make an allocated but failed start a durable terminal session record."""
+
+        if not self.session_dir:
+            raise RuntimeError("cannot persist failed start without a session directory")
+        path = Path(self.session_dir) / "session_manifest.json"
+        manifest = read_json_if_exists(str(path))
+        manifest = dict(manifest) if isinstance(manifest, dict) else {}
+        failed_at = _iso_now()
+        failure = {
+            "stage": str(stage),
+            "code": str(code),
+            "reason": str(reason),
+            "failed_at": failed_at,
+        }
+        if details not in (None, "", [], {}):
+            failure["details"] = details
+        manifest.update(
+            {
+                "status": "failed_start",
+                "terminal": True,
+                "ended_at": failed_at,
+                "failure": failure,
+            }
+        )
+        atomic_write_json(manifest, str(path))
+        return manifest
+
+    def record_failed_start(
+        self,
+        *,
+        stage: str,
+        code: str,
+        reason: object,
+        details: object = None,
+        duration_s: object = None,
+        **kwargs,
+    ) -> Dict[str, object]:
+        """Reserve a failed-session record when a preflight blocks capture."""
+
+        with self._lifecycle_lock:
+            if self._closing:
+                raise RuntimeError("SUPERVISOR_CLOSING: session starts are disabled")
+            self._poll()
+            if self.proc is not None and self.proc.poll() is None:
+                raise RuntimeError("SESSION_IN_PROGRESS: active session already running")
+            if _session_is_active(self.sessions_root):
+                raise RuntimeError("SESSION_IN_PROGRESS: session lock active")
+            self._allocate_session_manifest(duration_s=duration_s, **kwargs)
+            manifest = self._record_start_failure(
+                stage=stage,
+                code=code,
+                reason=reason,
+                details=details,
+            )
+            result = {
+                "session_id": Path(self.session_dir).name,
+                "session_dir": self.session_dir,
+                "manifest": manifest,
+            }
+            self._reset_runtime_state()
+            return result
+
     def _poll(self) -> bool:
         with self._lifecycle_lock:
             if self.proc is not None and self.proc.poll() is not None:
@@ -338,19 +528,128 @@ class SessionSupervisor:
         ble_address=DEFAULT_BLE_ADDRESS,
         ble_profile="ailink_oximeter",
         timeout_s: float = 30.0,
+        idempotency_key: object = None,
+        idempotency_payload: Optional[Mapping[str, object]] = None,
+        preflight: Optional[Callable[[], object]] = None,
         **kwargs,
     ):
         with self._lifecycle_lock:
             if self._closing:
                 raise RuntimeError("SUPERVISOR_CLOSING: session starts are disabled")
-            return self._start_locked(
-                duration_s=duration_s,
-                radar_port=radar_port,
-                ble_address=ble_address,
-                ble_profile=ble_profile,
-                timeout_s=timeout_s,
-                **kwargs,
+            key = validate_idempotency_key(idempotency_key)
+            request_hash = (
+                canonical_start_request_hash(idempotency_payload or {})
+                if key is not None
+                else None
             )
+            if key is not None:
+                replay = self._lookup_idempotent_start_locked(key, request_hash)
+                if replay is not None:
+                    return replay
+                self._start_idempotency.begin(key, request_hash)
+            failure_record = None
+            try:
+                if preflight is not None:
+                    try:
+                        preflight()
+                    except SessionStartPreflightError as exc:
+                        failure_record = self.record_failed_start(
+                            stage="preflight",
+                            code=exc.code,
+                            reason=exc,
+                            details=exc.details,
+                            duration_s=duration_s,
+                            start_idempotency_key=key,
+                            start_request_hash=request_hash,
+                            **kwargs,
+                        )
+                        exc.failed_session_id = failure_record["session_id"]
+                        raise
+                result = self._start_locked(
+                    duration_s=duration_s,
+                    radar_port=radar_port,
+                    ble_address=ble_address,
+                    ble_profile=ble_profile,
+                    timeout_s=timeout_s,
+                    start_idempotency_key=key,
+                    start_request_hash=request_hash,
+                    **kwargs,
+                )
+                if isinstance(kwargs.get("client_compatibility"), dict):
+                    result["client_compatibility"] = kwargs["client_compatibility"]
+                if key is not None:
+                    self._start_idempotency.mark_succeeded(
+                        key,
+                        request_hash,
+                        result,
+                    )
+                return result
+            except Exception as exc:
+                if key is not None:
+                    code = getattr(exc, "code", None) or (
+                        "SPAWN_TIMEOUT"
+                        if isinstance(exc, TimeoutError)
+                        else "SPAWN_ERROR"
+                    )
+                    self._start_idempotency.mark_failed(
+                        key,
+                        request_hash,
+                        code=str(code),
+                        message=str(exc),
+                        session_id=(
+                            (failure_record or {}).get("session_id")
+                            or getattr(exc, "session_id", None)
+                        ),
+                        session_dir=(
+                            (failure_record or {}).get("session_dir")
+                            or getattr(exc, "session_dir", None)
+                        ),
+                        details=getattr(exc, "details", None),
+                    )
+                raise
+
+    def _lookup_idempotent_start_locked(
+        self,
+        key: str,
+        request_hash: str,
+    ) -> Optional[Dict[str, object]]:
+        state, record = self._start_idempotency.lookup(key, request_hash)
+        if state == "missing":
+            return None
+        if state == "replay":
+            return record
+        if state == "failed":
+            error = record.get("error") if isinstance(record, dict) else {}
+            error = error if isinstance(error, dict) else {}
+            replay_details = (
+                dict(error.get("details"))
+                if isinstance(error.get("details"), dict)
+                else {}
+            )
+            if record.get("session_id") not in (None, ""):
+                replay_details["failed_session_id"] = record.get("session_id")
+            raise StartIdempotencyError(
+                str(error.get("code") or "IDEMPOTENT_START_FAILED"),
+                str(error.get("message") or "the original session-start request failed"),
+                details=replay_details,
+            )
+        raise StartIdempotencyError(
+            "IDEMPOTENCY_REQUEST_IN_PROGRESS",
+            "the same session-start request is already in progress; check /api/session/current before retrying",
+            details={"idempotency_key": key, "record": record},
+        )
+
+    def lookup_idempotent_start(
+        self,
+        idempotency_key: object,
+        idempotency_payload: Mapping[str, object],
+    ) -> Optional[Dict[str, object]]:
+        key = validate_idempotency_key(idempotency_key)
+        if key is None:
+            return None
+        request_hash = canonical_start_request_hash(idempotency_payload)
+        with self._lifecycle_lock:
+            return self._lookup_idempotent_start_locked(key, request_hash)
 
     def _start_locked(
         self,
@@ -371,14 +670,15 @@ class SessionSupervisor:
         ble_address = (
             str(ble_address or DEFAULT_BLE_ADDRESS).strip() or DEFAULT_BLE_ADDRESS
         )
-        self.session_dir = str(Path(legacy._next_session_dir(self.sessions_root)))
-        Path(self.session_dir).mkdir(parents=True, exist_ok=True)
+        self._allocate_session_manifest(duration_s=duration_s, **kwargs)
         argv = [
             sys.executable,
             str(legacy._TRAINER_ENTRYPOINT),
             "session",
             "--session-dir",
             self.session_dir,
+            "--sessions-root",
+            self.sessions_root,
             "--port",
             radar_port,
             "--address",
@@ -401,6 +701,22 @@ class SessionSupervisor:
                 "--subject-profile-id",
                 str(kwargs.get("subject_profile_id")),
             ]
+        study_flag_names = {
+            "participant_id": "--participant-id",
+            "trial_id": "--trial-id",
+            "condition_id": "--condition-id",
+            "distance_m": "--distance-m",
+            "barrier_type": "--barrier-type",
+            "trial_number": "--trial-number",
+            "planned_duration_s": "--planned-duration-s",
+            "study_classification": "--study-classification",
+            "model_family": "--model-family",
+            "model_bundle": "--model-bundle",
+        }
+        for key, flag in study_flag_names.items():
+            value = kwargs.get(key)
+            if value not in (None, "", "operational"):
+                argv += [flag, str(value)]
         if duration_s is not None:
             argv += ["--duration-s", str(duration_s)]
         creationflags = (
@@ -408,8 +724,21 @@ class SessionSupervisor:
             if os.name == "nt"
             else 0
         )
-        self._write_starting_live_payload(duration_s=duration_s)
-        self.proc = subprocess.Popen(argv, creationflags=creationflags)
+        try:
+            self._write_starting_live_payload(duration_s=duration_s)
+            self.proc = subprocess.Popen(argv, creationflags=creationflags)
+        except Exception as exc:
+            failed_session_dir = self.session_dir
+            self._record_start_failure(
+                stage="process_launch",
+                code="SPAWN_ERROR",
+                reason=exc,
+            )
+            self._reset_runtime_state()
+            error = RuntimeError(f"SPAWN_ERROR: {exc}")
+            error.session_id = Path(failed_session_dir).name
+            error.session_dir = failed_session_dir
+            raise error from exc
         self.started_at = _iso_now()
         self.started_monotonic = time.monotonic()
         self.params = {
@@ -427,11 +756,21 @@ class SessionSupervisor:
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
                 proc = self.proc
+                failed_session_dir = self.session_dir
+                self._record_start_failure(
+                    stage="startup_exit",
+                    code="SPAWN_ERROR",
+                    reason="session exited before live_dashboard.json appeared",
+                    details={"returncode": proc.poll()},
+                )
                 self._clear_current(pid=proc.pid, session_dir=self.session_dir)
                 self._reset_runtime_state()
-                raise RuntimeError(
+                error = RuntimeError(
                     "SPAWN_ERROR: session exited before live_dashboard.json appeared"
                 )
+                error.session_id = Path(failed_session_dir).name
+                error.session_dir = failed_session_dir
+                raise error
             live_payload = read_json_if_exists(str(live))
             if isinstance(live_payload, dict) and not live_payload.get(
                 "_supervisor_placeholder"
@@ -443,6 +782,7 @@ class SessionSupervisor:
                     "started_at": self.started_at,
                 }
             time.sleep(0.02)
+        failed_session_dir = self.session_dir
         try:
             self.proc.terminate()
             self.proc.wait(timeout=3.0)
@@ -454,12 +794,21 @@ class SessionSupervisor:
                 pass
         finally:
             proc = self.proc
+            self._record_start_failure(
+                stage="startup_timeout",
+                code="SPAWN_TIMEOUT",
+                reason="live_dashboard.json did not appear before timeout",
+                details={"timeout_s": float(timeout_s)},
+            )
             self._clear_current(
                 pid=getattr(proc, "pid", None),
                 session_dir=self.session_dir,
             )
             self._reset_runtime_state()
-        raise TimeoutError("live_dashboard.json did not appear before timeout")
+        error = TimeoutError("live_dashboard.json did not appear before timeout")
+        error.session_id = Path(failed_session_dir).name
+        error.session_dir = failed_session_dir
+        raise error
 
     _wait_for_exit = staticmethod(wait_for_process_exit)
 

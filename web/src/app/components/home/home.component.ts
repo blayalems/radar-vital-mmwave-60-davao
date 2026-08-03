@@ -17,7 +17,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { StateService } from '../../services/state.service';
-import { ApiService } from '../../services/api.service';
+import { ApiRequestError, ApiService } from '../../services/api.service';
 import { TelemetryService } from '../../services/telemetry.service';
 import { AudioService } from '../../services/audio.service';
 import { BluetoothService } from '../../services/bluetooth.service';
@@ -25,6 +25,10 @@ import { InstallPromptService } from '../../services/install-prompt.service';
 import { ServerLifecycleService } from '../../services/server-lifecycle.service';
 import { I18nService } from '../../services/i18n.service';
 import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
+import {
+  ReleaseCompatibilityService
+} from '../../services/release-compatibility.service';
+import type { ClientReleaseHandshake } from '../../services/release-compatibility.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
 import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload, SetupState } from '../../models/rvt.models';
 import {
@@ -32,6 +36,11 @@ import {
   PreflightSetup,
   preflightSetupFingerprint
 } from './preflight-request-coordinator.service';
+import {
+  ParticipantStudySetupComponent,
+  studySetupError,
+  studyTrialId
+} from '../participant-study-setup/participant-study-setup.component';
 export { preflightSetupFingerprint } from './preflight-request-coordinator.service';
 
 const FALLBACK_RADAR_PORT = 'COM10';
@@ -45,6 +54,7 @@ const START_BLOCKING_PREFLIGHT_IDS = new Set([
 ]);
 
 interface SessionStartPayload {
+  idempotency_key: string;
   duration_s: number;
   radar_port: string;
   ble_address: string;
@@ -52,9 +62,42 @@ interface SessionStartPayload {
   operator_label: string;
   station_label: string;
   subject_profile_id: string;
+  participant_id: string;
+  trial_id: string;
+  study_mode: 'confirmatory' | 'exploratory';
+  study_classification: 'confirmatory' | 'exploratory';
+  condition_id: string;
+  distance_m: number;
+  barrier_type: 'none' | 'cardboard';
+  trial_number: number;
+  planned_duration_s: number;
   ble_profile: string;
   skip_countdown: boolean;
+  client_handshake: ClientReleaseHandshake;
   advanced: { notify_char: string };
+}
+
+interface SessionStartIntent {
+  idempotencyKey: string;
+  payloadFingerprint: string;
+}
+
+export function createSessionStartIdempotencyKey(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  globalThis.crypto?.getRandomValues?.(bytes);
+  if (!bytes.some(Boolean)) {
+    const timestamp = Date.now();
+    for (let index = 0; index < bytes.length; index++) {
+      bytes[index] = (timestamp >>> ((index % 6) * 8)) & 0xff;
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 export function mergeRadarPortChoices(...groups: Array<Array<string | undefined> | undefined>): string[] {
@@ -105,7 +148,8 @@ export function sessionStartTimestampMs(session: Pick<SessionRecord, 'started_at
     MatProgressSpinnerModule,
     MatChipsModule,
     MatSnackBarModule,
-    TranslatePipe
+    TranslatePipe,
+    ParticipantStudySetupComponent
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
@@ -121,6 +165,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   protected readonly installPrompt = inject(InstallPromptService);
   protected readonly serverLifecycle = inject(ServerLifecycleService);
   protected readonly i18n = inject(I18nService);
+  protected readonly compatibility = inject(ReleaseCompatibilityService);
+  protected participantRosterValid = false;
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
   private readonly renderScheduler = inject(ChartRenderSchedulerService);
@@ -162,6 +208,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   nativeBleProbeStatus = '';
   isStartingSession = false;
   selectedDuration = 30;
+  private startIntent: SessionStartIntent | null = null;
+  private startInFlight: Promise<void> | null = null;
 
   sessionFilter: 'all' | 'pass' | 'warn' | 'fail' | 'tagged' = 'all';
 
@@ -192,7 +240,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     await Promise.all([
       this.refreshDefaults(),
       this.loadSubjectProfiles(),
-      this.loadSessions()
+      this.loadSessions(),
+      this.compatibility.refresh(this.state.ctlStatus())
     ]);
     await this.scanSerialPorts(false);
     await this.runPreflight();
@@ -543,10 +592,26 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   canStartSession(): boolean {
+    return this.canStartWithoutCompatibility()
+      && this.compatibility.summary().state !== 'incompatible';
+  }
+
+  private canStartWithoutCompatibility(): boolean {
     return !this.isPreflightRunning
+      && this.participantRosterValid
       && this.preflightRequests.lastValidFingerprint === this.currentPreflightFingerprint()
       && this.preflightChecks.length > 0
-      && !this.hasBlockingPreflightFailure();
+      && !this.hasBlockingPreflightFailure()
+      && !this.studySetupError();
+  }
+
+  studySetupError(): string {
+    return studySetupError({ ...this.state.setup(), duration_s: this.selectedDuration });
+  }
+
+  protected setParticipantRosterValidity(valid: boolean): void {
+    this.participantRosterValid = valid;
+    if (!valid) this.cancelStartIntent();
   }
 
   protected checkPasses(check: PreflightCheck): boolean {
@@ -748,23 +813,77 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     return '--';
   }
 
-  async startSession() {
+  startSession(): Promise<void> {
+    if (this.startInFlight) return this.startInFlight;
+    const pending = this.performStartSession();
+    this.startInFlight = pending.finally(() => {
+      this.startInFlight = null;
+    });
+    return this.startInFlight;
+  }
+
+  private async performStartSession(): Promise<void> {
     this.state.triggerHaptic('sessionStart');
+    if (!this.participantRosterValid) {
+      this.cancelStartIntent();
+      this.snackBar.open(
+        'Start blocked: refresh the participant roster and select an active coded participant.',
+        'Dismiss',
+        { duration: 7000 }
+      );
+      this.state.triggerHaptic('reject');
+      return;
+    }
+    const setupError = this.studySetupError();
+    if (setupError) {
+      this.cancelStartIntent();
+      this.snackBar.open(`Start blocked: ${setupError}`, 'Dismiss', { duration: 7000 });
+      this.state.triggerHaptic('reject');
+      return;
+    }
     this.isStartingSession = true;
-    const payload = this.captureSessionStartPayload();
-    const setupFingerprint = JSON.stringify(payload);
+    const payloadFingerprint = this.sessionStartPayloadFingerprint();
+    if (!this.startIntent || this.startIntent.payloadFingerprint !== payloadFingerprint) {
+      this.startIntent = {
+        idempotencyKey: createSessionStartIdempotencyKey(),
+        payloadFingerprint
+      };
+    }
+    const intent = this.startIntent;
+    const payload = this.captureSessionStartPayload(intent.idempotencyKey);
+    let postAttempted = false;
     try {
       const preflightReady = await this.runPreflight();
-      if (setupFingerprint !== JSON.stringify(this.captureSessionStartPayload())) {
+      if (payloadFingerprint !== this.sessionStartPayloadFingerprint()) {
+        this.cancelStartIntent();
         this.snackBar.open('Start cancelled: setup changed while preflight was running. Review the current settings and try again.', 'Dismiss', { duration: 7000 });
         this.state.triggerHaptic('reject');
         return;
       }
-      if (!preflightReady || !this.canStartSession()) {
+      if (!preflightReady || !this.canStartWithoutCompatibility()) {
+        this.cancelStartIntent();
         this.snackBar.open('Start blocked: resolve failed preflight checks first.', 'Dismiss', { duration: 7000 });
         return;
       }
 
+      const compatibility = await this.compatibility.refresh(this.state.ctlStatus());
+      if (compatibility.blocksStart) {
+        this.cancelStartIntent();
+        const actions = compatibility.guidance.join(' ');
+        this.snackBar.open(`Start blocked: ${compatibility.message} ${actions}`, 'Dismiss', { duration: 12000 });
+        this.state.triggerHaptic('reject');
+        return;
+      }
+      if (compatibility.state === 'unverified') {
+        this.snackBar.open(
+          'Compatibility is unverified. Operational capture is allowed, but exclude this legacy session from confirmatory analysis.',
+          'Dismiss',
+          { duration: 9000 }
+        );
+        this.state.triggerHaptic('warn');
+      }
+
+      postAttempted = true;
       const r = await this.api.request<SessionRecord>('/api/session/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -772,19 +891,35 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       });
 
       if (r && r.session_id) {
+        this.cancelStartIntent();
         this.state.currentSessionId.set(r.session_id);
         this.state.sessionActive.set(true);
         this.state.ctlOn.set(true);
         this.audio.speakAlert('Session started. Please sit still.', 'ok', true);
         this.router.navigate(['/live']);
+      } else {
+        throw new Error('Trainer response did not identify the session.');
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      this.snackBar.open(`Could not start session: ${message}`, 'Dismiss', { duration: 7000 });
+      const definitiveHttpRejection = error instanceof ApiRequestError && error.status >= 400;
+      if (!postAttempted || definitiveHttpRejection) this.cancelStartIntent();
+      const retryGuidance = postAttempted && !definitiveHttpRejection
+        ? ' Retry Start to safely resume the same request; repeated commands will use the same idempotency key.'
+        : '';
+      this.snackBar.open(`Could not start session: ${message}.${retryGuidance}`, 'Dismiss', { duration: 9000 });
       this.state.triggerHaptic('reject');
     } finally {
       this.isStartingSession = false;
     }
+  }
+
+  private cancelStartIntent(): void {
+    this.startIntent = null;
+  }
+
+  private sessionStartPayloadFingerprint(): string {
+    return JSON.stringify(this.captureSessionStartPayload(''));
   }
 
   private capturePreflightSetup(): PreflightSetup {
@@ -799,9 +934,10 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     return preflightSetupFingerprint(this.state.setup());
   }
 
-  private captureSessionStartPayload(): SessionStartPayload {
+  private captureSessionStartPayload(idempotencyKey: string): SessionStartPayload {
     const setup = this.state.setup();
     return {
+      idempotency_key: idempotencyKey,
       duration_s: this.selectedDuration,
       radar_port: setup.radar_port,
       ble_address: setup.ble_address,
@@ -809,8 +945,18 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       operator_label: setup.operator_label,
       station_label: setup.station_label,
       subject_profile_id: setup.subject_profile_id,
+      participant_id: setup.participant_id,
+      trial_id: studyTrialId(setup),
+      study_mode: setup.study_mode,
+      study_classification: setup.study_mode,
+      condition_id: setup.condition_id,
+      distance_m: setup.distance_m,
+      barrier_type: setup.barrier_type,
+      trial_number: setup.trial_number,
+      planned_duration_s: this.selectedDuration,
       ble_profile: setup.ble_profile,
       skip_countdown: setup.skip_countdown,
+      client_handshake: this.compatibility.handshake(),
       advanced: { notify_char: setup.notify_char }
     };
   }

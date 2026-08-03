@@ -87,6 +87,10 @@ from rvt_trainer.api.common import (
     read_json_if_exists as _read_json_if_exists,
     wait_for_process_exit as _wait_for_process_exit,
 )
+from rvt_trainer.api.compatibility import (
+    build_compatibility_handshake as _build_compatibility_handshake,
+    validate_client_compatibility as _validate_client_compatibility,
+)
 from rvt_trainer.api.route_registry import (
     AuthPolicy as _RouteAuthPolicy,
     authorization_for as _route_authorization_for,
@@ -100,6 +104,30 @@ from rvt_trainer.modeling import (
     MODEL_FAMILY_GRADIENT_BOOSTING,
     build_causal_windows,
 )
+from rvt_trainer.model_artifacts import (
+    MODEL_BUNDLE_METADATA_FILENAME,
+    FeatureContract,
+    assert_bundle_inference_compatible,
+    build_model_bundle_metadata,
+)
+from rvt_trainer.evaluation_split import (
+    attach_study_metadata as _attach_study_metadata,
+    has_any_study_metadata as _has_any_study_metadata,
+    has_complete_study_metadata as _has_complete_study_metadata,
+    participant_split as _participant_split,
+)
+from rvt_trainer.session.study_contract import (
+    PARTICIPANT_REGISTRY_SCHEMA_VERSION,
+    STUDY_SESSION_SCHEMA_VERSION,
+    StudyContractError,
+    create_participant_profile as _create_participant_profile,
+    load_participant_registry as _load_participant_registry,
+    merge_immutable_study_assignment as _merge_immutable_study_assignment,
+    release_provenance as _release_provenance,
+    source_commit as _source_commit,
+    update_participant_status as _update_participant_status,
+    validate_study_assignment as _validate_study_assignment,
+)
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -108,9 +136,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.0"
-DASHBOARD_VERSION = "16.5.0"
-FIRMWARE_VERSION_EXPECTED = "v16.5.0"
+VERSION = "16.5.7"
+DASHBOARD_VERSION = "16.5.7"
+FIRMWARE_VERSION_EXPECTED = "v16.5.7"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -130,8 +158,8 @@ SESSION_NOTES_SCHEMA_VERSION = "rvt-session-notes-v12.0"
 SESSION_SIGNOFF_SCHEMA_VERSION = "rvt-session-signoff-v12.0"
 TRAINING_PROGRESS_SCHEMA_VERSION = "rvt-training-progress-v12.0"
 LIVE_EVENT_SCHEMA_VERSION = "rvt-live-events-v12.0"
-SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v12.0"
-SESSION_MANIFEST_VERSION = "v12-session-manifest-2026-05-15"
+SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v16.5.1"
+SESSION_MANIFEST_VERSION = "v16.5.1-session-manifest-2026-07-29"
 CHART_ANNOTATIONS_SCHEMA_VERSION = "rvt-chart-annotations-v12.0"
 FEATURE_FLAGS = {
     "enable_sse": True,
@@ -1264,7 +1292,12 @@ def _file_sha256(path: str) -> Optional[str]:
 
 MODEL_MANIFEST_FILENAME = "model_manifest.json"
 MODEL_MANIFEST_SCHEMA_VERSION = "rvt-model-manifest-v1"
-MODEL_ARTIFACT_NAMES = ("model_hr.pkl", "model_rr.pkl", "preprocessor.pkl")
+MODEL_ARTIFACT_NAMES = (
+    "model_hr.pkl",
+    "model_rr.pkl",
+    "preprocessor.pkl",
+    MODEL_BUNDLE_METADATA_FILENAME,
+)
 MODEL_SIGNING_KEY_ENV = "RVT_MODEL_SIGNING_KEY"
 REQUIRE_MODEL_MANIFEST_ENV = "RVT_REQUIRE_MODEL_MANIFEST"
 REQUIRE_MODEL_SIGNATURE_ENV = "RVT_REQUIRE_MODEL_SIGNATURE"
@@ -1322,6 +1355,41 @@ def _write_model_manifest(model_dir: str) -> str:
     manifest_path = os.path.join(model_dir, MODEL_MANIFEST_FILENAME)
     save_json(manifest, manifest_path)
     return manifest_path
+
+
+def _read_model_bundle_metadata(model_dir: str) -> Optional[Dict[str, object]]:
+    """Read and internally validate optional v2 bundle metadata.
+
+    The caller must run ``_verify_model_dir`` first so this JSON is covered by
+    the same SHA-256/HMAC boundary as the pickle artifacts. Legacy bundles have
+    no metadata file and retain the existing compatibility behavior.
+    """
+
+    path = os.path.join(model_dir, MODEL_BUNDLE_METADATA_FILENAME)
+    if not os.path.exists(path):
+        return None
+    bundle = _read_json_if_exists(path)
+    if not isinstance(bundle, dict):
+        raise ValueError(f"Model bundle metadata is not valid JSON: {path}")
+    feature_contract = bundle.get("feature_contract")
+    if not isinstance(feature_contract, dict):
+        raise ValueError(f"Model bundle metadata has no feature contract: {path}")
+    expected_columns = feature_contract.get("expanded_feature_cols")
+    if not isinstance(expected_columns, list):
+        raise ValueError(f"Model bundle feature order is invalid: {path}")
+    family = bundle.get("model_family")
+    sequence = bundle.get("training_config")
+    sequence = sequence.get("sequence") if isinstance(sequence, dict) else None
+    window_size = (
+        sequence.get("window_size") if isinstance(sequence, dict) else None
+    )
+    assert_bundle_inference_compatible(
+        bundle,
+        actual_columns=expected_columns,
+        requested_model_family=str(family),
+        sequence_window_size=window_size,
+    )
+    return bundle
 
 
 def _verify_model_dir(model_dir: str) -> None:
@@ -1488,7 +1556,7 @@ def _session_root_for_outputs(out_dir: str) -> str:
 
 def _manifest_identity(fw_truthfulness: Optional[Dict[str, object]] = None) -> Dict[str, object]:
     fw_truthfulness = fw_truthfulness if isinstance(fw_truthfulness, dict) else {}
-    return {
+    identity = {
         "sketch_version": fw_truthfulness.get("version", "unknown"),
         "module_version": fw_truthfulness.get("module_version"),
         "module_version_valid": bool(fw_truthfulness.get("module_version_valid", False)),
@@ -1499,6 +1567,16 @@ def _manifest_identity(fw_truthfulness: Optional[Dict[str, object]] = None) -> D
         "feature_schema_hash": feature_schema_hash(),
         "scoring_weights_hash": _scoring_weights_hash(),
     }
+    identity.update(_release_provenance(
+        product_version=VERSION,
+        trainer_version=VERSION,
+        dashboard_version=DASHBOARD_VERSION,
+        firmware_expected=FIRMWARE_VERSION_EXPECTED,
+        firmware_observed=fw_truthfulness.get("version"),
+        serial_width_expected=EXPECTED_RADAR_LOG_COLUMN_COUNT,
+        serial_width_observed=fw_truthfulness.get("contract_length"),
+    ))
+    return identity
 
 
 def _warn_on_manifest_mismatch(session_root: str, fw_truthfulness: Optional[Dict[str, object]] = None) -> None:
@@ -1549,6 +1627,9 @@ def _write_session_manifest(
             file_hashes[key] = {p: _file_sha256(p) for p in value if os.path.exists(p)}
         elif os.path.exists(value):
             file_hashes[key] = _file_sha256(value)
+    existing_manifest = _read_json_if_exists(
+        os.path.join(session_root, "session_manifest.json")
+    ) or {}
     manifest = {
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
@@ -1556,12 +1637,34 @@ def _write_session_manifest(
         "session_root": session_root,
         **_manifest_identity(fw_truthfulness),
         "auto_analysed": os.path.exists(os.path.join(analysis_dir, "analyse_summary.json")),
-        "tags": list((_read_json_if_exists(os.path.join(session_root, "session_manifest.json")) or {}).get("tags", [])),
+        "tags": list(existing_manifest.get("tags", [])),
         "notes_count": len((_read_json_if_exists(os.path.join(session_root, "session_notes.json")) or {}).get("notes", [])),
-        "subject_profile_id": (_read_json_if_exists(os.path.join(session_root, "session_manifest.json")) or {}).get("subject_profile_id", "adult_default"),
+        "subject_profile_id": existing_manifest.get("subject_profile_id", "adult_default"),
         "outputs": outputs,
         "file_hashes_sha256": file_hashes,
     }
+    manifest = _merge_immutable_study_assignment(existing_manifest, manifest)
+    for key in (
+        "study_session_schema_version",
+        "participant_id",
+        "trial_id",
+        "condition_id",
+        "distance_m",
+        "barrier_type",
+        "trial_number",
+        "planned_duration_s",
+        "study_classification",
+        "provenance_state",
+        "confirmatory_eligible",
+        "model_family",
+        "model_bundle",
+        "client_compatibility",
+        "client_handshake",
+        "release_compatibility_state",
+        "release_compatibility_verified",
+    ):
+        if key in existing_manifest:
+            manifest[key] = existing_manifest[key]
     save_json(manifest, os.path.join(session_root, "session_manifest.json"))
     return manifest
 
@@ -4534,7 +4637,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_0.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_7.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -5659,8 +5762,10 @@ def _evict_completed_analysis_jobs() -> None:
 def _session_path(sessions_root: str, session_id: str) -> Path:
     root = Path(sessions_root).resolve()
     target = (root / session_id).resolve()
-    target.relative_to(root)
-    if not target.exists():
+    # Session routes address one direct child of sessions_root.  Requiring a
+    # strict child (rather than merely "under root") rejects "." / empty IDs
+    # that otherwise alias the sessions root itself, as well as nested IDs.
+    if target.parent != root or not target.is_dir():
         raise FileNotFoundError(session_id)
     return target
 
@@ -6452,6 +6557,7 @@ HELP_SCHEMA = _build_help_schema()
 
 
 from rvt_trainer.session.supervisor import (  # noqa: E402
+    SessionStartPreflightError,
     SessionSupervisor as _SessionSupervisor,
     _check_stale_session_lock,
     _clear_supervisor_stop_request,
@@ -6467,6 +6573,7 @@ from rvt_trainer.session.supervisor import (  # noqa: E402
     _write_session_lock,
     _write_supervisor_stop_request,
 )
+from rvt_trainer.session.start_idempotency import StartIdempotencyError  # noqa: E402
 
 
 def _effective_defaults(sessions_root: str) -> Dict[str, object]:
@@ -6492,6 +6599,63 @@ SESSION_START_PREFLIGHT_IDS = [
     "schema_hash_consistency",
     "clock_monotonic_sanity",
 ]
+
+
+def _control_schema_versions() -> Dict[str, str]:
+    return {
+        "control_api": CONTROL_API_SCHEMA_VERSION,
+        "session_notes": SESSION_NOTES_SCHEMA_VERSION,
+        "session_signoff": SESSION_SIGNOFF_SCHEMA_VERSION,
+        "training_progress": TRAINING_PROGRESS_SCHEMA_VERSION,
+        "live_event": LIVE_EVENT_SCHEMA_VERSION,
+        "live_events": LIVE_EVENT_SCHEMA_VERSION,
+        "session_manifest": SESSION_MANIFEST_SCHEMA_VERSION,
+        "chart_annotations": CHART_ANNOTATIONS_SCHEMA_VERSION,
+        "subject_profile": SUBJECT_PROFILE_SCHEMA_VERSION,
+        "participant_registry": PARTICIPANT_REGISTRY_SCHEMA_VERSION,
+        "study_session": STUDY_SESSION_SCHEMA_VERSION,
+    }
+
+
+def _observed_release_identity(server) -> Tuple[object, object]:
+    """Best-effort firmware/width observation from the active session."""
+
+    supervisor = getattr(server, "supervisor", None)
+    current = supervisor.current() if supervisor is not None else None
+    session_dir = str((current or {}).get("session_dir") or "")
+    if not session_dir:
+        return None, None
+    manifest = _read_json_if_exists(str(Path(session_dir) / "session_manifest.json"))
+    manifest = manifest if isinstance(manifest, dict) else {}
+    firmware_observed = manifest.get("firmware_observed")
+    width_observed = manifest.get("serial_width_observed")
+    live = _read_json_if_exists(str(Path(session_dir) / "live_dashboard.json"))
+    if isinstance(live, dict):
+        analysis = live.get("analysis")
+        truth = (
+            analysis.get("fw_truthfulness")
+            if isinstance(analysis, dict)
+            and isinstance(analysis.get("fw_truthfulness"), dict)
+            else {}
+        )
+        firmware_observed = truth.get("version") or firmware_observed
+        width_observed = truth.get("contract_length") or width_observed
+    return firmware_observed, width_observed
+
+
+def _server_release_handshake(server) -> Dict[str, object]:
+    firmware_observed, width_observed = _observed_release_identity(server)
+    return _build_compatibility_handshake(
+        product_version=VERSION,
+        trainer_version=VERSION,
+        dashboard_version=DASHBOARD_VERSION,
+        firmware_expected=FIRMWARE_VERSION_EXPECTED,
+        firmware_observed=firmware_observed,
+        serial_width_expected=EXPECTED_RADAR_LOG_COLUMN_COUNT,
+        serial_width_observed=width_observed,
+        source_commit=_source_commit(),
+        schema_versions=_control_schema_versions(),
+    )
 
 
 def _session_start_blocking_failures(report: Dict[str, object]) -> List[Dict[str, object]]:
@@ -6688,6 +6852,25 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         self.send_response(204)
         self.end_headers()
 
+    def do_HEAD(self):
+        # SimpleHTTPRequestHandler's inherited HEAD implementation serves from
+        # the process working directory and bypasses this server's route and
+        # asset allowlists.  Reject HEAD explicitly so private repo paths cannot
+        # be probed through that fallback.
+        payload = _json_safe_response(
+            _schema_wrap(
+                _api_error(
+                    "METHOD_NOT_ALLOWED",
+                    "HEAD is not supported; use a documented route method",
+                )
+            )
+        )
+        self.send_response(405)
+        self.send_header("Allow", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+
     def _send_sse(self, session_id_hint: Optional[str] = None):
         from rvt_trainer.api.sse import handle_sse_subscription
         handle_sse_subscription(self, session_id_hint=session_id_hint)
@@ -6854,22 +7037,21 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self._send_json(200, payload)
             return
         if route_name == "version":
+            handshake = _server_release_handshake(self.server)
             self._send_json(200, {
                 "trainer": VERSION,
                 "firmware_expected": FIRMWARE_VERSION_EXPECTED,
                 "dashboard": DASHBOARD_VERSION,
                 "product_version": VERSION,
-                "schema_versions": {
-                    "control_api": CONTROL_API_SCHEMA_VERSION,
-                    "session_notes": SESSION_NOTES_SCHEMA_VERSION,
-                    "session_signoff": SESSION_SIGNOFF_SCHEMA_VERSION,
-                    "training_progress": TRAINING_PROGRESS_SCHEMA_VERSION,
-                    "live_event": LIVE_EVENT_SCHEMA_VERSION,
-                    "live_events": LIVE_EVENT_SCHEMA_VERSION,
-                    "session_manifest": SESSION_MANIFEST_SCHEMA_VERSION,
-                    "chart_annotations": CHART_ANNOTATIONS_SCHEMA_VERSION,
-                    "subject_profile": SUBJECT_PROFILE_SCHEMA_VERSION
-                },
+                "firmware_observed": handshake["identity"]["firmware_observed"],
+                "serial_protocol": handshake["identity"]["serial_protocol"],
+                "serial_width_expected": handshake["identity"]["serial_width_expected"],
+                "serial_width_observed": handshake["identity"]["serial_width_observed"],
+                "source_commit": handshake["identity"]["source_commit"],
+                "identity": handshake["identity"],
+                "schema_versions": handshake["schema_versions"],
+                "compatibility": handshake["compatibility"],
+                "compatibility_schema_version": handshake["schema_version"],
                 "update_manifest_url": UPDATE_MANIFEST_URL
             })
             return
@@ -6880,6 +7062,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         if route_name == "subject_profiles":
             self._send_json(200, _load_subject_profiles(self.server.sessions_root))
+            return
+        if route_name == "participants_list":
+            registry = _load_participant_registry(self.server.sessions_root)
+            self._send_json(200, {
+                "schema_version": registry["schema_version"],
+                "participants": list(registry["profiles"].values()),
+                "profiles": list(registry["profiles"].values()),
+            })
             return
         if route_name == "operator_profiles_get":
             db = _load_operator_profiles(self.server.sessions_root)
@@ -6944,8 +7134,33 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             self._send_json(200, {"ok": True, "lines": list(_TRAINER_LOG)[-200:]})
             return
         if route_name == "status":
-            active = {"session_id": "mock", "session_dir": "", "mock": True, "started_at": self.server.started_at} if getattr(self.server, "mock", False) else self.server.supervisor.current()
-            self._send_json(200, {"ok": True, "trainer_version": VERSION, "dashboard_version": DASHBOARD_VERSION, "firmware_expected": FIRMWARE_VERSION_EXPECTED, "control_server_started_at": self.server.started_at, "active_session": active, "feature_flags": FEATURE_FLAGS})
+            is_mock = bool(getattr(self.server, "mock", False))
+            active = None if is_mock else self.server.supervisor.current()
+            handshake = _server_release_handshake(self.server)
+            self._send_json(200, {
+                "ok": True,
+                "mode": "sandbox" if is_mock else "live",
+                "trainer_version": VERSION,
+                "dashboard_version": DASHBOARD_VERSION,
+                "firmware_expected": FIRMWARE_VERSION_EXPECTED,
+                "firmware_observed": handshake["identity"]["firmware_observed"],
+                "serial_protocol": handshake["identity"]["serial_protocol"],
+                "serial_width_expected": handshake["identity"]["serial_width_expected"],
+                "serial_width_observed": handshake["identity"]["serial_width_observed"],
+                "source_commit": handshake["identity"]["source_commit"],
+                "identity": handshake["identity"],
+                "schema_versions": handshake["schema_versions"],
+                "compatibility": handshake["compatibility"],
+                "compatibility_schema_version": handshake["schema_version"],
+                "control_server_started_at": self.server.started_at,
+                "active_session": active,
+                "preview_session": (
+                    {"session_id": "mock", "mock": True, "started_at": self.server.started_at}
+                    if is_mock
+                    else None
+                ),
+                "feature_flags": FEATURE_FLAGS,
+            })
             return
         if route_name == "defaults":
             self._send_json(200, _effective_defaults(self.server.sessions_root))
@@ -7018,10 +7233,10 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             except Exception:
                 self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": "session not found"}})
                 return
-            target = (root / rel).resolve()
             try:
+                target = (root / rel).resolve()
                 target.relative_to(root)
-            except ValueError:
+            except (OSError, ValueError):
                 self._send_json(404, {"ok": False, "error": {"code": "FILE_NOT_FOUND", "message": "session file not found"}})
                 return
             if not target.exists() or not target.is_file():
@@ -7168,7 +7383,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": str(e)}})
             return
         if path.startswith("/api/"):
-            self._send_json(404, {"ok": False, "error": "not_found"})
+            self._send_json(404, _api_error("NOT_FOUND", "API route not found"))
             return
         dashboard_routes = {f"/{str(name)}" for name in _DASHBOARD_HTML_FALLBACK_NAMES}
         if route_name in {
@@ -7217,6 +7432,16 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         route_spec = _match_route("POST", path)
         route_name = route_spec.name if route_spec is not None else None
+        # Authenticate protected/discovery/bootstrap routes before consuming
+        # the request body.  This keeps an unauthenticated request from forcing
+        # JSON parsing or using parser errors to distinguish protected routes.
+        # The pairing exchange is the sole public POST and needs its PIN body.
+        if (
+            path.startswith("/api/")
+            and route_name != "auth_exchange"
+            and not self._require_control_auth()
+        ):
+            return
         body = self._read_body()
         if body is None:
             return
@@ -7225,11 +7450,22 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             status, payload = _exchange_pair_pin(self.server, str(body.get("pin") or ""), client_ip)
             self._send_json(status, payload, cache_control="no-store")
             return
-        if path.startswith("/api/") and not self._require_control_auth():
-            return
         if route_name == "operator_profiles_create":
             status, payload = _create_operator_profile(self.server, body)
             self._send_json(status, payload)
+            return
+        if route_name == "participants_create":
+            try:
+                profile = _create_participant_profile(self.server.sessions_root, body)
+                self._send_json(201, {
+                    "ok": True,
+                    "schema_version": PARTICIPANT_REGISTRY_SCHEMA_VERSION,
+                    "participant": profile,
+                    "profile": profile,
+                })
+            except StudyContractError as exc:
+                status = 409 if exc.code == "PARTICIPANT_EXISTS" else 400
+                self._send_json(status, _api_error(exc.code, str(exc)))
             return
         if route_name == "auth_login":
             status, payload = _login_operator(self.server, str(body.get("operator_id") or ""), str(body.get("pin") or ""))
@@ -7311,33 +7547,175 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             if str(radar_port).strip().lower() in {"auto", "autodetect", "auto-detect"}:
                 radar_port = _auto_detect_radar_port(DEFAULT_RADAR_PORT)
             ble_address = str(body.get("ble_address") or DEFAULT_BLE_ADDRESS).strip() or DEFAULT_BLE_ADDRESS
+            header_key = (
+                self.headers.get("Idempotency-Key")
+                or self.headers.get("X-RVT-Idempotency-Key")
+                or ""
+            ).strip()
+            body_key = str(body.get("idempotency_key") or "").strip()
+            if header_key and body_key and header_key != body_key:
+                self._send_json(
+                    400,
+                    _api_error(
+                        "IDEMPOTENCY_KEY_MISMATCH",
+                        "body idempotency_key and Idempotency-Key header must match",
+                    ),
+                )
+                return
+            idempotency_key = body_key or header_key or None
+            client_compatibility = _validate_client_compatibility(
+                body,
+                product_version=VERSION,
+                dashboard_version=DASHBOARD_VERSION,
+                control_api_schema=CONTROL_API_SCHEMA_VERSION,
+                study_session_schema=STUDY_SESSION_SCHEMA_VERSION,
+                session_manifest_schema=SESSION_MANIFEST_SCHEMA_VERSION,
+                serial_width_expected=EXPECTED_RADAR_LOG_COLUMN_COUNT,
+            )
+            if client_compatibility["blocks_start"]:
+                self._send_json(
+                    409,
+                    _api_error(
+                        "RELEASE_COMPATIBILITY_MISMATCH",
+                        "Dashboard and trainer release contracts are incompatible. Reload the PWA or restart the native app and trainer, then retry.",
+                        compatibility=client_compatibility,
+                        details={"compatibility": client_compatibility},
+                        remediation="Reload the PWA or restart the native app and trainer, then retry.",
+                    ),
+                )
+                return
+            try:
+                study_assignment = _validate_study_assignment(
+                    {
+                        **body,
+                        "duration_s": body.get("duration_s"),
+                    },
+                    sessions_root=self.server.sessions_root,
+                )
+            except StudyContractError as exc:
+                self._send_json(400, _api_error(exc.code, str(exc)))
+                return
+            duration_s = body.get(
+                "duration_s",
+                study_assignment.get("planned_duration_s"),
+            )
+            start_provenance = {
+                **study_assignment,
+                "subject_profile_id": body.get(
+                    "subject_profile_id",
+                    "adult_default",
+                ),
+                "model_family": body.get("model_family"),
+                "model_bundle": body.get("model_bundle"),
+                "client_compatibility": client_compatibility,
+            }
+            advanced = body.get("advanced") if isinstance(body.get("advanced"), dict) else {}
+            timeout_s = float(body.get("timeout_s", 30.0) or 30.0)
+            idempotency_payload = {
+                "server_product_version": VERSION,
+                "duration_s": duration_s,
+                "radar_port": radar_port,
+                "ble_address": ble_address,
+                "ble_profile": body.get("ble_profile", "ailink_oximeter"),
+                "timeout_s": timeout_s,
+                "subject_label": body.get("subject_label"),
+                "operator_label": body.get("operator_label"),
+                "subject_profile_id": body.get("subject_profile_id", "adult_default"),
+                "notify_char": advanced.get("notify_char"),
+                "dashboard_refresh_s": advanced.get("dashboard_refresh_s"),
+                **study_assignment,
+                "model_family": body.get("model_family"),
+                "model_bundle": body.get("model_bundle"),
+                "client_compatibility": client_compatibility,
+            }
+
+            try:
+                replay = self.server.supervisor.lookup_idempotent_start(
+                    idempotency_key,
+                    idempotency_payload,
+                )
+                if replay is not None:
+                    self._send_json(200, replay)
+                    return
+            except StartIdempotencyError as exc:
+                status = 400 if exc.code == "INVALID_IDEMPOTENCY_KEY" else 409
+                if exc.code == "PREFLIGHT_FAILED":
+                    status = 424
+                elif exc.code in {"PREFLIGHT_ERROR", "SPAWN_ERROR", "SPAWN_TIMEOUT"}:
+                    status = 500
+                error_details = (
+                    dict(exc.details) if isinstance(exc.details, dict) else {}
+                )
+                self._send_json(
+                    status,
+                    _api_error(exc.code, str(exc), **error_details),
+                )
+                return
+
             if self.server.supervisor.current():
                 self._send_json(409, {"ok": False, "error": {"code": "SESSION_IN_PROGRESS", "message": "active session already running"}})
                 return
+
+            def run_start_preflight():
+                try:
+                    report = _run_preflight_all(
+                        sessions_root=self.server.sessions_root,
+                        port=radar_port,
+                        address=ble_address,
+                        include=SESSION_START_PREFLIGHT_IDS,
+                    )
+                except Exception as exc:
+                    raise SessionStartPreflightError(
+                        "PREFLIGHT_ERROR",
+                        str(exc),
+                        http_status=500,
+                    ) from exc
+                failed = _session_start_blocking_failures(report)
+                if failed:
+                    raise SessionStartPreflightError(
+                        "PREFLIGHT_FAILED",
+                        "one or more required start checks failed",
+                        details={"failed": failed},
+                        http_status=424,
+                    )
+                return report
+
             try:
-                report = _run_preflight_all(sessions_root=self.server.sessions_root, port=radar_port, address=ble_address, include=SESSION_START_PREFLIGHT_IDS)
-            except Exception as e:
-                self._send_json(500, {"ok": False, "error": {"code": "PREFLIGHT_ERROR", "message": str(e)}})
-                return
-            failed = _session_start_blocking_failures(report)
-            if failed:
-                self._send_json(424, {"ok": False, "error": {"code": "PREFLIGHT_FAILED", "message": "one or more required start checks failed", "failed": failed}})
-                return
-            try:
-                advanced = body.get("advanced") if isinstance(body.get("advanced"), dict) else {}
                 result = self.server.supervisor.start(
-                    duration_s=body.get("duration_s"),
+                    duration_s=duration_s,
                     radar_port=radar_port,
                     ble_address=ble_address,
                     ble_profile=body.get("ble_profile", "ailink_oximeter"),
-                    timeout_s=float(body.get("timeout_s", 30.0) or 30.0),
+                    timeout_s=timeout_s,
+                    idempotency_key=idempotency_key,
+                    idempotency_payload=idempotency_payload,
+                    preflight=run_start_preflight,
                     subject_label=body.get("subject_label"),
                     operator_label=body.get("operator_label"),
                     subject_profile_id=body.get("subject_profile_id", "adult_default"),
                     notify_char=advanced.get("notify_char"),
                     dashboard_refresh_s=advanced.get("dashboard_refresh_s"),
+                    **study_assignment,
+                    model_family=body.get("model_family"),
+                    model_bundle=body.get("model_bundle"),
+                    client_compatibility=client_compatibility,
                 )
                 self._send_json(200, result)
+            except SessionStartPreflightError as e:
+                details = dict(e.details) if isinstance(e.details, dict) else {}
+                details["failed_session_id"] = e.failed_session_id
+                self._send_json(
+                    e.http_status,
+                    _api_error(e.code, str(e), **details),
+                )
+            except StartIdempotencyError as e:
+                status = 400 if e.code == "INVALID_IDEMPOTENCY_KEY" else 409
+                if e.code in {"PREFLIGHT_FAILED"}:
+                    status = 424
+                elif e.code in {"PREFLIGHT_ERROR", "SPAWN_ERROR", "SPAWN_TIMEOUT"}:
+                    status = 500
+                error_details = dict(e.details) if isinstance(e.details, dict) else {}
+                self._send_json(status, _api_error(e.code, str(e), **error_details))
             except RuntimeError as e:
                 code = "SESSION_IN_PROGRESS" if "SESSION_IN_PROGRESS" in str(e) else "SPAWN_ERROR"
                 self._send_json(409 if code == "SESSION_IN_PROGRESS" else 500, {"ok": False, "error": {"code": code, "message": str(e)}})
@@ -7398,9 +7776,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(404, {"ok": False, "error": {"code": "SESSION_NOT_FOUND", "message": "session not found"}})
             return
         if path.startswith("/api/"):
-            self._send_json(404, {"ok": False, "error": "not_found"})
+            self._send_json(404, _api_error("NOT_FOUND", "API route not found"))
             return
-        self._send_json(404, {"ok": False, "error": "not_found"})
+        self._send_json(404, _api_error("NOT_FOUND", "route not found"))
 
     def do_PUT(self):
         if self._reject_untrusted():
@@ -7412,6 +7790,23 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         route_name = route_spec.name if route_spec is not None else None
         body = self._read_body()
         if body is None:
+            return
+        if route_name == "participant_status":
+            participant_id = unquote(path.rsplit("/", 1)[-1])
+            try:
+                profile = _update_participant_status(
+                    self.server.sessions_root,
+                    participant_id,
+                    body.get("status"),
+                )
+                self._send_json(200, {
+                    "ok": True,
+                    "schema_version": PARTICIPANT_REGISTRY_SCHEMA_VERSION,
+                    "profile": profile,
+                })
+            except StudyContractError as exc:
+                status = 404 if exc.code == "PARTICIPANT_NOT_FOUND" else 400
+                self._send_json(status, _api_error(exc.code, str(exc)))
             return
         if route_name == "session_notes_put":
             sid = unquote(path.split("/")[3])
@@ -7478,7 +7873,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             save_json(manifest, str(manifest_path))
             self._send_json(200, {"ok": True, "session_id": sid, "tags": manifest["tags"]})
             return
-        self._send_json(404, {"ok": False, "error": "not_found"})
+        self._send_json(404, _api_error("NOT_FOUND", "API route not found"))
 
     def do_DELETE(self):
         if self._reject_untrusted():
@@ -7513,7 +7908,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             shutil.move(str(root), str(target))
             self._send_json(200, {"ok": True, "session_id": sid, "trashed_path": str(target), "retention_hint": "soft-deleted; clean .trash after local retention review"})
             return
-        self._send_json(404, {"ok": False, "error": "not_found"})
+        self._send_json(404, _api_error("NOT_FOUND", "API route not found"))
 
 
 class _ControlServer:
@@ -7738,7 +8133,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_0.ino"),
+        Path("radar_vital_v16_5_7.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
@@ -8931,6 +9326,21 @@ def cmd_session(args):
         session_dir = os.path.abspath(args.session_dir)
     os.makedirs(session_dir, exist_ok=True)
     lock_root = os.path.abspath(args.sessions_root) if auto_session_dir else os.path.dirname(session_dir)
+    study_payload = {
+        "participant_id": getattr(args, "participant_id", None),
+        "trial_id": getattr(args, "trial_id", None),
+        "condition_id": getattr(args, "condition_id", None),
+        "distance_m": getattr(args, "distance_m", None),
+        "barrier_type": getattr(args, "barrier_type", None),
+        "trial_number": getattr(args, "trial_number", None),
+        "planned_duration_s": getattr(args, "planned_duration_s", None),
+        "study_classification": getattr(args, "study_classification", None),
+        "duration_s": getattr(args, "duration_s", None),
+    }
+    study_assignment = _validate_study_assignment(
+        study_payload,
+        sessions_root=lock_root,
+    )
     _check_stale_session_lock(lock_root)
     if _session_is_active(lock_root):
         raise RuntimeError(f"SESSION_IN_PROGRESS: active session lock exists at {_lock_path(lock_root)}")
@@ -8943,13 +9353,29 @@ def cmd_session(args):
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
         "generated_at": _report_stamp(),
-        "trainer_version": VERSION,
-        "dashboard_version": DASHBOARD_VERSION,
+        "study_session_schema_version": study_assignment.pop("schema_version"),
+        **study_assignment,
+        **_release_provenance(
+            product_version=VERSION,
+            trainer_version=VERSION,
+            dashboard_version=DASHBOARD_VERSION,
+            firmware_expected=FIRMWARE_VERSION_EXPECTED,
+            serial_width_expected=EXPECTED_RADAR_LOG_COLUMN_COUNT,
+            model_family=getattr(args, "model_family", None),
+            model_bundle=getattr(args, "model_bundle", None),
+        ),
         "auto_analysed": False,
         "tags": [],
         "notes_count": 0,
         "subject_profile_id": getattr(args, "subject_profile_id", "adult_default"),
     }
+    existing_manifest = _read_json_if_exists(
+        os.path.join(session_dir, "session_manifest.json")
+    ) or {}
+    initial_manifest = _merge_immutable_study_assignment(
+        existing_manifest,
+        initial_manifest,
+    )
     try:
         save_json(initial_manifest, os.path.join(session_dir, "session_manifest.json"))
     except Exception:
@@ -11294,6 +11720,7 @@ def load_and_align_multiple_base(
         merged = align_one_session(
             rp, refp, sid, tolerance_s, off, auto_align_start,
             merge_direction, phase_unit, heart_fft_window_s, breath_fft_window_s)
+        merged = _attach_study_metadata(merged, rp)
         frames.append(merged)
         print(
             f"[ALIGN] {sid}: {len(merged)} paired 1 Hz rows | "
@@ -12789,6 +13216,7 @@ def maybe_export_embedded(args, out_dir, X_train_all, X_eval_all, train_pred, ev
 def cmd_predict(args):
     os.makedirs(args.out, exist_ok=True)
     _verify_model_dir(args.model_dir)
+    bundle_metadata = _read_model_bundle_metadata(args.model_dir)
     model_hr = None
     model_rr = None
     hr_path = os.path.join(args.model_dir, "model_hr.pkl")
@@ -12812,6 +13240,19 @@ def cmd_predict(args):
     expanded_feature_cols = list(pre["expanded_feature_cols"])
     impute_values         = {str(k): float(v) for k, v in pre.get("impute_values", {}).items()}
     trained_targets       = list(pre.get("trained_targets", []))
+    if bundle_metadata is not None:
+        sequence = pre.get("sequence")
+        sequence_window_size = (
+            sequence.get("window_size") if isinstance(sequence, dict) else None
+        )
+        assert_bundle_inference_compatible(
+            bundle_metadata,
+            actual_columns=expanded_feature_cols,
+            requested_model_family=pre.get(
+                "model_family", MODEL_FAMILY_GRADIENT_BOOSTING
+            ),
+            sequence_window_size=sequence_window_size,
+        )
 
     base_df = load_and_aggregate_radar_only(
         args.radar, phase_unit=phase_unit,
@@ -12819,6 +13260,19 @@ def cmd_predict(args):
     feat_df = validity_masks(engineer_temporal_features(base_df, feature_mode=feature_mode))
     X_all   = transform_feature_matrix(feat_df, feature_cols, impute_values, missing_flag_cols)
     X_all   = X_all.reindex(columns=expanded_feature_cols, fill_value=0.0).astype(np.float32)
+    if bundle_metadata is not None:
+        assert_bundle_inference_compatible(
+            bundle_metadata,
+            actual_columns=list(X_all.columns),
+            requested_model_family=pre.get(
+                "model_family", MODEL_FAMILY_GRADIENT_BOOSTING
+            ),
+            sequence_window_size=(
+                pre.get("sequence", {}).get("window_size")
+                if isinstance(pre.get("sequence"), dict)
+                else None
+            ),
+        )
     pred_df = add_predictions(feat_df, X_all, model_hr=model_hr, model_rr=model_rr,
                               hr_slew_limit=pre.get("slew_limit_hr_per_s"),
                               rr_slew_limit=pre.get("slew_limit_rr_per_s"))
@@ -13192,16 +13646,37 @@ def cmd_analyse(args):
     return summary
 
 def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets):
-    session_ids = list(dict.fromkeys(base_df["session_id"].tolist()))
-    if len(session_ids) < 3:
-        return {"enabled": False, "reason": "need at least 3 sessions"}
+    participant_aware = _has_complete_study_metadata(base_df)
+    group_column = "participant_id" if participant_aware else "session_id"
+    group_ids = list(dict.fromkeys(base_df[group_column].tolist()))
+    if len(group_ids) < 3:
+        return {
+            "enabled": False,
+            "reason": f"need at least 3 {group_column} groups",
+            "group_column": group_column,
+        }
     folds = []
-    for i, holdout in enumerate(session_ids):
-        train_source = base_df[base_df["session_id"] != holdout].copy().reset_index(drop=True)
-        eval_base = base_df[base_df["session_id"] == holdout].copy().reset_index(drop=True)
+    for i, holdout in enumerate(group_ids):
+        train_source = base_df[base_df[group_column] != holdout].copy().reset_index(drop=True)
+        eval_base = base_df[base_df[group_column] == holdout].copy().reset_index(drop=True)
         if train_source.empty or eval_base.empty:
             continue
-        loo_train_base, loo_stop_base = split_sessions(train_source, val_ratio=args.val_ratio, purge_gap_s=args.purge_gap_s)
+        fold_split = None
+        if participant_aware:
+            loo_train_base, loo_stop_base, _, fold_split = _participant_split(
+                train_source,
+                test_ratio=args.val_ratio,
+                early_stop_ratio=args.early_stop_ratio,
+                three_way=False,
+                random_state=args.random_state + i,
+                require_confirmatory=False,
+            )
+        else:
+            loo_train_base, loo_stop_base = split_sessions(
+                train_source,
+                val_ratio=args.val_ratio,
+                purge_gap_s=args.purge_gap_s,
+            )
         loo_train_df = validity_masks(engineer_temporal_features(loo_train_base, feature_mode=args.feature_mode))
         loo_stop_df = validity_masks(engineer_temporal_features(loo_stop_base, feature_mode=args.feature_mode))
         loo_eval_df = validity_masks(engineer_temporal_features(eval_base, feature_mode=args.feature_mode))
@@ -13214,7 +13689,7 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
         )
         if not fold_feature_cols:
             folds.append({
-                "holdout_session": holdout,
+                f"holdout_{group_column}": holdout,
                 "skipped": True,
                 "reason": "no numeric features selected from the fold training sessions",
             })
@@ -13250,13 +13725,27 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
                 params=params, args=args, random_state=args.random_state + 100 + i)
         pred = add_predictions(loo_eval_df, X_eval, model_hr=model_hr, model_rr=model_rr,
                                hr_slew_limit=args.slew_limit_hr_per_s, rr_slew_limit=args.slew_limit_rr_per_s)
-        fold = {"holdout_session": holdout}
+        fold = {
+            f"holdout_{group_column}": holdout,
+            "participant_disjoint": bool(participant_aware),
+        }
+        if fold_split is not None:
+            fold["inner_split_ledger_sha256"] = fold_split.get("sha256")
         if model_hr is not None:
             fold["hr_model"] = model_summary(pred, "hr")
         if model_rr is not None:
             fold["rr_model"] = model_summary(pred, "rr")
         folds.append(fold)
-    out = {"enabled": True, "folds": folds}
+    out = {
+        "enabled": True,
+        "mode": (
+            "leave_one_participant_out"
+            if participant_aware
+            else "leave_one_session_out"
+        ),
+        "group_column": group_column,
+        "folds": folds,
+    }
     if folds:
         for target in ("hr", "rr"):
             rmses = []
@@ -13327,18 +13816,50 @@ def cmd_train(args):
         breath_fft_window_s=args.breath_fft_window_s)
     _write_training_progress(status="running", n_done=0, phase="feature_engineering")
 
-    if args.three_way_split:
+    require_confirmatory = bool(getattr(args, "confirmatory_evaluation", False))
+    if _has_any_study_metadata(base_df) and not _has_complete_study_metadata(base_df):
+        raise ValueError(
+            "Study metadata is present for only part of the training input. "
+            "Every radar file must resolve to a complete session_manifest.json."
+        )
+    if _has_complete_study_metadata(base_df):
+        train_base, stop_base, eval_base, split_info = _participant_split(
+            base_df,
+            test_ratio=args.val_ratio,
+            early_stop_ratio=args.early_stop_ratio,
+            three_way=bool(args.three_way_split),
+            random_state=args.random_state,
+            require_confirmatory=require_confirmatory,
+        )
+        eval_name = "test" if args.three_way_split else "validation"
+    elif require_confirmatory:
+        raise ValueError(
+            "Confirmatory evaluation requires complete participant, trial, condition, "
+            "distance, barrier, duration, and eligibility metadata from each session manifest."
+        )
+    elif args.three_way_split:
         train_base, stop_base, eval_base, split_info = split_three_way(
             base_df, test_ratio=args.val_ratio,
             early_stop_ratio=args.early_stop_ratio, purge_gap_s=args.purge_gap_s)
+        split_info["confirmatory"] = {
+            "requested": False,
+            "eligible": False,
+            "reasons": ["participant-bound study metadata is unavailable"],
+        }
         eval_name = "test"
     else:
         train_base, eval_base = split_sessions(base_df, val_ratio=args.val_ratio,
                                                purge_gap_s=args.purge_gap_s)
         stop_base  = eval_base
         split_info = {"mode": "two_way",
-                      "sessions": list(dict.fromkeys(base_df["session_id"].tolist()))}
+                      "sessions": list(dict.fromkeys(base_df["session_id"].tolist())),
+                      "confirmatory": {
+                          "requested": False,
+                          "eligible": False,
+                          "reasons": ["participant-bound study metadata is unavailable"],
+                      }}
         eval_name  = "validation"
+    save_json(split_info, os.path.join(args.out, "split_ledger.json"))
 
     train_df = validity_masks(engineer_temporal_features(train_base, feature_mode=args.feature_mode))
     stop_df  = validity_masks(engineer_temporal_features(stop_base,  feature_mode=args.feature_mode))
@@ -13495,6 +14016,7 @@ def cmd_train(args):
 
     feature_manifest = {
         "model_family": model_family,
+        "split_ledger_sha256": split_info.get("sha256"),
         "sequence": (
             resolve_cnn_config(args).as_dict()
             if model_family == MODEL_FAMILY_CNN_1D
@@ -13535,6 +14057,7 @@ def cmd_train(args):
         pickle.dump({
             "version": VERSION, "feature_mode": args.feature_mode,
             "model_family": model_family,
+            "split_ledger_sha256": split_info.get("sha256"),
             "sequence": (
                 resolve_cnn_config(args).as_dict()
                 if model_family == MODEL_FAMILY_CNN_1D
@@ -13563,9 +14086,58 @@ def cmd_train(args):
             "slew_limit_rr_per_s": args.slew_limit_rr_per_s,
             "trained_targets": available_targets,
         }, f)
-    # Integrity manifest: content hashes of the pickled artifacts, written after
-    # the .pkl files so the digests cover the exact bytes on disk. Verified by
-    # _verify_model_dir before any pickle.load at predict time (audit item D4).
+    feature_contract = FeatureContract.create(
+        base_feature_cols=feature_cols,
+        expanded_feature_cols=expanded_feature_cols,
+        feature_mode=args.feature_mode,
+        feature_engineering_version=FEATURE_ENGINEERING_VERSION,
+        feature_schema_version=FEATURE_SCHEMA_VERSION,
+        feature_schema_hash=feature_schema_hash(),
+        allow_policy_features=bool(getattr(args, "allow_policy_features", False)),
+    )
+    sequence_config = (
+        resolve_cnn_config(args).as_dict()
+        if model_family == MODEL_FAMILY_CNN_1D
+        else None
+    )
+    bundle_metadata = build_model_bundle_metadata(
+        trainer_version=VERSION,
+        model_family=model_family,
+        trained_targets=available_targets,
+        feature_contract=feature_contract,
+        training_config={
+            "model_params": sequence_config if sequence_config is not None else params,
+            "sequence": sequence_config,
+            "sample_weight_mode": args.sample_weight_mode,
+            "split_ledger_sha256": split_info.get("sha256"),
+            "preprocessing": {
+                "fit_partition": "train",
+                "imputation": "training_partition_only",
+                "missing_indicator_selection": "training_partition_only",
+                "cnn_normalization": (
+                    "training_partition_only"
+                    if model_family == MODEL_FAMILY_CNN_1D
+                    else None
+                ),
+                "max_nan_frac": args.max_nan_frac,
+                "min_variance": args.min_variance,
+            },
+        },
+        seed=args.random_state,
+        artifact_hashes={
+            name: digest
+            for name, digest in _model_artifact_hashes(args.out).items()
+            if name != MODEL_BUNDLE_METADATA_FILENAME
+        },
+        source_commit=_source_commit(),
+    )
+    save_json(
+        bundle_metadata,
+        os.path.join(args.out, MODEL_BUNDLE_METADATA_FILENAME),
+    )
+    # Integrity manifest: hashes the pickle artifacts and bundle metadata after
+    # their exact bytes exist. _verify_model_dir checks this signed boundary
+    # before any pickle.load at predict time.
     _write_model_manifest(args.out)
     if model_hr is not None and hasattr(model_hr, "feature_importances_"):
         save_feature_importance(model_hr, expanded_feature_cols,
@@ -14609,6 +15181,27 @@ def build_parser() -> argparse.ArgumentParser:
                       help="optional auto-stop duration in seconds; omit to stop with Ctrl-C")
     p_ss.add_argument("--subject-profile-id", default="adult_default",
                       help="subject profile id from subject_profiles.json (default: adult_default)")
+    p_ss.add_argument("--participant-id", default=None,
+                      help="pseudonymous study participant code, for example P-001")
+    p_ss.add_argument("--trial-id", default=None,
+                      help="immutable study trial identifier")
+    p_ss.add_argument("--condition-id", default=None,
+                      help="condition identifier derived from distance/barrier, for example d060_none")
+    p_ss.add_argument("--distance-m", type=float, default=None,
+                      help="study distance in metres (0.5 through 1.0)")
+    p_ss.add_argument("--barrier-type", choices=["none", "cardboard"], default=None,
+                      help="study barrier condition")
+    p_ss.add_argument("--trial-number", type=int, default=None,
+                      help="within-condition trial number")
+    p_ss.add_argument("--planned-duration-s", type=float, default=None,
+                      help="protocol-planned capture duration")
+    p_ss.add_argument("--study-classification",
+                      choices=["confirmatory", "exploratory"], default=None,
+                      help="study protocol classification; required when study fields are supplied")
+    p_ss.add_argument("--model-family", choices=sorted(MODEL_FAMILIES), default=None,
+                      help="model family active during inference, if any")
+    p_ss.add_argument("--model-bundle", default=None,
+                      help="immutable model-bundle identifier active during inference")
     p_ss.add_argument("--auto-analyse", dest="auto_analyse", action="store_true", default=True,
                       help="run analysis after capture (default: enabled)")
     p_ss.add_argument("--no-auto-analyse", dest="auto_analyse", action="store_false",
@@ -14786,6 +15379,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_tr.add_argument("--val-ratio",         type=float, default=0.2)
     p_tr.add_argument("--three-way-split",   action="store_true")
+    p_tr.add_argument(
+        "--confirmatory-evaluation",
+        action="store_true",
+        help=(
+            "fail closed unless a participant-disjoint three-way split covers every "
+            "0.6/0.8/1.0 m x none/cardboard confirmatory condition"
+        ),
+    )
     p_tr.add_argument("--early-stop-ratio",  type=float, default=0.15)
     p_tr.add_argument("--purge-gap-s",       type=float, default=10.0)
     p_tr.add_argument("--random-state",      type=int,   default=42)
@@ -14829,7 +15430,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_tr.add_argument("--allow-policy-features", action="store_true",
                       help="explicit ablation flag: allow policy/gate telemetry into the ML feature matrix")
     p_tr.add_argument("--loo-eval", action="store_true",
-                      help="run leave-one-session-out evaluation across available sessions (recommended for paper-grade validation)")
+                      help=(
+                          "run leave-one-participant-out evaluation when study metadata "
+                          "is available, otherwise leave-one-session-out"
+                      ))
     p_tr.set_defaults(func=cmd_train)
 
     # -- sweep -----------------------------------------------------------------

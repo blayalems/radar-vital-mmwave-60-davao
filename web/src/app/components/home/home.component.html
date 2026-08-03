@@ -143,9 +143,20 @@
       </mat-card-header>
 
       <mat-card-content class="setup-card-content">
+        <app-participant-study-setup
+          (durationSelected)="selectedDuration = $event"
+          (rosterValidityChanged)="setParticipantRosterValidity($event)">
+        </app-participant-study-setup>
+
         <!-- DURATION CHOICE CHIPS -->
         <div class="setup-field span-full">
           <label class="field-label" id="recDurationLabel">{{ 'home.recordingDuration' | translate:i18n.locale():i18n.revision() }}</label>
+          @if (state.setup().study_mode === 'confirmatory') {
+          <div class="confirmatory-duration-lock" role="status" aria-labelledby="recDurationLabel">
+            <mat-icon aria-hidden="true">lock</mat-icon>
+            <span><strong>2m 30s</strong> · locked by the confirmatory thesis protocol</span>
+          </div>
+          } @else {
           <div class="duration-chips" role="group" aria-labelledby="recDurationLabel">
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 30" [attr.aria-pressed]="selectedDuration === 30" (click)="selectDuration(30)">30s</button>
             <button mat-flat-button type="button" class="mat-tonal-button duration-chip" [class.active]="selectedDuration === 60" [attr.aria-pressed]="selectedDuration === 60" (click)="selectDuration(60)">60s</button>
@@ -159,6 +170,7 @@
               <input matInput type="number" min="1" max="60" step="1" [ngModel]="state.setup().customDuration" (ngModelChange)="selectCustomDurationMinutes($event)" aria-label="Custom recording duration in minutes">
             </mat-form-field>
           </div>
+          }
         </div>
 
         <!-- PORT SELECT AND DISCOVERY -->
@@ -248,14 +260,6 @@
           </mat-form-field>
         </div>
 
-        <!-- SUBJECT LABELS -->
-        <div class="setup-field">
-          <label class="field-label" id="subjectLabelLabel">Subject label</label>
-          <mat-form-field appearance="outline" class="form-field-full">
-            <input matInput [ngModel]="state.setup().subject_label" (ngModelChange)="updateSetup('subject_label', $event)" placeholder="P-014" aria-labelledby="subjectLabelLabel">
-          </mat-form-field>
-        </div>
-
         <!-- OPERATOR LABELS -->
         <div class="setup-field">
           <label class="field-label" id="operatorLabelLabel">Operator label</label>
@@ -281,13 +285,37 @@
       </mat-card-content>
 
       <mat-card-actions class="setup-card-actions">
+        @if (studySetupError()) {
+          <p class="study-start-blocker" role="status">
+            <mat-icon aria-hidden="true">assignment_late</mat-icon>
+            {{ studySetupError() }}
+          </p>
+        }
+        @if (compatibility.summary().state === 'incompatible') {
+          <p class="release-start-blocker" role="alert">
+            <mat-icon aria-hidden="true">sync_problem</mat-icon>
+            {{ compatibility.summary().headline }}. {{ compatibility.summary().guidance.join(' ') }}
+          </p>
+        } @else if (compatibility.summary().state === 'unverified') {
+          <p class="start-gate-hint" role="status">
+            <mat-icon aria-hidden="true">help</mat-icon>
+            Legacy release handshake is unverified. Operational capture is allowed; do not use it for confirmatory analysis.
+          </p>
+        }
         @if (preflightChecks.length && getChecksPassedCount() < preflightChecks.length && !hasBlockingPreflightFailure()) {
           <p class="start-gate-hint" role="status">
             <mat-icon aria-hidden="true">info</mat-icon>
             {{ preflightChecks.length - getChecksPassedCount() }} preflight {{ preflightChecks.length - getChecksPassedCount() === 1 ? 'check needs' : 'checks need' }} review — starting is still allowed.
           </p>
         }
-        <button mat-flat-button color="primary" class="start-session-btn" (click)="startSession()" [disabled]="!canStartSession() || isStartingSession">
+        <button
+          mat-flat-button
+          color="primary"
+          class="start-session-btn"
+          (click)="startSession()"
+          [disabled]="!canStartSession() || isStartingSession"
+          [attr.aria-busy]="isStartingSession"
+          [attr.aria-describedby]="isStartingSession ? 'sessionStartBusyStatus' : null">
           @if (isStartingSession) {
             <mat-spinner diameter="20" style="margin-right: 8px;"></mat-spinner>
             Starting...
@@ -298,6 +326,11 @@
             </ng-container>
           }
         </button>
+        @if (isStartingSession) {
+          <p id="sessionStartBusyStatus" class="session-start-busy-status" role="status" aria-live="assertive">
+            Starting session. Please wait; repeated Start commands are ignored.
+          </p>
+        }
       </mat-card-actions>
     </mat-card>
 
@@ -352,6 +385,47 @@
       </mat-card-content>
     </mat-card>
   </div>
+
+  <mat-card
+    class="release-compatibility-card"
+    [attr.data-state]="compatibility.summary().state"
+    role="region"
+    aria-labelledby="releaseCompatibilityTitle">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="header-avatar-ic" aria-hidden="true">
+        {{ compatibility.summary().state === 'compatible' ? 'verified' :
+           compatibility.summary().state === 'incompatible' ? 'sync_problem' :
+           compatibility.summary().state === 'checking' ? 'sync' : 'help' }}
+      </mat-icon>
+      <div>
+        <mat-card-title id="releaseCompatibilityTitle">Release compatibility</mat-card-title>
+        <mat-card-subtitle>Dashboard, trainer, firmware, serial, and schema handshake.</mat-card-subtitle>
+      </div>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="release-compatibility-summary" role="status" aria-live="polite" aria-atomic="true">
+        <strong>{{ compatibility.summary().headline }}</strong>
+        <span>{{ compatibility.summary().message }}</span>
+      </div>
+      @if (compatibility.summary().details.length) {
+        <dl class="release-compatibility-details" aria-label="Release compatibility details">
+          @for (detail of compatibility.summary().details; track detail.id) {
+            <div [attr.data-state]="detail.state">
+              <dt>{{ detail.label }}</dt>
+              <dd>{{ detail.observed }}</dd>
+            </div>
+          }
+        </dl>
+      }
+      @if (compatibility.summary().guidance.length) {
+        <ul class="release-compatibility-guidance">
+          @for (step of compatibility.summary().guidance; track step) {
+            <li>{{ step }}</li>
+          }
+        </ul>
+      }
+    </mat-card-content>
+  </mat-card>
 
   <!-- QUICKCHECK / PREFLIGHT CHECKLIST CARDS -->
   <mat-card class="preflight-card-stack">
@@ -476,7 +550,13 @@
             @if (sessionFilter !== 'all') {
               <button mat-flat-button type="button" class="mat-tonal-button" (click)="setSessionFilter('all')">Show all</button>
             }
-            <button mat-flat-button type="button" color="primary" (click)="startSession()" [disabled]="!canStartSession() || isStartingSession">
+            <button
+              mat-flat-button
+              type="button"
+              color="primary"
+              (click)="startSession()"
+              [disabled]="!canStartSession() || isStartingSession"
+              [attr.aria-busy]="isStartingSession">
               <mat-icon>play_arrow</mat-icon>
               Start session
             </button>

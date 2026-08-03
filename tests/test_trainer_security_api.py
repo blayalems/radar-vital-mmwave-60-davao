@@ -131,13 +131,83 @@ def test_lan_sensitive_reads_require_token_and_public_shell_remains_available(tm
 
 def test_repo_private_and_arbitrary_paths_are_not_static_files(tmp_path: Path):
     sessions = tmp_path / "sessions"
-    sessions.mkdir()
+    (sessions / "SESSION-01").mkdir(parents=True)
     server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
     server.start()
     base = f"http://127.0.0.1:{server.httpd.server_port}"
     try:
         assert _request(base, "/.rvt_tls/key.pem")[0] == 404
         assert _request(base, "/rvt_trainer/monolith.py")[0] == 404
+        assert _request(base, "/icons/%00.png")[0] == 404
+        assert _request(base, "/api/sessions/SESSION-01/files/%00.json")[0] == 404
+    finally:
+        server.stop()
+
+
+def test_head_never_falls_through_to_simple_http_file_serving(tmp_path: Path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    try:
+        response = _request_raw(base, "/rvt_trainer/monolith.py", method="HEAD")
+        assert response.status == 405
+        assert response.headers.get("Allow") == "GET, POST, PUT, DELETE, OPTIONS"
+        assert response.read() == b""
+
+        private = _request_raw(base, "/.rvt_tls/key.pem", method="HEAD")
+        assert private.status == 405
+        assert private.read() == b""
+    finally:
+        server.stop()
+
+
+def test_protected_post_authenticates_before_parsing_body(tmp_path: Path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="lan", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    request = urllib.request.Request(
+        base + "/api/session/start",
+        data=b"{not-json",
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5):
+            raise AssertionError("protected POST unexpectedly succeeded")
+    except urllib.error.HTTPError as error:
+        payload = json.loads(error.read().decode("utf-8"))
+        assert error.code == 401
+        assert payload["error"]["code"] == "UNAUTHORIZED"
+    finally:
+        server.stop()
+
+
+def test_unknown_api_errors_keep_structured_error_envelope(tmp_path: Path):
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    server = _ControlServer("127.0.0.1", 0, str(sessions), bind_mode="local", mock=True)
+    server.start()
+    base = f"http://127.0.0.1:{server.httpd.server_port}"
+    try:
+        status, payload = _request(base, "/api/not-a-real-route")
+        assert status == 404
+        assert payload["error"]["code"] == "NOT_FOUND"
+
+        # Local bootstrap authorizes API routes; unknown routes still return a
+        # correctly shaped 404 rather than a 200 or string error.
+        status, payload = _request(
+            base,
+            "/api/not-a-real-route",
+            method="POST",
+            payload={},
+        )
+        assert status == 404
+        assert payload["ok"] is False
+        assert payload["error"]["code"] == "NOT_FOUND"
     finally:
         server.stop()
 
@@ -206,17 +276,17 @@ def test_api_version_additive_product_and_schema_fields(tmp_path: Path):
     try:
         status, payload = _request(base, "/api/version")
         assert status == 200
-        assert payload["trainer"] == "16.5.0"
-        assert payload["dashboard"] == "16.5.0"
-        assert payload["product_version"] == "16.5.0"
-        assert payload["firmware_expected"] == "v16.5.0"
+        assert payload["trainer"] == "16.5.7"
+        assert payload["dashboard"] == "16.5.7"
+        assert payload["product_version"] == "16.5.7"
+        assert payload["firmware_expected"] == "v16.5.7"
         expected_schema_versions = {
             "control_api": "rvt-control-api-v12.0",
             "session_notes": "rvt-session-notes-v12.0",
             "session_signoff": "rvt-session-signoff-v12.0",
             "training_progress": "rvt-training-progress-v12.0",
             "live_events": "rvt-live-events-v12.0",
-            "session_manifest": "rvt-session-manifest-v12.0",
+            "session_manifest": "rvt-session-manifest-v16.5.1",
             "chart_annotations": "rvt-chart-annotations-v12.0",
             "subject_profile": "rvt-subject-profiles-v12.0",
         }
@@ -263,7 +333,7 @@ def test_update_manifest_proxy_success(tmp_path: Path):
     base = f"http://127.0.0.1:{server.httpd.server_port}"
 
     mock_data = {
-        "product_version": "16.5.0",
+        "product_version": "16.5.7",
         "minimum_supported": "16.0.0",
         "released_at": "2026-06-06T00:00:00Z",
         "artifacts": {}
@@ -285,7 +355,7 @@ def test_update_manifest_proxy_success(tmp_path: Path):
         with patch("urllib.request.urlopen", side_effect=side_effect):
             status, data = _request(base, "/api/update/manifest")
             assert status == 200
-            assert data["product_version"] == "16.5.0"
+            assert data["product_version"] == "16.5.7"
     finally:
         server.stop()
 

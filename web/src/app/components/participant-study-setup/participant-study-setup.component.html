@@ -1,0 +1,167 @@
+<section class="study-setup" aria-labelledby="participantStudyTitle">
+  <div class="section-heading">
+    <div>
+      <h3 id="participantStudyTitle">Participant and study trial</h3>
+      <p>Use coded profiles only. The selected participant and condition are locked into the session record.</p>
+    </div>
+    <button mat-button type="button" (click)="loadParticipants()" [disabled]="loading()" aria-label="Refresh participant profiles">
+      <mat-icon aria-hidden="true">refresh</mat-icon>
+      Refresh
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="participant-state" role="status">
+      <mat-spinner diameter="24"></mat-spinner>
+      Loading coded participant profiles...
+    </div>
+  } @else if (loadError()) {
+    <div class="participant-state participant-error" role="alert">
+      <mat-icon aria-hidden="true">cloud_off</mat-icon>
+      <span>{{ loadError() }}</span>
+      <button mat-button type="button" (click)="loadParticipants()">Retry</button>
+    </div>
+  } @else {
+    <div class="participant-toolbar">
+      <span id="participantPickerLabel">
+        {{ realParticipantCount() }} of 40 recruited profiles
+        @if (realParticipantCount() < 38) { · target at least 38 complete participants }
+      </span>
+      <button mat-flat-button type="button" class="mat-tonal-button" (click)="createParticipant()"
+              [disabled]="creating() || realParticipantCount() >= 40">
+        @if (creating()) {
+          <mat-spinner diameter="18"></mat-spinner>
+          Creating...
+        } @else {
+          <ng-container>
+            <mat-icon aria-hidden="true">person_add</mat-icon>
+            Add participant
+          </ng-container>
+        }
+      </button>
+    </div>
+
+    <div class="participant-grid" role="radiogroup" aria-labelledby="participantPickerLabel">
+      @for (participant of participants(); track participant.participant_id) {
+        <button type="button" class="participant-card" role="radio"
+                [class.selected]="state.setup().participant_id === participant.participant_id"
+                [disabled]="participant.status === 'withdrawn'"
+                [attr.aria-checked]="state.setup().participant_id === participant.participant_id"
+                [attr.aria-label]="'Select participant ' + participant.display_code + ', status ' + participant.status"
+                (click)="selectParticipant(participant)">
+          <span class="participant-avatar" aria-hidden="true">{{ participant.display_code.slice(-2) }}</span>
+          <span class="participant-copy">
+            <strong>{{ participant.display_code }}</strong>
+            <small>
+              @if (participant.participant_id === 'P-DEMO') {
+                demo only · excluded from the study registry
+              } @else {
+                {{ participant.status }} · {{ participant.completed_trials ?? 0 }} trials recorded
+              }
+            </small>
+          </span>
+          @if (state.setup().participant_id === participant.participant_id) {
+            <mat-icon aria-hidden="true">check_circle</mat-icon>
+          }
+        </button>
+      } @empty {
+        <div class="participant-empty" role="status">
+          <mat-icon aria-hidden="true">group_add</mat-icon>
+          <span>No coded profiles yet. Add the first participant without entering a name or other identifying information.</span>
+        </div>
+      }
+    </div>
+  }
+
+  <div class="condition-grid">
+    <div class="condition-field span-full">
+      <span class="field-label" id="studyModeLabel">Study mode</span>
+      <div class="choice-row" role="radiogroup" aria-labelledby="studyModeLabel">
+        <button type="button" class="choice-button" role="radio"
+                [attr.aria-checked]="state.setup().study_mode === 'confirmatory'"
+                [class.selected]="state.setup().study_mode === 'confirmatory'"
+                (click)="setStudyMode('confirmatory')">
+          <mat-icon aria-hidden="true">verified</mat-icon>
+          Confirmatory protocol
+        </button>
+        <button type="button" class="choice-button" role="radio"
+                [attr.aria-checked]="state.setup().study_mode === 'exploratory'"
+                [class.selected]="state.setup().study_mode === 'exploratory'"
+                (click)="setStudyMode('exploratory')">
+          <mat-icon aria-hidden="true">science</mat-icon>
+          Exploratory capture
+        </button>
+      </div>
+      <small>
+        @if (state.setup().study_mode === 'confirmatory') {
+          Thesis protocol: 0.6, 0.8, or 1.0 m; no barrier or nominal 3-mm cardboard; trials 1–3; 150 seconds.
+        } @else {
+          Development range: any distance from 0.5 to 1.0 m. Exploratory sessions stay separate from confirmatory analysis.
+        }
+      </small>
+    </div>
+
+    <div class="condition-field">
+      <span class="field-label" id="distanceLabel">Radar distance</span>
+      @if (state.setup().study_mode === 'confirmatory') {
+        <div class="choice-row compact" role="radiogroup" aria-labelledby="distanceLabel">
+          @for (distance of confirmatoryDistances; track distance) {
+            <button type="button" class="choice-button" role="radio"
+                    [attr.aria-checked]="state.setup().distance_m === distance"
+                    [class.selected]="state.setup().distance_m === distance"
+                    (click)="setDistance(distance)">
+              {{ distance | number:'1.1-1' }} m
+            </button>
+          }
+        </div>
+      } @else {
+        <label class="number-field">
+          <span class="visually-hidden">Exploratory distance in metres</span>
+          <input matInput type="number" min="0.5" max="1" step="0.05"
+                 [ngModel]="state.setup().distance_m"
+                 (ngModelChange)="setDistance($event)"
+                 aria-describedby="exploratoryDistanceHint">
+          <span>m</span>
+        </label>
+        <small id="exploratoryDistanceHint">Allowed range 0.50–1.00 m.</small>
+      }
+    </div>
+
+    <div class="condition-field">
+      <span class="field-label" id="barrierLabel">Barrier</span>
+      <div class="choice-row compact" role="radiogroup" aria-labelledby="barrierLabel">
+        <button type="button" class="choice-button" role="radio"
+                [attr.aria-checked]="state.setup().barrier_type === 'none'"
+                [class.selected]="state.setup().barrier_type === 'none'"
+                (click)="setBarrier('none')">None</button>
+        <button type="button" class="choice-button" role="radio"
+                [attr.aria-checked]="state.setup().barrier_type === 'cardboard'"
+                [class.selected]="state.setup().barrier_type === 'cardboard'"
+                (click)="setBarrier('cardboard')">3-mm cardboard</button>
+      </div>
+    </div>
+
+    <div class="condition-field">
+      <span class="field-label" id="trialLabel">Trial number</span>
+      <div class="choice-row compact" role="radiogroup" aria-labelledby="trialLabel">
+        @for (trial of trials; track trial) {
+          <button type="button" class="choice-button trial-button" role="radio"
+                  [attr.aria-checked]="state.setup().trial_number === trial"
+                  [class.selected]="state.setup().trial_number === trial"
+                  (click)="setTrial(trial)">
+            {{ trial }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="trial-summary" role="status" aria-live="polite">
+      <mat-icon aria-hidden="true">fingerprint</mat-icon>
+      <span>
+        <strong>{{ selectedParticipant()?.display_code || 'Participant required' }}</strong>
+        · {{ state.setup().condition_id }} · trial {{ state.setup().trial_number }}
+        @if (state.setup().study_mode === 'confirmatory') { · 150 s locked }
+      </span>
+    </div>
+  </div>
+</section>

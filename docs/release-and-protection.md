@@ -1,5 +1,18 @@
 # Release, Signing, and Branch Protection
 
+| Control | Value |
+|---|---|
+| Document ID | `RVT-QMS-PRO-001` |
+| Revision | `R03` |
+| Owner role | Release manager |
+| Approver roles | Release manager, quality manager, and security owner |
+| Effective product version | `16.5.7` |
+| Retention | Project lifetime plus five years; archive then review |
+
+This procedure implements the release portion of the
+[ISO 9001:2015-aligned documented-information policy](../quality/qms-policy.md).
+It is a project control and is not a claim of ISO 9001 certification.
+
 ## Permanent releases
 
 The `Release APK and EXE` workflow publishes permanent GitHub Release assets
@@ -28,6 +41,17 @@ The release attaches:
   configured.
 - `radar-vital-windows-installer.exe`, signed only when Windows certificate
   secrets are configured.
+
+Each publication also retains the QMS release record, detached `SHA256SUMS`,
+and build-provenance evidence. The release record binds the final artifact
+bytes to the approved source commit, workflow run, controlled-document
+register revision, verification results, signing state, authorization, and
+rollback strategy. Hashes must be calculated after the final signing step.
+
+The release tag's base semantic version must equal the authoritative product
+version. A syntactically valid but different tag is rejected. Tags and
+published assets are immutable; a correction receives a new controlled version
+instead of replacing evidence in place.
 
 ## Signing secrets
 
@@ -98,12 +122,68 @@ checks:
 - `Build Android APK (Capacitor) / apk`
 - `Build Windows EXE (Tauri) / windows`
 
-Recommended settings:
+The test job must include the QMS document/requirement contract, the exact
+one-step product-version check, trainer and Angular tests, the release-manifest
+self-test, and the generated-dashboard round trip. If the QMS check later moves
+to a separate named job, add that job to the required checks before merging the
+workflow change.
+
+Required ruleset settings:
 
 - Require pull request before merging.
+- Require at least one approving review.
+- Require review from CODEOWNERS for owned paths.
+- Dismiss stale approvals when new commits are pushed.
 - Require status checks to pass before merging.
 - Require branches to be up to date before merging.
+- Require conversation resolution.
 - Block force pushes and branch deletion.
+
+Use the pull-request template as the change record. It must contain applicable
+requirement IDs (or a justified administrative `N/A`), the impact and risk
+assessment, implementation/test/artifact traceability, controlled-document
+revision changes, objective verification, migration, and rollback. The
+repository owner may hold more than one project role; the record must identify
+the actual reviewer and must not imply independent approval that did not occur.
+
+Configure the release environment with required reviewers for production or
+thesis-evidence publication. Environment approval is the durable release
+authorization. An automated prerelease can be generated without production
+promotion, but its release record must keep authorization `pending` and label
+the artifact accordingly.
+
+## Controlled release evidence
+
+The release evidence set uses `rvt-qms-release-record-v1` and contains:
+
+- Product version, release tag, source repository, exact 40-character commit,
+  and source ref.
+- Workflow name, run ID, run attempt, builder identity, and UTC build time.
+- Controlled-document register ID, revision, and SHA-256.
+- Required check IDs, conclusions, and evidence URLs. Unavailable physical or
+  browser gates use `external_gate`; they are not called passes.
+- Final artifact name, type, byte size, SHA-256, and truthful signing state.
+- Authorization state, actual authorizer, authorization time, rollback
+  strategy, and previous compatible release.
+
+The independent QMS schema version changes only when this evidence contract
+changes; it does not advance on every product patch. Existing release
+consumers may ignore additive provenance fields. A legacy release without a
+QMS record remains historical and is identified as unverified rather than
+retrofitted with invented evidence.
+
+Release authorization requires:
+
+1. The PR and source commit are approved and immutable.
+2. The tag matches the authoritative product version.
+3. Required checks pass and all external gates are resolved or explicitly
+   accepted by the authorized role.
+4. Controlled-document and requirements registers validate.
+5. APK, AAB when applicable, EXE, updater signature, release manifests,
+   checksums, and attestations describe the same final bytes.
+6. Signing configuration is complete or the release is explicitly classified
+   as unsigned/non-production.
+7. Migration, compatibility, support limits, and rollback are documented.
 
 ## Artifact verification
 
@@ -117,4 +197,8 @@ powershell -ExecutionPolicy Bypass -File scripts/verify-release-artifacts.ps1 `
 ```
 
 This verifies each artifact ZIP contains a non-trivial `.apk`, optional `.aab`,
-or `.exe` and prints SHA-256 hashes for the contained installers.
+or `.exe` and prints SHA-256 hashes for the contained installers. For a
+controlled release, also verify the detached checksums against the downloaded
+bytes and confirm that the same values, source commit, workflow run, signing
+state, and authorization appear in the QMS release record. A mismatch is a
+release nonconformity and blocks promotion.

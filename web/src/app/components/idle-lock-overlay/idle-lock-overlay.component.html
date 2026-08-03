@@ -17,8 +17,18 @@
       <div class="onboarding-form">
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Display Name</mat-label>
-          <input matInput [value]="displayName" (input)="displayName = inputValue($event)" placeholder="e.g. Dr. Sarah Connor" autocomplete="off">
-          <mat-hint>Min 3 characters</mat-hint>
+          <input
+            matInput
+            [value]="displayName"
+            (input)="updateDisplayName($event)"
+            placeholder="e.g. Dr. Sarah Connor"
+            autocomplete="off"
+            minlength="3"
+            maxlength="64">
+          <mat-hint id="displayNameRequirements">3–64 characters</mat-hint>
+          <mat-hint id="displayNameCounter" align="end" class="character-count">
+            {{ displayNameCharactersRemaining() }} remaining
+          </mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width">

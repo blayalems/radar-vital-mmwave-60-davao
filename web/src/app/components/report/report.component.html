@@ -127,7 +127,7 @@
       <mat-card class="attributes-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="header-avatar-ic">info</mat-icon>
-          <mat-card-title>Telemetry attributes</mat-card-title>
+          <mat-card-title>Primary session metadata</mat-card-title>
         </mat-card-header>
         <mat-card-content class="attributes-table-wrap">
           <table class="attributes-table">
@@ -138,6 +138,9 @@
               <tr><td>Subject ID</td><td><strong>{{ reportRecord().subject_label || reportRecord().subject || '--' }}</strong></td></tr>
               <tr><td>Operator</td><td><strong>{{ reportRecord().operator_label || reportRecord().operator || '--' }}</strong></td></tr>
               <tr><td>Status</td><td><strong>{{ summaryLoading ? 'Loading summary...' : (summaryError || reportRecord().analysis_status || 'Loaded') }}</strong></td></tr>
+              @for (item of primarySessionMetadata(); track item.label) {
+                <tr><td>{{ item.label }}</td><td><strong>{{ item.value }}</strong></td></tr>
+              }
             </tbody>
           </table>
         </mat-card-content>

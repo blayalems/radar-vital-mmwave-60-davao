@@ -136,11 +136,28 @@ class TestApiStatus:
         server, base = _start_mock_server(tmp_path)
         try:
             _, payload = _get(base, "/api/status")
-            # In mock mode active_session is a dict with session_id='mock'
             assert "active_session" in payload
-            active = payload["active_session"]
-            assert active is not None
-            assert active.get("session_id") == "mock"
+            assert payload["active_session"] is None
+            assert payload["preview_session"]["session_id"] == "mock"
+        finally:
+            server.stop()
+
+    def test_status_identifies_mock_telemetry_as_sandbox(self, tmp_path):
+        server, base = _start_mock_server(tmp_path)
+        try:
+            _, payload = _get(base, "/api/status")
+            assert payload["mode"] == "sandbox"
+            assert payload["active_session"] is None
+            assert payload["preview_session"]["mock"] is True
+        finally:
+            server.stop()
+
+    def test_status_identifies_hardware_server_as_live(self, tmp_path):
+        server, base, _ = _start_live_server(tmp_path)
+        try:
+            _, payload = _get(base, "/api/status")
+            assert payload["mode"] == "live"
+            assert payload["active_session"] is None
         finally:
             server.stop()
 

@@ -5,6 +5,61 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-29 - Deliver v16.5.7 leakage-safe dual-model readiness
+
+- **Release identity**: Advanced firmware, trainer, Angular dashboard, package, installer, help, issue, test, and generated-artifact carriers exactly one patch to `16.5.7`; the firmware source is now `radar_vital_v16_5_7.ino` while stable trainer/dashboard compatibility filenames and the frozen v15.2 / 222-column serial contract remain unchanged.
+- **Leakage-safe evaluation**: Added deterministic participant-disjoint train/early-stop/test ledgers shared by GBR and 1-D CNN, session-bounded temporal features/windows, leave-one-participant-out evaluation, and a fail-closed confirmatory gate for the complete 0.6/0.8/1.0 m by none/cardboard by three-trial, 150-second protocol.
+- **Reproducible bundles**: Added signed model-bundle metadata for ordered feature contracts, split-ledger hash, training policy, seeds, dependency/runtime/source provenance, artifact hashes, and conservative deployment qualification; GBR remains the default and TensorFlow stays optional/lazy for experimental CNN runs.
+- **Controlled documents**: Advanced the controlled-document and requirements registers to `R03`, the model-family guide to `R02`, and only the other controlled records changed by the v16.5.7 release and dual-model evidence.
+- **Verification**: Full Python passes 474/474 with 3 environment skips; focused model/split coverage passes 90/90; Angular passes 249/249. Trainer compile/help, v16.5.6 -> v16.5.7 patch/version graph, source integrity, feedback-loop export, production build, generated-dashboard round trip, and QMS checks pass (9/9 contract tests; 17 controlled documents and 13 traced requirements). Playwright API smoke begins green, but browser execution remains environment-blocked by the missing Chromium headless-shell binary; firmware/APK/EXE/Pages remain required CI gates.
+
+### 2026-07-29 - Harden v16.5.6 routes, authorization, and participant consent state
+
+- **Release identity**: Advanced firmware, trainer, Angular dashboard, package, installer, help, issue, and generated-artifact version carriers exactly one patch to `16.5.6`; the firmware source is now `radar_vital_v16_5_6.ino` while the frozen v15.2 / 222-column serial contract and stable compatibility filenames remain unchanged.
+- **Route and authorization boundaries**: Made wildcard matching path-segment aware, rejected session-root aliases and inherited `HEAD` filesystem probing, authenticated protected POSTs before parsing their bodies, hardened invalid path handling, and standardized unknown API errors.
+- **Participant validity**: Revalidates cached participant selection against the live roster, clears participant and subject labels on withdrawal/missing/unavailable state, and blocks both Start paths until an active coded participant is verified.
+- **Controlled documents**: Advanced the controlled-document register to `R02` and incremented only the controlled records changed by this release scaffold; unchanged schemas, templates, ownership configuration, and model guidance remain at `R01`.
+- **Verification**: Full Python passes 451/451 with 3 environment skips; Angular passes 249/249; QMS passes 9/9 across 17 controlled documents and 13 requirements. Trainer compile/help, v16.5.5 -> v16.5.6 patch/version graph, source integrity, feedback-loop export, production build, and generated-dashboard round trip pass. Four desktop browser cases, including withdrawn-roster Start rejection, enumerate; local execution remains blocked by the missing Chromium headless-shell binary, and firmware/APK/EXE/Pages remain required CI gates.
+
+### 2026-07-29 - Establish v16.5.5 QMS change and release control
+
+- **Document control**: Added an ISO 9001:2015-aligned (not certification-claiming) QMS policy, controlled-document register, stable revisions/roles/retention, PR change record, and protected-branch guidance.
+- **Traceability**: Added machine-readable requirement-to-implementation-to-test mappings and CI gates for schemas, controlled paths/revisions, test selectors, one-version-step releases, and a `HANDOFF.md` update in every commit.
+- **Release evidence**: Added tag/product matching, source/workflow provenance, final artifact sizes/hashes/signature states, `qms-release-record.json`, `SHA256SUMS`, and GitHub artifact attestations.
+- **Release identity**: Advanced all shipped carriers exactly one patch to `16.5.5`; QMS, study, API, and serial schemas retain independent identities and advance only when their contracts change.
+- **Verification**: QMS contract passes 9/9 across 17 controlled documents and 13 traced requirements; release/QMS/static tests pass 36/36; full Python passes 436/436 with 3 environment skips; Angular passes 247/247. Release generators, trainer compile/help, v16.5.4 -> v16.5.5 patch/version graph, source integrity, feedback-loop export, production build, and generated-dashboard round trip pass. Exact-source browser/APK/EXE/Pages execution remains a required CI/release gate.
+
+### 2026-07-29 - Make v16.5.4 session Start idempotent
+
+- **Start identity**: One operator Start intent carries a stable idempotency key through dashboard retries and trainer execution so duplicate activation cannot allocate multiple participant/trial sessions.
+- **Replay safety**: Same-key/same-request retries replay the original result; same-key/different-request reuse is rejected with a stable conflict instead of silently changing capture provenance.
+- **Release identity**: Advanced all shipped carriers exactly one patch to `16.5.4`; study schema v16.5.1 and the frozen v15.2/222-column serial contract remain stable.
+- **Verification**: Full Python passes 433/433 with 3 environment skips; Angular passes 247/247. Trainer compile/help, v16.5.3 -> v16.5.4 patch/version graph, feedback-loop export, production build, and generated-dashboard round trip pass. Twelve idempotency browser cases enumerate across desktop, Pixel 7, iPhone 14, and iPad; execution plus firmware/APK/EXE/Pages builds remain required CI gates.
+
+### 2026-07-29 - Gate v16.5.3 release compatibility and preserve failed starts
+
+- **Compatibility gate**: Added a structured dashboard/trainer/firmware/serial/API-schema handshake; known version, protocol, width, or schema splits block real Start with actionable reload/restart/flash guidance, while legacy clients remain explicitly unverified.
+- **Failure provenance**: Startup failures retain the immutable participant/trial assignment, release and model identity, terminal failure code/reason, and timestamps in the allocated session manifest for later diagnosis.
+- **Operator evidence**: Home exposes compatibility state before Start and Report promotes participant, condition, release, firmware, protocol, and model provenance into the primary session metadata.
+- **Release identity**: Advanced all shipped carriers exactly one patch to `16.5.3`; study schema v16.5.1 and the frozen v15.2/222-column serial contract remain stable.
+- **Verification**: Full Python passes 428/428 with 3 environment skips; Angular passes 241/241. Trainer compile/help, v16.5.2 -> v16.5.3 patch/version graph, feedback-loop export, production build, and generated-dashboard round trip pass. The new desktop/Pixel/iPhone/iPad Playwright cases compile; local execution remains gated by the missing Chromium headless-shell binary, so CI/browser verification remains required.
+
+### 2026-07-29 - Fix adversarial v16.5.2 session-state truthfulness
+
+- **Mock state**: The real `serve --mock` control API now identifies sandbox preview separately from active capture, so Demo Now, Live Stop controls, and navigation guards cannot mistake continuous mock telemetry for a real recording.
+- **Offline state**: Browser offline/online events synchronously stale live telemetry, cancel or restart transports without clobbering session identity, and reject late poll responses from an obsolete transport generation.
+- **Onboarding**: Operator display-name entry exposes the backend's 64-character limit before submission with accessible guidance and matching client-side validation.
+- **Release identity**: Advanced every shipped carrier exactly one patch to `16.5.2`; study schema v16.5.1 and the frozen v15.2/222-column serial contract remain stable.
+- **Verification**: Selected backend regressions pass (135/135), Angular tests pass (232/232), trainer compile/help, version graph, patch increment, diagram export, production build, and generated-dashboard round trip pass. The desktop Playwright cases compile but local execution remains gated by a stalled Chromium headless-shell installation; CI/browser verification remains required.
+
+### 2026-07-29 - Bind v16.5.1 sessions to pseudonymous participants and releases
+
+- **Study identity**: Added coded participant profiles, immutable participant/trial assignment, and release/firmware/protocol/model provenance to real, CLI, supervised, and sandbox session manifests.
+- **Protocol guardrails**: Confirmatory capture now enforces the proposal's 0.6/0.8/1.0 m × no-barrier/cardboard × trials 1–3 × 150-second design; explicitly labelled exploratory capture supports 0.5–1.0 m without entering confirmatory analysis.
+- **Operator flow**: Added an accessible, mobile-responsive participant-profile picker and condition selector, blocks real Start until the study contract is complete, and keeps the pseudonymous registry capacity distinct from the demo profile.
+- **Release identity**: Advanced all shipped firmware, trainer, dashboard, APK, EXE, package, help, and generated-artifact carriers exactly one patch to `16.5.1`; the frozen v15.2/222-column serial contract and stable compatibility filenames remain unchanged.
+- **Verification**: Participant/session backend isolation plus the selected Python regression set pass (160/160); Angular tests pass (224/224); trainer compile/help, version graph, patch increment, diagram export, production build, and generated-dashboard round trip pass. Adversarial mock-session findings continue in the next patch.
+
 ### 2026-07-29 - Refresh vulnerable transitive dependencies
 
 - **Supply chain**: Refreshed the root and Angular lockfiles to patched transitive releases and pinned the vulnerable MCP SDK subtree through an npm override without changing the application dependency surface.

@@ -27,9 +27,13 @@ export class SourceModeService {
   readonly simulated = computed(() => this.mode() !== 'live');
   readonly storageScope = computed<StorageScope>(() => this.simulated() ? 'demo' : 'live');
   readonly realSessionActive = computed(() => {
+    const status = this.sessionStore.ctlStatus();
+    const activeSession = status?.active_session ?? status?.session;
     const sessionId = this.sessionStore.currentSessionId() || '';
     return this.sessionStore.sessionActive()
-      && this.sessionStore.ctlStatus()?.mode !== 'sandbox'
+      && status?.mode !== 'sandbox'
+      && activeSession?.sandbox !== true
+      && activeSession?.mock !== true
       && !sessionId.startsWith('sandbox_');
   });
 

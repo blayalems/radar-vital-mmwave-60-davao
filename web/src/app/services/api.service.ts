@@ -19,6 +19,7 @@ import {
   normalizeHttpOrigin,
   resolveTrainerRequestTarget
 } from './api-target-policy';
+import { clientReleaseHandshake } from './release-contract';
 
 interface NativeHttpPlugin {
   request(options: {
@@ -38,6 +39,13 @@ interface TauriBridge {
   core?: {
     invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
   };
+}
+
+export class ApiRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
 }
 
 @Injectable({
@@ -209,7 +217,7 @@ export class ApiService {
         const status = Number(resp.status || 0);
         const data = resp.data;
         if (status < 200 || status >= 300) {
-          throw new Error(this.errorMessage(data, `HTTP ${status}`));
+          throw new ApiRequestError(this.errorMessage(data, `HTTP ${status}`), status);
         }
         return (typeof data === 'string' ? JSON.parse(data || '{}') : data) as T;
       } catch (err) {
@@ -236,7 +244,7 @@ export class ApiService {
       return await this.withTimeout(firstValueFrom(response), timeoutMs, 'Request timeout');
     } catch (err: any) {
       if (err && typeof err === 'object' && 'status' in err) {
-        throw new Error(this.errorMessage(err.error, `HTTP ${err.status}`));
+        throw new ApiRequestError(this.errorMessage(err.error, `HTTP ${err.status}`), Number(err.status || 0));
       }
       throw new Error(err.message || 'HTTP Request failed');
     }
@@ -360,9 +368,14 @@ export class ApiService {
     return items;
   }
 
-  async startSession(): Promise<{ session_id?: string }> {
+  async startSession(idempotencyKey: string): Promise<{ session_id?: string }> {
+    const stableIdempotencyKey = String(idempotencyKey || '').trim();
+    if (!stableIdempotencyKey) {
+      throw new Error('Session Start requires an idempotency key.');
+    }
     const setup = this.state.setup();
     const payload = {
+      idempotency_key: stableIdempotencyKey,
       duration_s: setup.duration_s,
       radar_port: setup.radar_port,
       ble_address: setup.ble_address,
@@ -370,8 +383,18 @@ export class ApiService {
       operator_label: setup.operator_label,
       station_label: setup.station_label,
       subject_profile_id: setup.subject_profile_id,
+      participant_id: setup.participant_id,
+      trial_id: `${setup.participant_id}-${setup.condition_id}-t${setup.trial_number}`,
+      study_mode: setup.study_mode,
+      study_classification: setup.study_mode,
+      condition_id: setup.condition_id,
+      distance_m: setup.distance_m,
+      barrier_type: setup.barrier_type,
+      trial_number: setup.trial_number,
+      planned_duration_s: setup.duration_s,
       ble_profile: setup.ble_profile,
       skip_countdown: setup.skip_countdown,
+      client_handshake: clientReleaseHandshake(),
       advanced: { notify_char: setup.notify_char }
     };
     const result = await this.request<{ session_id?: string }>('/api/session/start', {

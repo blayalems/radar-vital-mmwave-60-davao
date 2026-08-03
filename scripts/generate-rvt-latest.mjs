@@ -31,7 +31,30 @@ function buildOptions(prodVersion) {
   const androidVersionCode = /^\d+$/.test(androidVersionCodeRaw) ? Number(androidVersionCodeRaw) : null;
   const buildNumberRaw = readArg('--build-number') || process.env.BUILD_NUMBER || androidVersionCodeRaw || '';
   const buildNumber = /^\d+$/.test(buildNumberRaw) ? Number(buildNumberRaw) : null;
-  return { releaseTag, repository, releasedAt, releaseVersion, androidVersionCode, buildNumber };
+  const sourceCommit = readArg('--source-commit') || process.env.GITHUB_SHA || '';
+  const sourceRef = readArg('--source-ref') || process.env.GITHUB_REF || '';
+  const workflowRunId = readArg('--workflow-run-id') || process.env.GITHUB_RUN_ID || '';
+  const workflowRunAttempt = readArg('--workflow-run-attempt') || process.env.GITHUB_RUN_ATTEMPT || '';
+  const androidSignatureState = process.env.ANDROID_SIGNATURE_STATE || 'unknown';
+  const windowsSignatureState = process.env.WINDOWS_SIGNATURE_STATE || 'unknown';
+  const tagProductVersion = releaseTag.replace(/^v/, '').split(/[+-]/, 1)[0];
+  if (tagProductVersion !== prodVersion) {
+    throw new Error(`Release tag product version ${tagProductVersion} does not match package product version ${prodVersion}`);
+  }
+  return {
+    releaseTag,
+    repository,
+    releasedAt,
+    releaseVersion,
+    androidVersionCode,
+    buildNumber,
+    sourceCommit,
+    sourceRef,
+    workflowRunId,
+    workflowRunAttempt,
+    androidSignatureState,
+    windowsSignatureState
+  };
 }
 
 // Helper to calculate file size and SHA-256 hash
@@ -43,7 +66,7 @@ function getFileStats(filePath) {
   return { size, sha256 };
 }
 
-function artifactMetadata({ kind, platform, fileName, filePath, compatibility, releaseUrl, versionCode = null }) {
+function artifactMetadata({ kind, platform, fileName, filePath, compatibility, releaseUrl, versionCode = null, signatureState = 'unknown' }) {
   const stats = getFileStats(filePath);
   const artifact = {
     kind,
@@ -53,12 +76,20 @@ function artifactMetadata({ kind, platform, fileName, filePath, compatibility, r
     size: stats.size,
     size_bytes: stats.size,
     sha256: stats.sha256,
-    compatibility
+    compatibility,
+    signature_state: signatureState
   };
   if (versionCode !== null) {
     artifact.version_code = versionCode;
   }
   return artifact;
+}
+
+function assertTagMatchesProduct(releaseTag, prodVersion) {
+  const tagProductVersion = releaseTag.replace(/^v/, '').split(/[+-]/, 1)[0];
+  if (tagProductVersion !== prodVersion) {
+    throw new Error(`Release tag product version ${tagProductVersion} does not match package product version ${prodVersion}`);
+  }
 }
 
 function readTauriSignature(exePath) {
@@ -73,6 +104,7 @@ function readTauriSignature(exePath) {
 
 // Generate the manifest object
 function generateManifest(distDir, prodVersion, options = buildOptions(prodVersion)) {
+  assertTagMatchesProduct(options.releaseTag, prodVersion);
   const apkReleasePath = path.join(distDir, 'radar-vital-release.apk');
   const apkDebugPath = path.join(distDir, 'radar-vital-debug.apk');
   const aabReleasePath = path.join(distDir, 'radar-vital-release.aab');
@@ -103,7 +135,8 @@ function generateManifest(distDir, prodVersion, options = buildOptions(prodVersi
     filePath: apkFilePath,
     compatibility: 'Android 8.0+',
     releaseUrl,
-    versionCode: options.androidVersionCode
+    versionCode: options.androidVersionCode,
+    signatureState: options.androidSignatureState
   });
   const aab = fs.existsSync(aabReleasePath)
     ? artifactMetadata({
@@ -113,7 +146,8 @@ function generateManifest(distDir, prodVersion, options = buildOptions(prodVersi
         filePath: aabReleasePath,
         compatibility: 'Google Play Android App Bundle',
         releaseUrl,
-        versionCode: options.androidVersionCode
+        versionCode: options.androidVersionCode,
+        signatureState: options.androidSignatureState
       })
     : null;
   const exe = artifactMetadata({
@@ -122,7 +156,8 @@ function generateManifest(distDir, prodVersion, options = buildOptions(prodVersi
     fileName: 'radar-vital-windows-installer.exe',
     filePath: exePath,
     compatibility: 'Windows 10+',
-    releaseUrl
+    releaseUrl,
+    signatureState: options.windowsSignatureState
   });
   const tauriSignature = readTauriSignature(exePath);
   const artifacts = aab ? { apk, aab, exe } : { apk, exe };
@@ -136,6 +171,25 @@ function generateManifest(distDir, prodVersion, options = buildOptions(prodVersi
     release_tag: options.releaseTag,
     build_number: options.buildNumber,
     release_url: `https://github.com/${options.repository}/releases/tag/${options.releaseTag}`,
+    source: {
+      repository: options.repository,
+      commit: options.sourceCommit || null,
+      ref: options.sourceRef || null
+    },
+    workflow: {
+      run_id: options.workflowRunId || null,
+      run_attempt: options.workflowRunAttempt || null
+    },
+    qms_release_record: {
+      schema_version: 'rvt-qms-release-record-v1',
+      file_name: 'qms-release-record.json',
+      url: `${releaseUrl}/qms-release-record.json`,
+      sha256sums_file: 'SHA256SUMS',
+      sha256sums_url: `${releaseUrl}/SHA256SUMS`,
+      controlled_document_snapshot_file: 'controlled-document-revisions.json',
+      controlled_document_snapshot_url: `${releaseUrl}/controlled-document-revisions.json`,
+      evidence_scope: 'release provenance and integrity; not a certification claim'
+    },
     artifacts,
     artifact_entries: artifactEntries,
     compatibility: {
@@ -154,6 +208,7 @@ function generateManifest(distDir, prodVersion, options = buildOptions(prodVersi
 
 // Generate the Tauri v2 updater manifest object
 function generateTauriManifest(distDir, prodVersion, options = buildOptions(prodVersion)) {
+  assertTagMatchesProduct(options.releaseTag, prodVersion);
   const exePath = path.join(distDir, 'radar-vital-windows-installer.exe');
   if (!fs.existsSync(exePath)) {
     throw new Error(`radar-vital-windows-installer.exe was not found in ${distDir}`);
@@ -212,7 +267,13 @@ function runSelfTest() {
       releasedAt: '2026-06-06T00:00:00.000Z',
       releaseVersion: `${version}-main.999`,
       androidVersionCode: 999,
-      buildNumber: 999
+      buildNumber: 999,
+      sourceCommit: '0123456789abcdef0123456789abcdef01234567',
+      sourceRef: 'refs/tags/self-test',
+      workflowRunId: '999',
+      workflowRunAttempt: '2',
+      androidSignatureState: 'signed',
+      windowsSignatureState: 'signed'
     };
     const manifest = generateManifest(tempDir, version, testOptions);
     console.log('Generated manifest in self-test:', JSON.stringify(manifest, null, 2));
@@ -244,6 +305,12 @@ function runSelfTest() {
     }
     if (!manifest.tauri_updater?.signature_configured) {
       throw new Error('Expected tauri_updater.signature_configured in manifest self-test');
+    }
+    if (manifest.source?.commit !== testOptions.sourceCommit || manifest.workflow?.run_attempt !== '2') {
+      throw new Error('Expected source/workflow provenance in manifest self-test');
+    }
+    if (manifest.qms_release_record?.schema_version !== 'rvt-qms-release-record-v1') {
+      throw new Error('Expected QMS release record reference in manifest self-test');
     }
 
     const apk = manifest.artifacts?.apk;

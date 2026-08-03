@@ -22,13 +22,19 @@ export class TelemetryService {
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private staleTimer: ReturnType<typeof setTimeout> | null = null;
   private running = false;
+  private browserOnline = typeof navigator === 'undefined' || navigator.onLine;
+  private transportGeneration = 0;
   private httpPollFailures = 0;
   private demoT = 0;
   private readonly alertCooldownUntil = new Map<string, number>();
+  private readonly handleBrowserOffline = () => this.onBrowserOffline();
+  private readonly handleBrowserOnline = () => this.onBrowserOnline();
   /** Epoch ms of the next scheduled SSE reconnect attempt (null when connected). */
   readonly nextRetryAtMs = this.sseDriver.nextRetryAtMs;
 
   constructor() {
+    window.addEventListener('offline', this.handleBrowserOffline);
+    window.addEventListener('online', this.handleBrowserOnline);
     this.start();
     window.addEventListener('rvt-operator-authenticated', () => this.reconnect());
     effect(() => {
@@ -55,11 +61,19 @@ export class TelemetryService {
 
   start() {
     this.running = true;
+    if (!this.browserOnline && !this.state.demoSourceActive()) {
+      this.markLiveTransportOffline();
+      return;
+    }
     this.scheduleNextPoll(1000);
     this.startSse();
   }
 
   reconnect(): void {
+    if (!this.browserOnline && !this.state.demoSourceActive()) {
+      this.markLiveTransportOffline();
+      return;
+    }
     this.sseDriver.reset();
     this.clearPollTimer();
     this.httpPollFailures = 0;
@@ -72,9 +86,10 @@ export class TelemetryService {
 
   stop() {
     this.running = false;
+    this.transportGeneration++;
     this.clearPollTimer();
     this.stopSse();
-    if (this.staleTimer) clearTimeout(this.staleTimer);
+    this.clearStaleTimer();
   }
 
   private clearPollTimer() {
@@ -86,12 +101,15 @@ export class TelemetryService {
 
   private scheduleNextPoll(delayMs: number) {
     if (!this.running) return;
+    if (!this.browserOnline && !this.state.demoSourceActive()) return;
     this.clearPollTimer();
     this.pollTimer = setTimeout(() => this.poll(), delayMs);
   }
 
   private async poll() {
     if (!this.running) return;
+    if (!this.browserOnline && !this.state.demoSourceActive()) return;
+    const transportGeneration = this.transportGeneration;
 
     if (this.state.paused()) {
       this.scheduleNextPoll(this.state.liveBufferSeconds() * 1000);
@@ -112,6 +130,7 @@ export class TelemetryService {
       const path = '/api/session/current/live_dashboard.json';
       const startMs = Date.now();
       const payload = await this.api.request<Partial<LivePayload>>(`${path}?t=${Date.now()}`);
+      if (!this.browserOnline || transportGeneration !== this.transportGeneration) return;
       const latency = Date.now() - startMs;
       if (!this.applyLivePayload(payload)) {
         throw new Error('live payload missing telemetry fields');
@@ -120,6 +139,7 @@ export class TelemetryService {
       this.state.ctlStatus.update((s) => ({ ...(s ?? { ok: true }), ok: true, latency }));
       this.scheduleNextPoll(500);
     } catch (error: unknown) {
+      if (!this.browserOnline || transportGeneration !== this.transportGeneration) return;
       const message = error instanceof Error ? error.message : 'poll failed';
       console.warn('Telemetry poll failed', error);
       this.state.telemetryStale.set(true);
@@ -155,6 +175,7 @@ export class TelemetryService {
     if (this.isTauriNative()) return;
     if (this.state.demoSourceActive()) return;
     if (!this.running) return;
+    if (!this.browserOnline) return;
     if (this.api.hasPairToken() && !sessionStorage.getItem(OPERATOR_TOKEN_KEY)) {
       this.scheduleNextPoll(0);
       return;
@@ -162,6 +183,7 @@ export class TelemetryService {
 
     await this.sseDriver.connect({
       canConnect: () => this.running
+        && this.browserOnline
         && !this.auth.isLocked()
         && !this.state.demoSourceActive()
         && !this.isTauriNative(),
@@ -190,7 +212,15 @@ export class TelemetryService {
         return;
       case 'live':
         try {
-          this.applyLivePayload(JSON.parse(event.data || '{}'));
+          if (this.applyLivePayload(JSON.parse(event.data || '{}'))) {
+            this.state.ctlStatus.update(status => ({
+              ...(status ?? { ok: true }),
+              ok: true,
+              mode: 'live',
+              error: undefined,
+              reason: undefined
+            }));
+          }
         } catch (error) {
           console.warn('SSE live parse failed', error);
         }
@@ -268,6 +298,48 @@ export class TelemetryService {
 
   private stopSse(): void {
     this.sseDriver.cancel();
+  }
+
+  private onBrowserOffline(): void {
+    this.browserOnline = false;
+    if (!this.running || this.state.demoSourceActive()) return;
+    this.transportGeneration++;
+    this.clearPollTimer();
+    this.stopSse();
+    this.clearStaleTimer();
+    this.markLiveTransportOffline();
+  }
+
+  private onBrowserOnline(): void {
+    const wasOffline = !this.browserOnline;
+    this.browserOnline = true;
+    if (!wasOffline || !this.running || this.auth.isLocked() || this.state.demoSourceActive()) return;
+    this.transportGeneration++;
+    this.state.ctlStatus.update(status => ({
+      ...(status ?? { ok: false }),
+      ok: false,
+      mode: 'live',
+      error: 'Reconnecting to trainer...',
+      reason: 'browser_online'
+    }));
+    this.reconnect();
+  }
+
+  private markLiveTransportOffline(): void {
+    this.state.telemetryStale.set(true);
+    this.state.ctlStatus.update(status => ({
+      ...(status ?? { ok: false }),
+      ok: false,
+      mode: 'live',
+      error: 'Browser is offline.',
+      reason: 'browser_offline'
+    }));
+  }
+
+  private clearStaleTimer(): void {
+    if (!this.staleTimer) return;
+    clearTimeout(this.staleTimer);
+    this.staleTimer = null;
   }
 
   private runSimulationStep() {
@@ -402,7 +474,7 @@ export class TelemetryService {
         schema_warning_count: 0,
         reconnect_attempts: 0,
         funnel_survival_pct: 100,
-        fw_truthfulness: { version: 'v16.5.0-demo', module_version_valid: true },
+        fw_truthfulness: { version: 'v16.5.7-demo', module_version_valid: true },
         gate_audit: { hr_eval_bins: 120, rr_eval_bins: 120 },
         hr_gate_reason_histogram: { OK: 120 },
         rr_gate_reason_histogram: { OK: 120 },
@@ -444,7 +516,7 @@ export class TelemetryService {
       this.state.sessionActive.set(true);
       this.state.currentSessionId.set(payloadSessionId);
     }
-    if (this.staleTimer) clearTimeout(this.staleTimer);
+    this.clearStaleTimer();
     this.staleTimer = setTimeout(() => this.state.telemetryStale.set(true), 3500);
 
     const thresholds = this.state.kpiThresholds();

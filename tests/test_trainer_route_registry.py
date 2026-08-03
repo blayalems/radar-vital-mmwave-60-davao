@@ -20,6 +20,7 @@ from rvt_trainer.api.route_registry import (
     match_route,
 )
 from rvt_trainer.monolith import _ControlHandler
+from rvt_trainer.monolith import _session_path
 
 
 @pytest.mark.parametrize(
@@ -57,6 +58,32 @@ def test_registry_entries_are_unique_and_match_their_own_pattern():
         sample = spec.pattern.replace("*", "s01", 1).replace("*", "file.json")
         for method in spec.methods:
             assert spec.matches(method, sample)
+
+
+def test_route_wildcards_do_not_cross_path_segments():
+    assert match_route("GET", "/api/sessions/s01/summary") is not None
+    assert match_route("GET", "/api/sessions/s01/nested/summary") is None
+    assert match_route("GET", "/api/sessions//summary") is None
+
+    nested_file = match_route(
+        "GET",
+        "/api/sessions/s01/files/analysis/predict_summary.json",
+    )
+    assert nested_file is not None
+    assert nested_file.name == "session_files"
+    assert match_route("GET", "/icons/themes/dark/icon.png").name == "icons"
+
+
+def test_session_path_requires_one_existing_directory_below_root(tmp_path):
+    sessions = tmp_path / "sessions"
+    session = sessions / "SESSION-01"
+    session.mkdir(parents=True)
+    (sessions / "not-a-session.json").write_text("{}", encoding="utf-8")
+
+    assert _session_path(str(sessions), "SESSION-01") == session.resolve()
+    for invalid in (".", "", "SESSION-01/nested", "not-a-session.json", ".."):
+        with pytest.raises(FileNotFoundError):
+            _session_path(str(sessions), invalid)
 
 
 def test_http_dispatch_uses_registry_names_instead_of_route_pattern_copies():

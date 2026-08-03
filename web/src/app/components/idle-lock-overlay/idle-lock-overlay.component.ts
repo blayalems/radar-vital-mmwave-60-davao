@@ -37,6 +37,8 @@ type ResetStep = 'idle' | 'select-operator' | 'enter-code' | 'enter-new-pin' | '
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class IdleLockOverlayComponent {
+  protected readonly displayNameMaxLength = 64;
+
   protected readonly idleLock = inject(IdleLockService);
   protected readonly state = inject(StateService);
   protected readonly auth = inject(AuthService);
@@ -120,6 +122,20 @@ export class IdleLockOverlayComponent {
     return event.target instanceof HTMLInputElement ? event.target.value : '';
   }
 
+  updateDisplayName(event: Event): void {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+
+    this.displayName = input.value.slice(0, this.displayNameMaxLength);
+    if (input.value !== this.displayName) {
+      input.value = this.displayName;
+    }
+  }
+
+  displayNameCharactersRemaining(): number {
+    return Math.max(0, this.displayNameMaxLength - this.displayName.length);
+  }
+
   async handlePinSubmit(pin: string): Promise<void> {
     const op = this.selectedOperator();
     if (!op) return;
@@ -161,8 +177,10 @@ export class IdleLockOverlayComponent {
   }
 
   isOnboardingValid(): boolean {
+    const displayNameLength = this.displayName.trim().length;
     return (
-      this.displayName.trim().length >= 3 &&
+      displayNameLength >= 3 &&
+      displayNameLength <= this.displayNameMaxLength &&
       this.initials.trim().length === 2 &&
       this.onboardingPin.length === 6
     );

@@ -13,7 +13,7 @@ async function seedUnlocked(page: Page): Promise<void> {
   });
 }
 
-async function applyPolishRoutes(page: Page, options: { offline?: boolean } = {}): Promise<void> {
+async function applyPolishRoutes(page: Page, options: { offline?: boolean; activeLive?: boolean } = {}): Promise<void> {
   await page.route('**/api/**', async (route: Route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -30,7 +30,25 @@ async function applyPolishRoutes(page: Page, options: { offline?: boolean } = {}
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: true, mode: 'live', active_session: null, trainer_version: '16.5.0', dashboard_version: '16.5.0' })
+        body: JSON.stringify({
+          ok: true,
+          mode: 'live',
+          active_session: options.activeLive ? { session_id: 'session-offline-recovery' } : null,
+          trainer_version: '16.5.7',
+          dashboard_version: '16.5.7'
+        })
+      });
+      return;
+    }
+    if (path === '/api/session/current/live_dashboard.json' && options.activeLive) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          meta: { status: 'running', session_id: 'session-offline-recovery' },
+          radar: { reported_hr: 72, reported_rr: 15, fps_hz: 20, distance_cm: 80 },
+          series: { reported_hr: [71, 72], reported_rr: [15, 15] }
+        })
       });
       return;
     }
@@ -135,5 +153,27 @@ test.describe('WS2-B polish', () => {
     await expect(page.getByRole('status').filter({ hasText: /Live telemetry is stale/i })).toBeVisible();
     await expect(page.getByText(/Standby [—-] polling stream/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /Heart rate.*not available/i })).toBeVisible();
+  });
+
+  test('marks live telemetry stale offline and recovers without losing the active session', async ({ page, context }) => {
+    await seedUnlocked(page);
+    await applyPolishRoutes(page, { activeLive: true });
+    await page.goto('/live', { waitUntil: 'domcontentloaded' });
+    await page.locator('.initial-loading-overlay').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+    await expect(page.locator('section.idle-lock-overlay')).toHaveCount(0, { timeout: 15000 });
+
+    await expect(page.getByRole('button', { name: /Heart rate.*72/i })).toBeVisible();
+    await expect(page.getByText('Monitoring', { exact: true }).first()).toBeVisible();
+
+    await context.setOffline(true);
+    try {
+      await expect(page.getByText('Disconnected', { exact: true }).first()).toBeVisible();
+      await expect(page.getByRole('status').filter({ hasText: /Live telemetry is stale/i })).toBeVisible();
+    } finally {
+      await context.setOffline(false);
+    }
+
+    await expect(page.getByText('Monitoring', { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Heart rate.*72/i })).toBeVisible();
   });
 });

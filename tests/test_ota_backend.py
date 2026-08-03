@@ -42,7 +42,7 @@ def test_backend_manifest_proxy_success(tmp_path: Path):
     base = f"http://127.0.0.1:{server.httpd.server_port}"
 
     mock_data = {
-        "product_version": "16.5.0",
+        "product_version": "16.5.7",
         "minimum_supported": "16.0.0",
         "released_at": "2026-06-06T00:00:00Z",
         "artifacts": {}
@@ -63,7 +63,7 @@ def test_backend_manifest_proxy_success(tmp_path: Path):
         with patch("urllib.request.urlopen", side_effect=mock_fetch):
             status, data, _ = _request(base, "/api/update/manifest")
             assert status == 200
-            assert data["product_version"] == "16.5.0"
+            assert data["product_version"] == "16.5.7"
     finally:
         server.stop()
 
@@ -168,7 +168,7 @@ def test_backend_manifest_proxy_auth_checks(tmp_path: Path):
     base = f"http://127.0.0.1:{server.httpd.server_port}"
 
     mock_data = {
-        "product_version": "16.5.0",
+        "product_version": "16.5.7",
         "minimum_supported": "16.0.0",
         "released_at": "2026-06-06T00:00:00Z",
         "artifacts": {}
@@ -190,7 +190,7 @@ def test_backend_manifest_proxy_auth_checks(tmp_path: Path):
             # Health and Manifest endpoints are part of public_api_paths, so they don't require token auth
             status, data, _ = _request(base, "/api/update/manifest")
             assert status == 200
-            assert data["product_version"] == "16.5.0"
+            assert data["product_version"] == "16.5.7"
 
             # A protected endpoint should require token auth in LAN mode
             status_protected, data_protected, _ = _request(base, "/api/status")

@@ -158,3 +158,10 @@ def test_loso_preprocessing_is_fit_inside_each_training_fold():
     assert "prepare_feature_matrix(" in source
     assert "fold_impute_values" in source
     assert "fold_missing_flag_cols" in source
+
+
+def test_loso_retains_outer_oof_raw_and_postprocessed_prediction_contract():
+    source = inspect.getsource(_run_loso_evaluation)
+    assert "outer_oof_predictions.csv" in source
+    assert "pred_hr_raw" in source and "pred_rr_raw" in source
+    assert "prediction_contract" in source

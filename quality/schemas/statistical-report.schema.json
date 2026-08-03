@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blayalems/radar-vital-mmwave-60-davao/quality/schemas/statistical-report.schema.json",
+  "title": "Radar Vital statistical report",
+  "type": "object",
+  "required": ["analysis_schema", "reference_column", "estimate_column", "metrics", "coverage", "analysis_plan", "analysis_policy", "report_sha256"],
+  "properties": {
+    "analysis_schema": { "const": "rvt-statistical-report-v1" },
+    "reference_column": { "type": "string", "minLength": 1 },
+    "estimate_column": { "type": "string", "minLength": 1 },
+    "metrics": { "type": "object" },
+    "coverage": { "type": "object" },
+    "analysis_plan": { "type": "object" },
+    "analysis_policy": { "type": "object" },
+    "report_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": true
+}

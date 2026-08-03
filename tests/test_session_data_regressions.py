@@ -51,7 +51,7 @@ def test_truthfulness_prefers_explicit_contract_length_over_augmented_frame():
         "timestamp_ms": [1000, 2000],
         "sketch_major": [16, 16],
         "sketch_sub": [5, 5],
-            "sketch_mod": [7, 7],
+            "sketch_mod": [8, 8],
         "module_fw_valid": [0, 0],
         # loader-derived columns that inflated len(df.columns):
         "timestamp_s": [1.0, 2.0],
@@ -60,7 +60,7 @@ def test_truthfulness_prefers_explicit_contract_length_over_augmented_frame():
     })
     out = monolith._truthfulness_from_radar(df, contract_length=222)
     assert out["contract_length"] == 222
-    assert out["version"] == "v16.5.7"
+    assert out["version"] == "v16.5.8"
     # Without the explicit width the old (buggy) behavior falls back to the
     # augmented frame width — keep that as the documented fallback.
     assert monolith._truthfulness_from_radar(df)["contract_length"] == len(df.columns)

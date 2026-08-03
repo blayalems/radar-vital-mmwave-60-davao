@@ -1,5 +1,14 @@
 # Physical Hardware Acceptance Checklist (v12 stable)
 
+## v16.5.8 acceptance disposition
+
+The project team reports that the firmware bench tests are complete, including
+presence loss/recovery and peripheral recovery. This is a pending controlled
+signoff, not a release authorization. Before production use, attach the
+tester/date, board and radar/LCD identifiers, flashed firmware/source SHA,
+serial-log hashes, scenario results, deviations, and named research/quality
+approval to this checklist. Unchecked boxes below remain open evidence gates.
+
 This document serves as the official QA manual and step-by-step physical test checklist to approve the packaged Capacitor APK (Android) and Tauri EXE (Windows) builds. Because native BLE and secure LAN authentication require direct hardware interface access, complete verification must be signed off using this checklist.
 
 ---
@@ -10,7 +19,7 @@ Ensure the following hardware components are available:
 1. **Target Mobile Device**: Android 10+ (tested against Pixel baseline).
 2. **Target Windows Machine**: Windows 10 or 11 with a working Bluetooth 4.2+ BLE USB adapter or integrated chip.
 3. **Reference BLE Device**: AiLink Pulse Oximeter or compatible GATT simulator.
-4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_5_7.ino`.
+4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_5_8.ino`.
 5. **LAN Test Environment**: Both the trainer server (PC) and the mobile device must be connected to the exact same subnet (e.g., local Wi-Fi router).
 
 ---

@@ -136,9 +136,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.7"
-DASHBOARD_VERSION = "16.5.7"
-FIRMWARE_VERSION_EXPECTED = "v16.5.7"
+VERSION = "16.5.8"
+DASHBOARD_VERSION = "16.5.8"
+FIRMWARE_VERSION_EXPECTED = "v16.5.8"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -4637,7 +4637,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_7.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_8.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -8133,7 +8133,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_7.ino"),
+        Path("radar_vital_v16_5_8.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
@@ -13075,9 +13075,11 @@ def add_predictions(df, X_all, model_hr=None, model_rr=None, hr_slew_limit=None,
             if hasattr(model_hr, "predict_aligned")
             else model_hr.predict(X)
         )
+        df["pred_hr_raw"] = np.asarray(raw_hr, dtype=float)
         df["pred_hr"] = np.clip(raw_hr, HR_RANGE[0], HR_RANGE[1])
         df = apply_causal_slew_limit(df, "pred_hr", hr_slew_limit)
     else:
+        df["pred_hr_raw"] = np.nan
         df["pred_hr"] = np.nan
     if model_rr is not None:
         raw_rr = (
@@ -13085,9 +13087,11 @@ def add_predictions(df, X_all, model_hr=None, model_rr=None, hr_slew_limit=None,
             if hasattr(model_rr, "predict_aligned")
             else model_rr.predict(X)
         )
+        df["pred_rr_raw"] = np.asarray(raw_rr, dtype=float)
         df["pred_rr"] = np.clip(raw_rr, RR_RANGE[0], RR_RANGE[1])
         df = apply_causal_slew_limit(df, "pred_rr", rr_slew_limit)
     else:
+        df["pred_rr_raw"] = np.nan
         df["pred_rr"] = np.nan
     return df
 
@@ -13656,6 +13660,7 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
             "group_column": group_column,
         }
     folds = []
+    outer_oof_frames = []
     for i, holdout in enumerate(group_ids):
         train_source = base_df[base_df[group_column] != holdout].copy().reset_index(drop=True)
         eval_base = base_df[base_df[group_column] == holdout].copy().reset_index(drop=True)
@@ -13725,6 +13730,12 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
                 params=params, args=args, random_state=args.random_state + 100 + i)
         pred = add_predictions(loo_eval_df, X_eval, model_hr=model_hr, model_rr=model_rr,
                                hr_slew_limit=args.slew_limit_hr_per_s, rr_slew_limit=args.slew_limit_rr_per_s)
+        oof = pred.copy()
+        oof["outer_fold"] = int(i)
+        oof["outer_holdout_group"] = str(holdout)
+        oof["model_family"] = str(getattr(args, "model_family", MODEL_FAMILY_GRADIENT_BOOSTING))
+        oof["participant_disjoint"] = bool(participant_aware)
+        outer_oof_frames.append(oof)
         fold = {
             f"holdout_{group_column}": holdout,
             "participant_disjoint": bool(participant_aware),
@@ -13746,6 +13757,31 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
         "group_column": group_column,
         "folds": folds,
     }
+    output_root = getattr(args, "out", None)
+    if outer_oof_frames and output_root:
+        oof_columns = [
+            "outer_fold", "outer_holdout_group", "model_family", "participant_disjoint",
+            "participant_id", "session_id", "trial_id", "condition_id", "distance_m",
+            "barrier_type", "timestamp_s", "ref_hr", "pred_hr_raw", "pred_hr",
+            "hr_valid_for_eval", "ref_rr", "pred_rr_raw", "pred_rr", "rr_valid_for_eval",
+        ]
+        oof = pd.concat(outer_oof_frames, ignore_index=True)
+        for column in oof_columns:
+            if column not in oof.columns:
+                oof[column] = np.nan
+        oof_path = os.path.join(str(output_root), "outer_oof_predictions.csv")
+        oof.loc[:, oof_columns].to_csv(oof_path, index=False)
+        out["outer_oof_predictions"] = {
+            "path": os.path.abspath(oof_path),
+            "rows": int(len(oof)),
+            "sha256": _file_sha256(oof_path),
+            "columns": oof_columns,
+            "prediction_contract": {
+                "raw_columns": ["pred_hr_raw", "pred_rr_raw"],
+                "postprocessed_columns": ["pred_hr", "pred_rr"],
+                "postprocessing": "causal_slew_and_range_clip",
+            },
+        }
     if folds:
         for target in ("hr", "rr"):
             rmses = []

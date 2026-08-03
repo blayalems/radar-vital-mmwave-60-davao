@@ -2,7 +2,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 import { seedFirstRunComplete } from './helpers/first-run';
 
 const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
-const PRODUCT_VERSION = '16.5.7';
+const PRODUCT_VERSION = '16.5.8';
 
 type StartPayload = {
   idempotency_key?: unknown;

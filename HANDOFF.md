@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-03 - Advance v16.5.8 statistical validation and plan audit
+
+- **Plan disposition**: Audited `C:\Users\blaya\Downloads\2026-08-01-implementation_plan.md`; PR79 and PR93–PR100 are already merged, so the next controlled patch is v16.5.8. The attached 2026-07-22 proposal remains the confirmatory authority.
+- **Statistical contract**: Added the controlled analysis plan/schema, participant-balanced RMSE/MAE, paired TOST, clustered agreement bootstrap, coverage/non-output and exact false-alarm tools, primary d100_none plus five Holm-adjusted secondary conditions, and JSON/CSV/LaTeX hashable exports.
+- **OOF evidence**: LOSO evaluation now persists `outer_oof_predictions.csv` with participant/session/trial/condition/fold identity plus raw and causal post-processed GBR/CNN predictions.
+- **QMS containment**: Added fixture-repository environment isolation for QMS base-ref resolution and recorded unresolved visual/approval/hardware-signoff gates; project-team hardware completion is not treated as production authorization.
+- **Verification**: Focused statistics tests pass 11/11; full release, browser, firmware, APK, EXE, and Pages gates remain required and are not claimed locally.
+
 ### 2026-07-29 - Deliver v16.5.7 leakage-safe dual-model readiness
 
 - **Release identity**: Advanced firmware, trainer, Angular dashboard, package, installer, help, issue, test, and generated-artifact carriers exactly one patch to `16.5.7`; the firmware source is now `radar_vital_v16_5_7.ino` while stable trainer/dashboard compatibility filenames and the frozen v15.2 / 222-column serial contract remain unchanged.

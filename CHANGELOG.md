@@ -6,6 +6,13 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.5.8 statistical validation and OOF evidence
+
+- Added a versioned statistical-analysis plan for the proposal's six confirmatory conditions, 30-second/5-second endpoint aggregation, primary 1.0 m/no-cardboard RR TOST, Holm-adjusted secondary tests, participant-balanced agreement, coverage, and exact false-alarm evidence.
+- Added `rvt-statistics` JSON/CSV/LaTeX exports with report hashes and provenance hooks, while retaining GBR as the default and CNN as an explicit host-side experimental option.
+- Persisted participant-held-out `outer_oof_predictions.csv` with raw and causal post-processed predictions so model comparisons and manuscript tables use the same evidence.
+- Contained the QMS fixture base-ref environment leak and recorded that hardware completion remains pending controlled signoff evidence.
+
 ### Added
 - Added release-aware, pseudonymous participant profiles and immutable trial assignment for confirmatory and exploratory study sessions.
 - Added explicit confirmatory validation for the proposal's 0.6/0.8/1.0 m, no-barrier/cardboard, three-trial, 150-second protocol while retaining labelled exploratory captures from 0.5 to 1.0 m.

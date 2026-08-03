@@ -129,6 +129,8 @@ def test_confirmatory_aggregation_enforces_windows_and_trials_and_holm_condition
                             "confirmatory_eligible": True,
                             "participant_disjoint": True,
                             "model_family": "gradient_boosting",
+                            "outer_fold": participant_index,
+                            "outer_holdout_group": participant,
                         }
                     )
     frame = pd.DataFrame(rows)
@@ -173,12 +175,12 @@ def test_confirmatory_aggregation_enforces_windows_and_trials_and_holm_condition
         bootstrap_reps=200,
         analysis_plan=plan,
         provenance={
-            "source_commit": "abc123",
+            "source_commit": "c" * 40,
             "model_family": "gradient_boosting",
-            "split_ledger_sha256": "def456",
-            "prediction_file_sha256": "ghi789",
+            "split_ledger_sha256": "a" * 64,
+            "prediction_file_sha256": "b" * 64,
             "product_version": "16.5.8",
-            "protocol_id": "RVT-STUDY-16.5.1",
+            "protocol_id": "RVT-STA-PLAN-16.5.8",
         },
         attempt_ledger=ledger,
         confirmatory=True,
@@ -242,6 +244,170 @@ def test_confirmatory_requires_approved_plan_and_provenance():
             estimate_column="pred_rr",
             confirmatory=True,
         )
+
+
+def _small_confirmatory_inputs():
+    plan = json.loads(json.dumps(DEFAULT_ANALYSIS_PLAN))
+    plan["status"] = "approved"
+    frame = pd.DataFrame(
+        {
+            "participant_id": ["P-001", "P-002", "P-003"],
+            "session_id": ["S-001", "S-002", "S-003"],
+            "trial_id": ["T-001", "T-002", "T-003"],
+            "condition_id": ["d100_none", "d100_none", "d100_none"],
+            "timestamp_s": [0.0, 0.0, 0.0],
+            "ref_rr": [20.0, 20.0, 20.0],
+            "pred_rr": [20.1, 20.1, 20.1],
+            "rr_valid_for_eval": [True, True, True],
+            "confirmatory_eligible": [True, True, True],
+            "participant_disjoint": [True, True, True],
+            "model_family": ["gradient_boosting", "gradient_boosting", "gradient_boosting"],
+            "outer_fold": [0, 1, 2],
+            "outer_holdout_group": ["P-001", "P-002", "P-003"],
+        }
+    )
+    ledger = pd.DataFrame(
+        [
+            {
+                "participant_id": "P-001",
+                "trial_id": "T-001",
+                "condition_id": "d100_none",
+                "attempt_type": "subject",
+                "eligible": True,
+            },
+            {
+                "participant_id": "P-002",
+                "trial_id": "T-002",
+                "condition_id": "d100_none",
+                "attempt_type": "subject",
+                "eligible": True,
+            },
+            {
+                "participant_id": "P-003",
+                "trial_id": "T-003",
+                "condition_id": "d100_none",
+                "attempt_type": "subject",
+                "eligible": True,
+            },
+        ]
+        + [
+            {
+                "participant_id": "NO-SUBJECT",
+                "trial_id": f"NS-{index + 1:03d}",
+                "condition_id": "no_subject",
+                "attempt_type": "no_subject",
+                "eligible": True,
+            }
+            for index in range(72)
+        ]
+    )
+    provenance = {
+        "source_commit": "c" * 40,
+        "model_family": "gradient_boosting",
+        "split_ledger_sha256": "a" * 64,
+        "prediction_file_sha256": "b" * 64,
+        "product_version": "16.5.8",
+        "protocol_id": "RVT-STA-PLAN-16.5.8",
+    }
+    return frame, ledger, plan, provenance
+
+
+def test_confirmatory_flags_are_strict_and_aggregation_excludes_ineligible_rows():
+    frame, ledger, plan, provenance = _small_confirmatory_inputs()
+    frame["confirmatory_eligible"] = frame["confirmatory_eligible"].astype(object)
+    frame.loc[0, "confirmatory_eligible"] = "false"
+    report = analyze_frame(
+        frame,
+        reference_column="ref_rr",
+        estimate_column="pred_rr",
+        analysis_plan=plan,
+        provenance=provenance,
+        attempt_ledger=ledger,
+        confirmatory=True,
+    )
+    assert report["exclusions"]["ineligible"] == 1
+    assert report["denominators"]["n_participants"] == 2
+
+    poisoned = pd.concat(
+        [
+            frame.assign(
+                confirmatory_eligible=True,
+                rr_valid_for_eval=True,
+                participant_disjoint=True,
+            ),
+            frame.assign(
+                participant_id="P-POISON",
+                confirmatory_eligible="false",
+                rr_valid_for_eval=True,
+                participant_disjoint=True,
+            ),
+        ],
+        ignore_index=True,
+    )
+    summary, _ = aggregate_confirmatory_frame(
+        poisoned,
+        reference_column="ref_rr",
+        estimate_column="pred_rr",
+        participant_column="participant_id",
+        require_eligibility=True,
+    )
+    assert "P-POISON" not in set(summary.get("participant_id", []))
+
+
+def test_confirmatory_provenance_rejects_relabelled_model_family():
+    frame, ledger, plan, provenance = _small_confirmatory_inputs()
+    provenance["model_family"] = "cnn_1d"
+    with pytest.raises(StatisticalInputError, match="model_family"):
+        analyze_frame(
+            frame,
+            reference_column="ref_rr",
+            estimate_column="pred_rr",
+            analysis_plan=plan,
+            provenance=provenance,
+            attempt_ledger=ledger,
+            confirmatory=True,
+        )
+
+
+def test_no_subject_rows_are_retained_for_false_alarm_analysis():
+    frame = pd.DataFrame(
+        {
+            "participant_id": ["P-001", "NO-SUBJECT"],
+            "trial_id": ["T-001", "NS-001"],
+            "condition_id": ["d100_none", "no_subject"],
+            "ref_rr": [20.0, np.nan],
+            "pred_rr": [20.1, np.nan],
+            "false_alarm": [False, True],
+        }
+    )
+    ledger = pd.DataFrame(
+        [
+            {
+                "participant_id": "P-001",
+                "trial_id": "T-001",
+                "condition_id": "d100_none",
+                "attempt_type": "subject",
+                "eligible": True,
+            },
+            {
+                "participant_id": "NO-SUBJECT",
+                "trial_id": "NS-001",
+                "condition_id": "no_subject",
+                "attempt_type": "no_subject",
+                "eligible": True,
+            },
+        ]
+    )
+    report = coverage_report(
+        frame,
+        reference_column="ref_rr",
+        estimate_column="pred_rr",
+        false_alarm_column="false_alarm",
+        attempt_ledger=ledger,
+        minimum_valid_windows_per_trial=15,
+    )
+    assert report["no_subject_denominator"] == 1
+    assert report["no_subject_false_alarms"] == 1
 
 
 def test_condition_tost_primary_is_inconclusive_below_predeclared_n():

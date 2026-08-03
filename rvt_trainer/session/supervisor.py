@@ -28,6 +28,11 @@ from rvt_trainer.session.study_contract import (
     release_provenance,
     validate_study_assignment,
 )
+from rvt_trainer.session.protocol_ledger import (
+    allocate_attempt_id,
+    append_session_attempt_event,
+    initialize_session_attempt,
+)
 from rvt_trainer.session.start_idempotency import (
     StartIdempotencyError,
     StartIdempotencyStore,
@@ -371,12 +376,14 @@ class SessionSupervisor:
             )
         else:
             study_assignment = {
-                "schema_version": "rvt-study-session-v16.5.1",
+                "schema_version": "rvt-study-session-v16.5.9",
                 "study_classification": "operational",
                 "provenance_state": "legacy_unassigned",
                 "confirmatory_eligible": False,
             }
         study_assignment = dict(study_assignment)
+        attempt_id = str(kwargs.get("attempt_id") or allocate_attempt_id())
+        attempt_type = str(kwargs.get("attempt_type") or "subject")
         client_compatibility = kwargs.get("client_compatibility")
         if not isinstance(client_compatibility, dict):
             client_compatibility = {
@@ -401,6 +408,9 @@ class SessionSupervisor:
             "generated_at": _iso_now(),
             "status": "starting",
             "terminal": False,
+            "attempt_id": attempt_id,
+            "attempt_type": attempt_type,
+            "attempt_ledger_schema_version": "rvt-protocol-attempt-ledger-v16.5.9",
             "study_session_schema_version": study_assignment.pop("schema_version"),
             **study_assignment,
             **release_provenance(
@@ -435,10 +445,30 @@ class SessionSupervisor:
                 "adult_default",
             ),
         }
+        capture_provenance = {
+            "captured_at": initial_manifest["generated_at"],
+            "source": "session_start",
+            "product_version": initial_manifest.get("product_version"),
+            "trainer_version": initial_manifest.get("trainer_version"),
+            "dashboard_version": initial_manifest.get("dashboard_version"),
+            "firmware_expected": initial_manifest.get("firmware_expected"),
+            "firmware_observed": initial_manifest.get("firmware_observed"),
+            "serial_protocol": initial_manifest.get("serial_protocol"),
+            "serial_width_expected": initial_manifest.get("serial_width_expected"),
+            "source_commit": initial_manifest.get("source_commit"),
+            "model_family": initial_manifest.get("model_family"),
+            "model_bundle": initial_manifest.get("model_bundle"),
+            "participant_id": initial_manifest.get("participant_id"),
+            "logical_trial_id": initial_manifest.get("logical_trial_id"),
+            "attempt_id": attempt_id,
+        }
+        initial_manifest["capture_provenance"] = capture_provenance
+        initial_manifest["analysis_runs"] = []
         atomic_write_json(
             initial_manifest,
             str(Path(self.session_dir) / "session_manifest.json"),
         )
+        initialize_session_attempt(self.session_dir, initial_manifest)
         return initial_manifest
 
     def _record_start_failure(
@@ -473,6 +503,15 @@ class SessionSupervisor:
                 "failure": failure,
             }
         )
+        try:
+            append_session_attempt_event(
+                self.session_dir,
+                "failed_start",
+                reason=reason,
+                details={"stage": stage, "code": code},
+            )
+        except ValueError:
+            pass
         atomic_write_json(manifest, str(path))
         return manifest
 
@@ -775,6 +814,10 @@ class SessionSupervisor:
             if isinstance(live_payload, dict) and not live_payload.get(
                 "_supervisor_placeholder"
             ):
+                try:
+                    append_session_attempt_event(self.session_dir, "collecting")
+                except ValueError:
+                    pass
                 return {
                     "session_id": Path(self.session_dir).name,
                     "session_dir": self.session_dir,
@@ -869,6 +912,15 @@ class SessionSupervisor:
                     f"SESSION_STOP_FAILED: child process {proc.pid} could not be "
                     "reaped; session markers were preserved"
                 )
+
+            try:
+                append_session_attempt_event(
+                    stopped_session_dir,
+                    "stopped",
+                    reason=reason,
+                )
+            except ValueError:
+                pass
 
             current_clean = self._clear_current(
                 pid=proc.pid,

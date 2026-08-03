@@ -144,7 +144,20 @@ The session manifest must contain:
 `trial_number`, `planned_duration_s`, `product_version`, `trainer_version`,
 `dashboard_version`, `firmware_expected`, `firmware_observed`,
 `serial_protocol_version`, `serial_column_count`, `source_commit`,
-`model_family`, and `model_bundle_id`.
+`model_family`, `model_bundle_id`, `logical_trial_id`, `attempt_id`, and
+`attempt_type`.
+
+The v16.5.9 capture rule is that `capture_provenance` is written once at
+allocation and never rewritten by analysis. Re-analysis appends an
+`analysis_runs[]` record containing the current source commit, feature-schema
+hash, and input-file hashes. Each capture also owns an append-only
+`protocol_attempt.json` state ledger. The ledger must retain `allocated`,
+`collecting`, and one terminal state (`completed`, `stopped`, `failed_start`,
+`aborted`, `invalid`, or `no_output`). A standalone `no_subject` attempt is
+recorded in `protocol_attempts.json`; it is never inferred from missing OOF
+rows. The operator-protected completion matrix uses these ledgers to report
+all 18 participant/configuration repetitions and the predeclared 72 no-subject
+attempt denominator.
 
 The software accepts a validated distance domain of 0.5–1.0 m so bench and
 future protocol work can be represented without free-text labels. The attached

@@ -319,11 +319,11 @@
       "title": "Statistical Analysis Plan",
       "path": "quality/statistical-analysis-plan.json",
       "record_type": "plan",
-      "revision": "R02",
+      "revision": "R01",
       "status": "draft",
       "owner_role": "research_lead",
       "approver_roles": ["research_lead", "quality_manager"],
-      "effective_product_version": "16.5.9",
+      "effective_product_version": "16.5.8",
       "supersedes": null,
       "retention": {
         "class": "permanent",

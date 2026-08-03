@@ -10,7 +10,7 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 - Advance the coordinated firmware, trainer, dashboard, APK, and EXE release
   identity from v16.5.8 to v16.5.9.
-- Begin the Claude Opus implementation-plan follow-up with immutable capture
+- Begin the implementation-plan follow-up with immutable capture
   provenance, canonical protocol attempts, and participant completion evidence.
 - Keep GBR as the default model family and 1-D CNN explicitly experimental;
   the confirmatory analysis plan remains draft until research/QMS approval.

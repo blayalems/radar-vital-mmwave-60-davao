@@ -128,6 +128,14 @@ from rvt_trainer.session.study_contract import (
     update_participant_status as _update_participant_status,
     validate_study_assignment as _validate_study_assignment,
 )
+from rvt_trainer.session.protocol_ledger import (
+    ATTEMPT_LEDGER_SCHEMA_VERSION,
+    allocate_attempt_id as _allocate_attempt_id,
+    append_session_attempt_event as _append_session_attempt_event,
+    completion_matrix as _completion_matrix,
+    initialize_session_attempt as _initialize_session_attempt,
+    register_protocol_attempt as _register_protocol_attempt,
+)
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -158,7 +166,7 @@ SESSION_NOTES_SCHEMA_VERSION = "rvt-session-notes-v12.0"
 SESSION_SIGNOFF_SCHEMA_VERSION = "rvt-session-signoff-v12.0"
 TRAINING_PROGRESS_SCHEMA_VERSION = "rvt-training-progress-v12.0"
 LIVE_EVENT_SCHEMA_VERSION = "rvt-live-events-v12.0"
-SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v16.5.9"
+SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v1"
 SESSION_MANIFEST_VERSION = "v16.5.9-session-manifest-2026-08-03"
 CHART_ANNOTATIONS_SCHEMA_VERSION = "rvt-chart-annotations-v12.0"
 FEATURE_FLAGS = {
@@ -1630,12 +1638,61 @@ def _write_session_manifest(
     existing_manifest = _read_json_if_exists(
         os.path.join(session_root, "session_manifest.json")
     ) or {}
+    current_identity = _manifest_identity(fw_truthfulness)
+    # Capture identity is frozen at session allocation. Re-analysis may use a
+    # newer trainer, but it must never relabel the original capture as the
+    # newer release. Legacy manifests are migrated once from their existing
+    # top-level identity and then treated the same way.
+    capture_provenance = existing_manifest.get("capture_provenance")
+    if not isinstance(capture_provenance, dict):
+        capture_provenance = {
+            "captured_at": existing_manifest.get("generated_at") or _report_stamp(),
+            "source": "legacy_manifest_migration",
+            **{
+                key: existing_manifest.get(key, value)
+                for key, value in current_identity.items()
+            },
+            "participant_id": existing_manifest.get("participant_id"),
+            "logical_trial_id": existing_manifest.get("logical_trial_id"),
+            "attempt_id": existing_manifest.get("attempt_id"),
+        }
+    capture_identity = {
+        key: capture_provenance.get(key, value)
+        for key, value in current_identity.items()
+    }
+    analysis_runs = existing_manifest.get("analysis_runs")
+    if not isinstance(analysis_runs, list):
+        analysis_runs = []
+    analysis_run = {
+        "run_id": f"AR-{secrets.token_hex(10)}",
+        "started_at": _report_stamp(),
+        "completed_at": _report_stamp(),
+        "source_commit": current_identity.get("source_commit"),
+        "trainer_version": current_identity.get("trainer_version"),
+        "feature_schema_hash": current_identity.get("feature_schema_hash"),
+        "analysis_dir": analysis_dir,
+        "input_file_hashes_sha256": {
+            key: value
+            for key, value in file_hashes.items()
+            if key in {"radar_csv", "ref_csv"}
+        },
+    }
+    analysis_runs = [*analysis_runs, analysis_run]
+    radar_available = bool(radar_paths)
+    manifest_status = str(existing_manifest.get("status") or "")
+    if manifest_status not in {"failed_start", "aborted", "invalid"}:
+        manifest_status = "completed" if radar_available else "no_output"
     manifest = {
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
         "generated_at": _report_stamp(),
         "session_root": session_root,
-        **_manifest_identity(fw_truthfulness),
+        **capture_identity,
+        "capture_provenance": capture_provenance,
+        "analysis_runs": analysis_runs,
+        "status": manifest_status,
+        "terminal": True,
+        "ended_at": existing_manifest.get("ended_at") or _report_stamp(),
         "auto_analysed": os.path.exists(os.path.join(analysis_dir, "analyse_summary.json")),
         "tags": list(existing_manifest.get("tags", [])),
         "notes_count": len((_read_json_if_exists(os.path.join(session_root, "session_notes.json")) or {}).get("notes", [])),
@@ -1656,6 +1713,10 @@ def _write_session_manifest(
         "study_classification",
         "provenance_state",
         "confirmatory_eligible",
+        "logical_trial_id",
+        "attempt_id",
+        "attempt_type",
+        "attempt_ledger_schema_version",
         "model_family",
         "model_bundle",
         "client_compatibility",
@@ -1665,6 +1726,24 @@ def _write_session_manifest(
     ):
         if key in existing_manifest:
             manifest[key] = existing_manifest[key]
+    if "capture_provenance" not in existing_manifest:
+        manifest["capture_provenance"] = capture_provenance
+    if "analysis_runs" not in existing_manifest:
+        manifest["analysis_runs"] = analysis_runs
+    try:
+        _initialize_session_attempt(session_root, manifest)
+        final_status = "completed" if radar_available else "no_output"
+        _append_session_attempt_event(
+            session_root,
+            final_status,
+            reason="analysis finalized" if manifest.get("auto_analysed") else "capture finalized",
+            details={"radar_paths": len(radar_paths), "ref_paths": len(ref_paths)},
+        )
+    except ValueError:
+        # Legacy or externally-created directories may not have a protocol
+        # ledger. Their session manifest remains readable and explicitly
+        # carries the migration provenance above.
+        pass
     save_json(manifest, os.path.join(session_root, "session_manifest.json"))
     return manifest
 
@@ -7065,11 +7144,25 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         if route_name == "participants_list":
             registry = _load_participant_registry(self.server.sessions_root)
+            matrix = _completion_matrix(self.server.sessions_root)
+            matrix_rows = matrix.get("participants", {}) if isinstance(matrix, dict) else {}
+            participants = []
+            for profile in registry["profiles"].values():
+                row = matrix_rows.get(profile.get("participant_id"), {}) if isinstance(matrix_rows, dict) else {}
+                enriched = dict(profile)
+                enriched["completed_trials"] = int(row.get("completed_trials", 0)) if isinstance(row, dict) else 0
+                enriched["expected_trials"] = int(row.get("expected_trials", 18)) if isinstance(row, dict) else 18
+                enriched["protocol_complete"] = bool(row.get("protocol_complete", False)) if isinstance(row, dict) else False
+                participants.append(enriched)
             self._send_json(200, {
                 "schema_version": registry["schema_version"],
-                "participants": list(registry["profiles"].values()),
-                "profiles": list(registry["profiles"].values()),
+                "participants": participants,
+                "profiles": participants,
+                "completion_matrix": matrix,
             })
+            return
+        if route_name == "study_completion_matrix":
+            self._send_json(200, _completion_matrix(self.server.sessions_root))
             return
         if route_name == "operator_profiles_get":
             db = _load_operator_profiles(self.server.sessions_root)
@@ -7467,6 +7560,23 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 status = 409 if exc.code == "PARTICIPANT_EXISTS" else 400
                 self._send_json(status, _api_error(exc.code, str(exc)))
             return
+        if route_name == "study_attempt_create":
+            payload = dict(body)
+            payload.setdefault("product_version", VERSION)
+            payload.setdefault("protocol_id", STUDY_SESSION_SCHEMA_VERSION)
+            try:
+                record = _register_protocol_attempt(
+                    self.server.sessions_root,
+                    payload,
+                )
+                self._send_json(201, {
+                    "ok": True,
+                    "schema_version": record.get("schema_version"),
+                    "attempt": record,
+                })
+            except (TypeError, ValueError) as exc:
+                self._send_json(400, _api_error("INVALID_PROTOCOL_ATTEMPT", str(exc)))
+            return
         if route_name == "auth_login":
             status, payload = _login_operator(self.server, str(body.get("operator_id") or ""), str(body.get("pin") or ""))
             self._send_json(status, payload)
@@ -7798,6 +7908,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     self.server.sessions_root,
                     participant_id,
                     body.get("status"),
+                    actor=body.get("actor"),
+                    reason=body.get("reason"),
+                    consent_revision=body.get("consent_revision"),
                 )
                 self._send_json(200, {
                     "ok": True,
@@ -9341,6 +9454,8 @@ def cmd_session(args):
         study_payload,
         sessions_root=lock_root,
     )
+    attempt_id = str(getattr(args, "attempt_id", None) or _allocate_attempt_id())
+    attempt_type = str(getattr(args, "attempt_type", None) or "subject")
     _check_stale_session_lock(lock_root)
     if _session_is_active(lock_root):
         raise RuntimeError(f"SESSION_IN_PROGRESS: active session lock exists at {_lock_path(lock_root)}")
@@ -9353,6 +9468,9 @@ def cmd_session(args):
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
         "generated_at": _report_stamp(),
+        "attempt_id": attempt_id,
+        "attempt_type": attempt_type,
+        "attempt_ledger_schema_version": ATTEMPT_LEDGER_SCHEMA_VERSION,
         "study_session_schema_version": study_assignment.pop("schema_version"),
         **study_assignment,
         **_release_provenance(
@@ -9369,6 +9487,24 @@ def cmd_session(args):
         "notes_count": 0,
         "subject_profile_id": getattr(args, "subject_profile_id", "adult_default"),
     }
+    initial_manifest["capture_provenance"] = {
+        "captured_at": initial_manifest["generated_at"],
+        "source": "session_start",
+        "product_version": initial_manifest.get("product_version"),
+        "trainer_version": initial_manifest.get("trainer_version"),
+        "dashboard_version": initial_manifest.get("dashboard_version"),
+        "firmware_expected": initial_manifest.get("firmware_expected"),
+        "firmware_observed": initial_manifest.get("firmware_observed"),
+        "serial_protocol": initial_manifest.get("serial_protocol"),
+        "serial_width_expected": initial_manifest.get("serial_width_expected"),
+        "source_commit": initial_manifest.get("source_commit"),
+        "model_family": initial_manifest.get("model_family"),
+        "model_bundle": initial_manifest.get("model_bundle"),
+        "participant_id": initial_manifest.get("participant_id"),
+        "logical_trial_id": initial_manifest.get("logical_trial_id"),
+        "attempt_id": attempt_id,
+    }
+    initial_manifest["analysis_runs"] = []
     existing_manifest = _read_json_if_exists(
         os.path.join(session_dir, "session_manifest.json")
     ) or {}
@@ -9378,6 +9514,7 @@ def cmd_session(args):
     )
     try:
         save_json(initial_manifest, os.path.join(session_dir, "session_manifest.json"))
+        _initialize_session_attempt(session_dir, initial_manifest)
     except Exception:
         if lock_acquired:
             _release_session_lock(lock_root)

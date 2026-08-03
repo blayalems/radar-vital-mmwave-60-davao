@@ -11,9 +11,10 @@ from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
 
 from rvt_trainer.api.common import atomic_write_json, read_json_if_exists
+from rvt_trainer.session.protocol_ledger import canonical_logical_trial_id
 
-PARTICIPANT_REGISTRY_SCHEMA_VERSION = "rvt-participant-profiles-v16.5.1"
-STUDY_SESSION_SCHEMA_VERSION = "rvt-study-session-v16.5.1"
+PARTICIPANT_REGISTRY_SCHEMA_VERSION = "rvt-participant-profiles-v16.5.9"
+STUDY_SESSION_SCHEMA_VERSION = "rvt-study-session-v16.5.9"
 PARTICIPANT_ID_PATTERN = re.compile(r"^P-[0-9]{3}$")
 PARTICIPANT_STATUSES = frozenset({"active", "completed", "withdrawn"})
 STUDY_CLASSIFICATIONS = frozenset({"confirmatory", "exploratory"})
@@ -29,6 +30,9 @@ IMMUTABLE_STUDY_FIELDS = (
     "trial_number",
     "planned_duration_s",
     "study_classification",
+    "logical_trial_id",
+    "attempt_id",
+    "attempt_type",
 )
 _FORBIDDEN_PROFILE_FIELDS = frozenset(
     {
@@ -56,6 +60,13 @@ class StudyContractError(ValueError):
 
 def _iso_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _audit_text(value: object, limit: int = 96) -> Optional[str]:
+    if value in (None, ""):
+        return None
+    text = str(value).replace("\r", " ").replace("\n", " ").strip()
+    return text[:limit] or None
 
 
 def participant_registry_path(sessions_root: str) -> Path:
@@ -139,6 +150,16 @@ def create_participant_profile(
             "status": status,
             "created_at": now,
             "updated_at": now,
+            "status_history": [
+                {
+                    "from_status": None,
+                    "to_status": status,
+                    "changed_at": now,
+                    "actor": _audit_text(payload.get("actor"), 80),
+                    "reason": _audit_text(payload.get("reason"), 240),
+                    "consent_revision": _audit_text(payload.get("consent_revision"), 64),
+                }
+            ],
         }
         profiles[participant_id] = profile
         registry["profiles"] = profiles
@@ -150,6 +171,10 @@ def update_participant_status(
     sessions_root: str,
     participant_id: str,
     status: object,
+    *,
+    actor: object = None,
+    reason: object = None,
+    consent_revision: object = None,
 ) -> Dict[str, object]:
     participant_id = str(participant_id).strip().upper()
     next_status = str(status or "").strip().lower()
@@ -168,8 +193,24 @@ def update_participant_status(
                 f"participant profile {participant_id} was not found",
             )
         profile = dict(existing)
+        old_status = profile.get("status")
         profile["status"] = next_status
-        profile["updated_at"] = _iso_now()
+        now = _iso_now()
+        profile["updated_at"] = now
+        history = profile.get("status_history")
+        if not isinstance(history, list):
+            history = []
+        history.append(
+            {
+                "from_status": old_status,
+                "to_status": next_status,
+                "changed_at": now,
+                "actor": _audit_text(actor, 80),
+                "reason": _audit_text(reason, 240),
+                "consent_revision": _audit_text(consent_revision, 64),
+            }
+        )
+        profile["status_history"] = history
         profiles[participant_id] = profile
         registry["profiles"] = profiles
         atomic_write_json(registry, str(participant_registry_path(sessions_root)))
@@ -309,6 +350,11 @@ def validate_study_assignment(
                 "confirmatory planned_duration_s must be exactly 150 seconds",
             )
 
+    logical_trial_id = canonical_logical_trial_id(
+        participant_id,
+        condition_id,
+        trial_number,
+    )
     return {
         "schema_version": STUDY_SESSION_SCHEMA_VERSION,
         "participant_id": participant_id,
@@ -317,6 +363,8 @@ def validate_study_assignment(
         "distance_m": distance_m,
         "barrier_type": barrier_type,
         "trial_number": trial_number,
+        "logical_trial_id": logical_trial_id,
+        "attempt_type": "subject",
         "planned_duration_s": planned_duration_s,
         "study_classification": requested_classification,
         "provenance_state": "assigned",
@@ -345,6 +393,9 @@ def merge_immutable_study_assignment(
         "study_session_schema_version",
         "provenance_state",
         "confirmatory_eligible",
+        "logical_trial_id",
+        "attempt_id",
+        "attempt_type",
     ):
         if existing.get(field) not in (None, ""):
             merged[field] = existing[field]
@@ -462,6 +513,7 @@ __all__ = [
     "STUDY_SESSION_SCHEMA_VERSION",
     "StudyContractError",
     "canonical_condition_id",
+    "canonical_logical_trial_id",
     "create_participant_profile",
     "load_participant_registry",
     "merge_immutable_study_assignment",

@@ -1,8 +1,8 @@
 {
   "$schema": "./schemas/statistical-analysis-plan.schema.json",
   "schema_version": "rvt-analysis-plan-v1",
-  "plan_id": "RVT-STA-PLAN-16.5.9",
-  "effective_product_version": "16.5.9",
+  "plan_id": "RVT-STA-PLAN-16.5.8",
+  "effective_product_version": "16.5.8",
   "status": "draft",
   "owner_role": "research_lead",
   "approval_required": ["research_lead", "quality_manager"],

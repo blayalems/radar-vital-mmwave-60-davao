@@ -34,8 +34,8 @@ async function applyPolishRoutes(page: Page, options: { offline?: boolean; activ
           ok: true,
           mode: 'live',
           active_session: options.activeLive ? { session_id: 'session-offline-recovery' } : null,
-          trainer_version: '16.5.8',
-          dashboard_version: '16.5.8'
+          trainer_version: '16.5.9',
+          dashboard_version: '16.5.9'
         })
       });
       return;

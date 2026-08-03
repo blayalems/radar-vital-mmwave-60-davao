@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-03 - Close confirmatory-analysis and QMS review findings
+
+- **Statistics**: Strictly parse eligibility/attempt flags, aggregate only eligible confirmatory rows, retain explicit no-subject captures for false-alarm denominators, and verify model/fold/hash/protocol provenance against the predeclared plan.
+- **Controlled identity**: Keep the session-manifest schema stable (`rvt-session-manifest-v1`) and preserve the predeclared statistical plan `RVT-STA-PLAN-16.5.8`; the shipped product carriers remain v16.5.9.
+- **QMS**: Align requirements/document-register revisions, add the missing policy revision header, and remove agent/model branding from the changelog. Focused and full Python tests pass (500 passed, 3 skipped); compileall, version-contract, and QMS gates pass. Frontend/package CI remains pending.
+
 ### 2026-08-03 - Rename firmware carrier for v16.5.9
 
 - **Release identity**: Renamed the coordinated firmware source to `radar_vital_v16_5_9.ino`; the wire protocol remains frozen.
@@ -15,6 +21,14 @@
 - **Release identity**: Promoted firmware, trainer, Angular, generated dashboard, Capacitor, and Tauri carriers from v16.5.8 to v16.5.9. The frozen v15.2 222-column serial contract is unchanged.
 - **Implementation scope**: v16.5.9 is reserved for immutable capture/build provenance, canonical logical trials, unique protocol attempts, terminal-state evidence, completion denominators, and participant withdrawal history. Statistical plan approval and physical authorization remain explicit gates.
 - **Local documents**: The updated manuscript, user manual, and GBR-versus-experimental-1-D-CNN tradeoff PDF remain outside this repository as controlled local artifacts.
+
+### 2026-08-03 - Add append-only protocol-attempt evidence in v16.5.9
+
+- **Capture identity**: Session allocation now persists an immutable capture-provenance block; re-analysis appends a separate analysis run with current code and input hashes instead of relabelling the original release.
+- **Protocol ledger**: Confirmatory and exploratory sessions receive a stable logical trial key and opaque attempt ID. State transitions are append-only and terminal statuses retain failed, stopped, invalid, and no-output attempts.
+- **Study denominator**: Added an operator-protected completion-matrix endpoint and explicit standalone no-subject attempt records so coverage denominators can include attempts absent from OOF predictions.
+- **Participant governance**: Participant status changes now retain actor, reason, consent revision, timestamp, withdrawal, and reversal history.
+- **Verification**: New protocol-ledger tests cover immutability, terminal transitions, no-subject counting, completion metadata, and status history; full cross-stack gates remain pending.
 
 ### 2026-08-03 - Fail closed confirmatory statistics in v16.5.8
 

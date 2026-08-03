@@ -3,7 +3,7 @@
 | Control | Value |
 |---|---|
 | Document ID | `RVT-QMS-POL-001` |
-| Revision | `R03` |
+| Revision | `R04` |
 | Status | Active when the approving pull request is merged |
 | Owner role | Quality manager |
 | Approver roles | Quality manager and technical lead |

@@ -45,6 +45,9 @@ export interface ParticipantProfile {
   display_code: string;
   status: 'active' | 'completed' | 'withdrawn' | string;
   completed_trials?: number;
+  expected_trials?: number;
+  protocol_complete?: boolean;
+  status_history?: Array<Record<string, unknown>>;
   created_at?: string;
 }
 

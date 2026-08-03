@@ -2,7 +2,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 import { seedFirstRunComplete } from './helpers/first-run';
 
 const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
-const PRODUCT_VERSION = '16.5.8';
+const PRODUCT_VERSION = '16.5.9';
 
 type StartPayload = {
   idempotency_key?: unknown;
@@ -86,7 +86,7 @@ async function mockControlApi(
         serial_width_expected: 222,
         schema_versions: {
           control_api: 'rvt-control-api-v12.0',
-          study_session: 'rvt-study-session-v16.5.1'
+          study_session: 'rvt-study-session-v16.5.9'
         },
         active_session: null
       });
@@ -102,7 +102,7 @@ async function mockControlApi(
         serial_width_expected: 222,
         schema_versions: {
           control_api: 'rvt-control-api-v12.0',
-          study_session: 'rvt-study-session-v16.5.1'
+          study_session: 'rvt-study-session-v16.5.9'
         }
       });
       return;
@@ -143,7 +143,7 @@ async function mockControlApi(
     }
     if (path === '/api/participants') {
       await json(route, {
-        schema_version: 'rvt-participant-profiles-v16.5.1',
+        schema_version: 'rvt-participant-profiles-v16.5.9',
         participants: [{
           participant_id: 'P-001',
           display_code: 'P-001',

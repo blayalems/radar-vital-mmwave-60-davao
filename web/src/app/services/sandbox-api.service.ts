@@ -3,6 +3,7 @@ import {
   LoginResponse,
   OperatorProfile,
   OperatorProfilesResponse,
+  ParticipantProfile,
   SessionRecord,
   SessionSignoff
 } from '../models/rvt.models';
@@ -18,6 +19,7 @@ interface SandboxOperatorProfile extends OperatorProfile {
 
 const SANDBOX_OPERATOR_SESSIONS_KEY = 'demo:rvt-operator-sessions';
 const SANDBOX_OPERATOR_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const SANDBOX_PARTICIPANTS_KEY = 'demo:rvt-participants-v16.5.1';
 
 @Injectable({
   providedIn: 'root'
@@ -59,6 +61,13 @@ export class SandboxApiService {
       if (created.error) throw new Error(`${created.error.message} (${created.error.code})`);
       return created;
     }
+    if (url.pathname === '/api/participants' && method === 'GET') {
+      const participants = this.readParticipants();
+      return { ok: true, participants, items: participants };
+    }
+    if (url.pathname === '/api/participants' && method === 'POST') {
+      return { ok: true, participant: this.createParticipant() };
+    }
     if (url.pathname === '/api/sessions') {
       const sessions = this.ensureSessions();
       return { ok: true, sessions, items: sessions };
@@ -76,7 +85,26 @@ export class SandboxApiService {
       const id = this.sessionStore.currentSessionId() || `sandbox_${Date.now()}`;
       this.sessionStore.currentSessionId.set(null);
       const setup = this.sessionStore.setup();
-      const session: SessionRecord = { session_id: id, started_at: new Date(Date.now() - 120000).toISOString(), duration_s: 120, subject: setup.subject_label || 'sandbox-subject', subject_label: setup.subject_label || 'sandbox-subject', operator: setup.operator_label || 'Demo operator', verdict: 'demo', summary: 'Sandbox session stopped locally; trainer was unavailable.', sandbox: true };
+      const session: SessionRecord = {
+        session_id: id,
+        started_at: new Date(Date.now() - setup.duration_s * 1000).toISOString(),
+        duration_s: setup.duration_s,
+        subject: setup.subject_label || setup.participant_id || 'P-DEMO',
+        subject_label: setup.subject_label || setup.participant_id || 'P-DEMO',
+        participant_id: setup.participant_id || 'P-DEMO',
+        trial_id: `${setup.participant_id || 'P-DEMO'}-${setup.condition_id}-t${setup.trial_number}`,
+        study_mode: setup.study_mode,
+        study_classification: setup.study_mode,
+        condition_id: setup.condition_id,
+        distance_m: setup.distance_m,
+        barrier_type: setup.barrier_type,
+        trial_number: setup.trial_number,
+        planned_duration_s: setup.duration_s,
+        operator: setup.operator_label || 'Demo operator',
+        verdict: 'demo',
+        summary: 'Sandbox session stopped locally; trainer was unavailable.',
+        sandbox: true
+      };
       this.sessionStore.sessionItems.update(items => [session, ...items.filter(item => item.session_id !== id)]);
       return { ok: true, session_id: id, session, sandbox: true };
     }
@@ -149,6 +177,45 @@ export class SandboxApiService {
 
   private readSessions(): SessionRecord[] {
     return this.sessionStore.sessionItems().filter(item => item.sandbox || item.session_id.startsWith('sandbox_'));
+  }
+
+  private readParticipants(): ParticipantProfile[] {
+    const demo: ParticipantProfile = {
+      participant_id: 'P-DEMO',
+      display_code: 'P-DEMO',
+      status: 'active',
+      completed_trials: 0
+    };
+    try {
+      const stored = JSON.parse(localStorage.getItem(SANDBOX_PARTICIPANTS_KEY) || '[]');
+      if (!Array.isArray(stored)) return [demo];
+      const valid = stored.filter((item): item is ParticipantProfile =>
+        Boolean(item && typeof item === 'object' && item.participant_id && item.display_code)
+      );
+      return [demo, ...valid.filter(item => item.participant_id !== demo.participant_id)].slice(0, 41);
+    } catch {
+      return [demo];
+    }
+  }
+
+  private createParticipant(): ParticipantProfile {
+    const participants = this.readParticipants();
+    if (participants.filter(item => item.participant_id !== 'P-DEMO').length >= 40) {
+      throw new Error('The 40-participant registry is full.');
+    }
+    const used = new Set(participants.map(item => item.participant_id));
+    let sequence = 1;
+    while (used.has(`P-${String(sequence).padStart(3, '0')}`)) sequence++;
+    const participant: ParticipantProfile = {
+      participant_id: `P-${String(sequence).padStart(3, '0')}`,
+      display_code: `P-${String(sequence).padStart(3, '0')}`,
+      status: 'active',
+      completed_trials: 0,
+      created_at: new Date().toISOString()
+    };
+    const stored = [...participants.filter(item => item.participant_id !== 'P-DEMO'), participant];
+    localStorage.setItem(SANDBOX_PARTICIPANTS_KEY, JSON.stringify(stored));
+    return participant;
   }
 
   private readOperatorProfiles(): SandboxOperatorProfile[] {

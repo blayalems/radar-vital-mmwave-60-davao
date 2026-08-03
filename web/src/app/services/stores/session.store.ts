@@ -24,6 +24,12 @@ export class SessionStore {
     operator_label: '',
     station_label: 'Lab · Station 3',
     subject_profile_id: 'adult_default',
+    participant_id: '',
+    study_mode: 'confirmatory',
+    condition_id: 'd060_none',
+    distance_m: 0.6,
+    barrier_type: 'none',
+    trial_number: 1,
     skip_countdown: false
   });
 

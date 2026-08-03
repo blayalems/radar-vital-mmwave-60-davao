@@ -24,6 +24,10 @@ from rvt_trainer.api.common import (
     read_json_if_exists,
     wait_for_process_exit,
 )
+from rvt_trainer.session.study_contract import (
+    release_provenance,
+    validate_study_assignment,
+)
 
 DEFAULT_RADAR_PORT = "COM10"
 DEFAULT_BLE_ADDRESS = "10:22:33:9E:8F:63"
@@ -373,12 +377,55 @@ class SessionSupervisor:
         )
         self.session_dir = str(Path(legacy._next_session_dir(self.sessions_root)))
         Path(self.session_dir).mkdir(parents=True, exist_ok=True)
+        study_payload = dict(kwargs)
+        study_payload["duration_s"] = duration_s
+        if str(study_payload.get("study_classification") or "") in {
+            "confirmatory",
+            "exploratory",
+        }:
+            study_assignment = validate_study_assignment(
+                study_payload,
+                sessions_root=self.sessions_root,
+            )
+        else:
+            study_assignment = {
+                "schema_version": "rvt-study-session-v16.5.1",
+                "study_classification": "operational",
+                "provenance_state": "legacy_unassigned",
+                "confirmatory_eligible": False,
+            }
+        initial_manifest = {
+            "schema_version": legacy.SESSION_MANIFEST_SCHEMA_VERSION,
+            "manifest_version": legacy.SESSION_MANIFEST_VERSION,
+            "generated_at": _iso_now(),
+            "study_session_schema_version": study_assignment.pop("schema_version"),
+            **study_assignment,
+            **release_provenance(
+                product_version=legacy.VERSION,
+                trainer_version=legacy.VERSION,
+                dashboard_version=legacy.DASHBOARD_VERSION,
+                firmware_expected=legacy.FIRMWARE_VERSION_EXPECTED,
+                serial_width_expected=legacy.EXPECTED_RADAR_LOG_COLUMN_COUNT,
+                model_family=kwargs.get("model_family"),
+                model_bundle=kwargs.get("model_bundle"),
+            ),
+            "auto_analysed": False,
+            "tags": [],
+            "notes_count": 0,
+            "subject_profile_id": kwargs.get("subject_profile_id", "adult_default"),
+        }
+        atomic_write_json(
+            initial_manifest,
+            str(Path(self.session_dir) / "session_manifest.json"),
+        )
         argv = [
             sys.executable,
             str(legacy._TRAINER_ENTRYPOINT),
             "session",
             "--session-dir",
             self.session_dir,
+            "--sessions-root",
+            self.sessions_root,
             "--port",
             radar_port,
             "--address",
@@ -401,6 +448,22 @@ class SessionSupervisor:
                 "--subject-profile-id",
                 str(kwargs.get("subject_profile_id")),
             ]
+        study_flag_names = {
+            "participant_id": "--participant-id",
+            "trial_id": "--trial-id",
+            "condition_id": "--condition-id",
+            "distance_m": "--distance-m",
+            "barrier_type": "--barrier-type",
+            "trial_number": "--trial-number",
+            "planned_duration_s": "--planned-duration-s",
+            "study_classification": "--study-classification",
+            "model_family": "--model-family",
+            "model_bundle": "--model-bundle",
+        }
+        for key, flag in study_flag_names.items():
+            value = kwargs.get(key)
+            if value not in (None, "", "operational"):
+                argv += [flag, str(value)]
         if duration_s is not None:
             argv += ["--duration-s", str(duration_s)]
         creationflags = (

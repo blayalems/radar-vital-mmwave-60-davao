@@ -305,6 +305,38 @@
   min-width: 140px;
 }
 
+.confirmatory-duration-lock,
+.study-start-blocker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+}
+
+.confirmatory-duration-lock {
+  color: var(--md-sys-color-on-secondary-container, #151b2c);
+  background: var(--md-sys-color-secondary-container, #dbe2f9);
+}
+
+.study-start-blocker {
+  width: 100%;
+  margin: 0 0 10px;
+  color: var(--md-sys-color-on-error-container, #410002);
+  background: var(--md-sys-color-error-container, #ffdad6);
+}
+
+.confirmatory-duration-lock mat-icon,
+.study-start-blocker mat-icon {
+  flex: 0 0 auto;
+  font-size: 19px;
+  width: 20px;
+  height: 20px;
+}
+
 .field-controls {
   display: flex;
   gap: 8px;

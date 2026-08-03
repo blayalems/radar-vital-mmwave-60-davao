@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-29 - Bind v16.5.1 sessions to pseudonymous participants and releases
+
+- **Study identity**: Added coded participant profiles, immutable participant/trial assignment, and release/firmware/protocol/model provenance to real, CLI, supervised, and sandbox session manifests.
+- **Protocol guardrails**: Confirmatory capture now enforces the proposal's 0.6/0.8/1.0 m × no-barrier/cardboard × trials 1–3 × 150-second design; explicitly labelled exploratory capture supports 0.5–1.0 m without entering confirmatory analysis.
+- **Operator flow**: Added an accessible, mobile-responsive participant-profile picker and condition selector, blocks real Start until the study contract is complete, and keeps the pseudonymous registry capacity distinct from the demo profile.
+- **Release identity**: Advanced all shipped firmware, trainer, dashboard, APK, EXE, package, help, and generated-artifact carriers exactly one patch to `16.5.1`; the frozen v15.2/222-column serial contract and stable compatibility filenames remain unchanged.
+- **Verification**: Participant/session backend isolation plus the selected Python regression set pass (160/160); Angular tests pass (224/224); trainer compile/help, version graph, patch increment, diagram export, production build, and generated-dashboard round trip pass. Adversarial mock-session findings continue in the next patch.
+
 ### 2026-07-29 - Refresh vulnerable transitive dependencies
 
 - **Supply chain**: Refreshed the root and Angular lockfiles to patched transitive releases and pinned the vulnerable MCP SDK subtree through an npm override without changing the application dependency surface.

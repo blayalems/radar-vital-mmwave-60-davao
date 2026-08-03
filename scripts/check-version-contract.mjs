@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -36,7 +36,9 @@ if (version) {
   const [major, minor, patch] = version.split('.');
   const short = `${major}.${minor}`;
   const firmwareFile = `radar_vital_v${major}_${minor}_${patch}.ino`;
-  const oldFirmwareFile = `radar_vital_v${major}_${Number(minor) - 1}_${patch}.ino`;
+  const retiredFirmwareFiles = readdirSync(ROOT).filter(
+    name => /^radar_vital_v\d+_\d+_\d+\.ino$/.test(name) && name !== firmwareFile,
+  );
 
   const jsonCarriers = [
     ['root package', 'package.json', ['version']],
@@ -76,10 +78,19 @@ if (version) {
   contains('Angular product version', 'web/src/app/services/app-meta.ts', `PRODUCT_VERSION = '${version}'`);
   contains('Angular short version', 'web/src/app/services/app-meta.ts', `PRODUCT_VERSION_SHORT = 'v${short}'`);
   contains('Angular label version', 'web/src/app/services/app-meta.ts', `PRODUCT_VERSION_LABEL = 'App v${short}'`);
+  contains(
+    'built dashboard product version',
+    'radar_vital_live_dashboard_v12_for_v16_0.html',
+    `="${version}",`,
+  );
   contains('demo firmware version', 'web/src/app/services/telemetry.service.ts', `version: 'v${version}-demo'`);
 
   check('current firmware source', existsSync(path.join(ROOT, firmwareFile)), `${firmwareFile} does not exist`);
-  check('retired firmware source', !existsSync(path.join(ROOT, oldFirmwareFile)), `${oldFirmwareFile} must not coexist with the current source`);
+  check(
+    'retired firmware sources',
+    retiredFirmwareFiles.length === 0,
+    `${retiredFirmwareFiles.join(', ')} must not coexist with the current source`,
+  );
   contains('firmware source self-name', firmwareFile, firmwareFile);
   contains('firmware version macro', firmwareFile, `#define FW_VERSION "v${version}"`);
   contains('firmware major macro', firmwareFile, `#define SKETCH_VERSION_MAJOR ${major}`);

@@ -1,0 +1,318 @@
+{
+  "$schema": "./schemas/document-register.schema.json",
+  "schema_version": "rvt-qms-document-register-v1",
+  "register_id": "RVT-QMS-REG-001",
+  "register_revision": "R01",
+  "effective_product_version": "16.5.5",
+  "status": "active",
+  "owner_role": "quality_manager",
+  "approval_method": "protected_pull_request",
+  "documents": [
+    {
+      "document_id": "RVT-QMS-POL-001",
+      "title": "Documented Information and Change Control",
+      "path": "quality/qms-policy.md",
+      "record_type": "policy",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "quality_manager",
+      "approver_roles": ["quality_manager", "technical_lead"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "project_lifetime_plus_5_years",
+        "disposition": "review_before_disposal"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 12
+    },
+    {
+      "document_id": "RVT-QMS-REG-001",
+      "title": "Controlled Document Register",
+      "path": "quality/document-register.json",
+      "record_type": "register",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "quality_manager",
+      "approver_roles": ["quality_manager", "technical_lead"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 12
+    },
+    {
+      "document_id": "RVT-QMS-REG-002",
+      "title": "Requirements Traceability Register",
+      "path": "quality/requirements.json",
+      "record_type": "register",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "quality_manager",
+      "approver_roles": ["quality_manager", "technical_lead", "research_lead"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 12
+    },
+    {
+      "document_id": "RVT-QMS-SCH-001",
+      "title": "Controlled Document Register Schema",
+      "path": "quality/schemas/document-register.schema.json",
+      "record_type": "schema",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "quality_manager",
+      "approver_roles": ["quality_manager", "technical_lead"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 12
+    },
+    {
+      "document_id": "RVT-QMS-SCH-002",
+      "title": "Requirements Register Schema",
+      "path": "quality/schemas/requirements.schema.json",
+      "record_type": "schema",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "quality_manager",
+      "approver_roles": ["quality_manager", "technical_lead"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 12
+    },
+    {
+      "document_id": "RVT-QMS-SCH-003",
+      "title": "Release Record Schema",
+      "path": "quality/schemas/release-record.schema.json",
+      "record_type": "schema",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "release_manager",
+      "approver_roles": ["quality_manager", "release_manager", "technical_lead"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 12
+    },
+    {
+      "document_id": "RVT-QMS-TPL-001",
+      "title": "Pull Request Change Record Template",
+      "path": ".github/PULL_REQUEST_TEMPLATE.md",
+      "record_type": "template",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "quality_manager",
+      "approver_roles": ["quality_manager", "technical_lead"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "project_lifetime_plus_5_years",
+        "disposition": "archive_then_review"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 12
+    },
+    {
+      "document_id": "RVT-QMS-CFG-001",
+      "title": "Controlled Path Ownership Configuration",
+      "path": ".github/CODEOWNERS",
+      "record_type": "configuration",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "technical_lead",
+      "approver_roles": ["quality_manager", "technical_lead"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "project_lifetime_plus_5_years",
+        "disposition": "archive_then_review"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 12
+    },
+    {
+      "document_id": "RVT-QMS-STD-001",
+      "title": "Repository Agent Contract",
+      "path": "AGENTS.md",
+      "record_type": "procedure",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "technical_lead",
+      "approver_roles": ["technical_lead", "quality_manager"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "project_lifetime_plus_5_years",
+        "disposition": "archive_then_review"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 6
+    },
+    {
+      "document_id": "RVT-QMS-REC-001",
+      "title": "Engineering Handoff Record",
+      "path": "HANDOFF.md",
+      "record_type": "record",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "technical_lead",
+      "approver_roles": ["technical_lead"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 6
+    },
+    {
+      "document_id": "RVT-QMS-REC-002",
+      "title": "Product Changelog",
+      "path": "CHANGELOG.md",
+      "record_type": "record",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "release_manager",
+      "approver_roles": ["release_manager", "quality_manager"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 6
+    },
+    {
+      "document_id": "RVT-QMS-GDE-001",
+      "title": "Project README",
+      "path": "README.md",
+      "record_type": "guide",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "technical_lead",
+      "approver_roles": ["technical_lead", "quality_manager"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "project_lifetime_plus_5_years",
+        "disposition": "archive_then_review"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 6
+    },
+    {
+      "document_id": "RVT-QMS-GDE-002",
+      "title": "Contributor Guide",
+      "path": "CONTRIBUTING.md",
+      "record_type": "guide",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "technical_lead",
+      "approver_roles": ["technical_lead", "quality_manager"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "project_lifetime_plus_5_years",
+        "disposition": "archive_then_review"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 6
+    },
+    {
+      "document_id": "RVT-QMS-PRO-001",
+      "title": "Release, Signing, and Branch Protection",
+      "path": "docs/release-and-protection.md",
+      "record_type": "procedure",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "release_manager",
+      "approver_roles": ["release_manager", "quality_manager", "security_owner"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "project_lifetime_plus_5_years",
+        "disposition": "archive_then_review"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 6
+    },
+    {
+      "document_id": "RVT-QMS-ARC-001",
+      "title": "Hardware and Software Feedback Loop",
+      "path": "docs/system-feedback-loop.md",
+      "record_type": "plan",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "research_lead",
+      "approver_roles": ["research_lead", "technical_lead", "quality_manager"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 6
+    },
+    {
+      "document_id": "RVT-QMS-MLG-001",
+      "title": "Model Family Guide",
+      "path": "docs/model-family-guide.md",
+      "record_type": "guide",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "research_lead",
+      "approver_roles": ["research_lead", "trainer_owner", "quality_manager"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 6
+    },
+    {
+      "document_id": "RVT-QMS-VAL-001",
+      "title": "Physical Acceptance Checklist",
+      "path": "docs/physical-acceptance-checklist.md",
+      "record_type": "procedure",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "research_lead",
+      "approver_roles": ["research_lead", "firmware_owner", "quality_manager"],
+      "effective_product_version": "16.5.5",
+      "supersedes": null,
+      "retention": {
+        "class": "project_lifetime_plus_5_years",
+        "disposition": "archive_then_review"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 6
+    }
+  ]
+}

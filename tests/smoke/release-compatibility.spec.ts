@@ -50,7 +50,7 @@ async function mockHomeDependencies(page: Page): Promise<void> {
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({
-      product_version: '16.5.4',
+      product_version: '16.5.5',
       trainer: '16.5.2',
       dashboard: '16.5.2',
       firmware_expected: 'v16.5.2',

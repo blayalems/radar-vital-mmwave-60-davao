@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blayalems/radar-vital-mmwave-60-davao/quality/schemas/release-record.schema.json",
+  "title": "Radar Vital QMS release record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "release_id",
+    "product_version",
+    "release_tag",
+    "source",
+    "build",
+    "controlled_documents",
+    "verification",
+    "artifacts",
+    "authorization",
+    "rollback"
+  ],
+  "properties": {
+    "schema_version": { "const": "rvt-qms-release-record-v1" },
+    "release_id": {
+      "type": "string",
+      "pattern": "^RVT-REL-[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "product_version": { "$ref": "#/$defs/semver" },
+    "release_tag": {
+      "type": "string",
+      "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit_sha", "ref"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 3 },
+        "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "ref": { "type": "string", "minLength": 1 }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workflow",
+        "run_id",
+        "run_attempt",
+        "builder",
+        "built_at"
+      ],
+      "properties": {
+        "workflow": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "run_attempt": { "type": "integer", "minimum": 1 },
+        "builder": { "type": "string", "minLength": 1 },
+        "built_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "controlled_documents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["register_id", "register_revision", "sha256", "documents"],
+      "properties": {
+        "register_id": { "const": "RVT-QMS-REG-001" },
+        "register_revision": { "$ref": "#/$defs/revision" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "documents": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "document_id",
+              "path",
+              "revision",
+              "effective_product_version",
+              "sha256"
+            ],
+            "properties": {
+              "document_id": {
+                "type": "string",
+                "pattern": "^RVT-QMS-[A-Z]{3}-[0-9]{3}$"
+              },
+              "path": { "type": "string", "minLength": 1 },
+              "revision": { "$ref": "#/$defs/revision" },
+              "effective_product_version": { "$ref": "#/$defs/semver" },
+              "sha256": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["check_id", "conclusion", "evidence_url"],
+        "properties": {
+          "check_id": { "type": "string", "minLength": 1 },
+          "conclusion": {
+            "type": "string",
+            "enum": ["passed", "failed", "skipped", "external_gate"]
+          },
+          "evidence_url": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "kind",
+          "size_bytes",
+          "sha256",
+          "signing_state"
+        ],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "minLength": 1 },
+          "size_bytes": { "type": "integer", "minimum": 1 },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "signing_state": {
+            "type": "string",
+            "enum": ["signed", "unsigned", "not_applicable", "unknown"]
+          }
+        }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "authorized_by", "authorized_at"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["pending", "authorized", "rejected"]
+        },
+        "authorized_by": { "type": ["string", "null"] },
+        "authorized_at": {
+          "anyOf": [
+            { "type": "string", "format": "date-time" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "state": { "const": "pending" },
+            "authorized_by": { "type": "null" },
+            "authorized_at": { "type": "null" }
+          }
+        },
+        {
+          "properties": {
+            "state": { "enum": ["authorized", "rejected"] },
+            "authorized_by": { "type": "string", "minLength": 1 },
+            "authorized_at": { "type": "string", "format": "date-time" }
+          }
+        }
+      ]
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "previous_release"],
+      "properties": {
+        "strategy": { "type": "string", "minLength": 5 },
+        "previous_release": { "type": ["string", "null"] }
+      }
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "revision": { "type": "string", "pattern": "^R[0-9]{2,}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

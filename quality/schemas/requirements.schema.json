@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blayalems/radar-vital-mmwave-60-davao/quality/schemas/requirements.schema.json",
+  "title": "Radar Vital requirements traceability register",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "register_id",
+    "register_revision",
+    "effective_product_version",
+    "status",
+    "owner_role",
+    "requirements"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "const": "rvt-qms-requirements-v1" },
+    "register_id": { "const": "RVT-QMS-REG-002" },
+    "register_revision": { "$ref": "#/$defs/revision" },
+    "effective_product_version": { "$ref": "#/$defs/semver" },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "active", "superseded", "obsolete"]
+    },
+    "owner_role": { "$ref": "#/$defs/role" },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/requirement" }
+    }
+  },
+  "$defs": {
+    "revision": { "type": "string", "pattern": "^R[0-9]{2,}$" },
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "contributor",
+        "technical_lead",
+        "quality_manager",
+        "research_lead",
+        "release_manager",
+        "security_owner",
+        "firmware_owner",
+        "trainer_owner",
+        "frontend_owner"
+      ]
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "selector", "kind"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "not": { "pattern": "(^|/)\\.\\.(/|$)" }
+        },
+        "selector": { "type": "string", "minLength": 1 },
+        "kind": {
+          "type": "string",
+          "enum": ["automated_test", "ci_check", "manual_acceptance"]
+        }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_id",
+        "title",
+        "statement",
+        "source_refs",
+        "category",
+        "risk_class",
+        "owner_role",
+        "status",
+        "implementation_paths",
+        "verification_refs",
+        "artifact_types",
+        "acceptance_criteria",
+        "change_record_required"
+      ],
+      "properties": {
+        "requirement_id": {
+          "type": "string",
+          "pattern": "^RVT-[A-Z]+-[0-9]{3}$"
+        },
+        "title": { "type": "string", "minLength": 3 },
+        "statement": { "type": "string", "minLength": 10 },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "quality",
+            "firmware",
+            "trainer",
+            "frontend",
+            "security",
+            "session",
+            "release",
+            "ml",
+            "statistics",
+            "documentation"
+          ]
+        },
+        "risk_class": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "owner_role": { "$ref": "#/$defs/role" },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "active", "deprecated", "retired"]
+        },
+        "implementation_paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "not": { "pattern": "(^|/)\\.\\.(/|$)" }
+          }
+        },
+        "verification_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/verification" }
+        },
+        "artifact_types": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 5 }
+        },
+        "change_record_required": { "type": "boolean" }
+      }
+    }
+  }
+}

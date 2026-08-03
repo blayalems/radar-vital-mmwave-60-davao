@@ -45,6 +45,14 @@ jobs:
         if: github.event_name == 'pull_request'
         run: npm run test:pr-version -- --base-ref "origin/${{ github.base_ref }}"
 
+      - name: Validate QMS change control for this PR
+        if: github.event_name == 'pull_request'
+        run: npm run test:qms-contract -- --base-ref "origin/${{ github.base_ref }}" --require-pr-body
+
+      - name: Validate QMS change control on the pushed commit
+        if: github.event_name != 'pull_request'
+        run: npm run test:qms-contract
+
       - name: Warm matplotlib font cache
         run: python -c "import matplotlib.pyplot"
 

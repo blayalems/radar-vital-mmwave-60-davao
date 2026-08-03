@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Bind visual fixtures to the visual trainer shard
+
+- **Test contract**: The visual baseline helper now derives its trainer origin from `RVT_TEST_PORT` (default `8990`) rather than targeting the smoke port, keeping visual and smoke jobs isolated.
+- **Verification**: `git diff --check` passed; the next CI run will include this final test-harness correction.
+
 ### 2026-08-04 - Make smoke fixtures release- and shard-aware
 
 - **Test contract**: Smoke fixtures now derive the trainer origin from `RVT_TEST_PORT`, so every Playwright matrix shard exercises its own server instead of hard-coded `8989`; OTA assertions now track the v16.5.9 current release, a v16.5.10 product update, and a v16.5.9 build update.

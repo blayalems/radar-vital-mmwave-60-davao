@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-03 - Fail closed confirmatory statistics in v16.5.8
+
+- **Analysis unit**: Confirmatory OOF rows now form unique 30-second windows at 5-second stride before the 15-window/2-trial participant-balanced gates; short endpoint bursts and duplicate timestamps cannot qualify.
+- **Inference guard**: Confirmatory mode requires an explicit approved plan, RR validity/eligibility, participant-disjoint provenance, a complete attempted-trial ledger including 72 no-subject trials, and immutable source/model/split/prediction provenance. Parameters derive from the plan.
+- **Reporting**: Primary d100_none TOST is no longer pooled across conditions; secondary Holm family stays fixed at five, insufficient n is inconclusive, mixed effects uses the filtered summary, and full primary CI/decision fields export to CSV/LaTeX.
+- **Verification**: Statistical and model-family tests pass 28/28; full suite and CI remain required after this commit.
+
 ### 2026-08-03 - Remove causal OOF lookahead in v16.5.8
 
 - **Postprocessing**: Slew limiting now seeds each session from the first finite current prediction instead of a median that included future samples.

@@ -6,14 +6,17 @@ import pytest
 
 from rvt_trainer.statistics import (
     StatisticalInputError,
+    DEFAULT_ANALYSIS_PLAN,
     aggregate_confirmatory_frame,
     analyze_frame,
+    coverage_report,
     exact_proportion,
     holm_adjust,
     paired_metrics,
     paired_tost,
     repeated_measures_agreement,
     write_statistical_outputs,
+    _condition_tost,
 )
 
 
@@ -109,15 +112,23 @@ def test_confirmatory_aggregation_enforces_windows_and_trials_and_holm_condition
         participant = f"P-{participant_index + 1:03d}"
         for condition in conditions:
             for trial in range(2):
-                for window in range(15):
+                # 21 endpoints at 5-second spacing span 100 seconds and
+                # therefore yield exactly 15 valid 30-second windows.
+                for window in range(21):
                     reference = 20.0 + participant_index
                     rows.append(
                         {
                             "participant_id": participant,
                             "trial_id": f"{participant}-{condition}-T{trial + 1}",
                             "condition_id": condition,
+                            "session_id": f"S-{participant}-{condition}-T{trial + 1}",
+                            "timestamp_s": float(window * 5),
                             "ref_rr": reference,
                             "pred_rr": reference + 0.2,
+                            "rr_valid_for_eval": True,
+                            "confirmatory_eligible": True,
+                            "participant_disjoint": True,
+                            "model_family": "gradient_boosting",
                         }
                     )
     frame = pd.DataFrame(rows)
@@ -130,19 +141,53 @@ def test_confirmatory_aggregation_enforces_windows_and_trials_and_holm_condition
     assert diagnostics["eligible_trial_count"] == 36
     assert diagnostics["eligible_participant_condition_count"] == 18
     assert len(summary) == 18
+    plan = json.loads(json.dumps(DEFAULT_ANALYSIS_PLAN))
+    plan["status"] = "approved"
+    ledger = pd.DataFrame([
+        {
+            "participant_id": participant,
+            "trial_id": f"{participant}-{condition}-T{trial + 1}",
+            "condition_id": condition,
+            "attempt_type": "subject",
+            "eligible": True,
+        }
+        for participant_index in range(3)
+        for participant in [f"P-{participant_index + 1:03d}"]
+        for condition in conditions
+        for trial in range(2)
+    ] + [
+        {
+            "participant_id": "NO-SUBJECT",
+            "trial_id": f"NO-SUBJECT-{index + 1:03d}",
+            "condition_id": "no_subject",
+            "attempt_type": "no_subject",
+            "eligible": True,
+        }
+        for index in range(72)
+    ])
     report = analyze_frame(
         frame,
         reference_column="ref_rr",
         estimate_column="pred_rr",
         participant_column="participant_id",
-        tost_margin=2.0,
         bootstrap_reps=200,
+        analysis_plan=plan,
+        provenance={
+            "source_commit": "abc123",
+            "model_family": "gradient_boosting",
+            "split_ledger_sha256": "def456",
+            "prediction_file_sha256": "ghi789",
+            "product_version": "16.5.8",
+            "protocol_id": "RVT-STUDY-16.5.1",
+        },
+        attempt_ledger=ledger,
         confirmatory=True,
     )
     assert report["aggregation"]["minimum_valid_windows_per_trial"] == 15
     assert report["coverage"]["denominator_unit"] == "trial"
-    assert report["coverage"]["n_attempted"] == 36
-    assert report["condition_tost"]["primary"]["status"] == "tested"
+    assert report["coverage"]["n_attempted"] == 108
+    assert report["coverage"]["n_with_output"] == 36
+    assert report["condition_tost"]["primary"]["status"].startswith("inconclusive")
     assert len(report["condition_tost"]["secondary"]) == 5
     assert report["condition_effects"]["status"] in {"unavailable_optional_dependency", "tested", "fit_failed"}
     outputs = write_statistical_outputs(
@@ -154,6 +199,101 @@ def test_confirmatory_aggregation_enforces_windows_and_trials_and_holm_condition
     assert outputs["json"].exists() and outputs["csv"].exists() and outputs["latex"].exists()
     saved = json.loads(outputs["json"].read_text(encoding="utf-8"))
     assert len(saved["report_sha256"]) == 64
+
+
+def test_confirmatory_aggregation_rejects_short_endpoint_bursts():
+    frame = pd.DataFrame({
+        "participant_id": ["P-001"] * 30,
+        "trial_id": ["T-001"] * 30,
+        "condition_id": ["d100_none"] * 30,
+        "session_id": ["S-001"] * 30,
+        "timestamp_s": np.arange(30, dtype=float),
+        "ref_rr": [20.0] * 30,
+        "pred_rr": [20.1] * 30,
+    })
+    summary, diagnostics = aggregate_confirmatory_frame(
+        frame,
+        reference_column="ref_rr",
+        estimate_column="pred_rr",
+        participant_column="participant_id",
+    )
+    assert summary.empty
+    assert diagnostics["validated_window_count"] == 0
+
+
+def test_confirmatory_requires_approved_plan_and_provenance():
+    frame = pd.DataFrame({
+        "participant_id": ["P-001", "P-002"],
+        "session_id": ["S-001", "S-002"],
+        "trial_id": ["T-001", "T-002"],
+        "condition_id": ["d100_none", "d100_none"],
+        "timestamp_s": [0.0, 0.0],
+        "ref_rr": [20.0, 20.0],
+        "pred_rr": [20.0, 20.0],
+        "rr_valid_for_eval": [True, True],
+        "confirmatory_eligible": [True, True],
+        "participant_disjoint": [True, True],
+        "model_family": ["gradient_boosting", "gradient_boosting"],
+    })
+    with pytest.raises(StatisticalInputError, match="explicit approved"):
+        analyze_frame(
+            frame,
+            reference_column="ref_rr",
+            estimate_column="pred_rr",
+            confirmatory=True,
+        )
+
+
+def test_condition_tost_primary_is_inconclusive_below_predeclared_n():
+    rows = []
+    for index in range(3):
+        participant = f"P-{index + 1:03d}"
+        for condition in ["d100_none", "d060_none", "d080_none", "d060_cardboard", "d080_cardboard", "d100_cardboard"]:
+            rows.append({
+                "participant_id": participant,
+                "condition_id": condition,
+                "ref_rr": 20.0,
+                "pred_rr": 20.1,
+            })
+    result = _condition_tost(
+        pd.DataFrame(rows),
+        reference_column="ref_rr",
+        estimate_column="pred_rr",
+        participant_column="participant_id",
+        margin=2.0,
+        alpha=0.05,
+        analysis_plan=DEFAULT_ANALYSIS_PLAN,
+    )
+    assert result["primary"]["status"] == "inconclusive_insufficient_independent_estimates"
+    assert result["primary"]["minimum_required"] == 19
+    assert all(item["decision_holm"] == "inconclusive" for item in result["secondary"])
+
+
+def test_coverage_uses_attempt_ledger_for_no_subject_denominator():
+    frame = pd.DataFrame({
+        "participant_id": ["P-001", "NO-SUBJECT-001"],
+        "trial_id": ["T-001", "NS-001"],
+        "condition_id": ["d100_none", "no_subject"],
+        "ref_rr": [20.0, np.nan],
+        "pred_rr": [20.0, 1.0],
+        "false_alarm": [False, True],
+    })
+    ledger = pd.DataFrame([
+        {"participant_id": "P-001", "trial_id": "T-001", "condition_id": "d100_none", "attempt_type": "subject", "eligible": True},
+        {"participant_id": "NO-SUBJECT-001", "trial_id": "NS-001", "condition_id": "no_subject", "attempt_type": "no_subject", "eligible": True},
+        {"participant_id": "NO-SUBJECT-002", "trial_id": "NS-002", "condition_id": "no_subject", "attempt_type": "no_subject", "eligible": True},
+    ])
+    result = coverage_report(
+        frame,
+        reference_column="ref_rr",
+        estimate_column="pred_rr",
+        false_alarm_column="false_alarm",
+        attempt_ledger=ledger,
+    )
+    assert result["n_attempted"] == 3
+    assert result["n_with_output"] == 2
+    assert result["no_subject_denominator"] == 2
+    assert result["no_subject_false_alarms"] == 1
 
 
 @pytest.mark.parametrize(

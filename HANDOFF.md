@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Make active-session unit fixtures injector-stable
+
+- **Test isolation**: The state-service guard spec now configures the canonical `SessionStore` witness directly, matching the production source-mode dependency and avoiding cross-file Angular test-injector timing differences.
+- **Verification**: Run 554 reproduced one iPad-only unit-suite failure after the status-witness change; desktop, iPhone, and local suites were otherwise green. The focused fixture correction needs a fresh CI matrix.
+
 ### 2026-08-04 - Preserve status witnesses across live-payload gaps
 
 - **Frontend guard**: Treat a non-sandbox `active_session` in trainer status as authoritative even when the local session flag has been cleared; a transient `NO_LIVE_DASHBOARD` response now keeps the active-session guard and marks the payload as not ready instead of permitting a demo switch.

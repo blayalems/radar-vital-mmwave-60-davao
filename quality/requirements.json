@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R02",
-  "effective_product_version": "16.5.6",
+  "register_revision": "R03",
+  "effective_product_version": "16.5.7",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -78,7 +78,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_5_6.ino",
+        "radar_vital_v16_5_7.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [
@@ -323,6 +323,8 @@
       "owner_role": "research_lead",
       "status": "active",
       "implementation_paths": [
+        "rvt_trainer/evaluation_split.py",
+        "rvt_trainer/model_artifacts.py",
         "rvt_trainer/modeling.py",
         "rvt_trainer/monolith.py",
         "docs/model-family-guide.md"
@@ -336,6 +338,36 @@
         {
           "path": "tests/test_trainer_model_families.py",
           "selector": "test_loso_preprocessing_is_fit_inside_each_training_fold",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_participant_evaluation_split.py",
+          "selector": "test_participant_split_is_disjoint_deterministic_and_condition_stratified",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_participant_evaluation_split.py",
+          "selector": "test_confirmatory_split_fails_closed_without_all_three_trials",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_model_artifacts.py",
+          "selector": "test_inference_contract_rejects_reordered_features",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_model_artifacts.py",
+          "selector": "test_gbr_metadata_is_default_runtime_without_tensorflow_import",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_model_artifacts.py",
+          "selector": "test_bundle_metadata_is_in_signed_artifact_boundary_and_loads",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_trainer_model_families.py",
+          "selector": "test_cnn_normalization_is_fitted_on_training_windows_only",
           "kind": "automated_test"
         }
       ],

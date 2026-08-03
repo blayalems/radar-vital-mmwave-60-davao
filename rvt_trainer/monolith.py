@@ -104,6 +104,18 @@ from rvt_trainer.modeling import (
     MODEL_FAMILY_GRADIENT_BOOSTING,
     build_causal_windows,
 )
+from rvt_trainer.model_artifacts import (
+    MODEL_BUNDLE_METADATA_FILENAME,
+    FeatureContract,
+    assert_bundle_inference_compatible,
+    build_model_bundle_metadata,
+)
+from rvt_trainer.evaluation_split import (
+    attach_study_metadata as _attach_study_metadata,
+    has_any_study_metadata as _has_any_study_metadata,
+    has_complete_study_metadata as _has_complete_study_metadata,
+    participant_split as _participant_split,
+)
 from rvt_trainer.session.study_contract import (
     PARTICIPANT_REGISTRY_SCHEMA_VERSION,
     STUDY_SESSION_SCHEMA_VERSION,
@@ -124,9 +136,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.6"
-DASHBOARD_VERSION = "16.5.6"
-FIRMWARE_VERSION_EXPECTED = "v16.5.6"
+VERSION = "16.5.7"
+DASHBOARD_VERSION = "16.5.7"
+FIRMWARE_VERSION_EXPECTED = "v16.5.7"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -1280,7 +1292,12 @@ def _file_sha256(path: str) -> Optional[str]:
 
 MODEL_MANIFEST_FILENAME = "model_manifest.json"
 MODEL_MANIFEST_SCHEMA_VERSION = "rvt-model-manifest-v1"
-MODEL_ARTIFACT_NAMES = ("model_hr.pkl", "model_rr.pkl", "preprocessor.pkl")
+MODEL_ARTIFACT_NAMES = (
+    "model_hr.pkl",
+    "model_rr.pkl",
+    "preprocessor.pkl",
+    MODEL_BUNDLE_METADATA_FILENAME,
+)
 MODEL_SIGNING_KEY_ENV = "RVT_MODEL_SIGNING_KEY"
 REQUIRE_MODEL_MANIFEST_ENV = "RVT_REQUIRE_MODEL_MANIFEST"
 REQUIRE_MODEL_SIGNATURE_ENV = "RVT_REQUIRE_MODEL_SIGNATURE"
@@ -1338,6 +1355,41 @@ def _write_model_manifest(model_dir: str) -> str:
     manifest_path = os.path.join(model_dir, MODEL_MANIFEST_FILENAME)
     save_json(manifest, manifest_path)
     return manifest_path
+
+
+def _read_model_bundle_metadata(model_dir: str) -> Optional[Dict[str, object]]:
+    """Read and internally validate optional v2 bundle metadata.
+
+    The caller must run ``_verify_model_dir`` first so this JSON is covered by
+    the same SHA-256/HMAC boundary as the pickle artifacts. Legacy bundles have
+    no metadata file and retain the existing compatibility behavior.
+    """
+
+    path = os.path.join(model_dir, MODEL_BUNDLE_METADATA_FILENAME)
+    if not os.path.exists(path):
+        return None
+    bundle = _read_json_if_exists(path)
+    if not isinstance(bundle, dict):
+        raise ValueError(f"Model bundle metadata is not valid JSON: {path}")
+    feature_contract = bundle.get("feature_contract")
+    if not isinstance(feature_contract, dict):
+        raise ValueError(f"Model bundle metadata has no feature contract: {path}")
+    expected_columns = feature_contract.get("expanded_feature_cols")
+    if not isinstance(expected_columns, list):
+        raise ValueError(f"Model bundle feature order is invalid: {path}")
+    family = bundle.get("model_family")
+    sequence = bundle.get("training_config")
+    sequence = sequence.get("sequence") if isinstance(sequence, dict) else None
+    window_size = (
+        sequence.get("window_size") if isinstance(sequence, dict) else None
+    )
+    assert_bundle_inference_compatible(
+        bundle,
+        actual_columns=expected_columns,
+        requested_model_family=str(family),
+        sequence_window_size=window_size,
+    )
+    return bundle
 
 
 def _verify_model_dir(model_dir: str) -> None:
@@ -4585,7 +4637,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_6.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_7.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -8081,7 +8133,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_6.ino"),
+        Path("radar_vital_v16_5_7.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
@@ -11668,6 +11720,7 @@ def load_and_align_multiple_base(
         merged = align_one_session(
             rp, refp, sid, tolerance_s, off, auto_align_start,
             merge_direction, phase_unit, heart_fft_window_s, breath_fft_window_s)
+        merged = _attach_study_metadata(merged, rp)
         frames.append(merged)
         print(
             f"[ALIGN] {sid}: {len(merged)} paired 1 Hz rows | "
@@ -13163,6 +13216,7 @@ def maybe_export_embedded(args, out_dir, X_train_all, X_eval_all, train_pred, ev
 def cmd_predict(args):
     os.makedirs(args.out, exist_ok=True)
     _verify_model_dir(args.model_dir)
+    bundle_metadata = _read_model_bundle_metadata(args.model_dir)
     model_hr = None
     model_rr = None
     hr_path = os.path.join(args.model_dir, "model_hr.pkl")
@@ -13186,6 +13240,19 @@ def cmd_predict(args):
     expanded_feature_cols = list(pre["expanded_feature_cols"])
     impute_values         = {str(k): float(v) for k, v in pre.get("impute_values", {}).items()}
     trained_targets       = list(pre.get("trained_targets", []))
+    if bundle_metadata is not None:
+        sequence = pre.get("sequence")
+        sequence_window_size = (
+            sequence.get("window_size") if isinstance(sequence, dict) else None
+        )
+        assert_bundle_inference_compatible(
+            bundle_metadata,
+            actual_columns=expanded_feature_cols,
+            requested_model_family=pre.get(
+                "model_family", MODEL_FAMILY_GRADIENT_BOOSTING
+            ),
+            sequence_window_size=sequence_window_size,
+        )
 
     base_df = load_and_aggregate_radar_only(
         args.radar, phase_unit=phase_unit,
@@ -13193,6 +13260,19 @@ def cmd_predict(args):
     feat_df = validity_masks(engineer_temporal_features(base_df, feature_mode=feature_mode))
     X_all   = transform_feature_matrix(feat_df, feature_cols, impute_values, missing_flag_cols)
     X_all   = X_all.reindex(columns=expanded_feature_cols, fill_value=0.0).astype(np.float32)
+    if bundle_metadata is not None:
+        assert_bundle_inference_compatible(
+            bundle_metadata,
+            actual_columns=list(X_all.columns),
+            requested_model_family=pre.get(
+                "model_family", MODEL_FAMILY_GRADIENT_BOOSTING
+            ),
+            sequence_window_size=(
+                pre.get("sequence", {}).get("window_size")
+                if isinstance(pre.get("sequence"), dict)
+                else None
+            ),
+        )
     pred_df = add_predictions(feat_df, X_all, model_hr=model_hr, model_rr=model_rr,
                               hr_slew_limit=pre.get("slew_limit_hr_per_s"),
                               rr_slew_limit=pre.get("slew_limit_rr_per_s"))
@@ -13566,16 +13646,37 @@ def cmd_analyse(args):
     return summary
 
 def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets):
-    session_ids = list(dict.fromkeys(base_df["session_id"].tolist()))
-    if len(session_ids) < 3:
-        return {"enabled": False, "reason": "need at least 3 sessions"}
+    participant_aware = _has_complete_study_metadata(base_df)
+    group_column = "participant_id" if participant_aware else "session_id"
+    group_ids = list(dict.fromkeys(base_df[group_column].tolist()))
+    if len(group_ids) < 3:
+        return {
+            "enabled": False,
+            "reason": f"need at least 3 {group_column} groups",
+            "group_column": group_column,
+        }
     folds = []
-    for i, holdout in enumerate(session_ids):
-        train_source = base_df[base_df["session_id"] != holdout].copy().reset_index(drop=True)
-        eval_base = base_df[base_df["session_id"] == holdout].copy().reset_index(drop=True)
+    for i, holdout in enumerate(group_ids):
+        train_source = base_df[base_df[group_column] != holdout].copy().reset_index(drop=True)
+        eval_base = base_df[base_df[group_column] == holdout].copy().reset_index(drop=True)
         if train_source.empty or eval_base.empty:
             continue
-        loo_train_base, loo_stop_base = split_sessions(train_source, val_ratio=args.val_ratio, purge_gap_s=args.purge_gap_s)
+        fold_split = None
+        if participant_aware:
+            loo_train_base, loo_stop_base, _, fold_split = _participant_split(
+                train_source,
+                test_ratio=args.val_ratio,
+                early_stop_ratio=args.early_stop_ratio,
+                three_way=False,
+                random_state=args.random_state + i,
+                require_confirmatory=False,
+            )
+        else:
+            loo_train_base, loo_stop_base = split_sessions(
+                train_source,
+                val_ratio=args.val_ratio,
+                purge_gap_s=args.purge_gap_s,
+            )
         loo_train_df = validity_masks(engineer_temporal_features(loo_train_base, feature_mode=args.feature_mode))
         loo_stop_df = validity_masks(engineer_temporal_features(loo_stop_base, feature_mode=args.feature_mode))
         loo_eval_df = validity_masks(engineer_temporal_features(eval_base, feature_mode=args.feature_mode))
@@ -13588,7 +13689,7 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
         )
         if not fold_feature_cols:
             folds.append({
-                "holdout_session": holdout,
+                f"holdout_{group_column}": holdout,
                 "skipped": True,
                 "reason": "no numeric features selected from the fold training sessions",
             })
@@ -13624,13 +13725,27 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
                 params=params, args=args, random_state=args.random_state + 100 + i)
         pred = add_predictions(loo_eval_df, X_eval, model_hr=model_hr, model_rr=model_rr,
                                hr_slew_limit=args.slew_limit_hr_per_s, rr_slew_limit=args.slew_limit_rr_per_s)
-        fold = {"holdout_session": holdout}
+        fold = {
+            f"holdout_{group_column}": holdout,
+            "participant_disjoint": bool(participant_aware),
+        }
+        if fold_split is not None:
+            fold["inner_split_ledger_sha256"] = fold_split.get("sha256")
         if model_hr is not None:
             fold["hr_model"] = model_summary(pred, "hr")
         if model_rr is not None:
             fold["rr_model"] = model_summary(pred, "rr")
         folds.append(fold)
-    out = {"enabled": True, "folds": folds}
+    out = {
+        "enabled": True,
+        "mode": (
+            "leave_one_participant_out"
+            if participant_aware
+            else "leave_one_session_out"
+        ),
+        "group_column": group_column,
+        "folds": folds,
+    }
     if folds:
         for target in ("hr", "rr"):
             rmses = []
@@ -13701,18 +13816,50 @@ def cmd_train(args):
         breath_fft_window_s=args.breath_fft_window_s)
     _write_training_progress(status="running", n_done=0, phase="feature_engineering")
 
-    if args.three_way_split:
+    require_confirmatory = bool(getattr(args, "confirmatory_evaluation", False))
+    if _has_any_study_metadata(base_df) and not _has_complete_study_metadata(base_df):
+        raise ValueError(
+            "Study metadata is present for only part of the training input. "
+            "Every radar file must resolve to a complete session_manifest.json."
+        )
+    if _has_complete_study_metadata(base_df):
+        train_base, stop_base, eval_base, split_info = _participant_split(
+            base_df,
+            test_ratio=args.val_ratio,
+            early_stop_ratio=args.early_stop_ratio,
+            three_way=bool(args.three_way_split),
+            random_state=args.random_state,
+            require_confirmatory=require_confirmatory,
+        )
+        eval_name = "test" if args.three_way_split else "validation"
+    elif require_confirmatory:
+        raise ValueError(
+            "Confirmatory evaluation requires complete participant, trial, condition, "
+            "distance, barrier, duration, and eligibility metadata from each session manifest."
+        )
+    elif args.three_way_split:
         train_base, stop_base, eval_base, split_info = split_three_way(
             base_df, test_ratio=args.val_ratio,
             early_stop_ratio=args.early_stop_ratio, purge_gap_s=args.purge_gap_s)
+        split_info["confirmatory"] = {
+            "requested": False,
+            "eligible": False,
+            "reasons": ["participant-bound study metadata is unavailable"],
+        }
         eval_name = "test"
     else:
         train_base, eval_base = split_sessions(base_df, val_ratio=args.val_ratio,
                                                purge_gap_s=args.purge_gap_s)
         stop_base  = eval_base
         split_info = {"mode": "two_way",
-                      "sessions": list(dict.fromkeys(base_df["session_id"].tolist()))}
+                      "sessions": list(dict.fromkeys(base_df["session_id"].tolist())),
+                      "confirmatory": {
+                          "requested": False,
+                          "eligible": False,
+                          "reasons": ["participant-bound study metadata is unavailable"],
+                      }}
         eval_name  = "validation"
+    save_json(split_info, os.path.join(args.out, "split_ledger.json"))
 
     train_df = validity_masks(engineer_temporal_features(train_base, feature_mode=args.feature_mode))
     stop_df  = validity_masks(engineer_temporal_features(stop_base,  feature_mode=args.feature_mode))
@@ -13869,6 +14016,7 @@ def cmd_train(args):
 
     feature_manifest = {
         "model_family": model_family,
+        "split_ledger_sha256": split_info.get("sha256"),
         "sequence": (
             resolve_cnn_config(args).as_dict()
             if model_family == MODEL_FAMILY_CNN_1D
@@ -13909,6 +14057,7 @@ def cmd_train(args):
         pickle.dump({
             "version": VERSION, "feature_mode": args.feature_mode,
             "model_family": model_family,
+            "split_ledger_sha256": split_info.get("sha256"),
             "sequence": (
                 resolve_cnn_config(args).as_dict()
                 if model_family == MODEL_FAMILY_CNN_1D
@@ -13937,9 +14086,58 @@ def cmd_train(args):
             "slew_limit_rr_per_s": args.slew_limit_rr_per_s,
             "trained_targets": available_targets,
         }, f)
-    # Integrity manifest: content hashes of the pickled artifacts, written after
-    # the .pkl files so the digests cover the exact bytes on disk. Verified by
-    # _verify_model_dir before any pickle.load at predict time (audit item D4).
+    feature_contract = FeatureContract.create(
+        base_feature_cols=feature_cols,
+        expanded_feature_cols=expanded_feature_cols,
+        feature_mode=args.feature_mode,
+        feature_engineering_version=FEATURE_ENGINEERING_VERSION,
+        feature_schema_version=FEATURE_SCHEMA_VERSION,
+        feature_schema_hash=feature_schema_hash(),
+        allow_policy_features=bool(getattr(args, "allow_policy_features", False)),
+    )
+    sequence_config = (
+        resolve_cnn_config(args).as_dict()
+        if model_family == MODEL_FAMILY_CNN_1D
+        else None
+    )
+    bundle_metadata = build_model_bundle_metadata(
+        trainer_version=VERSION,
+        model_family=model_family,
+        trained_targets=available_targets,
+        feature_contract=feature_contract,
+        training_config={
+            "model_params": sequence_config if sequence_config is not None else params,
+            "sequence": sequence_config,
+            "sample_weight_mode": args.sample_weight_mode,
+            "split_ledger_sha256": split_info.get("sha256"),
+            "preprocessing": {
+                "fit_partition": "train",
+                "imputation": "training_partition_only",
+                "missing_indicator_selection": "training_partition_only",
+                "cnn_normalization": (
+                    "training_partition_only"
+                    if model_family == MODEL_FAMILY_CNN_1D
+                    else None
+                ),
+                "max_nan_frac": args.max_nan_frac,
+                "min_variance": args.min_variance,
+            },
+        },
+        seed=args.random_state,
+        artifact_hashes={
+            name: digest
+            for name, digest in _model_artifact_hashes(args.out).items()
+            if name != MODEL_BUNDLE_METADATA_FILENAME
+        },
+        source_commit=_source_commit(),
+    )
+    save_json(
+        bundle_metadata,
+        os.path.join(args.out, MODEL_BUNDLE_METADATA_FILENAME),
+    )
+    # Integrity manifest: hashes the pickle artifacts and bundle metadata after
+    # their exact bytes exist. _verify_model_dir checks this signed boundary
+    # before any pickle.load at predict time.
     _write_model_manifest(args.out)
     if model_hr is not None and hasattr(model_hr, "feature_importances_"):
         save_feature_importance(model_hr, expanded_feature_cols,
@@ -15181,6 +15379,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_tr.add_argument("--val-ratio",         type=float, default=0.2)
     p_tr.add_argument("--three-way-split",   action="store_true")
+    p_tr.add_argument(
+        "--confirmatory-evaluation",
+        action="store_true",
+        help=(
+            "fail closed unless a participant-disjoint three-way split covers every "
+            "0.6/0.8/1.0 m x none/cardboard confirmatory condition"
+        ),
+    )
     p_tr.add_argument("--early-stop-ratio",  type=float, default=0.15)
     p_tr.add_argument("--purge-gap-s",       type=float, default=10.0)
     p_tr.add_argument("--random-state",      type=int,   default=42)
@@ -15224,7 +15430,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_tr.add_argument("--allow-policy-features", action="store_true",
                       help="explicit ablation flag: allow policy/gate telemetry into the ML feature matrix")
     p_tr.add_argument("--loo-eval", action="store_true",
-                      help="run leave-one-session-out evaluation across available sessions (recommended for paper-grade validation)")
+                      help=(
+                          "run leave-one-participant-out evaluation when study metadata "
+                          "is available, otherwise leave-one-session-out"
+                      ))
     p_tr.set_defaults(func=cmd_train)
 
     # -- sweep -----------------------------------------------------------------

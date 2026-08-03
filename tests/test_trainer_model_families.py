@@ -82,6 +82,23 @@ def test_train_cli_accepts_1d_cnn_as_explicit_option():
     assert args.cnn_window_size == 48
 
 
+def test_train_cli_exposes_fail_closed_confirmatory_evaluation():
+    args = build_parser().parse_args(
+        [
+            "train",
+            "--radar",
+            "radar.csv",
+            "--ref",
+            "ref.csv",
+            "--three-way-split",
+            "--confirmatory-evaluation",
+        ]
+    )
+    assert args.model_family == MODEL_FAMILY_GRADIENT_BOOSTING
+    assert args.three_way_split is True
+    assert args.confirmatory_evaluation is True
+
+
 def test_cnn_dependency_error_is_actionable(monkeypatch):
     original_import = builtins.__import__
 
@@ -93,6 +110,22 @@ def test_cnn_dependency_error_is_actionable(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", reject_tensorflow)
     with pytest.raises(RuntimeError, match="pip install tensorflow"):
         Keras1DCNNRegressor._tensorflow()
+
+
+def test_cnn_normalization_is_fitted_on_training_windows_only():
+    model = Keras1DCNNRegressor(Cnn1DConfig(window_size=2, kernel_size=2))
+    train = np.asarray(
+        [[[0.0, 10.0], [2.0, 14.0]], [[4.0, 18.0], [6.0, 22.0]]],
+        dtype=np.float32,
+    )
+    validation = np.full((1, 2, 2), 1_000_000.0, dtype=np.float32)
+
+    normalized_train = model._normalize_fit(train)
+    normalized_validation = model._normalize(validation)
+
+    np.testing.assert_allclose(model.feature_mean_, [3.0, 16.0])
+    np.testing.assert_allclose(normalized_train.mean(axis=(0, 1)), [0.0, 0.0])
+    assert np.all(normalized_validation > 100_000)
 
 
 def test_cnn_refuses_starved_dataset_before_loading_tensorflow():

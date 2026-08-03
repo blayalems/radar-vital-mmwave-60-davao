@@ -112,6 +112,7 @@ describe('HomeComponent Start idempotency', () => {
       ]
     });
     component = TestBed.runInInjectionContext(() => new HomeComponent());
+    (component as unknown as { participantRosterValid: boolean }).participantRosterValid = true;
     component.selectedDuration = 30;
   });
 

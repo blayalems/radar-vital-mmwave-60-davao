@@ -123,6 +123,7 @@ describe('HomeComponent preflight request ownership', () => {
       ]
     });
     component = TestBed.runInInjectionContext(() => new HomeComponent());
+    (component as unknown as { participantRosterValid: boolean }).participantRosterValid = true;
     component.selectedDuration = setup().duration_s;
   });
 

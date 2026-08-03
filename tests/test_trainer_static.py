@@ -59,6 +59,7 @@ def test_safe_asset_path_blocks_traversal():
     assert safe_asset_path("/icons/../../etc/passwd") is None
     assert safe_asset_path("/lib/../../../../etc/passwd") is None
     assert safe_asset_path("/fonts/../../../.rvt_tls/cert.pem") is None
+    assert safe_asset_path("/icons/%00.png") is None
 
 
 def test_safe_asset_path_blocks_rvt_tls_directly():

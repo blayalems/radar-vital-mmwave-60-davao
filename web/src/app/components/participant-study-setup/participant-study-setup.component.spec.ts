@@ -116,6 +116,36 @@ describe('ParticipantStudySetupComponent', () => {
     expect(setup().subject_label).toBe('P-003');
   });
 
+  it('clears and invalidates a cached participant when the roster marks consent withdrawn', async () => {
+    setup.update(value => ({ ...value, participant_id: 'P-003', subject_label: 'P-003' }));
+    request.mockResolvedValue({
+      participants: [{ participant_id: 'P-003', display_code: 'P-003', status: 'withdrawn' }]
+    });
+    const validity: boolean[] = [];
+    component.rosterValidityChanged.subscribe(value => validity.push(value));
+
+    await component.loadParticipants();
+
+    expect(setup().participant_id).toBe('');
+    expect(setup().subject_label).toBe('');
+    expect(validity).toEqual([false, false]);
+  });
+
+  it('fails closed and clears a cached participant when the roster cannot be verified', async () => {
+    setup.update(value => ({ ...value, participant_id: 'P-003', subject_label: 'P-003' }));
+    request.mockRejectedValue(new Error('Roster unavailable'));
+    const validity: boolean[] = [];
+    component.rosterValidityChanged.subscribe(value => validity.push(value));
+
+    await component.loadParticipants();
+
+    expect(component.participants()).toEqual([]);
+    expect(component.loadError()).toBe('Roster unavailable');
+    expect(setup().participant_id).toBe('');
+    expect(setup().subject_label).toBe('');
+    expect(validity).toEqual([false, false]);
+  });
+
   it('accepts the backend profile alias when creating and selects the new profile', async () => {
     request.mockResolvedValue({
       profile: { participant_id: 'P-004', display_code: 'P-004', status: 'active' }

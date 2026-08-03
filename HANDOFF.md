@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-07-29 - Harden v16.5.6 routes, authorization, and participant consent state
+
+- **Release identity**: Advanced firmware, trainer, Angular dashboard, package, installer, help, issue, and generated-artifact version carriers exactly one patch to `16.5.6`; the firmware source is now `radar_vital_v16_5_6.ino` while the frozen v15.2 / 222-column serial contract and stable compatibility filenames remain unchanged.
+- **Route and authorization boundaries**: Made wildcard matching path-segment aware, rejected session-root aliases and inherited `HEAD` filesystem probing, authenticated protected POSTs before parsing their bodies, hardened invalid path handling, and standardized unknown API errors.
+- **Participant validity**: Revalidates cached participant selection against the live roster, clears participant and subject labels on withdrawal/missing/unavailable state, and blocks both Start paths until an active coded participant is verified.
+- **Controlled documents**: Advanced the controlled-document register to `R02` and incremented only the controlled records changed by this release scaffold; unchanged schemas, templates, ownership configuration, and model guidance remain at `R01`.
+- **Verification**: Full Python passes 451/451 with 3 environment skips; Angular passes 249/249; QMS passes 9/9 across 17 controlled documents and 13 requirements. Trainer compile/help, v16.5.5 -> v16.5.6 patch/version graph, source integrity, feedback-loop export, production build, and generated-dashboard round trip pass. Four desktop browser cases, including withdrawn-roster Start rejection, enumerate; local execution remains blocked by the missing Chromium headless-shell binary, and firmware/APK/EXE/Pages remain required CI gates.
+
 ### 2026-07-29 - Establish v16.5.5 QMS change and release control
 
 - **Document control**: Added an ISO 9001:2015-aligned (not certification-claiming) QMS policy, controlled-document register, stable revisions/roles/retention, PR change record, and protected-branch guidance.

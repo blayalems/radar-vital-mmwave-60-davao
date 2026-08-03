@@ -36,7 +36,7 @@ function fixture() {
   git(root, 'config', 'user.email', 'qms@example.invalid');
   git(root, 'config', 'user.name', 'QMS Test');
   git(root, 'config', 'core.autocrlf', 'false');
-  write(root, 'package.json', { version: '16.5.5' });
+  write(root, 'package.json', { version: '16.5.6' });
   write(root, 'HANDOFF.md', '# Handoff\n');
   write(root, 'docs/controlled.md', '# Controlled\n');
   write(root, 'src/feature.ts', 'export const enabled = true;\n');
@@ -143,7 +143,7 @@ function fixture() {
     schema_version: 'rvt-qms-document-register-v1',
     register_id: 'RVT-QMS-DOCUMENT-REGISTER',
     register_revision: 'R01',
-    effective_product_version: '16.5.5',
+    effective_product_version: '16.5.6',
     status: 'active',
     owner_role: 'Quality lead',
     approval_method: 'protected_pull_request',
@@ -158,7 +158,7 @@ function fixture() {
         record_type: 'guide',
         status: 'active',
         revision: 'R01',
-        effective_product_version: '16.5.5',
+        effective_product_version: '16.5.6',
         supersedes: null,
         retention: {
           class: 'project_lifetime_plus_5_years',
@@ -174,7 +174,7 @@ function fixture() {
     schema_version: 'rvt-qms-requirements-v1',
     register_id: 'RVT-QMS-REQUIREMENTS',
     register_revision: 'R01',
-    effective_product_version: '16.5.5',
+    effective_product_version: '16.5.6',
     status: 'active',
     owner_role: 'Quality lead',
     requirements: [
@@ -213,7 +213,7 @@ function validPrBody() {
 - Related issue, review, CAPA, or decision: Review finding
 - Requirement IDs from \`quality/requirements.json\`: RVT-SESSION-001
 - Administrative-only \`N/A\` justification, if applicable: Not applicable
-- Intended product version: 16.5.5
+- Intended product version: 16.5.6
 - Release step from base: patch
 
 ## Purpose and scope

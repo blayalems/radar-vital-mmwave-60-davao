@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R01",
-  "effective_product_version": "16.5.5",
+  "register_revision": "R02",
+  "effective_product_version": "16.5.6",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -78,7 +78,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_5_5.ino",
+        "radar_vital_v16_5_6.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [
@@ -111,6 +111,8 @@
       "status": "active",
       "implementation_paths": [
         "rvt_trainer/assets/static.py",
+        "rvt_trainer/api/route_registry/types.py",
+        "rvt_trainer/monolith.py",
         ".gitignore"
       ],
       "verification_refs": [
@@ -123,12 +125,23 @@
           "path": "tests/test_trainer_security_api.py",
           "selector": "/.rvt_tls/key.pem",
           "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_trainer_security_api.py",
+          "selector": "test_head_never_falls_through_to_simple_http_file_serving",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_trainer_route_registry.py",
+          "selector": "test_route_wildcards_do_not_cross_path_segments",
+          "kind": "automated_test"
         }
       ],
       "artifact_types": ["trainer", "dashboard", "pwa"],
       "acceptance_criteria": [
         "No private-key path resolves through the static asset router.",
-        "Private TLS material is ignored by Git and absent from packaged web assets."
+        "Private TLS material is ignored by Git and absent from packaged web assets.",
+        "Unsupported methods and malformed route segments cannot fall through to filesystem serving or protected handlers."
       ],
       "change_record_required": true
     },
@@ -188,12 +201,18 @@
           "path": "tests/test_participant_study_contract.py",
           "selector": "test_confirmatory_contract_rejects_protocol_drift",
           "kind": "automated_test"
+        },
+        {
+          "path": "web/src/app/components/participant-study-setup/participant-study-setup.component.spec.ts",
+          "selector": "fails closed and clears a cached participant when the roster cannot be verified",
+          "kind": "automated_test"
         }
       ],
       "artifact_types": ["session_manifest", "trainer", "dashboard", "statistical_report"],
       "acceptance_criteria": [
         "A started session cannot be reassigned to another participant or condition.",
-        "Confirmatory eligibility requires the frozen protocol and complete provenance."
+        "Confirmatory eligibility requires the frozen protocol and complete provenance.",
+        "Start remains disabled unless the selected participant is present and active in the current roster."
       ],
       "change_record_required": true
     },

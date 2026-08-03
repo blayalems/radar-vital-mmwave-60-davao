@@ -3,10 +3,10 @@
 | Control | Value |
 |---|---|
 | Document ID | `RVT-QMS-PRO-001` |
-| Revision | `R01` |
+| Revision | `R02` |
 | Owner role | Release manager |
 | Approver roles | Release manager, quality manager, and security owner |
-| Effective product version | `16.5.5` |
+| Effective product version | `16.5.6` |
 | Retention | Project lifetime plus five years; archive then review |
 
 This procedure implements the release portion of the

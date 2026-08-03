@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Make smoke fixtures release- and shard-aware
+
+- **Test contract**: Smoke fixtures now derive the trainer origin from `RVT_TEST_PORT`, so every Playwright matrix shard exercises its own server instead of hard-coded `8989`; OTA assertions now track the v16.5.9 current release, a v16.5.10 product update, and a v16.5.9 build update.
+- **Verification**: Playwright collected 91 desktop tests with the updated fixtures; `git diff --check` passed. The next CI run will supersede the in-progress pre-fixture run.
+
 ### 2026-08-04 - Fix first-run demo navigation and sandbox probes
 
 - **Frontend fix**: Persisted the manual-demo guard marker synchronously before navigation and kept manual-demo API discovery/metadata calls on the sandbox adapter even when callers request a live bypass; this prevents `/connect` bounce loops and CSP noise against the placeholder trainer origin.

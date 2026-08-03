@@ -113,4 +113,39 @@ describe('SandboxApiService', () => {
     expect(preflight.checks).toHaveLength(6);
     expect(service.request('/api/unimplemented')).toEqual({ ok: true, sandbox: true });
   });
+
+  it('mirrors locked protocol, persisted participant randomization, and reference gates', () => {
+    const first = service.request('/api/study/schedule?participant_id=P-001') as {
+      participant_id: string;
+      entries: Array<{ condition_id: string }>;
+    };
+    const second = service.request('/api/study/schedule?participant_id=P-001') as typeof first;
+    expect(first.participant_id).toBe('P-001');
+    expect(first.entries.map(item => item.condition_id)).toEqual(second.entries.map(item => item.condition_id));
+
+    service.request('/api/study/protocol', {
+      method: 'PUT',
+      body: JSON.stringify({ state: 'locked', actor: 'OP-001' })
+    });
+    expect(() => service.request('/api/study/protocol', {
+      method: 'PUT',
+      body: JSON.stringify({ state: 'draft' })
+    })).toThrow('locked');
+
+    expect(() => service.request('/api/sessions/sandbox_test/references/rr-adjudication', {
+      method: 'POST',
+      body: JSON.stringify({ final_value: 15, rationale: 'not enough observers' })
+    })).toThrow('two locked observer');
+    for (const observer_id of ['OBS-A', 'OBS-B']) {
+      service.request('/api/sessions/sandbox_test/references', {
+        method: 'POST',
+        body: JSON.stringify({ kind: 'rr_observer', observer_id, value: 15, unit: 'br/min' })
+      });
+    }
+    const adjudicated = service.request('/api/sessions/sandbox_test/references/rr-adjudication', {
+      method: 'POST',
+      body: JSON.stringify({ final_value: 15, rationale: 'dual observer' })
+    }) as { rr_adjudication: { final_value: number } };
+    expect(adjudicated.rr_adjudication.final_value).toBe(15);
+  });
 });

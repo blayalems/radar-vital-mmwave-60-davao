@@ -5,6 +5,17 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Reserve logical trials and expose study evidence controls
+
+- **Exactly-once collection**: Added durable logical-trial reservations beside request-key idempotency so concurrent clients cannot start the same participant/condition/repetition twice; terminal or failed starts release the slot for a deliberate new attempt.
+- **Study API**: Added operator-protected v16.5.9 protocol, participant schedule, session reference/RR adjudication, analysis-job, and objective-report routes while preserving the existing `/api/study/attempts` no-subject evidence contract and Angular/sandbox route parity; README and feedback-loop documentation now map each control to manuscript evidence. Analysis aliases normalize to the canonical `gradient_boosting` and `cnn_1d` families.
+- **Verification**: Python compileall passed; 18 focused Python API/ledger/idempotency tests and the full Angular suite passed (32 files, 253 tests); `git diff --check` and the web/monolith round-trip passed.
+
+### 2026-08-04 - Refresh objective-evidence Home visual baselines
+
+- **Visual evidence**: Updated only the five Windows Home snapshots changed by the intentional participant protocol, manuscript-objective, completion-matrix, and no-subject evidence UI: all four desktop themes plus night-theme iPad.
+- **CI provenance**: Baselines use the actual images from Playwright run `30834378926` at head `d6d9547`; all other 91 visual cases passed, and desktop retry variation remained below the existing scoped pixel tolerances.
+
 ### 2026-08-03 - Bind Python API surface to manuscript objective testing
 
 - **Cross-stack parity**: Added a checked-in Angular inventory for every Python `/api/` route, validated it with a static contract test, corrected session-list/subject-profile/sign-off response and method drift, and added validated subject-profile PUT handling.

@@ -312,6 +312,59 @@ def _small_confirmatory_inputs():
     return frame, ledger, plan, provenance
 
 
+def _primary_vs_secondary_confirmatory_inputs(participant_count=19):
+    rows = []
+    ledger_rows = []
+    condition_biases = {"d100_none": 3.0, "d060_none": 0.0}
+    for participant_index in range(participant_count):
+        participant = f"P-{participant_index + 1:03d}"
+        for condition, bias in condition_biases.items():
+            for trial_number in (1, 2):
+                trial_id = f"{participant}-{condition}-T{trial_number}"
+                session_id = f"S-{trial_id}"
+                ledger_rows.append({
+                    "participant_id": participant,
+                    "trial_id": trial_id,
+                    "condition_id": condition,
+                    "attempt_type": "subject",
+                    "eligible": True,
+                })
+                for endpoint in range(21):
+                    rows.append({
+                        "participant_id": participant,
+                        "session_id": session_id,
+                        "trial_id": trial_id,
+                        "condition_id": condition,
+                        "timestamp_s": float(endpoint * 5),
+                        "ref_rr": 20.0 + participant_index / 100.0,
+                        "pred_rr": 20.0 + participant_index / 100.0 + bias,
+                        "rr_valid_for_eval": True,
+                        "confirmatory_eligible": True,
+                        "participant_disjoint": True,
+                        "model_family": "gradient_boosting",
+                        "outer_fold": participant_index,
+                        "outer_holdout_group": participant,
+                    })
+    ledger_rows.extend({
+        "participant_id": "NO-SUBJECT",
+        "trial_id": f"NS-{index + 1:03d}",
+        "condition_id": "no_subject",
+        "attempt_type": "no_subject",
+        "eligible": True,
+    } for index in range(72))
+    plan = json.loads(json.dumps(DEFAULT_ANALYSIS_PLAN))
+    plan["status"] = "approved"
+    provenance = {
+        "source_commit": "c" * 40,
+        "model_family": "gradient_boosting",
+        "split_ledger_sha256": "a" * 64,
+        "prediction_file_sha256": "b" * 64,
+        "product_version": "16.5.8",
+        "protocol_id": "RVT-STA-PLAN-16.5.8",
+    }
+    return pd.DataFrame(rows), pd.DataFrame(ledger_rows), plan, provenance
+
+
 def test_confirmatory_flags_are_strict_and_aggregation_excludes_ineligible_rows():
     frame, ledger, plan, provenance = _small_confirmatory_inputs()
     frame["confirmatory_eligible"] = frame["confirmatory_eligible"].astype(object)
@@ -352,6 +405,151 @@ def test_confirmatory_flags_are_strict_and_aggregation_excludes_ineligible_rows(
         require_eligibility=True,
     )
     assert "P-POISON" not in set(summary.get("participant_id", []))
+
+
+def test_confirmatory_filters_invalid_rr_endpoints_before_all_metrics():
+    frame, ledger, plan, provenance = _small_confirmatory_inputs()
+    frame.loc[0, "rr_valid_for_eval"] = False
+    frame.loc[0, "pred_rr"] = 999.0
+
+    report = analyze_frame(
+        frame,
+        reference_column="ref_rr",
+        estimate_column="pred_rr",
+        analysis_plan=plan,
+        provenance=provenance,
+        attempt_ledger=ledger,
+        confirmatory=True,
+    )
+
+    assert report["exclusions"]["invalid_rr"] == 1
+    assert report["metrics"]["n_pairs"] == 2
+    assert report["metrics"]["estimate_mean"] == pytest.approx(20.1)
+
+
+def test_confirmatory_rejects_non_disjoint_eligible_oof_rows():
+    frame, ledger, plan, provenance = _small_confirmatory_inputs()
+    frame.loc[0, "participant_disjoint"] = False
+
+    with pytest.raises(StatisticalInputError, match="participant-disjoint"):
+        analyze_frame(
+            frame,
+            reference_column="ref_rr",
+            estimate_column="pred_rr",
+            analysis_plan=plan,
+            provenance=provenance,
+            attempt_ledger=ledger,
+            confirmatory=True,
+        )
+
+
+def test_confirmatory_rejects_relabelled_oof_holdout_group():
+    frame, ledger, plan, provenance = _small_confirmatory_inputs()
+    frame.loc[0, "outer_holdout_group"] = "P-999"
+
+    with pytest.raises(StatisticalInputError, match="holdout group must equal"):
+        analyze_frame(
+            frame,
+            reference_column="ref_rr",
+            estimate_column="pred_rr",
+            analysis_plan=plan,
+            provenance=provenance,
+            attempt_ledger=ledger,
+            confirmatory=True,
+        )
+
+
+def test_confirmatory_rejects_uncontrolled_participant_identity():
+    frame, ledger, plan, provenance = _small_confirmatory_inputs()
+    frame.loc[0, "participant_id"] = "subject-1"
+    frame.loc[0, "outer_holdout_group"] = "subject-1"
+
+    with pytest.raises(StatisticalInputError, match="P-NNN"):
+        analyze_frame(
+            frame,
+            reference_column="ref_rr",
+            estimate_column="pred_rr",
+            analysis_plan=plan,
+            provenance=provenance,
+            attempt_ledger=ledger,
+            confirmatory=True,
+        )
+
+
+def test_confirmatory_accepts_canonical_raw_rr_but_rejects_lookalike_columns():
+    frame, ledger, plan, provenance = _small_confirmatory_inputs()
+    raw_frame = frame.rename(columns={"pred_rr": "pred_rr_raw"})
+    report = analyze_frame(
+        raw_frame,
+        reference_column="ref_rr",
+        estimate_column="pred_rr_raw",
+        analysis_plan=plan,
+        provenance=provenance,
+        attempt_ledger=ledger,
+        confirmatory=True,
+    )
+    assert report["estimate_column"] == "pred_rr_raw"
+
+    lookalike = frame.assign(uncontrolled_rr=frame["pred_rr"])
+    with pytest.raises(StatisticalInputError, match="pred_rr or pred_rr_raw"):
+        analyze_frame(
+            lookalike,
+            reference_column="ref_rr",
+            estimate_column="uncontrolled_rr",
+            analysis_plan=plan,
+            provenance=provenance,
+            attempt_ledger=ledger,
+            confirmatory=True,
+        )
+
+
+def test_confirmatory_rejects_uncontrolled_plan_identity():
+    frame, ledger, plan, provenance = _small_confirmatory_inputs()
+    plan["plan_id"] = "RVT-STA-PLAN-HACK"
+    provenance["protocol_id"] = plan["plan_id"]
+
+    with pytest.raises(StatisticalInputError, match="plan_id"):
+        analyze_frame(
+            frame,
+            reference_column="ref_rr",
+            estimate_column="pred_rr",
+            analysis_plan=plan,
+            provenance=provenance,
+            attempt_ledger=ledger,
+            confirmatory=True,
+        )
+
+
+def test_confirmatory_report_uses_only_primary_condition_tost(tmp_path):
+    frame, ledger, plan, provenance = _primary_vs_secondary_confirmatory_inputs()
+    report = analyze_frame(
+        frame,
+        reference_column="ref_rr",
+        estimate_column="pred_rr",
+        analysis_plan=plan,
+        provenance=provenance,
+        attempt_ledger=ledger,
+        bootstrap_reps=200,
+        confirmatory=True,
+    )
+
+    primary = report["condition_tost"]["primary"]
+    assert primary["condition_id"] == "d100_none"
+    assert primary["n_participants"] == 19
+    assert primary["mean_difference"] == pytest.approx(3.0)
+    assert primary["decision"] == "not_equivalent"
+    assert report["tost"] == primary
+
+    outputs = write_statistical_outputs(
+        report,
+        tmp_path / "report.json",
+        csv_path=tmp_path / "report.csv",
+    )
+    flat = pd.read_csv(outputs["csv"])
+    primary_decision = flat.loc[
+        flat["metric"] == "d100_none.decision", "value"
+    ].tolist()
+    assert primary_decision == ["not_equivalent"]
 
 
 def test_confirmatory_provenance_rejects_relabelled_model_family():

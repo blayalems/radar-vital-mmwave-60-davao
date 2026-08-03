@@ -169,6 +169,139 @@ export interface StudyObjectivesResponse {
   objectives: StudyObjective[];
 }
 
+export type StudyProtocolState = 'draft' | 'locked' | 'superseded' | string;
+
+export interface StudyProtocolCondition {
+  condition_id: string;
+  distance_m: number;
+  barrier_type: BarrierType;
+  trial_count: number;
+  planned_duration_s: number;
+  confirmatory?: boolean;
+  [key: string]: unknown;
+}
+
+export interface StudyProtocol {
+  schema_version?: string;
+  protocol_id: string;
+  protocol_version: string;
+  state: StudyProtocolState;
+  locked_at?: string | null;
+  locked_by?: string | null;
+  randomization_seed?: string | null;
+  conditions: StudyProtocolCondition[];
+  no_subject?: {
+    trial_count: number;
+    planned_duration_s: number;
+    frozen_configuration?: Record<string, unknown> | null;
+  };
+  [key: string]: unknown;
+}
+
+export interface StudyProtocolResponse {
+  ok?: boolean;
+  protocol: StudyProtocol;
+}
+
+export interface StudyScheduleEntry {
+  participant_id: string;
+  order: number;
+  condition_id: string;
+  trial_numbers: number[];
+  status?: string;
+  seed?: string | null;
+  [key: string]: unknown;
+}
+
+export interface StudyScheduleResponse {
+  ok?: boolean;
+  schema_version?: string;
+  participant_id?: string;
+  seed?: string | null;
+  entries: StudyScheduleEntry[];
+}
+
+export type ReferenceObservationKind = 'rr_observer' | 'temperature' | 'hr' | string;
+
+export interface ReferenceObservation {
+  observation_id: string;
+  session_id: string;
+  kind: ReferenceObservationKind;
+  observer_id?: string | null;
+  value?: number | null;
+  unit?: string | null;
+  observed_at?: string | null;
+  duration_s?: number | null;
+  device_id?: string | null;
+  calibration_id?: string | null;
+  uncertainty?: number | null;
+  locked?: boolean;
+  missing_reason?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ReferenceObservationInput {
+  kind: ReferenceObservationKind;
+  observer_id?: string;
+  value?: number;
+  unit?: string;
+  duration_s?: number;
+  device_id?: string;
+  calibration_id?: string;
+  uncertainty?: number;
+  observed_at?: string;
+  missing_reason?: string;
+  [key: string]: unknown;
+}
+
+export interface StudyReferencesResponse {
+  ok?: boolean;
+  schema_version?: string;
+  session_id: string;
+  references: ReferenceObservation[];
+  rr_adjudication?: Record<string, unknown> | null;
+}
+
+export interface RrAdjudicationInput {
+  final_value: number;
+  rationale: string;
+  actor?: string;
+}
+
+export interface StudyAnalysisRequest {
+  objective_id?: string;
+  session_ids?: string[];
+  /** Canonical trainer values are gradient_boosting and cnn_1d; short aliases remain accepted at the API boundary. */
+  model_family?: 'gradient_boosting' | 'cnn_1d' | 'gbr' | 'cnn' | string;
+  confirmatory?: boolean;
+}
+
+export interface StudyAnalysisJob {
+  job_id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | string;
+  objective_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  error?: string | null;
+  [key: string]: unknown;
+}
+
+export interface StudyAnalysisResponse {
+  ok?: boolean;
+  job: StudyAnalysisJob;
+}
+
+export interface StudyObjectiveReport {
+  ok?: boolean;
+  objective_id: string;
+  schema_version?: string;
+  status: 'ready' | 'inconclusive' | 'descriptive' | 'blocked' | string;
+  report?: Record<string, unknown> | null;
+  exclusions?: Array<Record<string, unknown>>;
+  provenance?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface ParticipantStatusResponse {
   ok: boolean;
   schema_version?: string;

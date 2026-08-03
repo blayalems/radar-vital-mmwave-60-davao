@@ -225,6 +225,41 @@
       </mat-card-content>
     </mat-card>
 
+    <mat-card class="analysis-card" aria-label="Manuscript objective reports">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="header-avatar-ic">fact_check</mat-icon>
+        <mat-card-title>Manuscript objective evidence</mat-card-title>
+        <mat-card-subtitle>Backend-authoritative reports for the four approved objectives; exploratory outcomes stay descriptive.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (objectiveReportsError) {
+          <p class="error-text">{{ objectiveReportsError }}</p>
+        } @else if (!objectiveReports.length) {
+          <p>No objective report has been loaded yet.</p>
+        } @else {
+          <div class="compare-grid objective-report-grid">
+            @for (report of objectiveReports; track report.objective_id) {
+              <section class="compare-item" [attr.data-report-status]="report.status">
+                <strong>{{ report.objective_id }}</strong>
+                <span>Status: {{ report.status }}</span>
+                @if (report.status === 'descriptive') {
+                  <span>Exploratory/descriptive evidence only.</span>
+                }
+                @if (report.exclusions?.length) {
+                  <span>Exclusions: {{ report.exclusions?.length }}</span>
+                }
+              </section>
+            }
+          </div>
+        }
+        <div class="notes-action-row">
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="loadObjectiveReports()" [disabled]="objectiveReportsLoading">
+            <mat-icon>refresh</mat-icon>{{ objectiveReportsLoading ? 'Loading reports...' : 'Refresh objective reports' }}
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
     <mat-card class="analysis-card" aria-label="Model evidence status">
       <mat-card-header>
         <mat-icon mat-card-avatar class="header-avatar-ic">model_training</mat-icon>

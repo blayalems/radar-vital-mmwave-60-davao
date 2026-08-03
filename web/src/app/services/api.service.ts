@@ -24,7 +24,16 @@ import {
   SessionTagsResponse,
   SessionTrainingStatus,
   SerialPortRecord,
+  ReferenceObservationInput,
+  RrAdjudicationInput,
+  StudyAnalysisRequest,
+  StudyAnalysisResponse,
+  StudyObjectiveReport,
   SubjectProfileRecord,
+  StudyProtocol,
+  StudyProtocolResponse,
+  StudyReferencesResponse,
+  StudyScheduleResponse,
   StudyObjectivesResponse,
   TrainerVersionResponse
 } from '../models/rvt.models';
@@ -468,6 +477,59 @@ export class ApiService {
 
   loadStudyObjectives(): Promise<StudyObjectivesResponse> {
     return this.request<StudyObjectivesResponse>('/api/study/objectives');
+  }
+
+  loadStudyProtocol(): Promise<StudyProtocolResponse> {
+    return this.request<StudyProtocolResponse>('/api/study/protocol');
+  }
+
+  saveStudyProtocol(protocol: Partial<StudyProtocol>): Promise<StudyProtocolResponse> {
+    return this.request<StudyProtocolResponse>('/api/study/protocol', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(protocol)
+    });
+  }
+
+  loadStudySchedule(participantId?: string): Promise<StudyScheduleResponse> {
+    const query = participantId ? `?participant_id=${encodeURIComponent(participantId)}` : '';
+    return this.request<StudyScheduleResponse>(`/api/study/schedule${query}`);
+  }
+
+  loadSessionReferences(sessionId: string): Promise<StudyReferencesResponse> {
+    return this.request<StudyReferencesResponse>(sessionApiPath(sessionId, '/references'));
+  }
+
+  addSessionReference(sessionId: string, observation: ReferenceObservationInput): Promise<StudyReferencesResponse> {
+    return this.request<StudyReferencesResponse>(sessionApiPath(sessionId, '/references'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(observation)
+    });
+  }
+
+  adjudicateSessionRr(sessionId: string, adjudication: RrAdjudicationInput): Promise<StudyReferencesResponse> {
+    return this.request<StudyReferencesResponse>(sessionApiPath(sessionId, '/references/rr-adjudication'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(adjudication)
+    });
+  }
+
+  startStudyAnalysis(input: StudyAnalysisRequest = {}): Promise<StudyAnalysisResponse> {
+    return this.request<StudyAnalysisResponse>('/api/study/analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+  }
+
+  loadStudyAnalysis(jobId: string): Promise<StudyAnalysisResponse> {
+    return this.request<StudyAnalysisResponse>(`/api/study/analysis/${encodeURIComponent(jobId)}`);
+  }
+
+  loadObjectiveReport(objectiveId: string): Promise<StudyObjectiveReport> {
+    return this.request<StudyObjectiveReport>(`/api/study/objectives/${encodeURIComponent(objectiveId)}/report`);
   }
 
   createProtocolAttempt(input: ProtocolAttemptInput): Promise<ProtocolAttemptResponse> {

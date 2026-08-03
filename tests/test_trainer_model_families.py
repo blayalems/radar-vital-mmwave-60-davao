@@ -72,7 +72,10 @@ def test_causal_slew_limit_is_prefix_invariant():
         prefix_out["prediction"].to_numpy(),
         extended_out["prediction"].to_numpy()[: len(prefix)],
     )
-    assert extended_out["prediction"].iloc[0] == pytest.approx(10.0)
+    np.testing.assert_allclose(
+        extended_out["prediction"].to_numpy(),
+        [10.0, 11.0, 12.0],
+    )
 
 
 @pytest.mark.parametrize("window_size", [0, 1])

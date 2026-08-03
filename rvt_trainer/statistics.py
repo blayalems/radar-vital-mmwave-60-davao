@@ -117,10 +117,29 @@ def _validate_analysis_plan(
     if not isinstance(plan, Mapping):
         raise StatisticalInputError("analysis_plan must be a JSON object")
     normalized = dict(plan)
+    if not str(normalized.get("$schema", "")).strip():
+        raise StatisticalInputError("analysis_plan $schema is required")
     if normalized.get("schema_version") != "rvt-analysis-plan-v1":
         raise StatisticalInputError("analysis_plan schema_version is unsupported")
-    if not str(normalized.get("plan_id", "")).startswith("RVT-STA-PLAN-"):
+    if not re.fullmatch(
+        r"RVT-STA-PLAN-[0-9]+\.[0-9]+\.[0-9]+",
+        str(normalized.get("plan_id", "")),
+    ):
         raise StatisticalInputError("analysis_plan plan_id is invalid")
+    if not re.fullmatch(
+        r"[0-9]+\.[0-9]+\.[0-9]+",
+        str(normalized.get("effective_product_version", "")),
+    ):
+        raise StatisticalInputError("analysis_plan effective_product_version is invalid")
+    if normalized.get("owner_role") != "research_lead":
+        raise StatisticalInputError("analysis_plan owner_role must be research_lead")
+    approvals = normalized.get("approval_required")
+    if approvals != ["research_lead", "quality_manager"]:
+        raise StatisticalInputError(
+            "analysis_plan approval_required must name research_lead and quality_manager"
+        )
+    if normalized.get("status") not in {"draft", "approved", "superseded"}:
+        raise StatisticalInputError("analysis_plan status is invalid")
     if require_approved and normalized.get("status") != "approved":
         raise StatisticalInputError(
             "confirmatory analysis requires an approved statistical analysis plan"
@@ -163,13 +182,22 @@ def _validate_analysis_plan(
     if secondary.get("condition_ids") != expected_secondary or secondary.get("multiplicity_adjustment") != "holm":
         raise StatisticalInputError("analysis_plan secondary Holm family is not frozen")
     sequence = aggregation.get("sequence")
-    if aggregation.get("input") != "outer_oof_predictions.csv" or aggregation.get("unit") != "participant_condition" or aggregation.get("participant_balanced") is not True or not isinstance(sequence, list) or len(sequence) < 3:
+    expected_sequence = DEFAULT_ANALYSIS_PLAN["aggregation"]["sequence"]
+    if aggregation.get("input") != "outer_oof_predictions.csv" or aggregation.get("unit") != "participant_condition" or aggregation.get("participant_balanced") is not True or sequence != expected_sequence:
         raise StatisticalInputError("analysis_plan aggregation contract is incomplete")
     if reports.get("retain_raw_predictions") is not True or reports.get("retain_raw_and_postprocessed_columns") is not True:
         raise StatisticalInputError("analysis_plan must retain raw and postprocessed predictions")
+    expected_reports = DEFAULT_ANALYSIS_PLAN["reports"]
+    for key in (
+        "metrics", "agreement", "coverage_denominator", "false_alarm_test", "provenance",
+    ):
+        if reports.get(key) != expected_reports[key]:
+            raise StatisticalInputError(f"analysis_plan reports.{key} is not frozen")
     if reports.get("exports") != ["json", "csv", "latex"]:
         raise StatisticalInputError("analysis_plan export contract is not frozen")
-    if interpretation.get("equivalence_requires_both_one_sided_tost_tests") is not True or interpretation.get("fewer_than_minimum_independent_estimates") != "inconclusive":
+    if normalized.get("exclusions") != DEFAULT_ANALYSIS_PLAN["exclusions"]:
+        raise StatisticalInputError("analysis_plan exclusion contract is not frozen")
+    if interpretation != DEFAULT_ANALYSIS_PLAN["interpretation"]:
         raise StatisticalInputError("analysis_plan interpretation contract is incomplete")
     return normalized
 
@@ -315,10 +343,27 @@ def _validate_confirmatory_provenance(
     holdout = frame["outer_holdout_group"].map(lambda value: str(value).strip())
     if bool((holdout == "").any()):
         raise StatisticalInputError("confirmatory OOF holdout groups must be non-empty")
+    participants = frame[participant_column].map(lambda value: str(value).strip())
+    if bool((participants == "").any()):
+        raise StatisticalInputError("confirmatory participant IDs must be non-empty")
     participant_groups = frame[[participant_column]].copy()
     participant_groups["_holdout_group"] = holdout.to_numpy()
     if bool((participant_groups.groupby(participant_column, dropna=False)["_holdout_group"].nunique() > 1).any()):
         raise StatisticalInputError("confirmatory participant appears in multiple OOF holdout groups")
+    eligible = _strict_bool_mask(
+        frame["confirmatory_eligible"], name="confirmatory_eligible"
+    )
+    if any(
+        not re.fullmatch(r"P-[0-9]{3}", participant)
+        for participant in participants[eligible]
+    ):
+        raise StatisticalInputError(
+            "confirmatory-eligible participant IDs must use the P-NNN format"
+        )
+    if bool((holdout[eligible].to_numpy() != participants[eligible].to_numpy()).any()):
+        raise StatisticalInputError(
+            "confirmatory OOF holdout group must equal participant_id for every eligible row"
+        )
     return {
         "source_commit": source_commit,
         "model_family": model_family,
@@ -924,7 +969,17 @@ def _condition_tost(
         finite = np.isfinite(block[reference_column].to_numpy(dtype=float)) & np.isfinite(
             block[estimate_column].to_numpy(dtype=float)
         )
-        participants = sorted({str(value) for value in block.loc[finite, participant_column]})
+        participant_block = (
+            block.loc[finite, [participant_column, reference_column, estimate_column]]
+            .groupby(participant_column, dropna=False, sort=True, observed=True)[
+                [reference_column, estimate_column]
+            ]
+            .mean()
+            .reset_index()
+        )
+        participants = sorted(
+            str(value) for value in participant_block[participant_column]
+        )
         base = {
             "condition_id": condition,
             "n_participants": len(participants),
@@ -934,8 +989,8 @@ def _condition_tost(
         if len(participants) < minimum_independent_estimates:
             return base
         result = paired_tost(
-            block.loc[finite, reference_column].to_numpy(dtype=float),
-            block.loc[finite, estimate_column].to_numpy(dtype=float),
+            participant_block[reference_column].to_numpy(dtype=float),
+            participant_block[estimate_column].to_numpy(dtype=float),
             lower=-margin,
             upper=margin,
             alpha=alpha,
@@ -1335,8 +1390,11 @@ def analyze_frame(
             raise StatisticalInputError("confirmatory analysis requires participant_id")
         primary_spec = _plan_primary(plan)
         target = str(primary_spec.get("target", ""))
-        if target != "rr" or not reference_column.lower().endswith("_rr") or not estimate_column.lower().endswith("_rr"):
-            raise StatisticalInputError("confirmatory primary analysis is fixed to RR columns")
+        allowed_estimates = {"pred_rr", "pred_rr_raw"}
+        if target != "rr" or reference_column != "ref_rr" or estimate_column not in allowed_estimates:
+            raise StatisticalInputError(
+                "confirmatory primary analysis requires ref_rr with pred_rr or pred_rr_raw"
+            )
         required_columns = [
             str(participant_column), "session_id", "trial_id", "condition_id",
             "timestamp_s", "rr_valid_for_eval", "confirmatory_eligible",
@@ -1380,6 +1438,10 @@ def analyze_frame(
         participant_disjoint = _strict_bool_mask(
             frame["participant_disjoint"], name="participant_disjoint"
         )
+        if bool((confirmatory_eligible & ~participant_disjoint).any()):
+            raise StatisticalInputError(
+                "confirmatory-eligible rows must come from participant-disjoint OOF folds"
+            )
         valid = rr_valid & confirmatory_eligible & participant_disjoint
         exclusions = {
             "invalid_rr": int((~rr_valid).sum()),

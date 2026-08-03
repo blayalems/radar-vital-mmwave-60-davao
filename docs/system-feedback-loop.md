@@ -175,12 +175,22 @@ exploratory and cannot enter confirmatory statistics.
 
 The operator-facing objective contract is served by
 `GET /api/study/objectives` and is rendered in the Angular participant setup.
-It binds the four approved manuscript objectives to their evidence paths:
-primary RR TOST at `d100_none`, exploratory unobstructed temperature
-agreement, the 72-trial no-subject false-alarm denominator, and exploratory HR
-agreement across the six configurations. The completion matrix, withdrawal
-history, attempt ledger, model training/prediction status, and session tags are
-all reachable from the same frontend API surface. The static
+The locked protocol is read or written through `/api/study/protocol`, while
+`/api/study/schedule?participant_id=P-NNN` returns the persisted deterministic
+randomization for that participant. This binds the four approved manuscript
+objectives to their evidence paths: primary RR TOST at `d100_none`, exploratory
+unobstructed temperature agreement, the 72-trial no-subject false-alarm
+denominator, and exploratory HR agreement across the six configurations.
+Reference observations are append-only at
+`/api/sessions/<id>/references`; RR requires two locked observer readings before
+`/references/rr-adjudication` can create a final value. Analysis requests and
+objective reports retain job, model-family, and release provenance and never
+report a pass before a completed analysis exists. The completion matrix,
+withdrawal history, attempt ledger, model training/prediction status, and
+session tags are all reachable from the same frontend API surface, including
+the sandbox adapter. The backend's durable logical-trial reservation is
+separate from HTTP idempotency, so two clients cannot allocate one
+participant/condition/repetition concurrently. The static
 `tests/test_frontend_backend_api_contract.py` check prevents a Python route
 from being added without a corresponding dashboard binding.
 

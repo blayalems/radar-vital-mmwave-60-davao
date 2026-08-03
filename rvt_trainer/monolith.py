@@ -137,6 +137,17 @@ from rvt_trainer.session.protocol_ledger import (
     register_protocol_attempt as _register_protocol_attempt,
 )
 from rvt_trainer.session.study_objectives import study_objectives_payload as _study_objectives_payload
+from rvt_trainer.session.study_evidence import (
+    adjudicate_rr as _adjudicate_rr,
+    append_reference as _append_reference,
+    create_analysis_job as _create_analysis_job,
+    load_analysis_job as _load_analysis_job,
+    load_protocol as _load_study_protocol,
+    load_references as _load_references,
+    objective_report as _objective_report,
+    save_protocol as _save_study_protocol,
+    schedule_for_participant as _schedule_for_participant,
+)
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -7211,6 +7222,31 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if route_name == "study_objectives":
             self._send_json(200, _study_objectives_payload())
             return
+        if route_name == "study_protocol":
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "protocol": _load_study_protocol(self.server.sessions_root),
+                },
+            )
+            return
+        if route_name == "study_schedule":
+            participant_id = (parse_qs(parsed.query).get("participant_id") or [""])[-1]
+            try:
+                self._send_json(
+                    200,
+                    _schedule_for_participant(
+                        self.server.sessions_root,
+                        participant_id,
+                    ),
+                )
+            except ValueError as exc:
+                self._send_json(
+                    400,
+                    _api_error("INVALID_STUDY_SCHEDULE", str(exc)),
+                )
+            return
         if route_name == "operator_profiles_get":
             db = _load_operator_profiles(self.server.sessions_root)
             profiles_list = []
@@ -7432,6 +7468,25 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "updated_at": existing.get("updated_at"),
             })
             return
+        if route_name == "session_references_get":
+            sid = unquote(path.split("/")[3])
+            try:
+                root = _session_path(self.server.sessions_root, sid)
+            except Exception:
+                self._send_json(
+                    404,
+                    _api_error("SESSION_NOT_FOUND", "session not found"),
+                )
+                return
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "session_id": sid,
+                    **_load_references(str(root)),
+                },
+            )
+            return
         if route_name == "session_summary":
             sid = unquote(path.split("/")[3])
             try:
@@ -7510,6 +7565,33 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             candidates = [root / "predict_summary.json", root / "analysis" / "predict_summary.json", root.parent / "model_out" / "predict_summary.json"]
             found = next((p for p in candidates if p.exists()), None)
             self._send_json(200, {"ok": bool(found), "session_id": sid, "summary": (_read_json_if_exists(str(found)) if found else None), "path": str(found) if found else None})
+            return
+        if route_name == "study_analysis_status":
+            job_id = unquote(path.rsplit("/", 1)[-1])
+            job = _load_analysis_job(self.server.sessions_root, job_id)
+            if job is None:
+                self._send_json(
+                    404,
+                    _api_error("STUDY_ANALYSIS_NOT_FOUND", "study analysis job not found"),
+                )
+                return
+            self._send_json(200, {"ok": True, "job": job})
+            return
+        if route_name == "study_objective_report":
+            objective_id = unquote(path.split("/")[4])
+            try:
+                report = _objective_report(
+                    objective_id,
+                    objectives=_study_objectives_payload(),
+                    sessions_root=self.server.sessions_root,
+                )
+            except KeyError:
+                self._send_json(
+                    404,
+                    _api_error("OBJECTIVE_NOT_FOUND", "study objective not found"),
+                )
+                return
+            self._send_json(200, report)
             return
         if route_name == "report_export":
             sid = (parse_qs(parsed.query).get("session") or [""])[-1]
@@ -7623,6 +7705,51 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 })
             except (TypeError, ValueError) as exc:
                 self._send_json(400, _api_error("INVALID_PROTOCOL_ATTEMPT", str(exc)))
+            return
+        if route_name in {"session_references_post", "session_rr_adjudication"}:
+            sid = unquote(path.split("/")[3])
+            try:
+                root = _session_path(self.server.sessions_root, sid)
+            except Exception:
+                self._send_json(
+                    404,
+                    _api_error("SESSION_NOT_FOUND", "session not found"),
+                )
+                return
+            try:
+                if route_name == "session_rr_adjudication":
+                    references = _adjudicate_rr(
+                        str(root),
+                        body,
+                        actor=body.get("actor"),
+                    )
+                else:
+                    references = _append_reference(
+                        str(root),
+                        body,
+                        actor=body.get("actor"),
+                    )
+            except (TypeError, ValueError) as exc:
+                self._send_json(
+                    400,
+                    _api_error("INVALID_REFERENCE_EVIDENCE", str(exc)),
+                )
+                return
+            self._send_json(
+                201 if route_name == "session_references_post" else 200,
+                {"ok": True, "session_id": sid, **references},
+            )
+            return
+        if route_name == "study_analysis_start":
+            try:
+                job = _create_analysis_job(self.server.sessions_root, body)
+            except (TypeError, ValueError) as exc:
+                self._send_json(
+                    400,
+                    _api_error("INVALID_STUDY_ANALYSIS", str(exc)),
+                )
+                return
+            self._send_json(202, {"ok": True, "job": job})
             return
         if route_name == "auth_login":
             status, payload = _login_operator(self.server, str(body.get("operator_id") or ""), str(body.get("pin") or ""))
@@ -7794,6 +7921,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 if replay is not None:
                     self._send_json(200, replay)
                     return
+                self.server.supervisor.lookup_logical_trial_start(
+                    study_assignment.get("logical_trial_id")
+                )
             except StartIdempotencyError as exc:
                 status = 400 if exc.code == "INVALID_IDEMPOTENCY_KEY" else 409
                 if exc.code == "PREFLIGHT_FAILED":
@@ -7954,6 +8084,22 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(200, saved)
             except (TypeError, ValueError) as exc:
                 self._send_json(400, _api_error("INVALID_SUBJECT_PROFILES", str(exc)))
+            return
+        if route_name == "study_protocol":
+            try:
+                protocol = _save_study_protocol(
+                    self.server.sessions_root,
+                    body,
+                    actor=body.get("actor"),
+                )
+            except (TypeError, ValueError) as exc:
+                status = 409 if "locked" in str(exc).lower() else 400
+                self._send_json(
+                    status,
+                    _api_error("INVALID_STUDY_PROTOCOL", str(exc)),
+                )
+                return
+            self._send_json(200, {"ok": True, "protocol": protocol})
             return
         if route_name == "participant_status":
             participant_id = unquote(path.rsplit("/", 1)[-1])

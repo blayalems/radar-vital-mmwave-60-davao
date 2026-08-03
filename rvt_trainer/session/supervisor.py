@@ -33,6 +33,10 @@ from rvt_trainer.session.protocol_ledger import (
     append_session_attempt_event,
     initialize_session_attempt,
 )
+from rvt_trainer.session.logical_trial_reservation import (
+    STARTING_RESERVATION_STALE_S,
+    LogicalTrialReservationStore,
+)
 from rvt_trainer.session.start_idempotency import (
     StartIdempotencyError,
     StartIdempotencyStore,
@@ -265,6 +269,9 @@ class SessionSupervisor:
         self._terminate_grace_s = 3.0
         self._kill_grace_s = 2.0
         self._start_idempotency = StartIdempotencyStore(self.sessions_root)
+        self._logical_trial_reservations = LogicalTrialReservationStore(
+            self.sessions_root
+        )
 
     def _current_path(self) -> Path:
         return Path(self.sessions_root) / "current_session.json"
@@ -302,6 +309,129 @@ class SessionSupervisor:
     def _read_current(self) -> Optional[Dict[str, object]]:
         data = read_json_if_exists(str(self._current_path()))
         return data if isinstance(data, dict) else None
+
+    def _logical_trial_reservation_is_active(
+        self,
+        record: Mapping[str, object],
+    ) -> bool:
+        """Return whether a durable logical-trial reservation still has an owner."""
+
+        state = str(record.get("state") or "")
+        session_dir = record.get("session_dir")
+        if session_dir not in (None, ""):
+            if (
+                self.proc is not None
+                and self.proc.poll() is None
+                and _same_session_dir(self.session_dir, session_dir)
+            ):
+                return True
+            manifest = read_json_if_exists(
+                str(Path(str(session_dir)) / "session_manifest.json")
+            )
+            if isinstance(manifest, dict) and bool(manifest.get("terminal")):
+                return False
+            ledger = read_json_if_exists(
+                str(Path(str(session_dir)) / "protocol_attempt.json")
+            )
+            if isinstance(ledger, dict) and bool(ledger.get("terminal")):
+                return False
+            current = self._read_current()
+            if (
+                isinstance(current, dict)
+                and _same_session_dir(current.get("session_dir"), session_dir)
+                and _pid_alive(current.get("pid"))
+            ):
+                return True
+            lock = _read_session_lock(self.sessions_root)
+            if (
+                isinstance(lock, dict)
+                and _same_session_dir(lock.get("session_dir"), session_dir)
+                and _pid_alive(lock.get("pid"))
+            ):
+                return True
+            return False
+
+        if state != "starting":
+            return False
+        try:
+            age_s = time.time() - float(record.get("created_at_epoch_s") or 0.0)
+        except (TypeError, ValueError):
+            return False
+        return 0.0 <= age_s <= STARTING_RESERVATION_STALE_S
+
+    def _lookup_logical_trial_reservation_locked(
+        self,
+        logical_trial_id: object,
+    ) -> Optional[Dict[str, object]]:
+        logical_id = str(logical_trial_id or "").strip()
+        if not logical_id:
+            return None
+        record = self._logical_trial_reservations.lookup(logical_id)
+        if not isinstance(record, dict):
+            return None
+        if self._logical_trial_reservation_is_active(record):
+            return record
+        self._logical_trial_reservations.release(
+            logical_id,
+            reservation_id=record.get("reservation_id"),
+        )
+        return None
+
+    def _raise_if_logical_trial_reserved_locked(
+        self,
+        logical_trial_id: object,
+    ) -> None:
+        record = self._lookup_logical_trial_reservation_locked(logical_trial_id)
+        if not isinstance(record, dict):
+            return
+        raise StartIdempotencyError(
+            "LOGICAL_TRIAL_RESERVED",
+            "the participant, condition, and trial number are already reserved by another session start",
+            details={
+                "logical_trial_id": record.get("logical_trial_id"),
+                "reservation_id": record.get("reservation_id"),
+                "session_id": record.get("session_id"),
+                "idempotency_key": record.get("idempotency_key"),
+                "state": record.get("state"),
+            },
+        )
+
+    def _reserve_logical_trial_locked(
+        self,
+        logical_trial_id: object,
+        request_hash: str,
+        idempotency_key: object,
+    ) -> Optional[Dict[str, object]]:
+        logical_id = str(logical_trial_id or "").strip()
+        if not logical_id:
+            return None
+        for _attempt in range(2):
+            self._raise_if_logical_trial_reserved_locked(logical_id)
+            try:
+                return self._logical_trial_reservations.reserve(
+                    logical_id,
+                    request_hash,
+                    idempotency_key=idempotency_key,
+                )
+            except FileExistsError:
+                # Another process won the exclusive create after our lookup.
+                continue
+        self._raise_if_logical_trial_reserved_locked(logical_id)
+        raise StartIdempotencyError(
+            "LOGICAL_TRIAL_RESERVED",
+            "the logical trial reservation changed concurrently; retry after checking the current session",
+            details={"logical_trial_id": logical_id},
+        )
+
+    def lookup_logical_trial_start(
+        self,
+        logical_trial_id: object,
+    ) -> None:
+        """Expose the reservation guard to the HTTP preflight path."""
+
+        with self._lifecycle_lock:
+            self._poll()
+            self._raise_if_logical_trial_reserved_locked(logical_trial_id)
 
     def _reset_runtime_state(self) -> None:
         self.proc = None
@@ -433,6 +563,9 @@ class SessionSupervisor:
             ),
             "start_idempotency_key": kwargs.get("start_idempotency_key"),
             "start_request_hash": kwargs.get("start_request_hash"),
+            "logical_trial_reservation_id": kwargs.get(
+                "logical_trial_reservation_id"
+            ),
             "confirmatory_eligible": bool(
                 study_assignment.get("confirmatory_eligible", False)
                 and release_compatible
@@ -556,6 +689,7 @@ class SessionSupervisor:
                 proc = self.proc
                 session_dir = self.session_dir
                 self._clear_current(pid=proc.pid, session_dir=session_dir)
+                self._logical_trial_reservations.release_for_session(session_dir)
                 self._reset_runtime_state()
                 return True
             return False
@@ -576,18 +710,27 @@ class SessionSupervisor:
             if self._closing:
                 raise RuntimeError("SUPERVISOR_CLOSING: session starts are disabled")
             key = validate_idempotency_key(idempotency_key)
-            request_hash = (
-                canonical_start_request_hash(idempotency_payload or {})
-                if key is not None
-                else None
-            )
-            if key is not None:
-                replay = self._lookup_idempotent_start_locked(key, request_hash)
-                if replay is not None:
-                    return replay
-                self._start_idempotency.begin(key, request_hash)
+            request_hash = canonical_start_request_hash(idempotency_payload or {})
             failure_record = None
+            reservation = None
+            started_result = None
             try:
+                if key is not None:
+                    replay = self._lookup_idempotent_start_locked(key, request_hash)
+                    if replay is not None:
+                        return replay
+                reservation = self._reserve_logical_trial_locked(
+                    kwargs.get("logical_trial_id"),
+                    request_hash,
+                    key,
+                )
+                if key is not None:
+                    self._start_idempotency.begin(key, request_hash)
+                reservation_id = (
+                    reservation.get("reservation_id")
+                    if isinstance(reservation, dict)
+                    else None
+                )
                 if preflight is not None:
                     try:
                         preflight()
@@ -600,6 +743,7 @@ class SessionSupervisor:
                             duration_s=duration_s,
                             start_idempotency_key=key,
                             start_request_hash=request_hash,
+                            logical_trial_reservation_id=reservation_id,
                             **kwargs,
                         )
                         exc.failed_session_id = failure_record["session_id"]
@@ -612,10 +756,24 @@ class SessionSupervisor:
                     timeout_s=timeout_s,
                     start_idempotency_key=key,
                     start_request_hash=request_hash,
+                    logical_trial_reservation_id=reservation_id,
                     **kwargs,
                 )
+                started_result = result
                 if isinstance(kwargs.get("client_compatibility"), dict):
                     result["client_compatibility"] = kwargs["client_compatibility"]
+                if isinstance(reservation, dict):
+                    try:
+                        self._logical_trial_reservations.mark_active(
+                            str(reservation.get("logical_trial_id") or ""),
+                            str(reservation.get("reservation_id") or ""),
+                            result,
+                        )
+                    except OSError:
+                        # The active session marker remains the authoritative
+                        # safety net. Keep Start successful and leave the
+                        # exclusive reservation file in its fail-closed state.
+                        pass
                 if key is not None:
                     self._start_idempotency.mark_succeeded(
                         key,
@@ -624,6 +782,11 @@ class SessionSupervisor:
                     )
                 return result
             except Exception as exc:
+                if isinstance(reservation, dict) and started_result is None:
+                    self._logical_trial_reservations.release(
+                        str(reservation.get("logical_trial_id") or ""),
+                        reservation_id=reservation.get("reservation_id"),
+                    )
                 if key is not None:
                     code = getattr(exc, "code", None) or (
                         "SPAWN_TIMEOUT"
@@ -934,6 +1097,9 @@ class SessionSupervisor:
             request_clean = _clear_supervisor_stop_request(
                 stopped_session_dir,
                 request.get("request_id"),
+            )
+            self._logical_trial_reservations.release_for_session(
+                stopped_session_dir
             )
             self._reset_runtime_state()
             if not (current_clean and lock_clean and request_clean):

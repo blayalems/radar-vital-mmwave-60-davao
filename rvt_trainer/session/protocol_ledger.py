@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 import secrets
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional
@@ -47,6 +48,7 @@ CONFIRMATORY_CONDITION_IDS = (
 TRIAL_NUMBERS = (1, 2, 3)
 _PARTICIPANT_RE = re.compile(r"^P-[0-9]{3}$")
 _CONDITION_RE = re.compile(r"^d[0-9]{3}_(?:none|cardboard)$")
+_LEDGER_LOCK = threading.RLock()
 
 
 def _iso_now() -> str:
@@ -233,7 +235,7 @@ def append_session_attempt_event(
     return record
 
 
-def register_protocol_attempt(
+def _register_protocol_attempt_unlocked(
     sessions_root: str,
     payload: Mapping[str, object],
 ) -> Dict[str, object]:
@@ -290,6 +292,16 @@ def register_protocol_attempt(
     return record
 
 
+def register_protocol_attempt(
+    sessions_root: str,
+    payload: Mapping[str, object],
+) -> Dict[str, object]:
+    """Append one standalone attempt without losing a concurrent API write."""
+
+    with _LEDGER_LOCK:
+        return _register_protocol_attempt_unlocked(sessions_root, payload)
+
+
 def _iter_attempt_records(sessions_root: str) -> Iterable[Dict[str, object]]:
     root = Path(sessions_root).resolve()
     aggregate = read_json_if_exists(str(protocol_attempts_path(str(root))))
@@ -303,6 +315,39 @@ def _iter_attempt_records(sessions_root: str) -> Iterable[Dict[str, object]]:
         record = read_json_if_exists(str(path))
         if isinstance(record, dict):
             yield record
+
+
+def list_protocol_attempts(
+    sessions_root: str,
+    *,
+    attempt_type: object = None,
+    participant_id: object = None,
+    status: object = None,
+) -> list[Dict[str, object]]:
+    """Return append-only attempt evidence with optional exact filters."""
+
+    wanted_type = _safe_text(attempt_type).lower()
+    wanted_participant = _safe_text(participant_id).upper()
+    wanted_status = _safe_text(status).lower()
+    with _LEDGER_LOCK:
+        rows = [dict(row) for row in _iter_attempt_records(sessions_root)]
+    if wanted_type:
+        rows = [row for row in rows if str(row.get("attempt_type") or "") == wanted_type]
+    if wanted_participant:
+        rows = [
+            row
+            for row in rows
+            if str(row.get("participant_id") or "").upper() == wanted_participant
+        ]
+    if wanted_status:
+        rows = [row for row in rows if str(row.get("status") or "") == wanted_status]
+    rows.sort(
+        key=lambda row: (
+            str(row.get("created_at") or ""),
+            str(row.get("attempt_id") or ""),
+        )
+    )
+    return rows
 
 
 def completion_matrix(sessions_root: str) -> Dict[str, object]:
@@ -384,6 +429,7 @@ __all__ = [
     "completion_matrix",
     "initialize_session_attempt",
     "ledger_path",
+    "list_protocol_attempts",
     "protocol_attempts_path",
     "register_protocol_attempt",
 ]

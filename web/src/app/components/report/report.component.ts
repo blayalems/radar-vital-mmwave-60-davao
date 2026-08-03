@@ -13,7 +13,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatListModule } from '@angular/material/list';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { DownloadRecord, SessionDataPayload, SessionNotesPayload, SessionPredictionResponse, SessionRecord, SessionSignoff, SessionTagsResponse, SessionTrainingStatus } from '../../models/rvt.models';
+import { DownloadRecord, SessionDataPayload, SessionNotesPayload, SessionPredictionResponse, SessionRecord, SessionSignoff, SessionTagsResponse, SessionTrainingStatus, StudyObjectiveReport } from '../../models/rvt.models';
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 import { ReportRequestCoordinator } from './report-request-coordinator.service';
@@ -68,6 +68,9 @@ export class ReportComponent implements OnInit, AfterViewInit {
   prediction: SessionPredictionResponse | null = null;
   sessionTagsInput = '';
   modelEvidenceLoading = false;
+  objectiveReports: StudyObjectiveReport[] = [];
+  objectiveReportsLoading = false;
+  objectiveReportsError = '';
   sessionDataRows: Array<Record<string, number | string | null>> = [];
   sessionsLoading = false;
   sessionsError = '';
@@ -81,6 +84,22 @@ export class ReportComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit() {
     this.drawReportTrends();
+  }
+
+  async loadObjectiveReports(): Promise<void> {
+    if (this.objectiveReportsLoading || typeof (this.api as Partial<ApiService>).loadObjectiveReport !== 'function') return;
+    this.objectiveReportsLoading = true;
+    this.objectiveReportsError = '';
+    try {
+      const objectives = await this.api.loadStudyObjectives();
+      const reports = await Promise.all((objectives.objectives || []).map(objective => this.api.loadObjectiveReport(objective.id)));
+      this.objectiveReports = reports;
+    } catch (error) {
+      this.objectiveReportsError = error instanceof Error ? error.message : 'Objective reports are not available.';
+    } finally {
+      this.objectiveReportsLoading = false;
+      this.cdr.markForCheck();
+    }
   }
 
   selectSessionChip(sessionId: string): void {

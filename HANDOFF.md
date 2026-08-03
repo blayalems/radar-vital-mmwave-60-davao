@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Align PR change record with QMS template
+
+- **Change record**: Expanded PR #103 with the required impact, controlled-document, compatibility, release/rollback, review/authorization, and completion-checklist sections; requirement IDs and objective verification remain explicit.
+- **Verification**: The next CI run must re-evaluate the corrected PR body; the local base-range QMS contract remains clean with one R04-to-R05 controlled-document increment.
+
 ### 2026-08-04 - Reconcile PR-base QMS document revisions
 
 - **QMS correction**: The PR base already contained the single R04-to-R05 controlled-document increment. Restored the final register, handoff, README, and feedback-loop identities to R05 so the complete PR range has exactly one revision step; no product or protocol behavior changed.

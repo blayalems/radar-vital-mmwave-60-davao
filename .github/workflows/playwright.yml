@@ -95,6 +95,7 @@ jobs:
         env:
           PYTHON: python3
           RVT_TEST_PORT: ${{ matrix.port }}
+          RVT_TEST_MOCK: '0'
 
       - name: Upload Playwright report on failure
         if: always()
@@ -156,6 +157,7 @@ jobs:
         env:
           PYTHON: python
           RVT_TEST_PORT: 8990
+          RVT_TEST_MOCK: '1'
 
       - name: Upload Playwright report on failure
         if: failure()

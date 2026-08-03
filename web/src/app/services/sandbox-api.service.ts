@@ -25,7 +25,7 @@ interface SandboxOperatorProfile extends OperatorProfile {
 
 const SANDBOX_OPERATOR_SESSIONS_KEY = 'demo:rvt-operator-sessions';
 const SANDBOX_OPERATOR_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-const SANDBOX_PARTICIPANTS_KEY = 'demo:rvt-participants-v16.5.1';
+const SANDBOX_PARTICIPANTS_KEY = 'demo:rvt-participants-v16.5.9';
 const SANDBOX_SUBJECT_PROFILES_KEY = 'demo:rvt-subject-profiles-v16.5.9';
 const SANDBOX_PROTOCOL_ATTEMPTS_KEY = 'demo:rvt-protocol-attempts-v16.5.9';
 const SANDBOX_STUDY_PROTOCOL_KEY = 'demo:rvt-study-protocol-v16.5.9';
@@ -68,7 +68,7 @@ export class SandboxApiService {
       serial_width_observed: 222,
       schema_versions: {
         control_api: 'rvt-control-api-v12.0',
-        study_session: 'rvt-study-session-v16.5.1'
+        study_session: 'rvt-study-session-v16.5.9'
       }
     };
     if (url.pathname === '/api/auth/validate') return this.validateOperator();

@@ -313,10 +313,10 @@
           color="primary"
           class="start-session-btn"
           (click)="startSession()"
-          [disabled]="!canStartSession() || isStartingSession"
-          [attr.aria-busy]="isStartingSession"
-          [attr.aria-describedby]="isStartingSession ? 'sessionStartBusyStatus' : null">
-          @if (isStartingSession) {
+          [disabled]="!canStartSession() || isStartingSession()"
+          [attr.aria-busy]="isStartingSession()"
+          [attr.aria-describedby]="isStartingSession() ? 'sessionStartBusyStatus' : null">
+          @if (isStartingSession()) {
             <mat-spinner diameter="20" style="margin-right: 8px;"></mat-spinner>
             Starting...
           } @else {
@@ -326,7 +326,7 @@
             </ng-container>
           }
         </button>
-        @if (isStartingSession) {
+        @if (isStartingSession()) {
           <p id="sessionStartBusyStatus" class="session-start-busy-status" role="status" aria-live="assertive">
             Starting session. Please wait; repeated Start commands are ignored.
           </p>
@@ -555,8 +555,8 @@
               type="button"
               color="primary"
               (click)="startSession()"
-              [disabled]="!canStartSession() || isStartingSession"
-              [attr.aria-busy]="isStartingSession">
+              [disabled]="!canStartSession() || isStartingSession()"
+              [attr.aria-busy]="isStartingSession()">
               <mat-icon>play_arrow</mat-icon>
               Start session
             </button>

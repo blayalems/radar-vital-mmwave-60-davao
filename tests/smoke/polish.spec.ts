@@ -167,7 +167,8 @@ test.describe('WS2-B polish', () => {
 
     await context.setOffline(true);
     try {
-      await expect(page.getByText('Disconnected', { exact: true }).first()).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Retry now' })).toBeVisible();
+      await expect(page.locator('#statusPill')).toHaveAttribute('aria-label', /Disconnected/i);
       await expect(page.getByRole('status').filter({ hasText: /Live telemetry is stale/i })).toBeVisible();
     } finally {
       await context.setOffline(false);

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, HostListener, ViewChild, AfterViewInit, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, HostListener, ViewChild, AfterViewInit, effect, signal } from '@angular/core';
 import { KeyValuePipe, UpperCasePipe } from '@angular/common';
 import { DurationPipe } from '../../pipes/duration.pipe';
 import { FormsModule } from '@angular/forms';
@@ -206,7 +206,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   bleScanAttempted = false;
   isValidatingNativeBle = false;
   nativeBleProbeStatus = '';
-  isStartingSession = false;
+  readonly isStartingSession = signal(false);
   selectedDuration = 30;
   private startIntent: SessionStartIntent | null = null;
   private startInFlight: Promise<void> | null = null;
@@ -839,7 +839,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.triggerHaptic('reject');
       return;
     }
-    this.isStartingSession = true;
+    this.isStartingSession.set(true);
     const payloadFingerprint = this.sessionStartPayloadFingerprint();
     if (!this.startIntent || this.startIntent.payloadFingerprint !== payloadFingerprint) {
       this.startIntent = {
@@ -908,7 +908,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.snackBar.open(`Could not start session: ${message}.${retryGuidance}`, 'Dismiss', { duration: 9000 });
       this.state.triggerHaptic('reject');
     } finally {
-      this.isStartingSession = false;
+      this.isStartingSession.set(false);
     }
   }
 

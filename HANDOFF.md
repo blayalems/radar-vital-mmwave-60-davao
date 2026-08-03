@@ -5,6 +5,17 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Close live-trainer browser smoke regressions
+
+- **Frontend contract**: Bound the Angular release handshake and sandbox status/participant storage to the v16.5.9 study-session schema; manual demo mode now keeps its explicit exit/reconnect action visible even when the trainer reports sandbox mode.
+- **Start reliability**: Bind the Home Start in-flight guard to an Angular signal so rejected or ambiguous requests re-render immediately and re-enable the idempotency retry action; smoke fixtures enter `/home` directly, and status assertions target visible retry/status semantics.
+- **Verification**: System Chrome Pixel 7 browser run passed all 14 targeted session-idempotency, release, polish, and settings tests; `npm run build:web` and monolith regeneration passed. CI smoke shards must confirm all viewports.
+
+### 2026-08-04 - Run smoke/API shards against the live trainer surface
+
+- **Test contract**: Added `RVT_TEST_MOCK=0` for smoke/API and release-artifact runs, `RVT_TEST_MOCK=1` for visual runs, and made the local Playwright default live so `npm test` exercises the same protected HTTP surface as CI; this prevents sandbox adapter state from bypassing endpoint fixtures and falsely clearing seeded operator tokens.
+- **Verification**: The prior `f3e2fcf` matrix collected 91 tests per shard but failed 23-24 cases per viewport behind the sandbox auth overlay; the idempotency fixtures also now open `/home` explicitly instead of relying on the monolith's `/live` default. A fresh CI run must verify both corrections.
+
 ### 2026-08-04 - Bind visual fixtures to the visual trainer shard
 
 - **Test contract**: The visual baseline helper now derives its trainer origin from `RVT_TEST_PORT` (default `8990`) rather than targeting the smoke port, keeping visual and smoke jobs isolated.

@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "0.0.0",
+  "version": "16.5.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -11,6 +11,9 @@
   },
   "private": true,
   "packageManager": "npm@11.12.1",
+  "overrides": {
+    "@modelcontextprotocol/sdk": "1.30.0"
+  },
   "dependencies": {
     "@angular/animations": "^21.2.18",
     "@angular/cdk": "^21.2.14",

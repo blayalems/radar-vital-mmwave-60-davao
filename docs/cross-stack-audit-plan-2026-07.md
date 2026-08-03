@@ -201,6 +201,41 @@ single-sketch policy and frozen serial layout.
 4. Replace the remaining DSP-adjacent delays with deadline-driven states where
    hardware allows; document setup-only delays.
 
+Implementation status (2026-07-24):
+
+- [x] Raw packet/debounce evidence has one owner; the derived presence FSM cannot refresh upstream evidence.
+- [x] Firmware-version capture is bounded, nonblocking, and re-armed after every `mmWave.begin()`.
+- [x] LCD attach/detach and runtime recovery are centralized and idempotent.
+- [x] Live-path I2C, UART, and NVS recovery uses deadlines rather than blocking delays.
+- [x] Recovery fixtures and the exact 222-field header/payload order are covered by source contracts.
+
+Remaining physical release gate: run the XIAO ESP32-C6 + MR60BHA2 + LCD recovery scenarios and capture loop-timing/CSV evidence.
+
+
+Implementation status (2026-07-22):
+
+- [x] Packet-level raw/debounced presence has one owner, and the derived FSM
+  never writes evidence timestamps or scores back upstream. A stale radar
+  packet stream globally forces active/entering states to `ABSENT` before the
+  state switch can consume latched evidence.
+- [x] Firmware-version capture is an explicit bounded nonblocking state machine
+  re-armed after every `mmWave.begin()`.
+- [x] LCD construction/destruction is centralized and idempotent; placement
+  storage uses `alignas(LiquidCrystal_I2C)`, and every LCD scan restores the
+  normal 100 ms I2C timeout on both success and failure.
+- [x] Radar UART release, runtime I2C bus release, and NVS namespace reopen use
+  deadline-driven follow-up states. The six remaining `delay()` call sites are
+  explicitly setup-only and execute before the task watchdog is armed; the live
+  parser/DSP loop contains no `delay()` recovery wait.
+- [x] Source/model fixtures cover present-to-absent debounce, global stale
+  packet exit, connect-fail-reconnect LCD ownership, firmware-version capture,
+  deadline-driven recovery ordering, and exact 222-field header/payload order.
+
+Remaining release gate: compile the sketch for
+`esp32:esp32:XIAO_ESP32C6`, then run the XIAO ESP32-C6 + MR60BHA2 + LCD bench
+recovery scenarios and capture loop-timing/CSV evidence. These are toolchain and
+physical-hardware validations, not unimplemented firmware behavior.
+
 Acceptance:
 
 - Arduino compile for `esp32:esp32:XIAO_ESP32C6`;

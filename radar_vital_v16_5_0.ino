@@ -1,15 +1,15 @@
-/* radar_vital_v16_4_0.ino
+/* radar_vital_v16_5_0.ino
  *
  * XIAO ESP32-C6 + MR60BHA2 60 GHz FMCW radar + MLX90614 + HD44780 20x4 LCD
  * + Active Buzzer for audio feedback
  *
- * Firmware release: v16.4.0
+ * Firmware release: v16.5.0
  * CSV schema release: v15.2.0 / trainer contract v12.0.0
  *
 * Manuscript-facing calibration / release notes
 * -------------------------------------------
-* + FW_VERSION is v16.4.0.
-* + v16.4.0 keeps the v15 serial DATA telemetry prefix and adds
+* + FW_VERSION is v16.5.0.
+* + v16.5.0 keeps the v15 serial DATA telemetry prefix and the
 *   a gated BLE bridge path for the v12 dashboard / native app milestone.
 * + ENABLE_BLE defaults to false; with BLE off, the serial DSP path is
 *   behaviorally identical to v15.0.0.
@@ -215,7 +215,7 @@
 #endif
 
 #if !defined(ARDUINO_XIAO_ESP32C6)
-#error "radar_vital_v16_4_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
+#error "radar_vital_v16_5_0.ino must be built for esp32:esp32:XIAO_ESP32C6"
 #endif
 
 #ifdef ESP32
@@ -277,9 +277,9 @@ static inline float applyRawHrCorrection(float rawHrValue) {
 // LOGGING & OBSERVABILITY
 // =========================================================================
 #define LOG_MODE 1       // 1 = Enable CSV "DATA,..." logging
-#define FW_VERSION "v16.4.0"
+#define FW_VERSION "v16.5.0"
 #define SKETCH_VERSION_MAJOR 16
-#define SKETCH_VERSION_SUB 4
+#define SKETCH_VERSION_SUB 5
 #define SKETCH_VERSION_MOD 0
 
 #define DIAG_PLOTTER 0   // 1 = Enable live Serial Plotter DSP diagnostics, 0 = Off
@@ -318,17 +318,20 @@ struct SpectralResult { float freq; float mag; };
 void buzzerInit(); void buzzerOn(); void buzzerOff(); void buzzerForceOff();
 void buzzerPlay(BuzzerEvent event); bool buzzerIsBusy(); void buzzerUpdate();
 void checkHRAlerts(float hr, bool hrValid);
-void i2cRecover(); void resetVitals(); void lcdCreateChars();
+void i2cRecoverDuringSetup(); void resetVitals(); void lcdCreateChars();
 float autocorr(float* buf, int n, int lag);
 static inline unsigned long safeElapsedMs(unsigned long now, unsigned long since);
-bool scanForLCD(); static bool probeI2C(uint8_t addr);
+bool scanForLCD(bool recovery = false); static bool probeI2C(uint8_t addr);
 static bool tryInitBH1750();
 static bool i2cSafeReadLux(unsigned long now);
 static bool i2cSafeReadMLX(unsigned long now, float& amb, float& obj);
+static void serviceRuntimeI2cRecovery(unsigned long now);
+static void serviceNvsReopen(unsigned long now);
 static void updateChipThermal(unsigned long now);
 static void updatePowerSave(unsigned long now, bool presenceVote);
 static void updateLcdBacklightFromLux();
 extern unsigned long lastMlxRetry;
+extern unsigned long lastDisplay;
 void detectSpectral(float* buf, int n, float fs, float fmin, float fmax, float& outFreq, float& outMag);
 bool detectLowestSpectralFundamental(float* buf, int n, float fs, float fmin, float fmax, float& outBpm, float& outConf, float anchorBpm = 0.0f);
 static inline float heartPQIWeight(float pqi);
@@ -528,11 +531,23 @@ static uint8_t nvsWriteFailureStreak = 0;
 static uint32_t nvsWriteCountThisBoot = 0;
 static bool nvsReopenAttempted = false;
 static bool nvsWriteDisabledForBoot = false;
+static bool nvsReopenPending = false;
+static unsigned long nvsReopenAfterMs = 0UL;
+static const unsigned long NVS_REOPEN_SETTLE_MS = 5UL;
 static bool wdtActive = false;
+static bool setupComplete = false;
 static const unsigned long RADAR_RECOVERY_GRACE_MS = 3000UL;
 static const unsigned long PERIPH_BACKOFF_MIN_MS = 3000UL;
 static const unsigned long PERIPH_BACKOFF_MAX_MS = 300000UL;
 static unsigned long lastLcdRescanMs = 0UL;
+enum RuntimeI2cRecoveryFollowup : uint8_t {
+  I2C_RECOVERY_NONE = 0,
+  I2C_RECOVERY_RETRY_BH1750
+};
+static bool runtimeI2cRecoveryPending = false;
+static unsigned long runtimeI2cRecoveryAfterMs = 0UL;
+static RuntimeI2cRecoveryFollowup runtimeI2cRecoveryFollowup = I2C_RECOVERY_NONE;
+static const unsigned long I2C_BUS_RELEASE_MS = 10UL;
 struct PeriphBackoff {
   const char* label;
   uint8_t failures;
@@ -591,7 +606,15 @@ static int spatialSource = 0; // 0=none, 1=target_info, 2=point_cloud_fallback
 static unsigned long spatialFreshAgeMs = 999999UL;
 static FirmwareInfo moduleVersion;
 static bool moduleVersionValid = false;
-static bool fwVersionCheckedThisBoot = false;
+enum ModuleFirmwareCaptureState : uint8_t {
+  MODULE_FW_CAPTURE_IDLE = 0,
+  MODULE_FW_CAPTURE_ARMED,
+  MODULE_FW_CAPTURE_CAPTURED,
+  MODULE_FW_CAPTURE_EXPIRED
+};
+static ModuleFirmwareCaptureState moduleFwCaptureState = MODULE_FW_CAPTURE_IDLE;
+static unsigned long moduleFwCaptureDeadlineMs = 0UL;
+static const unsigned long MODULE_FW_CAPTURE_WINDOW_MS = 1500UL;
 static unsigned long lastPointCloudRxMs = 0UL;
 static unsigned long lastTargetInfoRxMs = 0UL;
 static bool useDirectRawHR = false;
@@ -609,7 +632,7 @@ bool bh1750Ready = false;
 uint8_t bh1750Addr = 0x5C;
 float luxLevel = 300.0f;
 
-static uint8_t lcdObjBuf[sizeof(LiquidCrystal_I2C)] __attribute__((aligned(4)));
+alignas(LiquidCrystal_I2C) static uint8_t lcdObjBuf[sizeof(LiquidCrystal_I2C)];
 static bool lcdObjAllocated = false;
 static uint32_t lastLedColor = 0xFFFFFFFF;
 static uint8_t lcdRowCache[LCD_ROWS][LCD_COLS];
@@ -710,7 +733,9 @@ static int lastCalibPct = -1;
 static unsigned long lastHRUpdateMs = 0;
 static unsigned long lastRRUpdateMs = 0;
 static unsigned long lastDistanceUpdateMs = 0;
-static unsigned long lastPresenceUpdateMs = 0;
+// Last positive module-presence packet. This timestamp belongs to the raw
+// packet layer; the derived presence FSM must never refresh it.
+static unsigned long lastRadarPresencePacketMs = 0;
 static unsigned long lastPhaseDataMs = 0;
 static unsigned long lastValidRateMs=0;
 static unsigned long lastTrustedVitalMs = 0;
@@ -757,8 +782,6 @@ static uint8_t lastLedBrightness = 0xFF;
 static unsigned long welcomeStartMs = 0;
 static unsigned long goodbyeStartMs = 0;
 static bool welcomeShown = false;
-static unsigned long lastTransitionMs = 0;
-static const unsigned long TRANSITION_DELAY_MS = 50UL;
 static bool animPending = false;
 static bool animPendingSmall = false;
 
@@ -938,20 +961,6 @@ void lcdPrintCentered(int row, const char* str) {
   invalidateLcdRowCache();
 }
 
-void lcdSmoothTransition() {
-  if (!lcdPtr) return;
-  unsigned long now = millis();
-  if (now - lastTransitionMs < TRANSITION_DELAY_MS) {
-    unsigned long waitMs = TRANSITION_DELAY_MS - (now - lastTransitionMs);
-    unsigned long start = millis();
-    while (millis() - start < waitMs) {
-      if (mmWaveSerial.available() > 0) break;
-      buzzerUpdate(); wdtReset(); delay(1);
-    }
-  }
-  lastTransitionMs = millis();
-}
-
 void drawProgressBar(int row, int percent, bool animated) {
   if (!lcdPtr) return;
   percent = constrain(percent, 0, 100);
@@ -1059,14 +1068,21 @@ static void noteNvsWriteFailure(unsigned long now, const char* detail) {
   if (nvsWriteFailureStreak >= 3 && !nvsReopenAttempted) {
     nvsReopenAttempted = true;
     prefs.end();
-    delay(5);
-    bool reopened = prefs.begin("rvital", false);
-    prefs.end();
-    Serial.printf("[NVS] namespace reopen after failures: %s\n", reopened ? "OK" : "FAILED");
+    nvsReopenPending = true;
+    nvsReopenAfterMs = now + NVS_REOPEN_SETTLE_MS;
     nvsWriteDisabledForBoot = true;
     lastNvsWriteMs = now;
-    Serial.println("[NVS] Writes disabled for this boot after repeated failures");
+    Serial.println("[NVS] Namespace reopen scheduled; writes disabled for this boot");
   }
+}
+
+static void serviceNvsReopen(unsigned long now) {
+  if (!nvsReopenPending || (int32_t)(now - nvsReopenAfterMs) < 0) return;
+  nvsReopenPending = false;
+  nvsReopenAfterMs = 0UL;
+  bool reopened = prefs.begin("rvital", false);
+  prefs.end();
+  Serial.printf("[NVS] namespace reopen after failures: %s\n", reopened ? "OK" : "FAILED");
 }
 
 static void noteNvsWriteSuccess(unsigned long now) {
@@ -1086,10 +1102,7 @@ static void noteNvsWriteSuccess(unsigned long now) {
 // =========================================================================
 // I2C / LCD INIT
 // =========================================================================
-void i2cRecover() {
-  diagI2cRecoverCount++;
-  wdtReset(); Wire.end();
-  delay(10); wdtReset();
+static void restoreI2cBusAfterRelease() {
   gpio_reset_pin((gpio_num_t)SCL); gpio_reset_pin((gpio_num_t)SDA);
   pinMode(SCL, OUTPUT);
   pinMode(SDA, INPUT_PULLUP);
@@ -1109,27 +1122,115 @@ void i2cRecover() {
   Wire.begin(SDA, SCL); Wire.setTimeOut(100); wdtReset();
 }
 
-void lcdReInit() {
-  if (!lcdPtr) return;
-  diagLcdReinitCount++;
-  if (!probeI2C(lcdAddr)) {
-    i2cRecover();
-    if (!probeI2C(lcdAddr)) {
-      lcdConnected = false;
-      invalidateLcdRowCache();
-      periphBackoffFailure(lcdBackoff, millis());
-      return;
-    }
+void i2cRecoverDuringSetup() {
+  diagI2cRecoverCount++;
+  wdtReset(); Wire.end();
+  // delay OK: setup-only, wdt not yet armed
+  delay(I2C_BUS_RELEASE_MS); wdtReset();
+  restoreI2cBusAfterRelease();
+}
+
+static void scheduleRuntimeI2cRecovery(
+    unsigned long now,
+    RuntimeI2cRecoveryFollowup followup = I2C_RECOVERY_NONE) {
+  if (runtimeI2cRecoveryPending) {
+    if (followup != I2C_RECOVERY_NONE) runtimeI2cRecoveryFollowup = followup;
+    return;
   }
-  lcdPtr->init(); lcdPtr->backlight();
-  invalidateLcdRowCache();
-  customCharsValid = false; lcdCreateChars();
-  prevDispState = DISP_NONE; lastLedColor = 0xFFFFFFFF;
-  periphBackoffSuccess(lcdBackoff, millis());
+  diagI2cRecoverCount++;
+  wdtReset();
+  Wire.end();
+  runtimeI2cRecoveryPending = true;
+  runtimeI2cRecoveryAfterMs = now + I2C_BUS_RELEASE_MS;
+  runtimeI2cRecoveryFollowup = followup;
+}
+
+static void serviceRuntimeI2cRecovery(unsigned long now) {
+  if (!runtimeI2cRecoveryPending ||
+      (int32_t)(now - runtimeI2cRecoveryAfterMs) < 0) {
+    return;
+  }
+  RuntimeI2cRecoveryFollowup followup = runtimeI2cRecoveryFollowup;
+  runtimeI2cRecoveryPending = false;
+  runtimeI2cRecoveryAfterMs = 0UL;
+  runtimeI2cRecoveryFollowup = I2C_RECOVERY_NONE;
+  restoreI2cBusAfterRelease();
+  if (followup == I2C_RECOVERY_RETRY_BH1750) tryInitBH1750();
 }
 
 static bool probeI2C(uint8_t addr) {
   Wire.beginTransmission(addr); return (Wire.endTransmission() == 0);
+}
+
+static LiquidCrystal_I2C* lcdObjectFromStorage() {
+  return reinterpret_cast<LiquidCrystal_I2C*>(lcdObjBuf);
+}
+
+static void lcdDetach(unsigned long now, bool scheduleRetry, const char* reason) {
+  bool wasAttached = lcdConnected || lcdObjAllocated || lcdPtr != nullptr;
+  if (lcdObjAllocated) {
+    LiquidCrystal_I2C* allocatedObject = lcdPtr ? lcdPtr : lcdObjectFromStorage();
+    allocatedObject->~LiquidCrystal_I2C();
+  }
+
+  lcdPtr = nullptr;
+  lcdObjAllocated = false;
+  lcdConnected = false;
+  lcdAddr = 0;
+  customCharsValid = false;
+  heartAnimFrame = false;
+  animPending = false;
+  hrVisibleOnVitalsScreen = false;
+  lcdBacklightDimmed = false;
+  invalidateLcdRowCache();
+  prevDispState = DISP_NONE;
+  lastDisplay = 0;
+  lastLcdRescanMs = now;
+
+  if (scheduleRetry && wasAttached) periphBackoffFailure(lcdBackoff, now);
+  if (wasAttached && reason) Serial.printf("[LCD] Detached: %s\n", reason);
+}
+
+static bool lcdAttach(uint8_t addr, unsigned long now, bool recovery) {
+  if (lcdConnected && lcdObjAllocated && lcdPtr && lcdAddr == addr) {
+    return true;
+  }
+
+  lcdDetach(now, false, nullptr);
+  lcdPtr = new (lcdObjBuf) LiquidCrystal_I2C(addr, LCD_COLS, LCD_ROWS);
+  lcdObjAllocated = true;
+  lcdAddr = addr;
+  lcdPtr->init();
+  lcdPtr->backlight();
+  lcdConnected = true;
+  lcdBacklightDimmed = false;
+  invalidateLcdRowCache();
+  customCharsValid = false;
+  lcdCreateChars();
+  prevDispState = DISP_NONE;
+  lastDisplay = 0;
+  lastLedColor = 0xFFFFFFFF;
+  periphBackoffSuccess(lcdBackoff, now);
+  if (recovery) diagLcdReinitCount++;
+  Serial.printf("[LCD] %s 0x%02X\n", recovery ? "Recovered" : "Found", addr);
+  return true;
+}
+
+void lcdReInit() {
+  unsigned long now = millis();
+  if (!lcdConnected || !lcdObjAllocated || !lcdPtr || lcdAddr == 0) {
+    lcdDetach(now, false, "inconsistent_state");
+    return;
+  }
+
+  uint8_t addr = lcdAddr;
+  if (!probeI2C(addr)) {
+    lcdDetach(now, true, "reinit_probe_failed");
+    return;
+  }
+
+  lcdDetach(now, false, nullptr);
+  lcdAttach(addr, now, true);
 }
 
 
@@ -1160,7 +1261,8 @@ static bool i2cSafeReadLux(unsigned long now) {
     return true;
   }
   bh1750Ready = false;
-  i2cRecover();
+  if (setupComplete) scheduleRuntimeI2cRecovery(now);
+  else i2cRecoverDuringSetup();
   periphBackoffFailure(bh1750Backoff, now);
   return false;
 }
@@ -1174,36 +1276,28 @@ static bool i2cSafeReadMLX(unsigned long now, float& amb, float& obj) {
   Wire.setTimeOut(100);
   if (isfinite(amb) && isfinite(obj)) return true;
   mlxReady = false;
-  i2cRecover();
+  if (setupComplete) scheduleRuntimeI2cRecovery(now);
+  else i2cRecoverDuringSetup();
   periphBackoffFailure(mlxBackoff, now);
   return false;
 }
 
-bool scanForLCD() {
+bool scanForLCD(bool recovery) {
   Wire.setTimeOut(50);
+  bool attached = false;
   uint8_t candidates[] = { 0x27, 0x3F, 0x20, 0x21, 0x22, 0x24, 0x25, 0x26 };
-  bool found = false;
   for (int i = 0; i < (int)(sizeof(candidates)/sizeof(candidates[0])); i++) {
     wdtReset(); uint8_t addr = candidates[i];
     if (addr == 0x23 || addr == 0x5C) continue;
     if (bh1750Ready && addr == bh1750Addr) continue;
-    Wire.beginTransmission(addr);
-    if (Wire.endTransmission() == 0) {
-      if (lcdObjAllocated && lcdPtr) { lcdPtr->~LiquidCrystal_I2C();
-        lcdPtr = nullptr; lcdObjAllocated = false; }
-      lcdPtr = new (lcdObjBuf) LiquidCrystal_I2C(addr, 20, 4);
-      lcdObjAllocated = true;
-      lcdPtr->init(); lcdPtr->backlight();
-      invalidateLcdRowCache();
-      customCharsValid = false; lcdCreateChars();
-      lcdAddr = addr; prevDispState = DISP_NONE;
-      Serial.printf("[LCD] Found 0x%02X\n", addr);
-      periphBackoffSuccess(lcdBackoff, millis());
-      found = true; break;
+    if (probeI2C(addr)) {
+      attached = lcdAttach(addr, millis(), recovery);
+      break;
     }
   }
-  if (!found) periphBackoffFailure(lcdBackoff, millis());
-  Wire.setTimeOut(100); return found;
+  Wire.setTimeOut(100);
+  if (!attached) periphBackoffFailure(lcdBackoff, millis());
+  return attached;
 }
 
 // =========================================================================
@@ -1705,7 +1799,7 @@ static void applyEscalationRewarm(unsigned long now);
 bool isHRFresh() { return lastHRUpdateMs>0 && (millis()-lastHRUpdateMs<HR_STALE_MS); }
 bool isRRFresh() { return lastRRUpdateMs>0 && (millis()-lastRRUpdateMs<RR_STALE_MS); }
 bool isDistanceFresh() { return lastDistanceUpdateMs>0 && (millis()-lastDistanceUpdateMs<DISTANCE_STALE_MS); }
-bool isPresenceFresh() { return lastPresenceUpdateMs>0 && (millis()-lastPresenceUpdateMs<PRESENCE_STALE_MS); }
+bool isPresenceFresh() { return lastRadarPresencePacketMs>0 && (millis()-lastRadarPresencePacketMs<PRESENCE_STALE_MS); }
 
 bool isPhaseFresh() {
   return lastPhaseDataMs > 0 && (millis() - lastPhaseDataMs < PHASE_FRESH_REQ_MS);
@@ -2864,9 +2958,16 @@ static unsigned long lastRadarPacketMs = 0;
 static unsigned long radarWatchdogStartMs = 0;
 static unsigned long lastBadRadarTickMs = 0;
 static unsigned long lastRadarRecoveryAttemptMs = 0;
+enum RadarRecoveryState : uint8_t {
+  RADAR_RECOVERY_IDLE = 0,
+  RADAR_RECOVERY_WAIT_SERIAL_RELEASE
+};
+static RadarRecoveryState radarRecoveryState = RADAR_RECOVERY_IDLE;
+static unsigned long radarRecoveryAfterMs = 0UL;
 const unsigned long RADAR_SILENCE_TIMEOUT_MS = 1000UL;
 const unsigned long BAD_RADAR_TICK_MS = 50UL;
 const unsigned long RADAR_RECOVERY_COOLDOWN_MS = 500UL;
+const unsigned long RADAR_SERIAL_RELEASE_MS = 20UL;
 float prevAmbient=NAN;
 static float ambientFastEma=NAN;
 static float ambientSlowEma=NAN;
@@ -2998,7 +3099,6 @@ static bool tryReadModuleFirmwareVersion() {
   if (!mmWave.getFirmwareInfo(fwTmp)) return false;
   moduleVersion = fwTmp;
   moduleVersionValid = true;
-  fwVersionCheckedThisBoot = true;
   Serial.printf("[FW_VER] Module: %u.%u.%u.%u\n",
                 moduleVersion.firmware_verson.project_name,
                 moduleVersion.firmware_verson.major_version,
@@ -3007,27 +3107,63 @@ static bool tryReadModuleFirmwareVersion() {
   return true;
 }
 
-static void pollModuleFirmwareVersionWindow(unsigned long windowMs) {
-  unsigned long pollStartMs = millis();
-  while (!moduleVersionValid && (millis() - pollStartMs) < windowMs) {
-    mmWave.update(5);
-    if (tryReadModuleFirmwareVersion()) break;
+static void armModuleFirmwareVersionCapture(unsigned long now) {
+  moduleFwCaptureState = MODULE_FW_CAPTURE_ARMED;
+  moduleFwCaptureDeadlineMs = now + MODULE_FW_CAPTURE_WINDOW_MS;
+}
+
+static void startRadarRecovery(unsigned long now) {
+  if (radarRecoveryState != RADAR_RECOVERY_IDLE) return;
+  lastRadarRecoveryAttemptMs = now;
+  int safe = 0;
+  while (mmWaveSerial.available() && safe++ < 1024) {
+    mmWaveSerial.read();
     wdtReset();
-    delay(25);
+    buzzerUpdate();
+  }
+  mmWaveSerial.end();
+  radarRecoveryState = RADAR_RECOVERY_WAIT_SERIAL_RELEASE;
+  radarRecoveryAfterMs = now + RADAR_SERIAL_RELEASE_MS;
+  lastRadarPacketMs = 0;
+  consecutiveBadRadar = BAD_RADAR_LIMIT - 1;
+  lastBadRadarTickMs = now;
+}
+
+static bool serviceRadarRecovery(unsigned long now) {
+  if (radarRecoveryState == RADAR_RECOVERY_IDLE) return true;
+  if ((int32_t)(now - radarRecoveryAfterMs) < 0) return false;
+
+  mmWaveSerial.setRxBufferSize(MMWAVE_RX_BUFFER_SIZE);
+  mmWaveSerial.begin(115200);
+  mmWave.begin(&mmWaveSerial);
+  armModuleFirmwareVersionCapture(now);
+  radarWatchdogStartMs = now;
+  radarRecoveryAfterMs = 0UL;
+  radarRecoveryState = RADAR_RECOVERY_IDLE;
+  return true;
+}
+
+static void serviceModuleFirmwareVersionCapture(unsigned long now) {
+  if (moduleFwCaptureState != MODULE_FW_CAPTURE_ARMED) return;
+  if (tryReadModuleFirmwareVersion()) {
+    moduleFwCaptureState = MODULE_FW_CAPTURE_CAPTURED;
+    moduleFwCaptureDeadlineMs = 0UL;
+    return;
+  }
+
+  if ((int32_t)(now - moduleFwCaptureDeadlineMs) >= 0) {
+    moduleFwCaptureState = MODULE_FW_CAPTURE_EXPIRED;
+    moduleFwCaptureDeadlineMs = 0UL;
+    Serial.printf("[FW_VER] WARN: capture window expired; module_fw_valid=%d\n",
+                  (int)moduleVersionValid);
   }
 }
 
-static void pollModuleFirmwareVersionNonBlocking() {
-  if (fwVersionCheckedThisBoot) return;
-  if (tryReadModuleFirmwareVersion()) return;
-
-  // The DSP loop must never wait for optional metadata. Keep probing after a
-  // UART recovery and report the miss once without delaying live telemetry.
-  static bool fwVersionUnreadWarned = false;
-  if (!fwVersionUnreadWarned && millis() > 30000UL) {
-    fwVersionUnreadWarned = true;
-    Serial.println("[FW_VER] WARN: module firmware version still unread after 30 s; module_fw_valid stays 0");
-  }
+static void pumpModuleFirmwareVersionCaptureDuringSetup() {
+  if (moduleFwCaptureState != MODULE_FW_CAPTURE_ARMED) return;
+  mmWave.update(5);
+  serviceModuleFirmwareVersionCapture(millis());
+  wdtReset();
 }
 
 static void v13_pollSpatialFrames(unsigned long now) {
@@ -3144,6 +3280,41 @@ static int v13_presenceBoostAbsent() {
   int boost = 1;
   if (numDetectedTargets == 0) boost += 2;
   return boost;
+}
+
+// Single owner for the module's packet-level presence snapshot, debounce
+// scores, and debounced result. Data flows from raw packet -> debounce -> FSM;
+// the derived FSM intentionally has no write-back path into these fields.
+static void updateRadarPacketPresence(bool rawPresent, unsigned long now) {
+  radarIsPresentRaw = rawPresent;
+  if (rawPresent) {
+    lastRadarPresencePacketMs = now;
+    radarPresentScore = min((int)RAW_PRESENT_VOTES,
+                            (int)radarPresentScore + v13_presenceBoostPresent());
+    radarAbsentScore = 0;
+  } else {
+    radarAbsentScore = min((int)RAW_ABSENT_VOTES,
+                           (int)radarAbsentScore + v13_presenceBoostAbsent());
+    radarPresentScore = 0;
+  }
+
+  if (!radarIsPresent && radarPresentScore >= RAW_PRESENT_VOTES) {
+    radarIsPresent = true;
+    if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
+      lastPresenceDebugLogMs = now;
+      Serial.printf("[RADAR_PRES] packet_confirm present | raw=%d pScore=%u aScore=%u human=%d pv=%d av=%d dist=%.2f\n",
+                    (int)rawPresent, (unsigned)radarPresentScore, (unsigned)radarAbsentScore,
+                    (int)humanDetected, presentVotes, absentVotes, lastGoodDistance);
+    }
+  } else if (radarIsPresent && radarAbsentScore >= RAW_ABSENT_VOTES) {
+    radarIsPresent = false;
+    if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
+      lastPresenceDebugLogMs = now;
+      Serial.printf("[RADAR_PRES] packet_confirm absent | raw=%d pScore=%u aScore=%u human=%d pv=%d av=%d dist=%.2f\n",
+                    (int)rawPresent, (unsigned)radarPresentScore, (unsigned)radarAbsentScore,
+                    (int)humanDetected, presentVotes, absentVotes, lastGoodDistance);
+    }
+  }
 }
 
 static bool v13_motionDetected(float dhSigned, float db, bool roughMotion) {
@@ -3289,7 +3460,7 @@ void resetVitals() {
   lastValidDisplayRRMs = 0;
   lastValidDisplayRR = 0.0f;
   rrHoldAgreementCount = 0;
-  lastHRUpdateMs=0; lastRRUpdateMs=0; lastDistanceUpdateMs=0; lastPresenceUpdateMs=0;
+  lastHRUpdateMs=0; lastRRUpdateMs=0; lastDistanceUpdateMs=0; lastRadarPresencePacketMs=0;
   lastHRDisplayedMs=0; lastDisplayedHR=0;
   lastValidPublishHRMs = 0UL;
   lastValidPublishHR = 0.0f;
@@ -3409,7 +3580,7 @@ static inline bool isDistanceFreshAt(unsigned long now) {
   return lastDistanceUpdateMs > 0 && (safeElapsedMs(now, lastDistanceUpdateMs) < DISTANCE_STALE_MS);
 }
 static inline bool isPresenceFreshAt(unsigned long now) {
-  return lastPresenceUpdateMs > 0 && (safeElapsedMs(now, lastPresenceUpdateMs) < PRESENCE_STALE_MS);
+  return lastRadarPresencePacketMs > 0 && (safeElapsedMs(now, lastRadarPresencePacketMs) < PRESENCE_STALE_MS);
 }
 static inline bool isPhaseFreshAt(unsigned long now) {
   return lastPhaseDataMs > 0 && (safeElapsedMs(now, lastPhaseDataMs) < PHASE_FRESH_REQ_MS);
@@ -3903,7 +4074,8 @@ static void applyEscalationRewarm(unsigned long now) {
 // POWER & THERMAL MANAGEMENT (PR59, default-off power save)
 // =========================================================================
 static void setLcdBacklightDimmed(bool dim) {
-  if (!lcdPtr || !lcdConnected || lcdBacklightDimmed == dim) return;
+  if (runtimeI2cRecoveryPending || !lcdPtr || !lcdConnected ||
+      lcdBacklightDimmed == dim) return;
   if (dim) lcdPtr->noBacklight();
   else lcdPtr->backlight();
   lcdBacklightDimmed = dim;
@@ -4085,7 +4257,7 @@ void startCalibResult(bool complete) {
   calibResultStartMs=millis(); dispState=DISP_CALIB_RESULT;
   prevDispState=DISP_CALIB_RESULT; lastCalibPct=-1;
   if (!lcdConnected||!lcdPtr) return;
-  lcdSmoothTransition(); lcdPtr->clear();
+  lcdPtr->clear();
   lcdPrintCentered(0,complete?"Calibration Done!":"Using Defaults");
   lcdPrintCentered(1,complete?"Sensor ready":"Saved settings");
   char gainStr[21]; snprintf(gainStr,sizeof(gainStr),"Gain: %.2f",radarGain);
@@ -4325,11 +4497,13 @@ static inline void bleNotifyPhaseFrame(uint32_t, float, float) {}
 // SETUP
 // =========================================================================
 void setup() {
-  Serial.begin(115200); delay(100);
+  Serial.begin(115200);
+  // delay OK: setup-only, wdt not yet armed
+  delay(100);
   Serial.println("\n[BOOT] RVital " FW_VERSION);
 
   buzzerInit();
-  buildSinLUT(); i2cRecover();
+  buildSinLUT(); i2cRecoverDuringSetup();
   pixel.begin(); pixel.setBrightness(40);
   pixel.setPixelColor(0,pixel.Color(0,0,80)); pixel.show();
 
@@ -4337,29 +4511,16 @@ void setup() {
   mmWaveSerial.setRxBufferSize(MMWAVE_RX_BUFFER_SIZE);
 #endif
   mmWaveSerial.begin(115200); mmWave.begin(&mmWaveSerial);
-  // PR72 session-data audit: catch the module's boot-window firmware-version
-  // TLV now, while it is in flight (module_fw_valid was 0 in s07-s11 because
-  // the first read happened long after boot).
-  pollModuleFirmwareVersionWindow(1500UL);
+  // Module metadata is captured by a bounded state machine. Setup-only sensor
+  // stabilization and splash delays remain below, with single parser pumps
+  // around them so the boot TLV is observed without a polling loop.
+  armModuleFirmwareVersionCapture(millis());
+  pumpModuleFirmwareVersionCaptureDuringSetup();
   lastPointCloud.targets.reserve(MAX_TARGET_NUM);
   lastTargetInfo.targets.reserve(MAX_TARGET_NUM);
 
-  Wire.setTimeOut(50);
-  uint8_t quickScanAddrs[]={0x27,0x3F};
-  for (int i=0;i<2;i++) {
-    wdtReset();
-    Wire.beginTransmission(quickScanAddrs[i]);
-    if (Wire.endTransmission()==0) {
-      if (lcdObjAllocated&&lcdPtr) { lcdPtr->~LiquidCrystal_I2C();
-        lcdPtr=nullptr; lcdObjAllocated=false; }
-      lcdPtr=new(lcdObjBuf) LiquidCrystal_I2C(quickScanAddrs[i],20,4);
-      lcdObjAllocated=true; lcdPtr->init(); lcdPtr->backlight();
-      invalidateLcdRowCache();
-      customCharsValid=false; lcdCreateChars();
-      lcdAddr=quickScanAddrs[i]; lcdConnected=true; break;
-    }
-  }
-  Wire.setTimeOut(100);
+  scanForLCD(false);
+  pumpModuleFirmwareVersionCaptureDuringSetup();
 
   int initStep=0; const int totalSteps=6;
 
@@ -4371,7 +4532,8 @@ void setup() {
   pixel.setPixelColor(0,pixel.Color(40,0,40)); pixel.show();
   mlxReady=mlx.begin();
   Serial.printf("[SENSOR] MLX90614: %s\n",mlxReady?"OK":"Not found");
-  delay(100); wdtReset();
+  // delay OK: setup-only, wdt not yet armed
+  delay(100); pumpModuleFirmwareVersionCaptureDuringSetup(); wdtReset();
 
   if (lcdConnected) renderInitScreen(++initStep,totalSteps,"Light");
   pixel.setPixelColor(0,pixel.Color(40,40,0));
@@ -4379,14 +4541,15 @@ void setup() {
   bh1750Ready=false; bh1750Addr=0;
   tryInitBH1750();
   if (bh1750Ready) { Serial.printf("[SENSOR] BH1750: OK at 0x%02X\n",bh1750Addr);
-    delay(180); i2cSafeReadLux(millis());
+    // delay OK: setup-only, wdt not yet armed
+    delay(180); pumpModuleFirmwareVersionCaptureDuringSetup(); i2cSafeReadLux(millis());
   }
   else Serial.println("[SENSOR] BH1750: Not found");
   wdtReset();
 
   if (lcdConnected) renderInitScreen(++initStep,totalSteps,"Display");
   else { pixel.setPixelColor(0,pixel.Color(0,60,60));
-    pixel.show(); lcdConnected=scanForLCD(); initStep++;
+    pixel.show(); initStep++;
   }
   Serial.printf("[SENSOR] LCD: %s\n",lcdConnected?"OK":"Not found"); wdtReset();
 
@@ -4422,11 +4585,14 @@ void setup() {
     buzzerEnabled=prefs.getBool("buzzer",true); buzzerSilentMode=prefs.getBool("silent",false);
     prefs.end();
   }
+  pumpModuleFirmwareVersionCaptureDuringSetup();
   wdtReset();
 
   if (buzzerEnabled && !buzzerSilentMode) {
+      // delay OK: setup-only, wdt not yet armed
       buzzerOn(); delay(50); buzzerOff();
   }
+  pumpModuleFirmwareVersionCaptureDuringSetup();
 
   if (lcdConnected) renderInitScreen(++initStep,totalSteps,"Radar");
   pixel.setPixelColor(0,pixel.Color(0,60,0)); pixel.show();
@@ -4437,15 +4603,21 @@ void setup() {
   wdtReset();
 
   if (lcdConnected) {
-    lcdSmoothTransition(); lcdPtr->clear();
+    lcdPtr->clear();
     lcdPrintCentered(0,"RVital " FW_VERSION);
     lcdPrintCentered(1,"Signal + Distance");
     char statusLine[21];
     snprintf(statusLine,sizeof(statusLine),"T:%s L:%s B:%s",mlxReady?"OK":"--",bh1750Ready?"OK":"--",buzzerEnabled?"ON":"--");
     lcdPrintCentered(2,statusLine); lcdPrintCentered(3,"Starting...");
-    for (int i=0;i<12;i++) { delay(100); wdtReset(); }
+    for (int i=0;i<12;i++) {
+      // delay OK: setup-only, wdt not yet armed
+      delay(100);
+      pumpModuleFirmwareVersionCaptureDuringSetup();
+      wdtReset();
+    }
     lcdPtr->clear(); prevDispState=DISP_NONE; lastDisplay=0;
   }
+  pumpModuleFirmwareVersionCaptureDuringSetup();
   buzzerPlay(BUZZ_STARTUP);
 
   { esp_task_wdt_config_t wdt_config={}; wdt_config.timeout_ms=8000;
@@ -4458,6 +4630,7 @@ void setup() {
   calibStartMs=millis(); radarWatchdogStartMs = calibStartMs; lastValidRateMs=0; sessionReset(); presenceState = PRESENCE_ABSENT; presenceStateSinceMs = millis();
   bleInitMaybe();
   powerSaveNormalCpuMhz = getCpuFrequencyMhz();
+  setupComplete = true;
   Serial.println("[BOOT] Setup complete");
   Serial.println("=========================================================");
 }
@@ -4468,6 +4641,8 @@ void setup() {
 void loop() {
   wdtReset();
   unsigned long now=millis();
+  serviceNvsReopen(now);
+  serviceRuntimeI2cRecovery(now);
   updateChipThermal(now);
   if (diagLoopLastMs == 0UL) {
     diagLoopLastMs = (uint32_t)now;
@@ -4507,7 +4682,8 @@ void loop() {
   if (persistedMotion&&(now-lastMotionDetectedMs>=MOTION_PERSIST_MS)) persistedMotion=false;
   bool inMotion=persistedMotion;
 
-  if (!mlxReady && periphBackoffReady(mlxBackoff, now)) {
+  if (!runtimeI2cRecoveryPending &&
+      !mlxReady && periphBackoffReady(mlxBackoff, now)) {
     mlxReady = mlx.begin();
     lastMlxRetry = now;
     if (mlxReady) periphBackoffSuccess(mlxBackoff, now);
@@ -4522,8 +4698,9 @@ void loop() {
   rrPhaseBackedUpdateThisCycle = false;
   hrGateReason = HR_GATE_NO_AUTO;
   rrGateReason = RR_GATE_NO_AUTO;
-  bool newData=mmWave.update(5);
-  pollModuleFirmwareVersionNonBlocking();
+  bool radarReady = serviceRadarRecovery(now);
+  bool newData = radarReady ? mmWave.update(5) : false;
+  serviceModuleFirmwareVersionCapture(now);
   bool badRadarPacketThisFrame = false;
   bool goodRadarPacketThisFrame = false;
   bool freshDistanceSampleThisFrame = false;
@@ -4585,7 +4762,6 @@ void loop() {
     bool hrOk=mmWave.getHeartRate(rawHR);
     bool rrOk=mmWave.getBreathRate(rawRR);
     bool radarIsPresentInstant=mmWave.isHumanDetected();
-    radarIsPresentRaw = radarIsPresentInstant;
     bool distOk=mmWave.getDistance(radarDistance);
     v13_pollSpatialFrames(now);
     if (distOk && radarDistance > 1.0f) {
@@ -4594,7 +4770,6 @@ void loop() {
         radarDistance = 0.0f;
         distOk = false;
         radarIsPresentInstant = false;
-        radarIsPresentRaw = false;
         numDetectedTargets = 0;
       }
     }
@@ -4625,32 +4800,7 @@ void loop() {
       rrSeedLastRaw = NAN;
     }
 
-    if (radarIsPresentInstant) {
-      radarPresentScore = min((int)RAW_PRESENT_VOTES, (int)radarPresentScore + v13_presenceBoostPresent());
-      radarAbsentScore = 0;
-    } else {
-      radarAbsentScore = min((int)RAW_ABSENT_VOTES, (int)radarAbsentScore + v13_presenceBoostAbsent());
-      radarPresentScore = 0;
-    }
-    if (!radarIsPresent && radarPresentScore >= RAW_PRESENT_VOTES) {
-      radarIsPresent = true;
-      if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
-        lastPresenceDebugLogMs = now;
-        Serial.printf("[RADAR_PRES] raw_confirm present | inst=%d pScore=%u aScore=%u human=%d pv=%d av=%d dist=%.2f\n",
-                      (int)radarIsPresentInstant, (unsigned)radarPresentScore, (unsigned)radarAbsentScore,
-                      (int)humanDetected, presentVotes, absentVotes, lastGoodDistance);
-      }
-    } else if (radarIsPresent && radarAbsentScore >= RAW_ABSENT_VOTES) {
-      radarIsPresent = false;
-      if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
-        lastPresenceDebugLogMs = now;
-        Serial.printf("[RADAR_PRES] raw_confirm absent | inst=%d pScore=%u aScore=%u human=%d pv=%d av=%d dist=%.2f\n",
-                      (int)radarIsPresentInstant, (unsigned)radarPresentScore, (unsigned)radarAbsentScore,
-                      (int)humanDetected, presentVotes, absentVotes, lastGoodDistance);
-      }
-    }
-
-    if (radarIsPresent) lastPresenceUpdateMs=now;
+    updateRadarPacketPresence(radarIsPresentInstant, now);
     if (distOk&&radarDistance>1.0f) {
       lastDistanceUpdateMs=now;
       lastGoodDistance=radarDistance;
@@ -6096,7 +6246,8 @@ void loop() {
   unsigned long radarLastSeenMs = (lastRadarPacketMs > 0) ? lastRadarPacketMs : radarWatchdogStartMs;
   bool silenceArmed = safeElapsedMs(now, radarWatchdogStartMs) > RADAR_RECOVERY_GRACE_MS;
   bool packetSilent = silenceArmed && (safeElapsedMs(now, radarLastSeenMs) > RADAR_SILENCE_TIMEOUT_MS);
-  bool badRadarCondition = packetSilent || badRadarPacketThisFrame;
+  bool badRadarCondition = radarRecoveryState == RADAR_RECOVERY_IDLE &&
+                           (packetSilent || badRadarPacketThisFrame);
   if (badRadarCondition) {
     if (lastBadRadarTickMs == 0 || safeElapsedMs(now, lastBadRadarTickMs) >= BAD_RADAR_TICK_MS) {
       lastBadRadarTickMs = now;
@@ -6106,35 +6257,18 @@ void loop() {
     consecutiveBadRadar = 0;
     lastBadRadarTickMs = now;
   }
-  if (consecutiveBadRadar >= BAD_RADAR_LIMIT &&
+  if (radarRecoveryState == RADAR_RECOVERY_IDLE &&
+      consecutiveBadRadar >= BAD_RADAR_LIMIT &&
       (lastRadarRecoveryAttemptMs == 0 || safeElapsedMs(now, lastRadarRecoveryAttemptMs) >= RADAR_RECOVERY_COOLDOWN_MS)) {
-    lastRadarRecoveryAttemptMs = now;
-    int safe = 0;
-    while (mmWaveSerial.available() && safe++ < 1024) {
-      mmWaveSerial.read();
-      wdtReset(); buzzerUpdate();
-    }
-    mmWaveSerial.end();
-    delay(20);
-    mmWaveSerial.setRxBufferSize(MMWAVE_RX_BUFFER_SIZE);
-    mmWaveSerial.begin(115200);
-    mmWave.begin(&mmWaveSerial);
-    if (!moduleVersionValid) {
-      // Module link was just re-initialized; the version TLV may re-arrive.
-      // The regular parser pump above will probe it without blocking the loop.
-      fwVersionCheckedThisBoot = false;
-    }
-    radarWatchdogStartMs = now;
-    lastRadarPacketMs = 0;
-    consecutiveBadRadar = BAD_RADAR_LIMIT - 1;
-    lastBadRadarTickMs = now;
+    startRadarRecovery(now);
   }
 
   if (lastPhaseDataMs > 0 && now - lastPhaseDataMs > 5000UL) motionCooldown = 0;
   wasMotion=inMotion;
 
   bool ambientEvidenceLatched = lastAmbientJumpMs > 0 && (safeElapsedMs(now, lastAmbientJumpMs) < AMBIENT_EVIDENCE_HOLD_MS);
-  bool radarPresenceEvidence = lastPresenceUpdateMs > 0 && (safeElapsedMs(now, lastPresenceUpdateMs) < RADAR_PRESENCE_EVIDENCE_MS);
+  bool radarPacketExpired = lastRadarPresencePacketMs > 0 && !isPresenceFreshAt(now);
+  bool radarPresenceEvidence = radarIsPresent && !radarPacketExpired;
   bool radarEvidence = newData && (rawHRValid || rawRRValid);
   bool dspPresenceEvidence = lastTrustedVitalMs > 0 && (safeElapsedMs(now, lastTrustedVitalMs) < DSP_PRESENCE_EVIDENCE_MS);
   bool livePhaseEvidence = (lastLivePhaseMs > 0) && (safeElapsedMs(now, lastLivePhaseMs) < LIVE_PHASE_HOLD_MS) &&
@@ -6225,8 +6359,22 @@ void loop() {
     latchedStrongEvidence = false;
     latchedWeakEvidence = false;
 
+    if (radarPacketExpired) {
+      tickStrongEvidence = false;
+      tickWeakEvidence = false;
+      bool wasDetected = presenceState == PRESENCE_PRESENT ||
+                         presenceState == PRESENCE_SILENT_HOLD ||
+                         presenceState == PRESENCE_LEAVING;
+      if (presenceState != PRESENCE_ABSENT) {
+        enterPresenceState(PRESENCE_ABSENT, now, "radar_packet_stale");
+        if (wasDetected) handlePersonLeft(now, "radar_packet_stale");
+      }
+      falsePresenceStartMs = 0;
+      falsePresenceAbsenceScore = 0;
+    }
+
     bool exitLivePhaseEvidence = livePhaseEvidence && (phaseLivenessScore >= FALSE_PRESENCE_PHASE_MIN) && !currentStaticReflector;
-    bool hardNoPresenceEvidence = !radarIsPresentRaw && !radarEvidence && !radarPresenceEvidence &&
+    bool hardNoPresenceEvidence = !radarIsPresent && !radarEvidence && !radarPresenceEvidence &&
                                   !dspPresenceEvidence && !weakDistanceEvidence &&
                                   !rawHRValid && !rawRRValid && !exitLivePhaseEvidence;
     if (presenceState == PRESENCE_PRESENT || presenceState == PRESENCE_SILENT_HOLD || presenceState == PRESENCE_LEAVING) {
@@ -6371,27 +6519,8 @@ void loop() {
                    presenceState == PRESENCE_SILENT_HOLD ||
                    presenceState == PRESENCE_LEAVING);
 
-  // Claude P0-A fallback: if the higher-level presence FSM is confidently present,
-  // force radarIsPresent to confirm so downstream publication logic can see it.
-  if (!radarIsPresent && humanDetected && presentVotes >= 3) {
-    radarIsPresent = true;
-    radarPresentScore = (radarPresentScore > RAW_PRESENT_VOTES) ? radarPresentScore : RAW_PRESENT_VOTES;
-    radarAbsentScore = 0;
-    lastPresenceUpdateMs = now;
-    if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
-      lastPresenceDebugLogMs = now;
-      Serial.printf("[RADAR_PRES] fsm_fallback present | human=%d pv=%d av=%d state=%s dist=%.2f\n",
-                    (int)humanDetected, presentVotes, absentVotes, presenceStateName(presenceState), lastGoodDistance);
-    }
-  } else if (radarIsPresent && !humanDetected && absentVotes >= 3) {
-    radarIsPresent = false;
-    radarAbsentScore = (radarAbsentScore > 3) ? radarAbsentScore : 3;
-    if (safeElapsedMs(now, lastPresenceDebugLogMs) >= 250UL) {
-      lastPresenceDebugLogMs = now;
-      Serial.printf("[RADAR_PRES] fsm_fallback absent | human=%d pv=%d av=%d state=%s dist=%.2f\n",
-                    (int)humanDetected, presentVotes, absentVotes, presenceStateName(presenceState), lastGoodDistance);
-    }
-  }
+  // The FSM projects humanDetected for downstream UI/logging only. Packet-level
+  // raw/debounced state remains exclusively owned by updateRadarPacketPresence().
   // Preserve lastGoodDistance across brief absence so weak-distance evidence and
   // distance-based stabilization can recover cleanly on re-entry.
 
@@ -6402,7 +6531,8 @@ void loop() {
 
   static unsigned long lastTempRead=0;
   static unsigned long lastLuxRead=0;
-  bool allowSlowI2C = !radarSerialBacklogged();
+  bool allowSlowI2C = !runtimeI2cRecoveryPending &&
+                      !radarSerialBacklogged();
   if (allowSlowI2C) {
     unsigned long mlxReadInterval = 1000UL;
 #if RV_POWER_SAVE
@@ -6436,12 +6566,12 @@ void loop() {
       }
     }
 
-    if (!bh1750Ready && periphBackoffReady(bh1750Backoff, now)) {
-      i2cRecover();
-      tryInitBH1750();
+    if (!runtimeI2cRecoveryPending &&
+        !bh1750Ready && periphBackoffReady(bh1750Backoff, now)) {
+      scheduleRuntimeI2cRecovery(now, I2C_RECOVERY_RETRY_BH1750);
     }
 
-    if (bh1750Ready&&now-lastLuxRead>=500) {
+    if (!runtimeI2cRecoveryPending && bh1750Ready&&now-lastLuxRead>=500) {
       lastLuxRead=now;
       if (i2cSafeReadLux(now)) updateLcdBacklightFromLux();
     }
@@ -6472,8 +6602,6 @@ void loop() {
       enterPresenceState(PRESENCE_ABSENT, now, "skipdsp_starved");
       handlePersonLeft(now, "skipdsp_starved");
       humanDetected = false;
-      radarIsPresent = false;
-      radarIsPresentRaw = false;
       falsePresenceStartMs = 0;
       falsePresenceAbsenceScore = 0;
       noHumanClearStartMs = 0;
@@ -6944,17 +7072,18 @@ void loop() {
 
   // =========================================================================
 
-  if (!lcdConnected && periphBackoffReady(lcdBackoff, now)) {
+  if (!runtimeI2cRecoveryPending &&
+      !lcdConnected && periphBackoffReady(lcdBackoff, now) &&
+      !radarSerialBacklogged()) {
     lastLcdRescanMs = now;
-    if (scanForLCD()) { prevDispState = DISP_NONE; lastDisplay = 0; }
+    scanForLCD(true);
   }
 
-  if (lcdConnected&&now-lastDisplay>=DISPLAY_INTERVAL && !radarSerialBacklogged()) {
+  if (!runtimeI2cRecoveryPending &&
+      lcdConnected&&now-lastDisplay>=DISPLAY_INTERVAL &&
+      !radarSerialBacklogged()) {
     if (!probeI2C(lcdAddr)) {
-      lcdConnected = false;
-      lcdPtr = nullptr;
-      invalidateLcdRowCache();
-      lastLcdRescanMs = now;
+      lcdDetach(now, true, "runtime_probe_failed");
     } else {
       lastDisplay=now;
     if (dispState!=DISP_CALIB_RESULT&&dispState!=DISP_WELCOME&&dispState!=DISP_GOODBYE) {
@@ -6964,7 +7093,7 @@ void loop() {
     }
     bool stateChanged=(dispState!=prevDispState);
     if (stateChanged) {
-      lcdSmoothTransition(); lcdPtr->clear(); invalidateLcdRowCache(); customCharsValid=false; lcdCreateChars();
+      lcdPtr->clear(); invalidateLcdRowCache(); customCharsValid=false; lcdCreateChars();
       if (dispState == DISP_IDLE) lastIdleRedrawMs = 0;
       prevDispState=dispState; lastLedColor=0xFFFFFFFF;
       heartAnimFrame=false; animPending=false;

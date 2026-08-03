@@ -6,6 +6,11 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### Changed
+- Promoted the firmware, trainer, Angular dashboard, Capacitor package, Tauri package, and issue-report identity together to v16.5.0 while preserving the frozen v15.2 / 222-column serial contract and stable v12 compatibility entrypoints.
+- Added an executable cross-language version contract so Python, TypeScript, Rust, C++, package locks, help text, and packaging metadata cannot drift silently.
+- Added a canonical hardware–software feedback-loop and dual-model reproducibility figure contract for GBR, experimental 1-D CNN, shared statistical reporting, and direct manuscript integration.
+
 ## [16.4.0] — 2026-07-05
 
 ### Added

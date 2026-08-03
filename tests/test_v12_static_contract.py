@@ -20,7 +20,7 @@ STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
 TRAINER_ROUTE_REGISTRY = ROOT / "rvt_trainer" / "api" / "route_registry"
-FW = ROOT / "radar_vital_v16_4_0.ino"
+FW = ROOT / "radar_vital_v16_5_0.ino"
 SW = ROOT / "assets" / "sw.js"
 STYLES = ROOT / "web" / "src" / "styles.scss"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
@@ -104,32 +104,32 @@ def test_service_worker_contract():
     assert "/fonts/material-symbols-rounded.woff2" in sw
 
 
-def test_pr46_product_identity_bump_preserves_v12_lineage():
+def test_v16_5_product_identity_bump_preserves_v12_lineage():
     trainer = text(TRAINER_MONOLITH)
     firmware = text(FW)
     app_meta = text(APP_META)
     sandbox_api = text(SANDBOX_API)
     sw = text(SW)
 
-    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.4.0"
-    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.4.0"
-    assert json.loads(text(TAURI_CONF))["version"] == "16.4.0"
-    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.4.0"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.4.0"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.4.0"
-    assert re.search(r'^version = "16\.4\.0"$', text(TAURI_CARGO), re.MULTILINE)
+    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.5.0"
+    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.5.0"
+    assert json.loads(text(TAURI_CONF))["version"] == "16.5.0"
+    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.5.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.5.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.5.0"
+    assert re.search(r'^version = "16\.5\.0"$', text(TAURI_CARGO), re.MULTILINE)
 
-    assert 'VERSION = "16.4.0"' in trainer
-    assert 'DASHBOARD_VERSION = "16.4.0"' in trainer
-    assert 'FIRMWARE_VERSION_EXPECTED = "v16.4.0"' in trainer
-    assert "PRODUCT_VERSION = '16.4.0';" in app_meta
-    assert "PRODUCT_VERSION_SHORT = 'v16.4';" in app_meta
-    assert "PRODUCT_VERSION_LABEL = 'App v16.4';" in app_meta
+    assert 'VERSION = "16.5.0"' in trainer
+    assert 'DASHBOARD_VERSION = "16.5.0"' in trainer
+    assert 'FIRMWARE_VERSION_EXPECTED = "v16.5.0"' in trainer
+    assert "PRODUCT_VERSION = '16.5.0';" in app_meta
+    assert "PRODUCT_VERSION_SHORT = 'v16.5';" in app_meta
+    assert "PRODUCT_VERSION_LABEL = 'App v16.5';" in app_meta
     assert "import { PRODUCT_VERSION } from './app-meta';" in sandbox_api
     assert "product_version: PRODUCT_VERSION" in sandbox_api
-    assert '#define FW_VERSION "v16.4.0"' in firmware
+    assert '#define FW_VERSION "v16.5.0"' in firmware
     assert "#define SKETCH_VERSION_MAJOR 16" in firmware
-    assert "#define SKETCH_VERSION_SUB 4" in firmware
+    assert "#define SKETCH_VERSION_SUB 5" in firmware
     assert "#define SKETCH_VERSION_MOD 0" in firmware
 
     for schema_id in [
@@ -169,7 +169,7 @@ def test_release_manifest_contract_and_ci_validation():
     assert "ANDROID_VERSION_CODE: ${{ needs.release_metadata.outputs.android_version_code }}" in release_workflow
     assert "node scripts/generate-rvt-latest.mjs" in release_workflow
     assert "dist/rvt-latest.json" in release_workflow
-    assert "startsWith(github.ref_name, 'v16.4.0-alpha')" not in release_workflow
+    assert "startsWith(github.ref_name, 'v16.5.0-alpha')" not in release_workflow
     assert "contains(github.ref_name, '-alpha')" in release_workflow
     assert "contains(github.ref_name, '-rc')" in release_workflow
     assert "actions/deploy-pages@v4" in release_workflow
@@ -281,7 +281,7 @@ def test_manifest_payload_is_plain_manifest():
 
 def test_firmware_ble_contract():
     ino = text(FW)
-    assert '#define FW_VERSION "v16.4.0"' in ino
+    assert '#define FW_VERSION "v16.5.0"' in ino
     assert "#define ENABLE_BLE false" in ino
     assert "NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN" in ino
     assert "bleSuppressUntilMs = millis() + 500UL" in ino
@@ -312,10 +312,13 @@ def test_firmware_new_audit_requirements():
     # 5. Legacy alias cleanup
     assert "// REMOVE at v17 — use RLS_LAMBDA_HR_BASE directly" in ino
 
-    # 6. Radar-link recovery must not pause the DSP/telemetry loop while
-    # waiting for optional module-version metadata.
-    assert "pollModuleFirmwareVersionNonBlocking();" in ino
-    assert "pollModuleFirmwareVersionWindow(400UL)" not in ino
+    # 6. Firmware-version capture is a bounded nonblocking state machine,
+    # re-armed after each parser begin and serviced after the normal update.
+    assert "serviceModuleFirmwareVersionCapture(now);" in ino
+    assert ino.count("armModuleFirmwareVersionCapture(") == 3
+    assert "MODULE_FW_CAPTURE_EXPIRED" in ino
+    assert "pollModuleFirmwareVersionWindow" not in ino
+    assert "pollModuleFirmwareVersionNonBlocking" not in ino
 
 
 def test_native_ble_commands_allowlist_reference_gatt_profile():

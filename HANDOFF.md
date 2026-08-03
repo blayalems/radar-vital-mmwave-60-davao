@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Preserve sharded Playwright reports
+
+- **CI diagnostics**: Kept the GitHub and line reporters while explicitly retaining the HTML reporter, so every viewport shard has named failure output and an uploadable `playwright-report` directory.
+- **Verification**: The follow-up is included before the first sharded run completes; no application code or browser baseline changed.
+
 ### 2026-08-04 - Partition Playwright smoke by viewport
 
 - **CI diagnostics**: Partitioned the 92-test smoke/API suite into four independent desktop, Pixel 7, iPhone 14, and iPad jobs with isolated trainer ports; each job now emits line-level test names and retains its report artifact on failure or cancellation.

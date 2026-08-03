@@ -91,7 +91,7 @@ jobs:
         run: npx playwright install --with-deps chromium webkit
 
       - name: Run Playwright smoke + API tests for ${{ matrix.project }}
-        run: npx playwright test tests/smoke --project="${{ matrix.project }}" --reporter=github,line
+        run: npx playwright test tests/smoke --project="${{ matrix.project }}" --reporter=github,line,html
         env:
           PYTHON: python3
           RVT_TEST_PORT: ${{ matrix.port }}

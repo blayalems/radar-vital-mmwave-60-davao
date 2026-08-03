@@ -8,7 +8,7 @@
 ### 2026-08-04 - Isolate state-service browser guard fixtures
 
 - **Test isolation**: Reset the Angular test injector and browser storage around each `StateService` spec so a prior demo-mode preference cannot leak into the real-session rejection assertion on CI viewport shards.
-- **Verification**: Run 555 reproduced the same assertion on Pixel 7 and desktop; the fixture now explicitly clears the shared session/demo state before each test and needs a fresh CI matrix.
+- **Verification**: Run 555 reproduced the same assertion on Pixel 7 and desktop; the fixture now explicitly clears the shared session/demo state before each test. Run 556 passed all four browser smoke shards and the committed Windows visual regression.
 
 ### 2026-08-04 - Make active-session unit fixtures injector-stable
 
@@ -19,7 +19,7 @@
 
 - **Frontend guard**: Treat a non-sandbox `active_session` in trainer status as authoritative even when the local session flag has been cleared; a transient `NO_LIVE_DASHBOARD` response now keeps the active-session guard and marks the payload as not ready instead of permitting a demo switch.
 - **Browser regression**: Run 553 exposed the race in desktop, iPhone, and iPad smoke shards while Pixel 7 passed; the D-shortcut fixture now matches status requests with optional query strings, and the source/telemetry contracts cover the stale-witness path.
-- **Verification**: Local system-Chrome D-shortcut smoke passed after the fix; the regenerated monolith and focused changes are ready for a fresh four-viewport CI run.
+- **Verification**: Local system-Chrome D-shortcut smoke passed after the fix; the regenerated monolith and focused changes passed the four-viewport browser matrix in run 556.
 
 ### 2026-08-04 - Close live-trainer browser smoke regressions
 

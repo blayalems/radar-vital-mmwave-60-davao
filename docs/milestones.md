@@ -1,11 +1,11 @@
-# Radar Vital v16.4.0 / PR72 Milestones
+# Radar Vital v16.5.0 Milestones
 
 This file tracks release-readiness milestones for PR #54. It is intentionally
 honest about gates that code cannot solve by itself: University of Mindanao
 legal / Research Ethics Committee review, Google Play policy timing, signing
 identity validation, and SmartScreen reputation.
 
-## Current v16.4 / PR72 status
+## Current v16.5 status
 
 Goal: close the PR71/PR72 production blockers found during EXE/PWA live testing
 and the s01-s14 session-data audit.
@@ -26,7 +26,7 @@ Exit criteria:
   module firmware truthfulness, adaptive-correction shadow metrics, v15 PQI
   shadow metrics, BLE time-based coverage, and periodic `ref_ble_summary.json`
   snapshots.
-- Firmware `radar_vital_v16_4_0.ino` passively polls module firmware version at
+- Firmware `radar_vital_v16_5_0.ino` passively polls module firmware version at
   boot/recovery without changing the default `ENABLE_BLE=false` radar path.
 
 Risk: training-quality verdicts still require capture quality that code cannot
@@ -110,7 +110,7 @@ Exit criteria:
 Risk: the current RA 10173 text is a draft. Treat it as release-blocking for RTM
 distribution if the study protocol requires formal approval before use.
 
-## v16.4 backlog
+## v16.5 backlog
 
 Candidate follow-ups after v16.3.0 RTM:
 

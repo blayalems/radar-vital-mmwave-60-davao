@@ -398,6 +398,26 @@ test('loads PR change record body from the GitHub event payload', t => {
   assert.equal(result.ok, true, result.errors.join('\n'));
 });
 
+test('does not leak the caller GitHub event into an optional fixture check', t => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const eventPath = path.join(root, 'event.json');
+  write(root, 'event.json', { pull_request: { body: 'not a fixture change record' } });
+  const previousEventPath = process.env.GITHUB_EVENT_PATH;
+  const previousEventName = process.env.GITHUB_EVENT_NAME;
+  process.env.GITHUB_EVENT_PATH = eventPath;
+  process.env.GITHUB_EVENT_NAME = 'pull_request';
+  t.after(() => {
+    if (previousEventPath === undefined) delete process.env.GITHUB_EVENT_PATH;
+    else process.env.GITHUB_EVENT_PATH = previousEventPath;
+    if (previousEventName === undefined) delete process.env.GITHUB_EVENT_NAME;
+    else process.env.GITHUB_EVENT_NAME = previousEventName;
+  });
+
+  const result = runQmsContract({ root, requirePrBody: false });
+  assert.equal(result.ok, true, result.errors.join('\n'));
+});
+
 test('requires HANDOFF.md in every commit in the selected base range', t => {
   const root = fixture();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

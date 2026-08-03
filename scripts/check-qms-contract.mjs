@@ -330,10 +330,18 @@ function resolvePullRequestBody({ root, prBody, prBodyFile, requirePrBody }, err
       return '';
     }
   }
-  if (typeof process.env.QMS_PR_BODY === 'string') return process.env.QMS_PR_BODY;
-  if (process.env.GITHUB_EVENT_PATH) {
-    const body = parsePullRequestEvent(process.env.GITHUB_EVENT_PATH, errors);
-    if (body || process.env.GITHUB_EVENT_NAME === 'pull_request') return body;
+  // Temporary fixture repositories must not consume the caller's CI event
+  // payload.  Otherwise a local contract test can accidentally validate the
+  // live PR body (or fail because a runner event path is unreadable).  The
+  // event environment is authoritative only for the real repository or when
+  // the caller explicitly requires PR-body validation.
+  const isRepositoryRoot = path.resolve(root) === REPOSITORY_ROOT;
+  if (isRepositoryRoot || requirePrBody) {
+    if (typeof process.env.QMS_PR_BODY === 'string') return process.env.QMS_PR_BODY;
+    if (process.env.GITHUB_EVENT_PATH) {
+      const body = parsePullRequestEvent(process.env.GITHUB_EVENT_PATH, errors);
+      if (body || process.env.GITHUB_EVENT_NAME === 'pull_request') return body;
+    }
   }
   if (requirePrBody) errors.push('pull request change record is required but no PR body was supplied');
   return '';

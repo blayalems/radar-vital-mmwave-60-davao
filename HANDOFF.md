@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-03 - Contain QMS fixture event leakage in v16.5.8
+
+- **CI root cause**: Temporary QMS fixtures could inherit `GITHUB_EVENT_PATH` and validate the live PR body instead of the fixture; event payload lookup is now limited to the repository root or explicit PR-body validation.
+- **Regression coverage**: Added a fixture test that sets a pull-request event environment and proves optional checks remain isolated.
+- **Verification**: QMS contract tests pass locally; PR #102 body now follows the complete controlled change-record template.
+
 ### 2026-08-03 - Advance v16.5.8 statistical validation and plan audit
 
 - **Plan disposition**: Audited `C:\Users\blaya\Downloads\2026-08-01-implementation_plan.md`; PR79 and PR93–PR100 are already merged, so the next controlled patch is v16.5.8. The attached 2026-07-22 proposal remains the confirmatory authority.

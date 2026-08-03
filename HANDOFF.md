@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-03 - Bind Python API surface to manuscript objective testing
+
+- **Cross-stack parity**: Added a checked-in Angular inventory for every Python `/api/` route, validated it with a static contract test, corrected session-list/subject-profile/sign-off response and method drift, and added validated subject-profile PUT handling.
+- **Objective readiness**: Exposed the approved four-objective contract, completion matrix, participant status history, no-subject attempt ledger, model training/prediction evidence, session tags, and soft-delete controls in the dashboard; sandbox mode mirrors the same routes.
+- **Verification**: Angular unit suite passed (251 tests), Angular build and monolith round-trip passed, and Python compileall passed. Full Python pytest remains unavailable in this review runtime.
+
 ### 2026-08-03 - Refresh v16.5.9 Windows visual baselines
 
 - **Visual evidence**: Replaced the 18 intentional v16.5.9 snapshot variants that failed on the Windows runner with the runner-captured actual images; the other 78 visual cases already passed. Local Playwright browser installation was unavailable, so the refresh is sourced from the CI artifact and must be revalidated by the next Windows workflow.

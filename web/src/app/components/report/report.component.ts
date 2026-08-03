@@ -13,7 +13,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatListModule } from '@angular/material/list';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { DownloadRecord, SessionDataPayload, SessionNotesPayload, SessionRecord, SessionSignoff } from '../../models/rvt.models';
+import { DownloadRecord, SessionDataPayload, SessionNotesPayload, SessionPredictionResponse, SessionRecord, SessionSignoff, SessionTagsResponse, SessionTrainingStatus } from '../../models/rvt.models';
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 import { ReportRequestCoordinator } from './report-request-coordinator.service';
@@ -64,6 +64,10 @@ export class ReportComponent implements OnInit, AfterViewInit {
   compareRows: Array<Record<string, number | string | null>> = [];
   compareLoading = false;
   analysisStatus: { status?: string; progress_pct?: number; last_line?: string } | null = null;
+  trainingStatus: SessionTrainingStatus | null = null;
+  prediction: SessionPredictionResponse | null = null;
+  sessionTagsInput = '';
+  modelEvidenceLoading = false;
   sessionDataRows: Array<Record<string, number | string | null>> = [];
   sessionsLoading = false;
   sessionsError = '';
@@ -150,9 +154,9 @@ export class ReportComponent implements OnInit, AfterViewInit {
     this.sessionsLoading = true;
     this.sessionsError = '';
     try {
-      const resp = await this.api.request<{ items?: SessionRecord[] }>('/api/sessions');
-      if (resp && Array.isArray(resp.items)) {
-        this.sessions = resp.items;
+      const items = await this.api.loadSessions();
+      if (Array.isArray(items)) {
+        this.sessions = items;
         this.state.sessionItems.set(this.sessions);
         
         // Auto select current session if available, else first past run
@@ -184,6 +188,9 @@ export class ReportComponent implements OnInit, AfterViewInit {
     this.selectedSummary = null;
     this.comparison = null;
     this.analysisStatus = null;
+    this.trainingStatus = null;
+    this.prediction = null;
+    this.sessionTagsInput = '';
     this.sessionDataRows = [];
     this.summaryError = '';
     // A stale dashed overlay against a different selected session is misleading.
@@ -203,6 +210,9 @@ export class ReportComponent implements OnInit, AfterViewInit {
         this.analysisStatus = result.analysisStatus;
         this.sessionNotesInput = result.notes.review_summary || '';
         this.signoff = { ...result.signoff, session_id: sessionId };
+        const rawTags = result.summary['tags'];
+        this.sessionTagsInput = Array.isArray(rawTags) ? rawTags.map(String).join(', ') : '';
+        void this.loadModelEvidence(sessionId);
       } catch (error: unknown) {
         if (this.selectedSessionId === sessionId) {
           this.summaryError = error instanceof Error ? error.message : 'Recorded session summary is unavailable.';
@@ -258,6 +268,60 @@ export class ReportComponent implements OnInit, AfterViewInit {
 
   reportRecord(): SessionRecord {
     return this.selectedSummary || this.selectedSession || { session_id: '' };
+  }
+
+  async loadModelEvidence(sessionId = this.selectedSessionId): Promise<void> {
+    if (!sessionId) return;
+    if (typeof (this.api as Partial<ApiService>).loadTrainingStatus !== 'function'
+      || typeof (this.api as Partial<ApiService>).loadPrediction !== 'function') return;
+    this.modelEvidenceLoading = true;
+    try {
+      const [trainingStatus, prediction] = await Promise.all([
+        this.api.loadTrainingStatus(sessionId),
+        this.api.loadPrediction(sessionId)
+      ]);
+      if (this.selectedSessionId === sessionId) {
+        this.trainingStatus = trainingStatus;
+        this.prediction = prediction;
+      }
+    } catch (error: unknown) {
+      if (this.selectedSessionId === sessionId) {
+        this.trainingStatus = null;
+        this.prediction = null;
+      }
+      console.warn('Model evidence endpoints unavailable', error);
+    } finally {
+      if (this.selectedSessionId === sessionId) {
+        this.modelEvidenceLoading = false;
+        this.cdr.markForCheck();
+      }
+    }
+  }
+
+  async saveSessionTags(): Promise<void> {
+    const sessionId = this.selectedSessionId;
+    if (!sessionId) return;
+    const tags = this.sessionTagsInput.split(',').map(tag => tag.trim()).filter(Boolean).slice(0, 32);
+    try {
+      const response: SessionTagsResponse = await this.api.updateSessionTags(sessionId, tags);
+      this.sessionTagsInput = response.tags.join(', ');
+      this.snackBar.open('Session tags saved.', 'Dismiss', { duration: 3500 });
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Session tags could not be saved.', 'Dismiss', { duration: 5000 });
+    }
+  }
+
+  async deleteSelectedSession(): Promise<void> {
+    const sessionId = this.selectedSessionId;
+    if (!sessionId || this.selectedSummary?.sandbox || !window.confirm('Soft-delete this recorded session? It will move to the trainer trash folder.')) return;
+    try {
+      await this.api.deleteSession(sessionId);
+      this.snackBar.open('Session moved to trainer trash.', 'Dismiss', { duration: 4000 });
+      this.selectedSessionId = '';
+      await this.loadSessions();
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Session could not be deleted.', 'Dismiss', { duration: 6000 });
+    }
   }
 
   primarySessionMetadata(): Array<{ label: string; value: string }> {

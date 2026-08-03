@@ -68,7 +68,7 @@ from html import escape as html_escape
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Deque, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Deque, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 from urllib.parse import parse_qs, unquote, urlparse
 
 import matplotlib
@@ -136,6 +136,7 @@ from rvt_trainer.session.protocol_ledger import (
     initialize_session_attempt as _initialize_session_attempt,
     register_protocol_attempt as _register_protocol_attempt,
 )
+from rvt_trainer.session.study_objectives import study_objectives_payload as _study_objectives_payload
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -5818,6 +5819,49 @@ def _load_subject_profiles(sessions_root: str) -> Dict[str, object]:
     return data
 
 
+def _save_subject_profiles(sessions_root: str, payload: Mapping[str, object]) -> Dict[str, object]:
+    """Persist the dashboard's non-identifying physiology profile settings.
+
+    The Angular setup editor sends either the profile map directly or a
+    ``{"profiles": ...}`` envelope.  Normalize both forms to the same
+    schema, preserve the built-in defaults, and discard unknown fields so a
+    browser cannot smuggle arbitrary metadata into the trainer's profile
+    store.
+    """
+
+    incoming = payload.get("profiles", payload)
+    if not isinstance(incoming, dict):
+        raise ValueError("profiles must be an object")
+    profiles: Dict[str, object] = dict(DEFAULT_SUBJECT_PROFILES)
+    for raw_id, raw_profile in incoming.items():
+        profile_id = str(raw_id or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,47}", profile_id):
+            raise ValueError("subject profile ids must use letters, digits, dash, or underscore")
+        if not isinstance(raw_profile, dict):
+            raise ValueError(f"subject profile {profile_id} must be an object")
+        profile: Dict[str, object] = {}
+        label = _sanitize_user_string(raw_profile.get("label", profile_id), 120).strip()
+        if not label:
+            raise ValueError(f"subject profile {profile_id} requires a label")
+        profile["label"] = label
+        for key in ("age_group", "fitness_level", "notes"):
+            if raw_profile.get(key) not in (None, ""):
+                profile[key] = _sanitize_user_string(raw_profile.get(key), 240).strip()
+        expected = raw_profile.get("expected_hr_range")
+        if isinstance(expected, (list, tuple)) and len(expected) == 2:
+            try:
+                low, high = float(expected[0]), float(expected[1])
+            except (TypeError, ValueError):
+                raise ValueError(f"subject profile {profile_id} expected_hr_range must be numeric") from None
+            if not (0 <= low < high <= 260):
+                raise ValueError(f"subject profile {profile_id} expected_hr_range is invalid")
+            profile["expected_hr_range"] = [low, high]
+        profiles[profile_id] = profile
+    data = {"schema_version": SUBJECT_PROFILE_SCHEMA_VERSION, "profiles": profiles}
+    save_json(data, str(_subject_profiles_path(sessions_root)))
+    return data
+
+
 def _append_trainer_log(line: str):
     stamp = _report_stamp()
     _TRAINER_LOG.append(f"{stamp} {line}")
@@ -7164,6 +7208,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if route_name == "study_completion_matrix":
             self._send_json(200, _completion_matrix(self.server.sessions_root))
             return
+        if route_name == "study_objectives":
+            self._send_json(200, _study_objectives_payload())
+            return
         if route_name == "operator_profiles_get":
             db = _load_operator_profiles(self.server.sessions_root)
             profiles_list = []
@@ -7900,6 +7947,13 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         route_name = route_spec.name if route_spec is not None else None
         body = self._read_body()
         if body is None:
+            return
+        if route_name == "subject_profiles_put":
+            try:
+                saved = _save_subject_profiles(self.server.sessions_root, body)
+                self._send_json(200, saved)
+            except (TypeError, ValueError) as exc:
+                self._send_json(400, _api_error("INVALID_SUBJECT_PROFILES", str(exc)))
             return
         if route_name == "participant_status":
             participant_id = unquote(path.rsplit("/", 1)[-1])

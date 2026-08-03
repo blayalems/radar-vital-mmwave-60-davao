@@ -173,6 +173,17 @@ comparison. Sessions marked `legacy_unassigned`, participant-reassigned,
 outside the frozen condition set, or lacking release/protocol provenance remain
 exploratory and cannot enter confirmatory statistics.
 
+The operator-facing objective contract is served by
+`GET /api/study/objectives` and is rendered in the Angular participant setup.
+It binds the four approved manuscript objectives to their evidence paths:
+primary RR TOST at `d100_none`, exploratory unobstructed temperature
+agreement, the 72-trial no-subject false-alarm denominator, and exploratory HR
+agreement across the six configurations. The completion matrix, withdrawal
+history, attempt ledger, model training/prediction status, and session tags are
+all reachable from the same frontend API surface. The static
+`tests/test_frontend_backend_api_contract.py` check prevents a Python route
+from being added without a corresponding dashboard binding.
+
 ## Statistical interpretation rule
 
 - Define TOST equivalence margins before training and justify them in the

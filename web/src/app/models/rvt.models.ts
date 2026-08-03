@@ -52,8 +52,205 @@ export interface ParticipantProfile {
 }
 
 export interface ParticipantProfilesResponse {
+  ok?: boolean;
+  schema_version?: string;
   participants?: ParticipantProfile[];
   items?: ParticipantProfile[];
+  profiles?: ParticipantProfile[];
+  completion_matrix?: CompletionMatrix;
+}
+
+export type ParticipantStatus = 'active' | 'completed' | 'withdrawn';
+export type ProtocolAttemptType = 'subject' | 'no_subject';
+export type ProtocolAttemptStatus =
+  | 'allocated'
+  | 'starting'
+  | 'collecting'
+  | 'completed'
+  | 'stopped'
+  | 'failed_start'
+  | 'aborted'
+  | 'invalid'
+  | 'no_output';
+
+export interface CompletionCell {
+  status: ProtocolAttemptStatus | 'missing' | string;
+  attempt_id?: string | null;
+  attempt_type?: ProtocolAttemptType | string;
+}
+
+export interface CompletionParticipant {
+  participant_id: string;
+  status?: ParticipantStatus | string;
+  completed_trials: number;
+  expected_trials: number;
+  protocol_complete: boolean;
+  cells: Record<string, CompletionCell>;
+}
+
+export interface CompletionMatrix {
+  schema_version?: string;
+  conditions: string[];
+  trials: number[];
+  participants: Record<string, CompletionParticipant>;
+  participant_count: number;
+  protocol_complete_participant_count: number;
+  no_subject_attempt_count: number;
+  no_subject_expected: number;
+  attempt_count: number;
+}
+
+export interface ProtocolAttemptInput {
+  attempt_type: ProtocolAttemptType;
+  condition_id: string;
+  trial_number?: number;
+  participant_id?: string;
+  logical_trial_id?: string;
+  trial_id?: string;
+  status?: ProtocolAttemptStatus;
+  actor?: string;
+  reason?: string;
+  product_version?: string;
+  protocol_id?: string;
+}
+
+export interface ProtocolAttemptRecord {
+  schema_version?: string;
+  attempt_id: string;
+  attempt_type: ProtocolAttemptType;
+  participant_id?: string | null;
+  logical_trial_id?: string | null;
+  trial_id?: string | null;
+  condition_id: string;
+  trial_number?: number | null;
+  product_version?: string | null;
+  protocol_id?: string | null;
+  status: ProtocolAttemptStatus | string;
+  terminal?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  events?: Array<Record<string, unknown>>;
+}
+
+export interface ProtocolAttemptResponse {
+  ok: boolean;
+  schema_version?: string;
+  attempt: ProtocolAttemptRecord;
+}
+
+export interface StudyObjective {
+  id: string;
+  number: number;
+  outcome: string;
+  label: string;
+  role: 'confirmatory' | 'exploratory' | string;
+  primary_condition_id?: string;
+  secondary_condition_count?: number;
+  equivalence_margin_bpm?: number;
+  confidence_level?: number;
+  minimum_independent_estimates?: number;
+  threshold?: number;
+  trial_count?: number;
+  trial_duration_s?: number;
+  conditions?: string[];
+  reference?: string;
+  metrics?: string[];
+  required_routes?: string[];
+}
+
+export interface StudyObjectivesResponse {
+  schema_version: string;
+  product_version: string;
+  confirmatory_conditions: string[];
+  trials_per_condition: number;
+  planned_duration_s: number;
+  target_recruited_participants: number;
+  minimum_protocol_complete_participants: number;
+  objectives: StudyObjective[];
+}
+
+export interface ParticipantStatusResponse {
+  ok: boolean;
+  schema_version?: string;
+  profile: ParticipantProfile;
+}
+
+export interface BackendDefaults {
+  sandbox?: boolean;
+  radar_port?: string;
+  serial_ports?: string[];
+  ble_address?: string;
+  ble_profile?: string;
+  durations_s?: number[];
+  sessions_root?: string;
+  [key: string]: unknown;
+}
+
+export interface TrainerVersionResponse {
+  product_version?: string;
+  trainer?: string;
+  dashboard?: string;
+  firmware_expected?: string;
+  firmware_observed?: string;
+  serial_protocol?: string;
+  serial_width_expected?: number;
+  serial_width_observed?: number;
+  schema_versions?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface SessionListResponse {
+  ok?: boolean;
+  root?: string;
+  sessions?: SessionRecord[];
+  items?: SessionRecord[];
+}
+
+export interface SessionTrainingStatus {
+  schema_version?: string;
+  session_id: string;
+  status?: string;
+  target?: string;
+  n_estimators_done?: number;
+  n_estimators_total?: number;
+  train_loss?: number | null;
+  val_loss?: number | null;
+  elapsed_s?: number;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+export interface SessionPredictionResponse {
+  ok: boolean;
+  session_id: string;
+  summary?: Record<string, unknown> | null;
+  path?: string | null;
+}
+
+export interface SessionTagsResponse {
+  ok: boolean;
+  session_id: string;
+  tags: string[];
+}
+
+export interface SessionDeleteResponse {
+  ok: boolean;
+  session_id: string;
+  trashed_path?: string;
+  retention_hint?: string;
+}
+
+export interface SessionBufferResponse {
+  ok: boolean;
+  schema_version?: string;
+  session_id?: string;
+  buffer_s?: number;
+  payload?: LivePayload | null;
+}
+
+export interface SessionEventStreamOptions {
+  sessionId?: string;
+  token?: string;
 }
 
 export interface AlertEvent {

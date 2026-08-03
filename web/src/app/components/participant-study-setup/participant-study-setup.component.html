@@ -10,6 +10,17 @@
     </button>
   </div>
 
+  @if (objectives().length) {
+    <div class="objective-strip" aria-label="Approved manuscript objective controls">
+      @for (objective of objectives(); track objective.id) {
+        <div class="objective-chip" [attr.data-role]="objective.role">
+          <strong>O{{ objective.number }} · {{ objective.outcome | uppercase }}</strong>
+          <span>{{ objective.role }} · {{ objective.label }}</span>
+        </div>
+      }
+    </div>
+  }
+
   @if (loading()) {
     <div class="participant-state" role="status">
       <mat-spinner diameter="24"></mat-spinner>
@@ -38,6 +49,12 @@
             Add participant
           </ng-container>
         }
+      </button>
+      <button mat-button type="button" (click)="recordNoSubjectAttempt()"
+              [disabled]="attemptCreating() || state.setup().study_mode !== 'confirmatory'"
+              aria-label="Record a no-subject false-alarm attempt">
+        <mat-icon aria-hidden="true">visibility_off</mat-icon>
+        {{ attemptCreating() ? 'Recording...' : 'Record no-subject attempt' }}
       </button>
     </div>
 
@@ -71,6 +88,36 @@
         </div>
       }
     </div>
+
+    @if (selectedParticipant(); as selected) {
+      <div class="participant-status-actions" aria-label="Participant roster status">
+        <span>Roster status for <strong>{{ selected.display_code }}</strong>: {{ selected.status }}</span>
+        <button mat-button type="button" (click)="updateStatus('active')" [disabled]="statusUpdating() || selected.status === 'active'">Active</button>
+        <button mat-button type="button" (click)="updateStatus('completed')" [disabled]="statusUpdating() || selected.status === 'completed'">Completed</button>
+        <button mat-button color="warn" type="button" (click)="updateStatus('withdrawn')" [disabled]="statusUpdating() || selected.status === 'withdrawn'">Withdrawn</button>
+      </div>
+    }
+
+    @if (completionMatrix(); as matrix) {
+      <div class="completion-summary" role="status" aria-label="Protocol completion summary">
+        <div>
+          <strong>Protocol evidence</strong>
+          <span>{{ matrix.protocol_complete_participant_count }} complete participants · {{ matrix.attempt_count }} attempts</span>
+        </div>
+        <div>
+          <strong>No-subject denominator</strong>
+          <span>{{ matrix.no_subject_attempt_count }} / {{ matrix.no_subject_expected }} recorded</span>
+        </div>
+        @if (selectedParticipant(); as selected) {
+          @if (completionFor(selected.participant_id); as completion) {
+            <div>
+              <strong>{{ completion.completed_trials }} / {{ completion.expected_trials }} trials</strong>
+              <span>{{ completion.protocol_complete ? 'Protocol complete' : 'Continue assigned trials' }}</span>
+            </div>
+          }
+        }
+      </div>
+    }
   }
 
   <div class="condition-grid">

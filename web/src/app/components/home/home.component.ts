@@ -30,7 +30,7 @@ import {
 } from '../../services/release-compatibility.service';
 import type { ClientReleaseHandshake } from '../../services/release-compatibility.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
-import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload, SetupState } from '../../models/rvt.models';
+import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SessionRecord, SubjectProfileRecord, SessionDataPayload, SetupState } from '../../models/rvt.models';
 import {
   PreflightRequestCoordinator,
   PreflightSetup,
@@ -305,7 +305,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async refreshDefaults() {
     try {
-      const defs = await this.api.request<{ radar_port?: string; serial_ports?: string[] }>('/api/defaults');
+      const defs = await this.api.loadDefaults();
       if (defs) {
         if (defs.radar_port) {
           this.state.setup.update(s => {
@@ -355,8 +355,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async loadSubjectProfiles(): Promise<void> {
     try {
-      const response = await this.api.request<{ profiles?: Record<string, SubjectProfileRecord> }>('/api/subject-profiles');
-      this.subjectProfiles = response.profiles || {};
+      this.subjectProfiles = await this.api.loadSubjectProfiles();
     } catch (_) {
       this.subjectProfiles = {};
     }
@@ -364,8 +363,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async loadSessions(): Promise<void> {
     try {
-      const response = await this.api.request<{ items?: SessionRecord[] }>('/api/sessions');
-      this.state.sessionItems.set(Array.isArray(response.items) ? response.items : []);
+      this.state.sessionItems.set(await this.api.loadSessions());
     } catch (_) {
       this.state.sessionItems.set([]);
     }
@@ -376,7 +374,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.isScanningPorts = true;
     this.state.triggerHaptic('tap');
     try {
-      const result = await this.api.request<{ ports?: SerialPortRecord[]; selected?: string }>('/api/serial/ports');
+      const result = await this.api.loadSerialPorts();
       const ports = (result.ports || []).map(port => port.device).filter(Boolean);
       if (ports.length) {
         const current = String(this.state.setup().radar_port || '').trim();

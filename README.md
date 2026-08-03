@@ -110,6 +110,7 @@ python3 radar_vital_trainer_v12_for_v16_0.py serve --bind lan
 | PIN recovery | Recovery code (no session token needed) | `/api/auth/reset-pin` (POST — body: `{operator_id, recovery_code, new_pin}`; verifies PBKDF2 recovery-code hash; rotates code on success; separate 5-attempt/30 s lockout) |
 | Host PIN reset | Loopback-only (127.0.0.1 / ::1); no token | `/api/auth/host-reset` (POST — body: `{operator_id, new_pin}`; 403 from any non-loopback address; re-mints recovery code; use for legacy profiles or when recovery code is lost) |
 | Physiological / session / hardware | `X-RVT-Auth` operator token after bootstrap | `/api/status`, `/api/events/subscribe`, `/api/session/events`, `/api/session/current`, `/api/session/current/live_dashboard.json`, `/api/session/buffer`, `/api/sessions`, `/api/sessions/<id>/summary`, `/api/sessions/<id>/data`, `/api/sessions/<id>/notes` (GET), `/api/sessions/<id>/signoff` (GET), `/api/sessions/<id>/annotations` (GET), `/api/sessions/<id>/compare`, `/api/sessions/<id>/analyse/status`, `/api/sessions/<id>/training/status`, `/api/sessions/<id>/predict`, `/api/sessions/<id>/files/<rel>`, `/api/ble/scan`, `/api/serial/ports`, `/api/preflight`, `/api/preflight/<id>` (single-check rerun), `/api/trainer/log`, `/api/report/export` |
+| Study evidence | `X-RVT-Auth` operator token after bootstrap | `/api/study/objectives` (approved manuscript objective contract), `/api/study/completion-matrix`, `/api/study/attempts` (POST; includes no-subject denominator), `/api/participants` (GET/POST), `/api/participants/<id>` (PUT; status history), `/api/subject-profiles` (GET/PUT) |
 | Control / mutation | `X-RVT-Auth` operator token after bootstrap | `/api/session/start` (POST), `/api/session/stop` (POST), `/api/session/annotate` (POST), `/api/session/annotations` (POST), `/api/participants/<id>` (PUT — lifecycle status only), `/api/sessions/<id>/notes` (PUT), `/api/sessions/<id>/signoff` (PUT), `/api/sessions/<id>/tags` (PUT), `/api/sessions/<id>/analyse` (POST — rerun; returns `radar_only` status when reference CSV/BLE data is absent), `/api/sessions/<id>` (DELETE — soft-trashes to `.trash/`) |
 
 Backend service ownership is split without changing the public entrypoint:
@@ -134,6 +135,15 @@ Exploratory starts may use 0.5–1.0 m but remain explicitly labelled
 `exploratory`, so they cannot enter confirmatory statistics accidentally.
 Participant IDs and release/firmware/protocol provenance are persisted with the
 session and must not be reassigned after capture starts.
+
+The Angular dashboard keeps a checked-in route inventory in
+`web/src/app/services/backend-api.contract.ts`; the Python test
+`tests/test_frontend_backend_api_contract.py` fails when an API route, method,
+or path is added without a matching frontend binding. Home exposes the
+approved objective contract, completion matrix, withdrawal history, and
+no-subject attempt ledger. Report exposes training/prediction evidence, tags,
+and soft-delete controls so the four manuscript objectives can be tested from
+the same operator session.
 
 Before a real Start, the dashboard sends a compatibility handshake containing
 its product/dashboard version, serial protocol and width, and required API

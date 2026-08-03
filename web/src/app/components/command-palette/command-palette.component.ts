@@ -624,8 +624,8 @@ export class CommandPaletteComponent {
     const mode = this.state.ctlStatus()?.mode;
     if (mode === 'sandbox') {
       try {
-        const response = await this.api.request<{ data: Record<string, unknown>[] }>(`/api/sessions/${encodeURIComponent(sid)}/data`);
-        const rows = response.data || [];
+        const response = await this.api.loadSessionData(sid);
+        const rows = response.rows || [];
         if (!rows.length) {
           this.snackBar.open('No telemetry data recorded for this session yet.', 'Dismiss', { duration: 3000 });
           return;

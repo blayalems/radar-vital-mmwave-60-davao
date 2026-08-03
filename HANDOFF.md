@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-03 - Refresh QMS change-record evidence after PR-body correction
+
+- **CI follow-up**: The first pushed workflow read the pre-correction PR body and rejected its legacy field labels; the canonical risk-class and requirement-ID fields are now present, and this HANDOFF-only commit retriggers the QMS validation against the current body.
+
 ### 2026-08-03 - Close confirmatory-analysis and QMS review findings
 
 - **Statistics**: Strictly parse eligibility/attempt flags, aggregate only eligible confirmatory rows, retain explicit no-subject captures for false-alarm denominators, and verify model/fold/hash/protocol provenance against the predeclared plan.

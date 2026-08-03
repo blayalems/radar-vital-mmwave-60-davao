@@ -362,6 +362,52 @@ def source_commit() -> Optional[str]:
         if value:
             _SOURCE_COMMIT = value
             return value
+    # Resolve ordinary repositories and linked worktrees without launching a
+    # subprocess. Session-start tests and packaged runtimes can replace or omit
+    # process launchers; provenance lookup must never consume the one capture
+    # process launch or make capture depend on ``git`` being installed.
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+        git_path = repo_root / ".git"
+        if git_path.is_file():
+            marker = git_path.read_text(encoding="utf-8").strip()
+            if marker.lower().startswith("gitdir:"):
+                git_path = (repo_root / marker.split(":", 1)[1].strip()).resolve()
+        head = (git_path / "HEAD").read_text(encoding="utf-8").strip()
+        value = ""
+        if head.startswith("ref:"):
+            ref_name = head.split(":", 1)[1].strip()
+            git_roots = [git_path]
+            common_dir = git_path / "commondir"
+            if common_dir.exists():
+                git_roots.append(
+                    (git_path / common_dir.read_text(encoding="utf-8").strip()).resolve()
+                )
+            for git_root in git_roots:
+                ref_path = git_root / ref_name
+                if ref_path.exists():
+                    value = ref_path.read_text(encoding="utf-8").strip()
+                    break
+                packed = git_root / "packed-refs"
+                if packed.exists():
+                    for line in packed.read_text(
+                        encoding="utf-8",
+                        errors="ignore",
+                    ).splitlines():
+                        if line and not line.startswith(("#", "^")):
+                            candidate, _, name = line.partition(" ")
+                            if name.strip() == ref_name:
+                                value = candidate.strip()
+                                break
+                if value:
+                    break
+        else:
+            value = head
+        if value:
+            _SOURCE_COMMIT = value
+            return value
+    except Exception:
+        pass
     try:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],

@@ -115,7 +115,7 @@ def test_session_start_gate_blocks_required_runtime_failures():
 
 def test_radar_log_contract_prefers_current_firmware_source():
     path = monolith._assert_radar_log_contract()
-    assert path.name == "radar_vital_v16_5_3.ino"
+    assert path.name == "radar_vital_v16_5_4.ino"
 
 
 def test_radar_log_contract_can_use_builtin_schema_when_source_missing(monkeypatch):

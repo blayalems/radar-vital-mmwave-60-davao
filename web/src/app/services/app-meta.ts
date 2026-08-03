@@ -3,7 +3,7 @@
  * for the About card, trainer /about footer, consent dialog, and issue links.
  */
 export const PRODUCT_NAME = 'Radar Vital';
-export const PRODUCT_VERSION = '16.5.3';
+export const PRODUCT_VERSION = '16.5.4';
 export const PRODUCT_VERSION_SHORT = 'v16.5';
 export const PRODUCT_VERSION_LABEL = 'App v16.5';
 export const SCHEMA_VERSION_LABEL = 'Schema 2026-05';

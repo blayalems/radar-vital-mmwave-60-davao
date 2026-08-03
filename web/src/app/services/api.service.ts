@@ -41,6 +41,13 @@ interface TauriBridge {
   };
 }
 
+export class ApiRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -210,7 +217,7 @@ export class ApiService {
         const status = Number(resp.status || 0);
         const data = resp.data;
         if (status < 200 || status >= 300) {
-          throw new Error(this.errorMessage(data, `HTTP ${status}`));
+          throw new ApiRequestError(this.errorMessage(data, `HTTP ${status}`), status);
         }
         return (typeof data === 'string' ? JSON.parse(data || '{}') : data) as T;
       } catch (err) {
@@ -237,7 +244,7 @@ export class ApiService {
       return await this.withTimeout(firstValueFrom(response), timeoutMs, 'Request timeout');
     } catch (err: any) {
       if (err && typeof err === 'object' && 'status' in err) {
-        throw new Error(this.errorMessage(err.error, `HTTP ${err.status}`));
+        throw new ApiRequestError(this.errorMessage(err.error, `HTTP ${err.status}`), Number(err.status || 0));
       }
       throw new Error(err.message || 'HTTP Request failed');
     }
@@ -361,9 +368,14 @@ export class ApiService {
     return items;
   }
 
-  async startSession(): Promise<{ session_id?: string }> {
+  async startSession(idempotencyKey: string): Promise<{ session_id?: string }> {
+    const stableIdempotencyKey = String(idempotencyKey || '').trim();
+    if (!stableIdempotencyKey) {
+      throw new Error('Session Start requires an idempotency key.');
+    }
     const setup = this.state.setup();
     const payload = {
+      idempotency_key: stableIdempotencyKey,
       duration_s: setup.duration_s,
       radar_port: setup.radar_port,
       ble_address: setup.ble_address,

@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { SetupState } from '../../models/rvt.models';
-import { ApiService } from '../../services/api.service';
+import { ApiRequestError, ApiService } from '../../services/api.service';
 import { AudioService } from '../../services/audio.service';
 import { BluetoothService } from '../../services/bluetooth.service';
 import { I18nService } from '../../services/i18n.service';
@@ -54,6 +54,26 @@ const passingChecks = (port: string) => [
   { id: 'session_folder_writable', label: 'Storage', status: 'good', description: 'ready' }
 ];
 
+const START_KEY = '11111111-1111-4111-8111-111111111111';
+const NEXT_START_KEY = '33333333-3333-4333-8333-333333333333';
+
+function matchingRelease() {
+  const handshake = clientReleaseHandshake();
+  return {
+    product_version: handshake.product_version,
+    trainer: handshake.product_version,
+    dashboard: handshake.dashboard_version,
+    firmware_expected: `v${handshake.product_version}`,
+    serial_protocol: handshake.serial_protocol,
+    serial_width_expected: handshake.serial_width_expected,
+    schema_versions: handshake.schema_versions
+  };
+}
+
+async function flushMicrotasks(turns = 8): Promise<void> {
+  for (let turn = 0; turn < turns; turn++) await Promise.resolve();
+}
+
 describe('HomeComponent preflight request ownership', () => {
   let component: HomeComponent;
   let request: ReturnType<typeof vi.fn>;
@@ -65,6 +85,7 @@ describe('HomeComponent preflight request ownership', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(START_KEY);
     request = vi.fn();
     setup = signal(initialSetup());
     preflightChecks = signal<ReturnType<typeof passingChecks>>([]);
@@ -162,15 +183,7 @@ describe('HomeComponent preflight request ownership', () => {
   it('posts the exact click-time setup after a current successful preflight', async () => {
     request.mockImplementation((path: string) => {
       if (path.startsWith('/api/preflight?')) return Promise.resolve({ checks: passingChecks('COM7') });
-      if (path === '/api/version') return Promise.resolve({
-        product_version: clientReleaseHandshake().product_version,
-        trainer: clientReleaseHandshake().product_version,
-        dashboard: clientReleaseHandshake().dashboard_version,
-        firmware_expected: `v${clientReleaseHandshake().product_version}`,
-        serial_protocol: clientReleaseHandshake().serial_protocol,
-        serial_width_expected: clientReleaseHandshake().serial_width_expected,
-        schema_versions: clientReleaseHandshake().schema_versions
-      });
+      if (path === '/api/version') return Promise.resolve(matchingRelease());
       if (path === '/api/session/start') return Promise.resolve({ session_id: 'session-1' });
       throw new Error(`Unexpected request: ${path}`);
     });
@@ -179,6 +192,7 @@ describe('HomeComponent preflight request ownership', () => {
 
     expect(request).toHaveBeenCalledWith('/api/session/start', expect.objectContaining({
       body: JSON.stringify({
+        idempotency_key: START_KEY,
         duration_s: 30,
         radar_port: 'COM7',
         ble_address: 'AA:BB:CC:DD:EE:01',
@@ -201,6 +215,86 @@ describe('HomeComponent preflight request ownership', () => {
         advanced: { notify_char: '0000ffe2-0000-1000-8000-00805f9b34fb' }
       })
     }));
+  });
+
+  it('coalesces double-tap and keyboard Start commands into one POST', async () => {
+    const postResponse = deferred<{ session_id: string }>();
+    request.mockImplementation((path: string) => {
+      if (path.startsWith('/api/preflight?')) return Promise.resolve({ checks: passingChecks('COM7') });
+      if (path === '/api/version') return Promise.resolve(matchingRelease());
+      if (path === '/api/session/start') return postResponse.promise;
+      throw new Error(`Unexpected request: ${path}`);
+    });
+
+    const click = component.startSession();
+    const keyboard = component.startSession();
+    expect(keyboard).toBe(click);
+
+    await flushMicrotasks();
+    expect(request.mock.calls.filter(call => call[0] === '/api/session/start')).toHaveLength(1);
+
+    postResponse.resolve({ session_id: 'session-single-flight' });
+    await Promise.all([click, keyboard]);
+    expect(request.mock.calls.filter(call => call[0] === '/api/session/start')).toHaveLength(1);
+  });
+
+  it('reuses the intent key after response loss instead of creating a duplicate session', async () => {
+    let postAttempt = 0;
+    const postedKeys: string[] = [];
+    request.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.startsWith('/api/preflight?')) return Promise.resolve({ checks: passingChecks('COM7') });
+      if (path === '/api/version') return Promise.resolve(matchingRelease());
+      if (path === '/api/session/start') {
+        postedKeys.push(JSON.parse(String(init?.body)).idempotency_key);
+        postAttempt++;
+        return postAttempt === 1
+          ? Promise.reject(new Error('Request timeout'))
+          : Promise.resolve({ session_id: 'session-recovered' });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+
+    await component.startSession();
+    await component.startSession();
+
+    expect(postedKeys).toEqual([START_KEY, START_KEY]);
+    expect(globalThis.crypto.randomUUID).toHaveBeenCalledTimes(1);
+    expect(snackbarOpen).toHaveBeenCalledWith(
+      expect.stringContaining('same idempotency key'),
+      'Dismiss',
+      { duration: 9000 }
+    );
+  });
+
+  it('clears the intent after a definitive HTTP rejection', async () => {
+    const randomUuid = vi.mocked(globalThis.crypto.randomUUID);
+    randomUuid.mockReset();
+    randomUuid.mockReturnValueOnce(START_KEY).mockReturnValueOnce(NEXT_START_KEY);
+    const postedKeys: string[] = [];
+    let postAttempt = 0;
+    request.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.startsWith('/api/preflight?')) return Promise.resolve({ checks: passingChecks('COM7') });
+      if (path === '/api/version') return Promise.resolve(matchingRelease());
+      if (path === '/api/session/start') {
+        postedKeys.push(JSON.parse(String(init?.body)).idempotency_key);
+        postAttempt++;
+        return postAttempt === 1
+          ? Promise.reject(new ApiRequestError('Study assignment rejected', 409))
+          : Promise.resolve({ session_id: 'session-after-remediation' });
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+
+    await component.startSession();
+    await component.startSession();
+
+    expect(postedKeys).toEqual([START_KEY, NEXT_START_KEY]);
+    expect(randomUuid).toHaveBeenCalledTimes(2);
+    expect(snackbarOpen).not.toHaveBeenCalledWith(
+      expect.stringContaining('same idempotency key'),
+      'Dismiss',
+      { duration: 9000 }
+    );
   });
 
   it('fingerprints only the hardware inputs exercised by preflight', () => {

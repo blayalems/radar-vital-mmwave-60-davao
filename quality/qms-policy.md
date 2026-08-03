@@ -7,7 +7,7 @@
 | Status | Active when the approving pull request is merged |
 | Owner role | Quality manager |
 | Approver roles | Quality manager and technical lead |
-| Effective product version | `16.5.8` |
+| Effective product version | `16.5.9` |
 | Review interval | 12 months or before a controlled process changes |
 | Retention | Project lifetime plus five years; review before disposal |
 

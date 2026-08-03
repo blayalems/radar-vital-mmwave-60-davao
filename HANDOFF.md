@@ -9,6 +9,13 @@
 
 - **Release identity**: Renamed the coordinated firmware source to `radar_vital_v16_5_9.ino`; the wire protocol remains frozen.
 
+### 2026-08-03 - Advance v16.5.9 for protocol-attempt provenance
+
+- **Plan audit**: Reviewed `C:\Users\blaya\Downloads\2026-08-01-implementation_plan.md` against the repository contract and the adversarial statistics audits. The roadmap is directionally sound, but its PR-status table is stale; PR79 and PR93–PR100 are already merged and the controlled follow-up starts at v16.5.9.
+- **Release identity**: Promoted firmware, trainer, Angular, generated dashboard, Capacitor, and Tauri carriers from v16.5.8 to v16.5.9. The frozen v15.2 222-column serial contract is unchanged.
+- **Implementation scope**: v16.5.9 is reserved for immutable capture/build provenance, canonical logical trials, unique protocol attempts, terminal-state evidence, completion denominators, and participant withdrawal history. Statistical plan approval and physical authorization remain explicit gates.
+- **Local documents**: The updated manuscript, user manual, and GBR-versus-experimental-1-D-CNN tradeoff PDF remain outside this repository as controlled local artifacts.
+
 ### 2026-08-03 - Fail closed confirmatory statistics in v16.5.8
 
 - **Analysis unit**: Confirmatory OOF rows now form unique 30-second windows at 5-second stride before the 15-window/2-trial participant-balanced gates; short endpoint bursts and duplicate timestamps cannot qualify.

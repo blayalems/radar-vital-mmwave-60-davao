@@ -3,7 +3,7 @@
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
   "register_revision": "R04",
-  "effective_product_version": "16.5.8",
+  "effective_product_version": "16.5.9",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -78,7 +78,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_5_8.ino",
+        "radar_vital_v16_5_9.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [

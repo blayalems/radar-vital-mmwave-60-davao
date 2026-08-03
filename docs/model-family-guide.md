@@ -134,7 +134,7 @@ Do not select the CNN because its training loss is lower. Select a deployable
 family only after participant-held-out comparison at the protocol distances and
 barriers, with identical preprocessing rules and accuracy/statistical gates.
 
-## v16.5.8 statistical comparison contract
+## v16.5.9 statistical comparison contract
 
 The trainer retains one `outer_oof_predictions.csv` per leave-one-participant-
 out run. It contains raw predictions alongside the declared causal

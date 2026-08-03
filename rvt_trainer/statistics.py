@@ -25,8 +25,8 @@ import numpy as np
 DEFAULT_ANALYSIS_PLAN = {
     "$schema": "./schemas/statistical-analysis-plan.schema.json",
     "schema_version": "rvt-analysis-plan-v1",
-    "plan_id": "RVT-STA-PLAN-16.5.8",
-    "effective_product_version": "16.5.8",
+    "plan_id": "RVT-STA-PLAN-16.5.9",
+    "effective_product_version": "16.5.9",
     "status": "draft",
     "owner_role": "research_lead",
     "approval_required": ["research_lead", "quality_manager"],
@@ -177,7 +177,7 @@ def _plan_primary(plan: Mapping[str, Any]) -> Mapping[str, Any]:
     primary = plan.get("primary")
     if isinstance(primary, Mapping):
         return primary
-    # Accept the pre-v16.5.8 flat shape for descriptive, non-confirmatory
+    # Accept the pre-v16.5.9 flat shape for descriptive, non-confirmatory
     # callers only.  Confirmatory callers are validated above.
     return {
         "condition_id": plan.get("primary_condition", "d100_none"),

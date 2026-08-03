@@ -6,6 +6,15 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.5.9 protocol-attempt provenance (in progress)
+
+- Advance the coordinated firmware, trainer, dashboard, APK, and EXE release
+  identity from v16.5.8 to v16.5.9.
+- Begin the Claude Opus implementation-plan follow-up with immutable capture
+  provenance, canonical protocol attempts, and participant completion evidence.
+- Keep GBR as the default model family and 1-D CNN explicitly experimental;
+  the confirmatory analysis plan remains draft until research/QMS approval.
+
 ### v16.5.8 statistical validation and OOF evidence
 
 - Added a versioned statistical-analysis plan for the proposal's six confirmatory conditions, 30-second/5-second endpoint aggregation, primary 1.0 m/no-cardboard RR TOST, Holm-adjusted secondary tests, participant-balanced agreement, coverage, and exact false-alarm evidence.

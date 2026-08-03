@@ -1,4 +1,4 @@
-# Radar Vital v16.5.8 Milestones
+# Radar Vital v16.5.9 Milestones
 
 This file tracks release-readiness milestones for PR #54. It is intentionally
 honest about gates that code cannot solve by itself: University of Mindanao
@@ -26,7 +26,7 @@ Exit criteria:
   module firmware truthfulness, adaptive-correction shadow metrics, v15 PQI
   shadow metrics, BLE time-based coverage, and periodic `ref_ble_summary.json`
   snapshots.
-- Firmware `radar_vital_v16_5_8.ino` passively polls module firmware version at
+- Firmware `radar_vital_v16_5_9.ino` passively polls module firmware version at
   boot/recovery without changing the default `ENABLE_BLE=false` radar path.
 
 Risk: training-quality verdicts still require capture quality that code cannot

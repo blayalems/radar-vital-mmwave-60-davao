@@ -136,9 +136,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.8"
-DASHBOARD_VERSION = "16.5.8"
-FIRMWARE_VERSION_EXPECTED = "v16.5.8"
+VERSION = "16.5.9"
+DASHBOARD_VERSION = "16.5.9"
+FIRMWARE_VERSION_EXPECTED = "v16.5.9"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -158,8 +158,8 @@ SESSION_NOTES_SCHEMA_VERSION = "rvt-session-notes-v12.0"
 SESSION_SIGNOFF_SCHEMA_VERSION = "rvt-session-signoff-v12.0"
 TRAINING_PROGRESS_SCHEMA_VERSION = "rvt-training-progress-v12.0"
 LIVE_EVENT_SCHEMA_VERSION = "rvt-live-events-v12.0"
-SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v16.5.1"
-SESSION_MANIFEST_VERSION = "v16.5.1-session-manifest-2026-07-29"
+SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v16.5.9"
+SESSION_MANIFEST_VERSION = "v16.5.9-session-manifest-2026-08-03"
 CHART_ANNOTATIONS_SCHEMA_VERSION = "rvt-chart-annotations-v12.0"
 FEATURE_FLAGS = {
     "enable_sse": True,
@@ -4637,7 +4637,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_8.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_9.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -8133,7 +8133,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_8.ino"),
+        Path("radar_vital_v16_5_9.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),

@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Reconcile PR-base QMS document revisions
+
+- **QMS correction**: The PR base already contained the single R04-to-R05 controlled-document increment. Restored the final register, handoff, README, and feedback-loop identities to R05 so the complete PR range has exactly one revision step; no product or protocol behavior changed.
+- **Verification**: Re-ran the QMS contract against `origin/codex/v16-5-8-statistical-validation` and retained the existing Angular/build evidence for the implementation commit.
+
 ### 2026-08-04 - Reserve logical trials and expose study evidence controls
 
 - **Exactly-once collection**: Added durable logical-trial reservations beside request-key idempotency so concurrent clients cannot start the same participant/condition/repetition twice; terminal or failed starts release the slot for a deliberate new attempt.

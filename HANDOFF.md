@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Partition Playwright smoke by viewport
+
+- **CI diagnostics**: Partitioned the 92-test smoke/API suite into four independent desktop, Pixel 7, iPhone 14, and iPad jobs with isolated trainer ports; each job now emits line-level test names and retains its report artifact on failure or cancellation.
+- **Verification**: The prior combined run was cancelled at the 60-minute limit without a structured report; this workflow-only change is ready for a fresh PR run with a 30-minute per-viewport budget.
+
 ### 2026-08-04 - Align PR change record with QMS template
 
 - **Change record**: Expanded PR #103 with the required impact, controlled-document, compatibility, release/rollback, review/authorization, and completion-checklist sections; requirement IDs and objective verification remain explicit.

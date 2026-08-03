@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { StateService, DEFAULT_KPI_THRESHOLDS } from './state.service';
 import { PersistenceService } from './persistence.service';
 import { SessionStore } from './stores/session.store';
@@ -8,6 +9,8 @@ describe('StateService', () => {
   let mockPersistence: Partial<PersistenceService>;
 
   beforeEach(() => {
+    TestBed.resetTestingModule();
+    localStorage.clear();
     mockPersistence = {
       quarantineLegacyLocalStorage: vi.fn().mockResolvedValue(undefined),
       get: vi.fn().mockResolvedValue(undefined),
@@ -22,6 +25,11 @@ describe('StateService', () => {
     });
 
     service = TestBed.inject(StateService);
+  });
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    localStorage.clear();
   });
 
   it('should be created', () => {

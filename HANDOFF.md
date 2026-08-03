@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Isolate state-service browser guard fixtures
+
+- **Test isolation**: Reset the Angular test injector and browser storage around each `StateService` spec so a prior demo-mode preference cannot leak into the real-session rejection assertion on CI viewport shards.
+- **Verification**: Run 555 reproduced the same assertion on Pixel 7 and desktop; the fixture now explicitly clears the shared session/demo state before each test and needs a fresh CI matrix.
+
 ### 2026-08-04 - Make active-session unit fixtures injector-stable
 
 - **Test isolation**: The state-service guard spec now configures the canonical `SessionStore` witness directly, matching the production source-mode dependency and avoiding cross-file Angular test-injector timing differences.

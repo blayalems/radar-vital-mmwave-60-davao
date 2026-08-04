@@ -134,7 +134,7 @@ Do not select the CNN because its training loss is lower. Select a deployable
 family only after participant-held-out comparison at the protocol distances and
 barriers, with identical preprocessing rules and accuracy/statistical gates.
 
-## v16.5.9 statistical comparison contract
+## v16.5.10 statistical comparison contract
 
 The trainer retains one `outer_oof_predictions.csv` per leave-one-participant-
 out run. It contains raw predictions alongside the declared causal
@@ -154,3 +154,19 @@ and use Holm adjustment. RMSE/MAE and agreement are participant-balanced, and
 coverage/non-output denominators remain explicit. Fewer than 19 independent
 primary estimates is reported as inconclusive. These rules do not authorize
 CNN inference on the ESP32-C6.
+
+The v16.5.10 Model Lab starts a durable backend job rather than performing a
+browser-side calculation. Objective 1 requests are server-classified as
+confirmatory, discover the complete manifest-backed cohort, enforce the
+38-participant/18-trial gate, and require participant-disjoint LOSO OOF before
+the trainer writes `confirmatory_run_manifest.json`. The job then attempts the
+approved `rvt-statistics` phase; a draft plan, missing attempt ledger, missing
+hash, or unavailable dependency remains visibly blocked/inconclusive. The UI
+must never label a completed training subprocess as manuscript-ready by
+itself.
+
+Capture remains model-agnostic by default: a participant session records
+`model_family: "none"` unless a verified inference bundle is explicitly active.
+The family selector belongs in Model Lab so GBR and 1-D CNN can be compared on
+the same participant-bound cohort without collecting confounded model-specific
+sessions.

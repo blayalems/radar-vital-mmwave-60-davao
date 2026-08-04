@@ -1,6 +1,6 @@
 # Physical Hardware Acceptance Checklist (v12 stable)
 
-## v16.5.9 acceptance disposition
+## v16.5.10 acceptance disposition
 
 The project team reports that the firmware bench tests are complete, including
 presence loss/recovery and peripheral recovery. This is a pending controlled
@@ -19,7 +19,7 @@ Ensure the following hardware components are available:
 1. **Target Mobile Device**: Android 10+ (tested against Pixel baseline).
 2. **Target Windows Machine**: Windows 10 or 11 with a working Bluetooth 4.2+ BLE USB adapter or integrated chip.
 3. **Reference BLE Device**: AiLink Pulse Oximeter or compatible GATT simulator.
-4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_5_9.ino`.
+4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_5_10.ino`.
 5. **LAN Test Environment**: Both the trainer server (PC) and the mobile device must be connected to the exact same subnet (e.g., local Wi-Fi router).
 
 ---

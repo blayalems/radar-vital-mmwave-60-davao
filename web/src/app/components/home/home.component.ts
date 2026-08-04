@@ -71,6 +71,8 @@ interface SessionStartPayload {
   barrier_type: 'none' | 'cardboard';
   trial_number: number;
   planned_duration_s: number;
+  model_family: 'none' | 'gradient_boosting' | 'cnn_1d';
+  model_bundle?: string;
   ble_profile: string;
   skip_countdown: boolean;
   client_handshake: ClientReleaseHandshake;
@@ -934,6 +936,11 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private captureSessionStartPayload(idempotencyKey: string): SessionStartPayload {
     const setup = this.state.setup();
+    // A capture is model-neutral until Model Lab has attached a verified
+    // bundle.  This also prevents an older persisted selector value from
+    // silently changing the provenance of a new participant session.
+    const modelBundle = String(setup.model_bundle || '').trim();
+    const modelFamily = modelBundle ? (setup.model_family || 'none') : 'none';
     return {
       idempotency_key: idempotencyKey,
       duration_s: this.selectedDuration,
@@ -952,6 +959,8 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       barrier_type: setup.barrier_type,
       trial_number: setup.trial_number,
       planned_duration_s: this.selectedDuration,
+      model_family: modelFamily,
+      model_bundle: modelBundle || undefined,
       ble_profile: setup.ble_profile,
       skip_countdown: setup.skip_countdown,
       client_handshake: this.compatibility.handshake(),

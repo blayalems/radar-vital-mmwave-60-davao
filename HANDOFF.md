@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-04 - Coordinate v16.5.10 model-analysis readiness
+
+- **Backend evidence**: Added server-derived objective/cohort selection, bounded durable analysis jobs with list/recovery/cancel state, strict LOSO/hash/provenance promotion checks, and qualified no-subject denominators; cancellation is checked again before worker spawn.
+- **Frontend/backend contract**: Kept participant capture model-agnostic (`none` unless a verified bundle is active); both clients and the trainer normalize stale model selectors away when no bundle is attached. Model Lab now selects RR/HR and GBR/experimental 1-D CNN on the same cohort, recovers the newest job after reload, and displays progress, phase, cohort, statistics, and error evidence.
+- **Release/QMS**: Coordinated product carriers and firmware source to v16.5.10 while preserving v16.5.9 schema/plan identities; updated controlled-document revisions, roadmap, feedback-loop/model-family guidance, changelog, and current firmware references.
+- **Verification**: Angular build, monolith round-trip, 255 Angular tests, version/PR-bump contracts, QMS Node tests (10/10), QMS contract, service-worker tests, compileall, docs figure export, and a system-Chrome Model Lab smoke (no overflow, objective/family selection) passed. Full Python tests remain unavailable because the bundled runtime lacks matplotlib/pytest/SciPy; hardware acceptance remains external evidence.
+
 ### 2026-08-04 - Isolate state-service browser guard fixtures
 
 - **Test isolation**: Reset the Angular test injector and browser storage around each `StateService` spec so a prior demo-mode preference cannot leak into the real-session rejection assertion on CI viewport shards.

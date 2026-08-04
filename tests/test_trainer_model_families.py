@@ -14,6 +14,7 @@ from rvt_trainer.modeling import (
 )
 from rvt_trainer.monolith import (
     _run_loso_evaluation,
+    _validate_confirmatory_loso,
     apply_causal_slew_limit,
     build_parser,
     fit_cnn_target_model,
@@ -124,6 +125,45 @@ def test_train_cli_exposes_fail_closed_confirmatory_evaluation():
     assert args.model_family == MODEL_FAMILY_GRADIENT_BOOSTING
     assert args.three_way_split is True
     assert args.confirmatory_evaluation is True
+
+
+def test_confirmatory_loso_validator_rejects_incomplete_or_non_participant_runs(tmp_path):
+    with pytest.raises(ValueError, match="complete participant-disjoint LOSO"):
+        _validate_confirmatory_loso({
+            "enabled": True,
+            "mode": "leave_one_participant_out",
+            "complete": False,
+            "outer_oof_predictions": {"path": "missing.csv"},
+        })
+
+    with pytest.raises(ValueError, match="complete participant-disjoint LOSO"):
+        _validate_confirmatory_loso({
+            "enabled": True,
+            "mode": "leave_one_session_out",
+            "complete": True,
+            "outer_oof_predictions": {"path": "session-oof.csv"},
+        })
+
+    oof = tmp_path / "outer_oof_predictions.csv"
+    import hashlib
+    oof.write_text(
+        "outer_holdout_group,participant_id,session_id,trial_id,participant_disjoint,confirmatory_eligible,ref_rr,pred_rr_raw,pred_rr,rr_valid_for_eval\n"
+        "P-001,P-001,s01,t1,true,true,15,15,15,true\n",
+        encoding="utf-8",
+    )
+    _validate_confirmatory_loso({
+        "enabled": True,
+        "mode": "leave_one_participant_out",
+        "complete": True,
+        "expected_groups": ["P-001"],
+        "completed_groups": ["P-001"],
+        "skipped_groups": [],
+        "outer_oof_predictions": {
+            "path": str(oof),
+            "rows": 1,
+            "sha256": hashlib.sha256(oof.read_bytes()).hexdigest(),
+        },
+    })
 
 
 def test_cnn_dependency_error_is_actionable(monkeypatch):

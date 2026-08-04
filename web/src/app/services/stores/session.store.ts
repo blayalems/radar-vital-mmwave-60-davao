@@ -30,7 +30,9 @@ export class SessionStore {
     distance_m: 0.6,
     barrier_type: 'none',
     trial_number: 1,
-    skip_countdown: false
+    skip_countdown: false,
+    model_family: 'none',
+    model_bundle: ''
   });
 
   sessionNotes = signal<Record<string, string>>({});

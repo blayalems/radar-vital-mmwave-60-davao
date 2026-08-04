@@ -421,7 +421,7 @@ def test_legacy_escHtml_neutralizes_xss_payload():
 
 def test_preflight_firmware_guidance_points_to_current_firmware():
     runner_src = (ROOT / "rvt_trainer" / "audit" / "runner.py").read_text(encoding="utf-8")
-    assert "radar_vital_v16_5_9.ino" in runner_src
+    assert "radar_vital_v16_5_10.ino" in runner_src
     # The stale v15.0.0 firmware-file guidance that contradicts the current
     # v15.2 / 222-column contract must be gone.
     assert "radar_vital_v16_3_0.ino" not in runner_src

@@ -62,7 +62,7 @@
       @for (participant of participants(); track participant.participant_id) {
         <button type="button" class="participant-card" role="radio"
                 [class.selected]="state.setup().participant_id === participant.participant_id"
-                [disabled]="participant.status === 'withdrawn'"
+                [disabled]="participant.status !== 'active' && participant.participant_id !== 'P-DEMO'"
                 [attr.aria-checked]="state.setup().participant_id === participant.participant_id"
                 [attr.aria-label]="'Select participant ' + participant.display_code + ', status ' + participant.status"
                 (click)="selectParticipant(participant)">
@@ -106,7 +106,7 @@
         </div>
         <div>
           <strong>No-subject denominator</strong>
-          <span>{{ matrix.no_subject_attempt_count }} / {{ matrix.no_subject_expected }} recorded</span>
+          <span>{{ matrix.no_subject_qualified_count ?? 0 }} / {{ matrix.no_subject_expected }} qualified · {{ matrix.no_subject_attempt_count }} attempted</span>
         </div>
         @if (selectedParticipant(); as selected) {
           @if (completionFor(selected.participant_id); as completion) {

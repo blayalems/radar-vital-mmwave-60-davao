@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R05",
-  "effective_product_version": "16.5.9",
+  "register_revision": "R06",
+  "effective_product_version": "16.5.10",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -78,7 +78,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_5_9.ino",
+        "radar_vital_v16_5_10.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [
@@ -344,6 +344,11 @@
           "path": "tests/test_v12_static_contract.py",
           "selector": "test_dashboard_pwa_contract",
           "kind": "automated_test"
+        },
+        {
+          "path": "tests/smoke/study-model-lab.spec.ts",
+          "selector": "exposes both objectives and both model families",
+          "kind": "automated_test"
         }
       ],
       "artifact_types": ["dashboard", "pwa", "apk", "exe"],
@@ -367,6 +372,9 @@
         "rvt_trainer/model_artifacts.py",
         "rvt_trainer/modeling.py",
         "rvt_trainer/monolith.py",
+        "rvt_trainer/session/study_evidence.py",
+        "web/src/app/components/report/report.component.ts",
+        "web/src/app/services/api.service.ts",
         "docs/model-family-guide.md"
       ],
       "verification_refs": [
@@ -419,6 +427,7 @@
       "artifact_types": ["trainer", "model_bundle", "dataset_manifest", "statistical_report"],
       "acceptance_criteria": [
         "GBR remains available without the optional CNN dependency.",
+        "Participant capture remains model-agnostic unless a verified runtime bundle is active; family selection is recorded by the analysis job.",
         "Confirmatory folds are participant-grouped and leak no preprocessing state from held-out participants.",
         "Every model bundle records family, data, split, feature, hyperparameter, seed, dependency, and source provenance.",
         "LOSO evaluation retains a canonical outer-OOF file with raw and declared post-processed predictions."

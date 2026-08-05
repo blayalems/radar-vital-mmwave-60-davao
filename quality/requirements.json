@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R04",
-  "effective_product_version": "16.5.8",
+  "register_revision": "R05",
+  "effective_product_version": "16.5.9",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -78,7 +78,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_5_8.ino",
+        "radar_vital_v16_5_9.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [
@@ -277,6 +277,46 @@
       "acceptance_criteria": [
         "Same-key same-request retries return one durable session result.",
         "Same-key different-request reuse cannot allocate or alter a session."
+      ],
+      "change_record_required": true
+    },
+    {
+      "requirement_id": "RVT-SES-003",
+      "title": "Protocol-attempt and completion evidence",
+      "statement": "Every planned study attempt shall have an immutable logical-trial identity, a unique attempt record, append-only terminal state, and an auditable participant/no-subject denominator.",
+      "source_refs": ["docs/system-feedback-loop.md#participant-and-thesis-condition-session-contract"],
+      "category": "session",
+      "risk_class": "critical",
+      "owner_role": "research_lead",
+      "status": "active",
+      "implementation_paths": [
+        "rvt_trainer/session/protocol_ledger.py",
+        "rvt_trainer/session/study_contract.py",
+        "rvt_trainer/session/supervisor.py",
+        "rvt_trainer/monolith.py"
+      ],
+      "verification_refs": [
+        {
+          "path": "tests/test_protocol_attempt_ledger.py",
+          "selector": "test_session_ledger_is_append_only_and_terminal",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_protocol_attempt_ledger.py",
+          "selector": "test_no_subject_attempt_is_explicit_and_counted_in_matrix",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_protocol_attempt_ledger.py",
+          "selector": "test_manifest_reanalysis_keeps_capture_identity_and_appends_analysis_run",
+          "kind": "automated_test"
+        }
+      ],
+      "artifact_types": ["protocol_attempt_ledger", "session_manifest", "participant_registry", "completion_matrix"],
+      "acceptance_criteria": [
+        "Re-analysis cannot mutate capture release, participant, logical trial, or attempt identity.",
+        "Failed, stopped, invalid, no-output, and no-subject attempts remain visible in denominators.",
+        "Participant withdrawal and reversal retain actor, reason, consent revision, and timestamp history."
       ],
       "change_record_required": true
     },

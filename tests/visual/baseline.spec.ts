@@ -2,15 +2,16 @@ import { test, expect } from '@playwright/test';
 
 const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
 const THEMES = ['light', 'dark', 'night', 'hc'] as const;
+const TRAINER_ORIGIN = `http://127.0.0.1:${process.env.RVT_TEST_PORT || '8990'}`;
 
 for (const theme of THEMES) {
   test(`dashboard renders without layout collapse (${theme})`, async ({ page }, testInfo) => {
     // Block external font loading to prevent screenshot hanging in offline/sandboxed environments
   await page.route(/fonts\.(googleapis|gstatic)\.com/, route => route.abort());
 
-    await page.addInitScript(() => {
-      localStorage.setItem('rvt.server.url', 'http://127.0.0.1:8989');
-    });
+    await page.addInitScript((origin) => {
+      localStorage.setItem('rvt.server.url', origin);
+    }, TRAINER_ORIGIN);
     await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
     // Allow up to one post-install reload to complete.
     await page.waitForTimeout(1500);

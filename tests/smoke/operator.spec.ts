@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import { seedFirstRunComplete } from './helpers/first-run';
 
+const TRAINER_ORIGIN = `http://127.0.0.1:${process.env.RVT_TEST_PORT || '8989'}`;
+
 const PROFILES_PATH = path.resolve(process.cwd(), 'operator_profiles.json');
 const SESSION_PARENT_PROFILES_PATH = path.resolve(process.cwd(), '..', 'operator_profiles.json');
 const PLAYWRIGHT_PROFILES_PATH = path.resolve(process.cwd(), '.playwright-state', 'operator_profiles.json');
@@ -102,9 +104,9 @@ test.describe('Operator profile and lock system', () => {
     cleanProfiles();
     // Seed a configured trainer URL so PR-69's firstRunGuard does not bounce to
     // /connect, and seed first-run consent so #54's RA 10173 gate does not block.
-    await page.addInitScript(() => {
-      localStorage.setItem('rvt.server.url', 'http://127.0.0.1:8989');
-    });
+    await page.addInitScript((origin) => {
+      localStorage.setItem('rvt.server.url', origin);
+    }, TRAINER_ORIGIN);
     await seedFirstRunComplete(page);
   });
 

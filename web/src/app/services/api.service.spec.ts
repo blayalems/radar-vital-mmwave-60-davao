@@ -124,6 +124,111 @@ describe('ApiService', () => {
     await expect(pending).resolves.toEqual({ session_id: 'session-idempotent' });
   });
 
+  it('exposes the manuscript objective, attempt, model, and session evidence routes', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    await service.whenInitialized();
+
+    const participants = service.loadParticipants();
+    httpMock.expectOne('/api/participants').flush({ participants: [] });
+    await expect(participants).resolves.toMatchObject({ participants: [] });
+
+    const matrix = service.loadCompletionMatrix();
+    httpMock.expectOne('/api/study/completion-matrix').flush({ participant_count: 0, participants: {} });
+    await expect(matrix).resolves.toMatchObject({ participant_count: 0 });
+
+    const objectives = service.loadStudyObjectives();
+    httpMock.expectOne('/api/study/objectives').flush({ schema_version: 'rvt-study-objectives-v16.5.9', objectives: [] });
+    await expect(objectives).resolves.toMatchObject({ schema_version: 'rvt-study-objectives-v16.5.9' });
+
+    const attempt = service.createProtocolAttempt({ attempt_type: 'no_subject', condition_id: 'd100_none', status: 'no_output' });
+    const attemptRequest = httpMock.expectOne('/api/study/attempts');
+    expect(attemptRequest.request.method).toBe('POST');
+    attemptRequest.flush({ ok: true, attempt: { attempt_id: 'AT-1', attempt_type: 'no_subject', condition_id: 'd100_none', status: 'no_output' } });
+    await expect(attempt).resolves.toMatchObject({ ok: true });
+
+    const training = service.loadTrainingStatus('S-1');
+    httpMock.expectOne('/api/sessions/S-1/training/status').flush({ session_id: 'S-1', status: 'complete' });
+    await expect(training).resolves.toMatchObject({ session_id: 'S-1', status: 'complete' });
+
+    const prediction = service.loadPrediction('S-1');
+    httpMock.expectOne('/api/sessions/S-1/predict').flush({ ok: true, session_id: 'S-1' });
+    await expect(prediction).resolves.toMatchObject({ ok: true, session_id: 'S-1' });
+  });
+
+  it('uses backend verbs for sign-off and tags', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    await service.whenInitialized();
+
+    const signoff = service.signoffSession('S-1', {
+      session_id: 'S-1', operator_name: 'Operator', initials: 'OP', validation_comment: 'checked'
+    });
+    const signoffRequest = httpMock.expectOne('/api/sessions/S-1/signoff');
+    expect(signoffRequest.request.method).toBe('PUT');
+    signoffRequest.flush({ ok: true });
+    await expect(signoff).resolves.toBeUndefined();
+
+    const tags = service.updateSessionTags('S-1', ['stable']);
+    const tagRequest = httpMock.expectOne('/api/sessions/S-1/tags');
+    expect(tagRequest.request.method).toBe('PUT');
+    tagRequest.flush({ ok: true, session_id: 'S-1', tags: ['stable'] });
+    await expect(tags).resolves.toMatchObject({ tags: ['stable'] });
+  });
+
+  it('binds the study protocol, schedule, references, analysis, and objective report routes', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    await service.whenInitialized();
+
+    const protocol = service.loadStudyProtocol();
+    httpMock.expectOne('/api/study/protocol').flush({ ok: true, protocol: { protocol_id: 'RVT-1', state: 'draft' } });
+    await expect(protocol).resolves.toMatchObject({ protocol: { protocol_id: 'RVT-1' } });
+
+    const savedProtocol = service.saveStudyProtocol({ protocol_id: 'RVT-1', protocol_version: '2', state: 'locked', conditions: [] });
+    const protocolPut = httpMock.expectOne('/api/study/protocol');
+    expect(protocolPut.request.method).toBe('PUT');
+    protocolPut.flush({ ok: true, protocol: { protocol_id: 'RVT-1', state: 'locked' } });
+    await expect(savedProtocol).resolves.toMatchObject({ protocol: { state: 'locked' } });
+
+    const schedule = service.loadStudySchedule('P-001');
+    httpMock.expectOne('/api/study/schedule?participant_id=P-001').flush({ ok: true, participant_id: 'P-001', entries: [] });
+    await expect(schedule).resolves.toMatchObject({ participant_id: 'P-001' });
+
+    const references = service.loadSessionReferences('S-1');
+    httpMock.expectOne('/api/sessions/S-1/references').flush({ ok: true, session_id: 'S-1', references: [] });
+    await expect(references).resolves.toMatchObject({ session_id: 'S-1' });
+
+    const referencePost = service.addSessionReference('S-1', { kind: 'rr_observer', value: 15, unit: 'brpm' });
+    const referenceRequest = httpMock.expectOne('/api/sessions/S-1/references');
+    expect(referenceRequest.request.method).toBe('POST');
+    referenceRequest.flush({ ok: true, session_id: 'S-1', references: [] });
+    await expect(referencePost).resolves.toMatchObject({ session_id: 'S-1' });
+
+    const adjudication = service.adjudicateSessionRr('S-1', { final_value: 15, rationale: 'Observers agree' });
+    const adjudicationRequest = httpMock.expectOne('/api/sessions/S-1/references/rr-adjudication');
+    expect(adjudicationRequest.request.method).toBe('POST');
+    adjudicationRequest.flush({ ok: true, session_id: 'S-1', references: [] });
+    await expect(adjudication).resolves.toMatchObject({ session_id: 'S-1' });
+
+    const analysis = service.startStudyAnalysis({ objective_id: 'objective_1_rr', model_family: 'gbr' });
+    const analysisRequest = httpMock.expectOne('/api/study/analysis');
+    expect(analysisRequest.request.method).toBe('POST');
+    analysisRequest.flush({ ok: true, job: { job_id: 'JOB-1', status: 'queued' } });
+    await expect(analysis).resolves.toMatchObject({ job: { job_id: 'JOB-1' } });
+
+    const status = service.loadStudyAnalysis('JOB-1');
+    httpMock.expectOne('/api/study/analysis/JOB-1').flush({ ok: true, job: { job_id: 'JOB-1', status: 'completed' } });
+    await expect(status).resolves.toMatchObject({ job: { status: 'completed' } });
+
+    const report = service.loadObjectiveReport('objective_1_rr');
+    httpMock.expectOne('/api/study/objectives/objective_1_rr/report').flush({ ok: true, objective_id: 'objective_1_rr', status: 'inconclusive' });
+    await expect(report).resolves.toMatchObject({ objective_id: 'objective_1_rr', status: 'inconclusive' });
+  });
+
   it('preserves the HTTP status on definitive API rejections', async () => {
     for (const request of httpMock.match('/api/status')) {
       request.flush({ ok: true, mode: 'live' });

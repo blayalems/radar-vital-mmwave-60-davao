@@ -148,7 +148,12 @@ export class CommandPaletteComponent {
       keywords: 'stop finish end record',
       group: 'Live Session',
       icon: 'stop_circle',
-      disabledReason: () => this.state.sessionActive() ? null : 'No active session is running.',
+      disabledReason: () => {
+        const status = this.state.ctlStatus();
+        return this.state.sessionActive() || Boolean(status?.active_session || status?.session)
+          ? null
+          : 'No active session is running.';
+      },
       action: () => this.stopSession()
     },
     {
@@ -624,8 +629,8 @@ export class CommandPaletteComponent {
     const mode = this.state.ctlStatus()?.mode;
     if (mode === 'sandbox') {
       try {
-        const response = await this.api.request<{ data: Record<string, unknown>[] }>(`/api/sessions/${encodeURIComponent(sid)}/data`);
-        const rows = response.data || [];
+        const response = await this.api.loadSessionData(sid);
+        const rows = response.rows || [];
         if (!rows.length) {
           this.snackBar.open('No telemetry data recorded for this session yet.', 'Dismiss', { duration: 3000 });
           return;

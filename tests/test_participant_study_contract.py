@@ -184,7 +184,7 @@ def test_study_mode_alias_is_normalized_for_frontend_compatibility(
 def test_unassigned_legacy_request_remains_operational_but_not_confirmatory():
     assignment = validate_study_assignment({})
     assert assignment == {
-        "schema_version": "rvt-study-session-v16.5.1",
+        "schema_version": "rvt-study-session-v16.5.9",
         "study_classification": "operational",
         "provenance_state": "legacy_unassigned",
         "confirmatory_eligible": False,

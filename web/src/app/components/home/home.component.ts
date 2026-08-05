@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, HostListener, ViewChild, AfterViewInit, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, HostListener, ViewChild, AfterViewInit, effect, signal } from '@angular/core';
 import { KeyValuePipe, UpperCasePipe } from '@angular/common';
 import { DurationPipe } from '../../pipes/duration.pipe';
 import { FormsModule } from '@angular/forms';
@@ -30,7 +30,7 @@ import {
 } from '../../services/release-compatibility.service';
 import type { ClientReleaseHandshake } from '../../services/release-compatibility.service';
 import { TranslatePipe } from '../../i18n/translate.pipe';
-import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SerialPortRecord, SessionRecord, SubjectProfileRecord, SessionDataPayload, SetupState } from '../../models/rvt.models';
+import { BleScanDevice, normalizePreflightStatus, PreflightCheck, SessionRecord, SubjectProfileRecord, SessionDataPayload, SetupState } from '../../models/rvt.models';
 import {
   PreflightRequestCoordinator,
   PreflightSetup,
@@ -206,7 +206,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   bleScanAttempted = false;
   isValidatingNativeBle = false;
   nativeBleProbeStatus = '';
-  isStartingSession = false;
+  readonly isStartingSession = signal(false);
   selectedDuration = 30;
   private startIntent: SessionStartIntent | null = null;
   private startInFlight: Promise<void> | null = null;
@@ -305,7 +305,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async refreshDefaults() {
     try {
-      const defs = await this.api.request<{ radar_port?: string; serial_ports?: string[] }>('/api/defaults');
+      const defs = await this.api.loadDefaults();
       if (defs) {
         if (defs.radar_port) {
           this.state.setup.update(s => {
@@ -355,8 +355,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async loadSubjectProfiles(): Promise<void> {
     try {
-      const response = await this.api.request<{ profiles?: Record<string, SubjectProfileRecord> }>('/api/subject-profiles');
-      this.subjectProfiles = response.profiles || {};
+      this.subjectProfiles = await this.api.loadSubjectProfiles();
     } catch (_) {
       this.subjectProfiles = {};
     }
@@ -364,8 +363,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async loadSessions(): Promise<void> {
     try {
-      const response = await this.api.request<{ items?: SessionRecord[] }>('/api/sessions');
-      this.state.sessionItems.set(Array.isArray(response.items) ? response.items : []);
+      this.state.sessionItems.set(await this.api.loadSessions());
     } catch (_) {
       this.state.sessionItems.set([]);
     }
@@ -376,7 +374,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     this.isScanningPorts = true;
     this.state.triggerHaptic('tap');
     try {
-      const result = await this.api.request<{ ports?: SerialPortRecord[]; selected?: string }>('/api/serial/ports');
+      const result = await this.api.loadSerialPorts();
       const ports = (result.ports || []).map(port => port.device).filter(Boolean);
       if (ports.length) {
         const current = String(this.state.setup().radar_port || '').trim();
@@ -841,7 +839,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.triggerHaptic('reject');
       return;
     }
-    this.isStartingSession = true;
+    this.isStartingSession.set(true);
     const payloadFingerprint = this.sessionStartPayloadFingerprint();
     if (!this.startIntent || this.startIntent.payloadFingerprint !== payloadFingerprint) {
       this.startIntent = {
@@ -910,7 +908,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.snackBar.open(`Could not start session: ${message}.${retryGuidance}`, 'Dismiss', { duration: 9000 });
       this.state.triggerHaptic('reject');
     } finally {
-      this.isStartingSession = false;
+      this.isStartingSession.set(false);
     }
   }
 

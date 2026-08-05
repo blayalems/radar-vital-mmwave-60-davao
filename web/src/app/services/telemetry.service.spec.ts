@@ -141,6 +141,31 @@ describe('TelemetryService', () => {
     expect(mockAudio.speakAlert).not.toHaveBeenCalled();
   });
 
+  it('keeps a status-witnessed session active while its first payload is unavailable', async () => {
+    service = TestBed.inject(TelemetryService);
+    const state = TestBed.inject(StateService);
+    await settle();
+    service.stop();
+    (service as any).running = true;
+    state.ctlStatus.set({
+      ok: true,
+      mode: 'live',
+      active_session: { session_id: 'session-witness' }
+    });
+    state.sessionActive.set(true);
+    state.currentSessionId.set('session-witness');
+    (mockApi.request as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('NO_LIVE_DASHBOARD: no active session'));
+
+    await (service as any).poll();
+
+    expect(state.sessionActive()).toBe(true);
+    expect(state.currentSessionId()).toBe('session-witness');
+    expect(state.ctlStatus()).toMatchObject({
+      mode: 'live',
+      last_poll_reason: 'No active telemetry payload yet'
+    });
+  });
+
   it('creates only one EventSource while an SSE token request is in flight', async () => {
     service = TestBed.inject(TelemetryService);
     await settle();

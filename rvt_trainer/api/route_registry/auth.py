@@ -13,6 +13,7 @@ ROUTES = (
     route("operator_profiles_get", "GET", "/api/operator-profiles", RouteGroup.AUTH, AuthPolicy.DISCOVERY),
     route("operator_profiles_create", "POST", "/api/operator-profiles", RouteGroup.AUTH, AuthPolicy.BOOTSTRAP),
     route("subject_profiles", "GET", "/api/subject-profiles", RouteGroup.AUTH, AuthPolicy.OPERATOR),
+    route("subject_profiles_put", "PUT", "/api/subject-profiles", RouteGroup.AUTH, AuthPolicy.OPERATOR),
     route("server_info", "GET", "/api/server-info", RouteGroup.AUTH, AuthPolicy.DISCOVERY),
     route("native_pairing_info", "GET", "/api/native-pairing-info", RouteGroup.AUTH, AuthPolicy.DISCOVERY),
 )

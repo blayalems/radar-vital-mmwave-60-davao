@@ -14,6 +14,7 @@ import csv
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
@@ -116,10 +117,29 @@ def _validate_analysis_plan(
     if not isinstance(plan, Mapping):
         raise StatisticalInputError("analysis_plan must be a JSON object")
     normalized = dict(plan)
+    if not str(normalized.get("$schema", "")).strip():
+        raise StatisticalInputError("analysis_plan $schema is required")
     if normalized.get("schema_version") != "rvt-analysis-plan-v1":
         raise StatisticalInputError("analysis_plan schema_version is unsupported")
-    if not str(normalized.get("plan_id", "")).startswith("RVT-STA-PLAN-"):
+    if not re.fullmatch(
+        r"RVT-STA-PLAN-[0-9]+\.[0-9]+\.[0-9]+",
+        str(normalized.get("plan_id", "")),
+    ):
         raise StatisticalInputError("analysis_plan plan_id is invalid")
+    if not re.fullmatch(
+        r"[0-9]+\.[0-9]+\.[0-9]+",
+        str(normalized.get("effective_product_version", "")),
+    ):
+        raise StatisticalInputError("analysis_plan effective_product_version is invalid")
+    if normalized.get("owner_role") != "research_lead":
+        raise StatisticalInputError("analysis_plan owner_role must be research_lead")
+    approvals = normalized.get("approval_required")
+    if approvals != ["research_lead", "quality_manager"]:
+        raise StatisticalInputError(
+            "analysis_plan approval_required must name research_lead and quality_manager"
+        )
+    if normalized.get("status") not in {"draft", "approved", "superseded"}:
+        raise StatisticalInputError("analysis_plan status is invalid")
     if require_approved and normalized.get("status") != "approved":
         raise StatisticalInputError(
             "confirmatory analysis requires an approved statistical analysis plan"
@@ -162,13 +182,22 @@ def _validate_analysis_plan(
     if secondary.get("condition_ids") != expected_secondary or secondary.get("multiplicity_adjustment") != "holm":
         raise StatisticalInputError("analysis_plan secondary Holm family is not frozen")
     sequence = aggregation.get("sequence")
-    if aggregation.get("input") != "outer_oof_predictions.csv" or aggregation.get("unit") != "participant_condition" or aggregation.get("participant_balanced") is not True or not isinstance(sequence, list) or len(sequence) < 3:
+    expected_sequence = DEFAULT_ANALYSIS_PLAN["aggregation"]["sequence"]
+    if aggregation.get("input") != "outer_oof_predictions.csv" or aggregation.get("unit") != "participant_condition" or aggregation.get("participant_balanced") is not True or sequence != expected_sequence:
         raise StatisticalInputError("analysis_plan aggregation contract is incomplete")
     if reports.get("retain_raw_predictions") is not True or reports.get("retain_raw_and_postprocessed_columns") is not True:
         raise StatisticalInputError("analysis_plan must retain raw and postprocessed predictions")
+    expected_reports = DEFAULT_ANALYSIS_PLAN["reports"]
+    for key in (
+        "metrics", "agreement", "coverage_denominator", "false_alarm_test", "provenance",
+    ):
+        if reports.get(key) != expected_reports[key]:
+            raise StatisticalInputError(f"analysis_plan reports.{key} is not frozen")
     if reports.get("exports") != ["json", "csv", "latex"]:
         raise StatisticalInputError("analysis_plan export contract is not frozen")
-    if interpretation.get("equivalence_requires_both_one_sided_tost_tests") is not True or interpretation.get("fewer_than_minimum_independent_estimates") != "inconclusive":
+    if normalized.get("exclusions") != DEFAULT_ANALYSIS_PLAN["exclusions"]:
+        raise StatisticalInputError("analysis_plan exclusion contract is not frozen")
+    if interpretation != DEFAULT_ANALYSIS_PLAN["interpretation"]:
         raise StatisticalInputError("analysis_plan interpretation contract is incomplete")
     return normalized
 
@@ -177,7 +206,7 @@ def _plan_primary(plan: Mapping[str, Any]) -> Mapping[str, Any]:
     primary = plan.get("primary")
     if isinstance(primary, Mapping):
         return primary
-    # Accept the pre-v16.5.8 flat shape for descriptive, non-confirmatory
+    # Accept the pre-v16.5.9 flat shape for descriptive, non-confirmatory
     # callers only.  Confirmatory callers are validated above.
     return {
         "condition_id": plan.get("primary_condition", "d100_none"),
@@ -206,6 +235,143 @@ def _as_1d(values: Iterable[Any], *, dtype: Any = None) -> np.ndarray:
             raw = np.asarray(list(values))
     raw = raw.reshape(-1)
     return raw.astype(dtype) if dtype is not None else raw
+
+
+def _strict_bool_mask(values: Iterable[Any], *, name: str) -> np.ndarray:
+    """Parse a contract boolean column without Python's truthiness trap.
+
+    ``bool("false")`` is ``True``.  That conversion is unsafe for eligibility,
+    validity, and ledger fields because a CSV string can silently admit an
+    ineligible row into a confirmatory analysis.  Only the explicit JSON/CSV
+    spellings below are accepted; missing or ambiguous values fail closed.
+    """
+
+    raw = _as_1d(values, dtype=object)
+    parsed: list[bool] = []
+    for value in raw:
+        if isinstance(value, (bool, np.bool_)):
+            parsed.append(bool(value))
+            continue
+        if isinstance(value, (int, np.integer)) and int(value) in (0, 1):
+            parsed.append(bool(int(value)))
+            continue
+        if isinstance(value, (float, np.floating)) and math.isfinite(float(value)) and float(value) in (0.0, 1.0):
+            parsed.append(bool(int(value)))
+            continue
+        if isinstance(value, str):
+            token = value.strip().lower()
+            if token in {"true", "1"}:
+                parsed.append(True)
+                continue
+            if token in {"false", "0"}:
+                parsed.append(False)
+                continue
+        raise StatisticalInputError(
+            f"{name} must contain only strict boolean values (true/false or 1/0)"
+        )
+    return np.asarray(parsed, dtype=bool)
+
+
+def _strict_attempt_types(values: Iterable[Any], *, name: str = "attempt_type") -> np.ndarray:
+    """Parse the two protocol-attempt classes used by denominators."""
+
+    raw = _as_1d(values, dtype=object)
+    parsed: list[str] = []
+    for value in raw:
+        token = value.strip().lower() if isinstance(value, str) else ""
+        if token not in {"subject", "no_subject"}:
+            raise StatisticalInputError(
+                f"{name} must contain only subject or no_subject values"
+            )
+        parsed.append(token)
+    return np.asarray(parsed, dtype=object)
+
+
+def _validate_confirmatory_provenance(
+    frame: Any,
+    provenance: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    *,
+    participant_column: str,
+) -> dict[str, str]:
+    """Verify that predictions carry the same immutable OOF provenance.
+
+    Confirmatory reports must not trust a caller-supplied model label alone.
+    The prediction frame therefore carries the OOF fold and holdout-group
+    columns, and any duplicated provenance columns must agree with the signed
+    run metadata.  This keeps a relabelled or cross-participant prediction file
+    from being promoted to a manuscript result.
+    """
+
+    required = (
+        "source_commit", "model_family", "split_ledger_sha256",
+        "prediction_file_sha256", "product_version", "protocol_id",
+    )
+    if not isinstance(provenance, Mapping) or any(not str(provenance.get(key, "")).strip() for key in required):
+        raise StatisticalInputError(
+            "confirmatory analysis requires source/model/split/prediction/protocol provenance"
+        )
+    expected_version = str(plan.get("effective_product_version", "")).strip()
+    if str(provenance["product_version"]).strip() != expected_version:
+        raise StatisticalInputError("confirmatory provenance product_version does not match the approved plan")
+    if str(provenance["protocol_id"]).strip() != str(plan.get("plan_id", "")).strip():
+        raise StatisticalInputError("confirmatory provenance protocol_id does not match the approved plan")
+    source_commit = str(provenance["source_commit"]).strip()
+    if not re.fullmatch(r"[0-9a-fA-F]{7,64}", source_commit):
+        raise StatisticalInputError("confirmatory provenance source_commit is not a commit hash")
+    for key in ("split_ledger_sha256", "prediction_file_sha256"):
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", str(provenance[key]).strip()):
+            raise StatisticalInputError(f"confirmatory provenance {key} is not a SHA-256 hash")
+    model_family = str(provenance["model_family"]).strip().lower()
+    if model_family not in {"gradient_boosting", "cnn_1d"}:
+        raise StatisticalInputError("confirmatory provenance model_family is unsupported")
+    required_oof = ["outer_fold", "outer_holdout_group"]
+    missing_oof = [column for column in required_oof if column not in frame]
+    if missing_oof:
+        raise StatisticalInputError(
+            "confirmatory input is missing OOF provenance columns " + ", ".join(missing_oof)
+        )
+    frame_families = frame["model_family"].map(lambda value: str(value).strip().lower())
+    if frame_families.empty or bool((frame_families == "").any()) or bool((frame_families != model_family).any()):
+        raise StatisticalInputError("confirmatory frame model_family does not match provenance")
+    for column in ("source_commit", "split_ledger_sha256", "prediction_file_sha256", "product_version", "protocol_id"):
+        if column in frame:
+            values = frame[column].map(lambda value: str(value).strip())
+            expected = str(provenance[column]).strip()
+            if bool((values == "").any()) or bool((values != expected).any()):
+                raise StatisticalInputError(f"confirmatory frame {column} does not match provenance")
+    holdout = frame["outer_holdout_group"].map(lambda value: str(value).strip())
+    if bool((holdout == "").any()):
+        raise StatisticalInputError("confirmatory OOF holdout groups must be non-empty")
+    participants = frame[participant_column].map(lambda value: str(value).strip())
+    if bool((participants == "").any()):
+        raise StatisticalInputError("confirmatory participant IDs must be non-empty")
+    participant_groups = frame[[participant_column]].copy()
+    participant_groups["_holdout_group"] = holdout.to_numpy()
+    if bool((participant_groups.groupby(participant_column, dropna=False)["_holdout_group"].nunique() > 1).any()):
+        raise StatisticalInputError("confirmatory participant appears in multiple OOF holdout groups")
+    eligible = _strict_bool_mask(
+        frame["confirmatory_eligible"], name="confirmatory_eligible"
+    )
+    if any(
+        not re.fullmatch(r"P-[0-9]{3}", participant)
+        for participant in participants[eligible]
+    ):
+        raise StatisticalInputError(
+            "confirmatory-eligible participant IDs must use the P-NNN format"
+        )
+    if bool((holdout[eligible].to_numpy() != participants[eligible].to_numpy()).any()):
+        raise StatisticalInputError(
+            "confirmatory OOF holdout group must equal participant_id for every eligible row"
+        )
+    return {
+        "source_commit": source_commit,
+        "model_family": model_family,
+        "split_ledger_sha256": str(provenance["split_ledger_sha256"]).strip().lower(),
+        "prediction_file_sha256": str(provenance["prediction_file_sha256"]).strip().lower(),
+        "product_version": expected_version,
+        "protocol_id": str(plan.get("plan_id", "")).strip(),
+    }
 
 
 def _scipy_stats():
@@ -632,6 +798,7 @@ def aggregate_confirmatory_frame(
     estimate_column: str,
     participant_column: str,
     analysis_plan: Optional[Mapping[str, Any]] = None,
+    require_eligibility: bool = False,
 ) -> tuple[Any, dict[str, Any]]:
     """Apply the frozen window/trial/participant aggregation contract.
 
@@ -659,10 +826,24 @@ def aggregate_confirmatory_frame(
             "confirmatory aggregation requires " + ", ".join(missing)
         )
     columns = [participant_column, "trial_id", reference_column, estimate_column, "timestamp_s", "session_id"]
-    for optional in ("condition_id", "distance_m", "barrier_type", "model_family", "window_id"):
+    for optional in (
+        "condition_id", "distance_m", "barrier_type", "model_family", "window_id",
+        "rr_valid_for_eval", "confirmatory_eligible", "participant_disjoint",
+    ):
         if optional in frame.columns and optional not in columns:
             columns.append(optional)
     work = frame.loc[:, columns].copy()
+    if require_eligibility:
+        eligibility_columns = ["rr_valid_for_eval", "confirmatory_eligible", "participant_disjoint"]
+        missing_eligibility = [column for column in eligibility_columns if column not in work.columns]
+        if missing_eligibility:
+            raise StatisticalInputError(
+                "confirmatory aggregation requires " + ", ".join(missing_eligibility)
+            )
+        eligibility = np.ones(len(work), dtype=bool)
+        for column in eligibility_columns:
+            eligibility &= _strict_bool_mask(work[column], name=column)
+        work = work.loc[eligibility].copy()
     work[reference_column] = pd.to_numeric(work[reference_column], errors="coerce")
     work[estimate_column] = pd.to_numeric(work[estimate_column], errors="coerce")
     if "condition_id" not in work.columns:
@@ -739,6 +920,7 @@ def aggregate_confirmatory_frame(
         "minimum_valid_trials_per_participant_condition": min_trials,
         "window_duration_s": window_duration_s,
         "window_stride_s": window_stride_s,
+        "eligibility_filtered": bool(require_eligibility),
         "sequence": "30s_window_median_then_trial_median_then_participant_condition_mean",
     }
 
@@ -787,7 +969,17 @@ def _condition_tost(
         finite = np.isfinite(block[reference_column].to_numpy(dtype=float)) & np.isfinite(
             block[estimate_column].to_numpy(dtype=float)
         )
-        participants = sorted({str(value) for value in block.loc[finite, participant_column]})
+        participant_block = (
+            block.loc[finite, [participant_column, reference_column, estimate_column]]
+            .groupby(participant_column, dropna=False, sort=True, observed=True)[
+                [reference_column, estimate_column]
+            ]
+            .mean()
+            .reset_index()
+        )
+        participants = sorted(
+            str(value) for value in participant_block[participant_column]
+        )
         base = {
             "condition_id": condition,
             "n_participants": len(participants),
@@ -797,8 +989,8 @@ def _condition_tost(
         if len(participants) < minimum_independent_estimates:
             return base
         result = paired_tost(
-            block.loc[finite, reference_column].to_numpy(dtype=float),
-            block.loc[finite, estimate_column].to_numpy(dtype=float),
+            participant_block[reference_column].to_numpy(dtype=float),
+            participant_block[estimate_column].to_numpy(dtype=float),
             lower=-margin,
             upper=margin,
             alpha=alpha,
@@ -869,7 +1061,8 @@ def coverage_report(
         if missing:
             raise StatisticalInputError("attempt ledger is missing " + ", ".join(missing))
         if "eligible" in ledger.columns:
-            ledger = ledger[ledger["eligible"].astype(bool)]
+            eligible_mask = _strict_bool_mask(ledger["eligible"], name="attempt_ledger.eligible")
+            ledger = ledger.loc[eligible_mask].copy()
         ledger = ledger.drop_duplicates(subset=key_columns)
         if ledger.empty:
             raise StatisticalInputError("attempt ledger has no eligible attempted trials")
@@ -925,16 +1118,24 @@ def coverage_report(
         if false_alarm_column:
             if "attempt_type" not in ledger.columns:
                 raise StatisticalInputError("false-alarm coverage requires attempt_type in the ledger")
+            attempt_types = _strict_attempt_types(ledger["attempt_type"])
             no_subject_keys = {
                 tuple(row[column] for column in key_columns)
-                for _, row in ledger[ledger["attempt_type"].astype(str).str.lower().eq("no_subject")].iterrows()
+                for _, row in ledger.loc[attempt_types == "no_subject"].iterrows()
             }
             alarm_keys = set()
-            for key, group in output.groupby(key_columns, dropna=False, sort=False, observed=True):
+            # False alarms are trial-level events.  They must remain countable
+            # even when a no-subject capture has no RR estimate or cannot meet
+            # the subject window-count gate.
+            alarm_source = frame
+            for key, group in alarm_source.groupby(key_columns, dropna=False, sort=False, observed=True):
+                normalized_key = tuple(key if isinstance(key, tuple) else (key,))
+                if normalized_key not in no_subject_keys:
+                    continue
                 values = group[false_alarm_column]
                 truth = values.map(lambda value: value is True or str(value).strip().lower() in {"1", "true", "yes", "alarm"})
                 if bool(truth.any()):
-                    alarm_keys.add(tuple(key if isinstance(key, tuple) else (key,)))
+                    alarm_keys.add(normalized_key)
             result["no_subject_denominator"] = len(no_subject_keys)
             result["no_subject_false_alarms"] = len(no_subject_keys.intersection(alarm_keys))
             result["false_alarm_exact"] = exact_proportion(
@@ -1189,8 +1390,11 @@ def analyze_frame(
             raise StatisticalInputError("confirmatory analysis requires participant_id")
         primary_spec = _plan_primary(plan)
         target = str(primary_spec.get("target", ""))
-        if target != "rr" or not reference_column.lower().endswith("_rr") or not estimate_column.lower().endswith("_rr"):
-            raise StatisticalInputError("confirmatory primary analysis is fixed to RR columns")
+        allowed_estimates = {"pred_rr", "pred_rr_raw"}
+        if target != "rr" or reference_column != "ref_rr" or estimate_column not in allowed_estimates:
+            raise StatisticalInputError(
+                "confirmatory primary analysis requires ref_rr with pred_rr or pred_rr_raw"
+            )
         required_columns = [
             str(participant_column), "session_id", "trial_id", "condition_id",
             "timestamp_s", "rr_valid_for_eval", "confirmatory_eligible",
@@ -1201,23 +1405,25 @@ def analyze_frame(
             raise StatisticalInputError(
                 "confirmatory input is missing " + ", ".join(missing)
             )
-        required_provenance = [
-            "source_commit", "model_family", "split_ledger_sha256",
-            "prediction_file_sha256", "product_version", "protocol_id",
-        ]
-        if not isinstance(provenance, Mapping) or any(not str(provenance.get(key, "")).strip() for key in required_provenance):
-            raise StatisticalInputError(
-                "confirmatory analysis requires source/model/split/prediction/protocol provenance"
-            )
+        provenance = _validate_confirmatory_provenance(
+            frame,
+            provenance if isinstance(provenance, Mapping) else {},
+            plan,
+            participant_column=str(participant_column),
+        )
         if attempt_ledger is None:
             raise StatisticalInputError(
                 "confirmatory analysis requires an explicit attempted-trial ledger"
             )
         if not hasattr(attempt_ledger, "columns") or "attempt_type" not in attempt_ledger.columns:
             raise StatisticalInputError("confirmatory attempt ledger requires attempt_type")
-        no_subject_count = int(
-            attempt_ledger["attempt_type"].astype(str).str.lower().eq("no_subject").sum()
-        )
+        ledger_for_validation = attempt_ledger.copy()
+        if "eligible" in ledger_for_validation.columns:
+            ledger_for_validation = ledger_for_validation.loc[
+                _strict_bool_mask(ledger_for_validation["eligible"], name="attempt_ledger.eligible")
+            ].copy()
+        attempt_types = _strict_attempt_types(ledger_for_validation["attempt_type"])
+        no_subject_count = int(np.sum(attempt_types == "no_subject"))
         expected_no_subject = int(dict(plan.get("protocol") or {}).get("no_subject_trial_count", 72))
         if no_subject_count != expected_no_subject:
             raise StatisticalInputError(
@@ -1225,16 +1431,52 @@ def analyze_frame(
             )
         if false_alarm_column and false_alarm_column not in frame:
             raise StatisticalInputError(f"input is missing requested {false_alarm_column!r}")
-        valid = frame["rr_valid_for_eval"].astype(bool) & frame["confirmatory_eligible"].astype(bool)
-        valid &= frame["participant_disjoint"].astype(bool)
+        rr_valid = _strict_bool_mask(frame["rr_valid_for_eval"], name="rr_valid_for_eval")
+        confirmatory_eligible = _strict_bool_mask(
+            frame["confirmatory_eligible"], name="confirmatory_eligible"
+        )
+        participant_disjoint = _strict_bool_mask(
+            frame["participant_disjoint"], name="participant_disjoint"
+        )
+        if bool((confirmatory_eligible & ~participant_disjoint).any()):
+            raise StatisticalInputError(
+                "confirmatory-eligible rows must come from participant-disjoint OOF folds"
+            )
+        valid = rr_valid & confirmatory_eligible & participant_disjoint
         exclusions = {
-            "invalid_rr": int((~frame["rr_valid_for_eval"].astype(bool)).sum()),
-            "ineligible": int((~frame["confirmatory_eligible"].astype(bool)).sum()),
-            "participant_overlap": int((~frame["participant_disjoint"].astype(bool)).sum()),
+            "invalid_rr": int((~rr_valid).sum()),
+            "ineligible": int((~confirmatory_eligible).sum()),
+            "participant_overlap": int((~participant_disjoint).sum()),
         }
         analysis_frame = frame.loc[valid].copy()
         if analysis_frame.empty:
             raise StatisticalInputError("confirmatory input has no eligible RR predictions")
+    coverage_frame = analysis_frame
+    if confirmatory and false_alarm_column and hasattr(attempt_ledger, "columns"):
+        # Keep explicit no-subject captures in the false-alarm denominator even
+        # though they are intentionally absent from the subject RR analysis.
+        ledger_for_coverage = attempt_ledger.copy()
+        if "eligible" in ledger_for_coverage.columns:
+            ledger_for_coverage = ledger_for_coverage.loc[
+                _strict_bool_mask(ledger_for_coverage["eligible"], name="attempt_ledger.eligible")
+            ].copy()
+        coverage_attempt_types = _strict_attempt_types(ledger_for_coverage["attempt_type"])
+        key_columns = ["participant_id", "trial_id", "condition_id"]
+        if all(column in frame.columns for column in key_columns):
+            no_subject_keys = {
+                tuple(str(row[column]) for column in key_columns)
+                for _, row in ledger_for_coverage.loc[coverage_attempt_types == "no_subject"].iterrows()
+            }
+            frame_keys = frame[key_columns].apply(
+                lambda row: tuple(str(row[column]) for column in key_columns), axis=1
+            )
+            no_subject_rows = frame.loc[frame_keys.isin(no_subject_keys)].copy()
+            if not no_subject_rows.empty:
+                try:
+                    import pandas as pd
+                except ImportError as exc:  # pragma: no cover
+                    raise StatisticalInputError("confirmatory coverage requires pandas") from exc
+                coverage_frame = pd.concat([analysis_frame, no_subject_rows], ignore_index=True)
     participant_present = bool(participant_column and participant_column in analysis_frame)
     report: dict[str, Any] = {
         "analysis_schema": "rvt-statistical-report-v1",
@@ -1242,7 +1484,7 @@ def analyze_frame(
         "estimate_column": estimate_column,
         "metrics": paired_metrics(analysis_frame[reference_column], analysis_frame[estimate_column]),
         "coverage": coverage_report(
-            analysis_frame,
+            coverage_frame,
             reference_column=reference_column,
             estimate_column=estimate_column,
             false_alarm_column=false_alarm_column,
@@ -1272,11 +1514,12 @@ def analyze_frame(
     if participant_present:
         if confirmatory:
             balanced_frame, aggregation_diagnostics = aggregate_confirmatory_frame(
-                frame,
+                analysis_frame,
                 reference_column=reference_column,
                 estimate_column=estimate_column,
                 participant_column=str(participant_column),
                 analysis_plan=plan,
+                require_eligibility=True,
             )
             report["aggregation"] = aggregation_diagnostics
         else:

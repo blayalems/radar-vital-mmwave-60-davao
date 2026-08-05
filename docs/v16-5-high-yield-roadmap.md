@@ -2,7 +2,7 @@
 
 Date: 2026-08-03
 Audit base: integrated `main` at `a35da6e`
-Release identity: firmware, trainer, dashboard, APK, and EXE `16.5.8` work in progress
+Release identity: firmware, trainer, dashboard, APK, and EXE `16.5.9` work in progress
 Wire compatibility: v15.2 CSV, 222 columns, 207/219-column replay support
 
 ## 2026-08-03 audit disposition
@@ -10,7 +10,7 @@ Wire compatibility: v15.2 CSV, 222 columns, 207/219-column replay support
 The attached 2026-08-01 implementation plan was audited against the repository
 and accepted as the governing direction, with its status table corrected here:
 PR79 and PR93–PR100 are merged; the integrated main commit is the v16.5.8
-baseline. The next controlled patch is v16.5.8, beginning with the versioned
+baseline. The next controlled patch is v16.5.9, beginning with the versioned
 statistical-analysis plan, participant-balanced RMSE/TOST/agreement/coverage,
 outer-OOF prediction retention, and JSON/CSV/LaTeX exports. The confirmatory
 design is 0.6/0.8/1.0 m × none/cardboard × three 150-second trials, with the

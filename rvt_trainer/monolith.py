@@ -17,7 +17,7 @@ Change highlights
   - write_text_report now forces UTF-8 so Windows auto-analyse runs do not crash on Unicode arrows in the text report
   - training now defaults away from policy-leaking publish/gate fields for physiology regression and emits explicit audit masks.
   - dashboard loader prefers a same-version external HTML template when present; embedded template is also patched
-  - contributions blended from Opus 4.6/4.7, Sonnet 4.5/4.6, Claude Ultrareview, ChatGPT 5.4 Codex/Pro, Gemini, Grok, GLM, Muse, DeepSeek, and Qwen audits, with only code-backed or low-risk changes applied.
+  - contributions blended from independent technical audits, with only code-backed or low-risk changes applied.
 
 Primary workflow
 ────────────────
@@ -68,7 +68,7 @@ from html import escape as html_escape
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Deque, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Deque, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 from urllib.parse import parse_qs, unquote, urlparse
 
 import matplotlib
@@ -128,6 +128,26 @@ from rvt_trainer.session.study_contract import (
     update_participant_status as _update_participant_status,
     validate_study_assignment as _validate_study_assignment,
 )
+from rvt_trainer.session.protocol_ledger import (
+    ATTEMPT_LEDGER_SCHEMA_VERSION,
+    allocate_attempt_id as _allocate_attempt_id,
+    append_session_attempt_event as _append_session_attempt_event,
+    completion_matrix as _completion_matrix,
+    initialize_session_attempt as _initialize_session_attempt,
+    register_protocol_attempt as _register_protocol_attempt,
+)
+from rvt_trainer.session.study_objectives import study_objectives_payload as _study_objectives_payload
+from rvt_trainer.session.study_evidence import (
+    adjudicate_rr as _adjudicate_rr,
+    append_reference as _append_reference,
+    create_analysis_job as _create_analysis_job,
+    load_analysis_job as _load_analysis_job,
+    load_protocol as _load_study_protocol,
+    load_references as _load_references,
+    objective_report as _objective_report,
+    save_protocol as _save_study_protocol,
+    schedule_for_participant as _schedule_for_participant,
+)
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -136,9 +156,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.8"
-DASHBOARD_VERSION = "16.5.8"
-FIRMWARE_VERSION_EXPECTED = "v16.5.8"
+VERSION = "16.5.9"
+DASHBOARD_VERSION = "16.5.9"
+FIRMWARE_VERSION_EXPECTED = "v16.5.9"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -158,8 +178,8 @@ SESSION_NOTES_SCHEMA_VERSION = "rvt-session-notes-v12.0"
 SESSION_SIGNOFF_SCHEMA_VERSION = "rvt-session-signoff-v12.0"
 TRAINING_PROGRESS_SCHEMA_VERSION = "rvt-training-progress-v12.0"
 LIVE_EVENT_SCHEMA_VERSION = "rvt-live-events-v12.0"
-SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v16.5.1"
-SESSION_MANIFEST_VERSION = "v16.5.1-session-manifest-2026-07-29"
+SESSION_MANIFEST_SCHEMA_VERSION = "rvt-session-manifest-v1"
+SESSION_MANIFEST_VERSION = "v16.5.9-session-manifest-2026-08-03"
 CHART_ANNOTATIONS_SCHEMA_VERSION = "rvt-chart-annotations-v12.0"
 FEATURE_FLAGS = {
     "enable_sse": True,
@@ -1630,12 +1650,61 @@ def _write_session_manifest(
     existing_manifest = _read_json_if_exists(
         os.path.join(session_root, "session_manifest.json")
     ) or {}
+    current_identity = _manifest_identity(fw_truthfulness)
+    # Capture identity is frozen at session allocation. Re-analysis may use a
+    # newer trainer, but it must never relabel the original capture as the
+    # newer release. Legacy manifests are migrated once from their existing
+    # top-level identity and then treated the same way.
+    capture_provenance = existing_manifest.get("capture_provenance")
+    if not isinstance(capture_provenance, dict):
+        capture_provenance = {
+            "captured_at": existing_manifest.get("generated_at") or _report_stamp(),
+            "source": "legacy_manifest_migration",
+            **{
+                key: existing_manifest.get(key, value)
+                for key, value in current_identity.items()
+            },
+            "participant_id": existing_manifest.get("participant_id"),
+            "logical_trial_id": existing_manifest.get("logical_trial_id"),
+            "attempt_id": existing_manifest.get("attempt_id"),
+        }
+    capture_identity = {
+        key: capture_provenance.get(key, value)
+        for key, value in current_identity.items()
+    }
+    analysis_runs = existing_manifest.get("analysis_runs")
+    if not isinstance(analysis_runs, list):
+        analysis_runs = []
+    analysis_run = {
+        "run_id": f"AR-{secrets.token_hex(10)}",
+        "started_at": _report_stamp(),
+        "completed_at": _report_stamp(),
+        "source_commit": current_identity.get("source_commit"),
+        "trainer_version": current_identity.get("trainer_version"),
+        "feature_schema_hash": current_identity.get("feature_schema_hash"),
+        "analysis_dir": analysis_dir,
+        "input_file_hashes_sha256": {
+            key: value
+            for key, value in file_hashes.items()
+            if key in {"radar_csv", "ref_csv"}
+        },
+    }
+    analysis_runs = [*analysis_runs, analysis_run]
+    radar_available = bool(radar_paths)
+    manifest_status = str(existing_manifest.get("status") or "")
+    if manifest_status not in {"failed_start", "aborted", "invalid"}:
+        manifest_status = "completed" if radar_available else "no_output"
     manifest = {
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
         "generated_at": _report_stamp(),
         "session_root": session_root,
-        **_manifest_identity(fw_truthfulness),
+        **capture_identity,
+        "capture_provenance": capture_provenance,
+        "analysis_runs": analysis_runs,
+        "status": manifest_status,
+        "terminal": True,
+        "ended_at": existing_manifest.get("ended_at") or _report_stamp(),
         "auto_analysed": os.path.exists(os.path.join(analysis_dir, "analyse_summary.json")),
         "tags": list(existing_manifest.get("tags", [])),
         "notes_count": len((_read_json_if_exists(os.path.join(session_root, "session_notes.json")) or {}).get("notes", [])),
@@ -1656,6 +1725,10 @@ def _write_session_manifest(
         "study_classification",
         "provenance_state",
         "confirmatory_eligible",
+        "logical_trial_id",
+        "attempt_id",
+        "attempt_type",
+        "attempt_ledger_schema_version",
         "model_family",
         "model_bundle",
         "client_compatibility",
@@ -1665,6 +1738,24 @@ def _write_session_manifest(
     ):
         if key in existing_manifest:
             manifest[key] = existing_manifest[key]
+    if "capture_provenance" not in existing_manifest:
+        manifest["capture_provenance"] = capture_provenance
+    if "analysis_runs" not in existing_manifest:
+        manifest["analysis_runs"] = analysis_runs
+    try:
+        _initialize_session_attempt(session_root, manifest)
+        final_status = "completed" if radar_available else "no_output"
+        _append_session_attempt_event(
+            session_root,
+            final_status,
+            reason="analysis finalized" if manifest.get("auto_analysed") else "capture finalized",
+            details={"radar_paths": len(radar_paths), "ref_paths": len(ref_paths)},
+        )
+    except ValueError:
+        # Legacy or externally-created directories may not have a protocol
+        # ledger. Their session manifest remains readable and explicitly
+        # carries the migration provenance above.
+        pass
     save_json(manifest, os.path.join(session_root, "session_manifest.json"))
     return manifest
 
@@ -4637,7 +4728,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_8.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_9.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -5736,6 +5827,49 @@ def _load_subject_profiles(sessions_root: str) -> Dict[str, object]:
         merged = dict(DEFAULT_SUBJECT_PROFILES)
         merged.update(profiles)
         data["profiles"] = merged
+    return data
+
+
+def _save_subject_profiles(sessions_root: str, payload: Mapping[str, object]) -> Dict[str, object]:
+    """Persist the dashboard's non-identifying physiology profile settings.
+
+    The Angular setup editor sends either the profile map directly or a
+    ``{"profiles": ...}`` envelope.  Normalize both forms to the same
+    schema, preserve the built-in defaults, and discard unknown fields so a
+    browser cannot smuggle arbitrary metadata into the trainer's profile
+    store.
+    """
+
+    incoming = payload.get("profiles", payload)
+    if not isinstance(incoming, dict):
+        raise ValueError("profiles must be an object")
+    profiles: Dict[str, object] = dict(DEFAULT_SUBJECT_PROFILES)
+    for raw_id, raw_profile in incoming.items():
+        profile_id = str(raw_id or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,47}", profile_id):
+            raise ValueError("subject profile ids must use letters, digits, dash, or underscore")
+        if not isinstance(raw_profile, dict):
+            raise ValueError(f"subject profile {profile_id} must be an object")
+        profile: Dict[str, object] = {}
+        label = _sanitize_user_string(raw_profile.get("label", profile_id), 120).strip()
+        if not label:
+            raise ValueError(f"subject profile {profile_id} requires a label")
+        profile["label"] = label
+        for key in ("age_group", "fitness_level", "notes"):
+            if raw_profile.get(key) not in (None, ""):
+                profile[key] = _sanitize_user_string(raw_profile.get(key), 240).strip()
+        expected = raw_profile.get("expected_hr_range")
+        if isinstance(expected, (list, tuple)) and len(expected) == 2:
+            try:
+                low, high = float(expected[0]), float(expected[1])
+            except (TypeError, ValueError):
+                raise ValueError(f"subject profile {profile_id} expected_hr_range must be numeric") from None
+            if not (0 <= low < high <= 260):
+                raise ValueError(f"subject profile {profile_id} expected_hr_range is invalid")
+            profile["expected_hr_range"] = [low, high]
+        profiles[profile_id] = profile
+    data = {"schema_version": SUBJECT_PROFILE_SCHEMA_VERSION, "profiles": profiles}
+    save_json(data, str(_subject_profiles_path(sessions_root)))
     return data
 
 
@@ -7065,11 +7199,53 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         if route_name == "participants_list":
             registry = _load_participant_registry(self.server.sessions_root)
+            matrix = _completion_matrix(self.server.sessions_root)
+            matrix_rows = matrix.get("participants", {}) if isinstance(matrix, dict) else {}
+            participants = []
+            for profile in registry["profiles"].values():
+                row = matrix_rows.get(profile.get("participant_id"), {}) if isinstance(matrix_rows, dict) else {}
+                enriched = dict(profile)
+                enriched["completed_trials"] = int(row.get("completed_trials", 0)) if isinstance(row, dict) else 0
+                enriched["expected_trials"] = int(row.get("expected_trials", 18)) if isinstance(row, dict) else 18
+                enriched["protocol_complete"] = bool(row.get("protocol_complete", False)) if isinstance(row, dict) else False
+                participants.append(enriched)
             self._send_json(200, {
                 "schema_version": registry["schema_version"],
-                "participants": list(registry["profiles"].values()),
-                "profiles": list(registry["profiles"].values()),
+                "participants": participants,
+                "profiles": participants,
+                "completion_matrix": matrix,
             })
+            return
+        if route_name == "study_completion_matrix":
+            self._send_json(200, _completion_matrix(self.server.sessions_root))
+            return
+        if route_name == "study_objectives":
+            self._send_json(200, _study_objectives_payload())
+            return
+        if route_name == "study_protocol":
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "protocol": _load_study_protocol(self.server.sessions_root),
+                },
+            )
+            return
+        if route_name == "study_schedule":
+            participant_id = (parse_qs(parsed.query).get("participant_id") or [""])[-1]
+            try:
+                self._send_json(
+                    200,
+                    _schedule_for_participant(
+                        self.server.sessions_root,
+                        participant_id,
+                    ),
+                )
+            except ValueError as exc:
+                self._send_json(
+                    400,
+                    _api_error("INVALID_STUDY_SCHEDULE", str(exc)),
+                )
             return
         if route_name == "operator_profiles_get":
             db = _load_operator_profiles(self.server.sessions_root)
@@ -7292,6 +7468,25 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "updated_at": existing.get("updated_at"),
             })
             return
+        if route_name == "session_references_get":
+            sid = unquote(path.split("/")[3])
+            try:
+                root = _session_path(self.server.sessions_root, sid)
+            except Exception:
+                self._send_json(
+                    404,
+                    _api_error("SESSION_NOT_FOUND", "session not found"),
+                )
+                return
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "session_id": sid,
+                    **_load_references(str(root)),
+                },
+            )
+            return
         if route_name == "session_summary":
             sid = unquote(path.split("/")[3])
             try:
@@ -7370,6 +7565,33 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             candidates = [root / "predict_summary.json", root / "analysis" / "predict_summary.json", root.parent / "model_out" / "predict_summary.json"]
             found = next((p for p in candidates if p.exists()), None)
             self._send_json(200, {"ok": bool(found), "session_id": sid, "summary": (_read_json_if_exists(str(found)) if found else None), "path": str(found) if found else None})
+            return
+        if route_name == "study_analysis_status":
+            job_id = unquote(path.rsplit("/", 1)[-1])
+            job = _load_analysis_job(self.server.sessions_root, job_id)
+            if job is None:
+                self._send_json(
+                    404,
+                    _api_error("STUDY_ANALYSIS_NOT_FOUND", "study analysis job not found"),
+                )
+                return
+            self._send_json(200, {"ok": True, "job": job})
+            return
+        if route_name == "study_objective_report":
+            objective_id = unquote(path.split("/")[4])
+            try:
+                report = _objective_report(
+                    objective_id,
+                    objectives=_study_objectives_payload(),
+                    sessions_root=self.server.sessions_root,
+                )
+            except KeyError:
+                self._send_json(
+                    404,
+                    _api_error("OBJECTIVE_NOT_FOUND", "study objective not found"),
+                )
+                return
+            self._send_json(200, report)
             return
         if route_name == "report_export":
             sid = (parse_qs(parsed.query).get("session") or [""])[-1]
@@ -7466,6 +7688,68 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             except StudyContractError as exc:
                 status = 409 if exc.code == "PARTICIPANT_EXISTS" else 400
                 self._send_json(status, _api_error(exc.code, str(exc)))
+            return
+        if route_name == "study_attempt_create":
+            payload = dict(body)
+            payload.setdefault("product_version", VERSION)
+            payload.setdefault("protocol_id", STUDY_SESSION_SCHEMA_VERSION)
+            try:
+                record = _register_protocol_attempt(
+                    self.server.sessions_root,
+                    payload,
+                )
+                self._send_json(201, {
+                    "ok": True,
+                    "schema_version": record.get("schema_version"),
+                    "attempt": record,
+                })
+            except (TypeError, ValueError) as exc:
+                self._send_json(400, _api_error("INVALID_PROTOCOL_ATTEMPT", str(exc)))
+            return
+        if route_name in {"session_references_post", "session_rr_adjudication"}:
+            sid = unquote(path.split("/")[3])
+            try:
+                root = _session_path(self.server.sessions_root, sid)
+            except Exception:
+                self._send_json(
+                    404,
+                    _api_error("SESSION_NOT_FOUND", "session not found"),
+                )
+                return
+            try:
+                if route_name == "session_rr_adjudication":
+                    references = _adjudicate_rr(
+                        str(root),
+                        body,
+                        actor=body.get("actor"),
+                    )
+                else:
+                    references = _append_reference(
+                        str(root),
+                        body,
+                        actor=body.get("actor"),
+                    )
+            except (TypeError, ValueError) as exc:
+                self._send_json(
+                    400,
+                    _api_error("INVALID_REFERENCE_EVIDENCE", str(exc)),
+                )
+                return
+            self._send_json(
+                201 if route_name == "session_references_post" else 200,
+                {"ok": True, "session_id": sid, **references},
+            )
+            return
+        if route_name == "study_analysis_start":
+            try:
+                job = _create_analysis_job(self.server.sessions_root, body)
+            except (TypeError, ValueError) as exc:
+                self._send_json(
+                    400,
+                    _api_error("INVALID_STUDY_ANALYSIS", str(exc)),
+                )
+                return
+            self._send_json(202, {"ok": True, "job": job})
             return
         if route_name == "auth_login":
             status, payload = _login_operator(self.server, str(body.get("operator_id") or ""), str(body.get("pin") or ""))
@@ -7637,6 +7921,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 if replay is not None:
                     self._send_json(200, replay)
                     return
+                self.server.supervisor.lookup_logical_trial_start(
+                    study_assignment.get("logical_trial_id")
+                )
             except StartIdempotencyError as exc:
                 status = 400 if exc.code == "INVALID_IDEMPOTENCY_KEY" else 409
                 if exc.code == "PREFLIGHT_FAILED":
@@ -7791,6 +8078,29 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         body = self._read_body()
         if body is None:
             return
+        if route_name == "subject_profiles_put":
+            try:
+                saved = _save_subject_profiles(self.server.sessions_root, body)
+                self._send_json(200, saved)
+            except (TypeError, ValueError) as exc:
+                self._send_json(400, _api_error("INVALID_SUBJECT_PROFILES", str(exc)))
+            return
+        if route_name == "study_protocol":
+            try:
+                protocol = _save_study_protocol(
+                    self.server.sessions_root,
+                    body,
+                    actor=body.get("actor"),
+                )
+            except (TypeError, ValueError) as exc:
+                status = 409 if "locked" in str(exc).lower() else 400
+                self._send_json(
+                    status,
+                    _api_error("INVALID_STUDY_PROTOCOL", str(exc)),
+                )
+                return
+            self._send_json(200, {"ok": True, "protocol": protocol})
+            return
         if route_name == "participant_status":
             participant_id = unquote(path.rsplit("/", 1)[-1])
             try:
@@ -7798,6 +8108,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     self.server.sessions_root,
                     participant_id,
                     body.get("status"),
+                    actor=body.get("actor"),
+                    reason=body.get("reason"),
+                    consent_revision=body.get("consent_revision"),
                 )
                 self._send_json(200, {
                     "ok": True,
@@ -8133,7 +8446,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_8.ino"),
+        Path("radar_vital_v16_5_9.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
@@ -9341,6 +9654,8 @@ def cmd_session(args):
         study_payload,
         sessions_root=lock_root,
     )
+    attempt_id = str(getattr(args, "attempt_id", None) or _allocate_attempt_id())
+    attempt_type = str(getattr(args, "attempt_type", None) or "subject")
     _check_stale_session_lock(lock_root)
     if _session_is_active(lock_root):
         raise RuntimeError(f"SESSION_IN_PROGRESS: active session lock exists at {_lock_path(lock_root)}")
@@ -9353,6 +9668,9 @@ def cmd_session(args):
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
         "manifest_version": SESSION_MANIFEST_VERSION,
         "generated_at": _report_stamp(),
+        "attempt_id": attempt_id,
+        "attempt_type": attempt_type,
+        "attempt_ledger_schema_version": ATTEMPT_LEDGER_SCHEMA_VERSION,
         "study_session_schema_version": study_assignment.pop("schema_version"),
         **study_assignment,
         **_release_provenance(
@@ -9369,6 +9687,24 @@ def cmd_session(args):
         "notes_count": 0,
         "subject_profile_id": getattr(args, "subject_profile_id", "adult_default"),
     }
+    initial_manifest["capture_provenance"] = {
+        "captured_at": initial_manifest["generated_at"],
+        "source": "session_start",
+        "product_version": initial_manifest.get("product_version"),
+        "trainer_version": initial_manifest.get("trainer_version"),
+        "dashboard_version": initial_manifest.get("dashboard_version"),
+        "firmware_expected": initial_manifest.get("firmware_expected"),
+        "firmware_observed": initial_manifest.get("firmware_observed"),
+        "serial_protocol": initial_manifest.get("serial_protocol"),
+        "serial_width_expected": initial_manifest.get("serial_width_expected"),
+        "source_commit": initial_manifest.get("source_commit"),
+        "model_family": initial_manifest.get("model_family"),
+        "model_bundle": initial_manifest.get("model_bundle"),
+        "participant_id": initial_manifest.get("participant_id"),
+        "logical_trial_id": initial_manifest.get("logical_trial_id"),
+        "attempt_id": attempt_id,
+    }
+    initial_manifest["analysis_runs"] = []
     existing_manifest = _read_json_if_exists(
         os.path.join(session_dir, "session_manifest.json")
     ) or {}
@@ -9378,6 +9714,7 @@ def cmd_session(args):
     )
     try:
         save_json(initial_manifest, os.path.join(session_dir, "session_manifest.json"))
+        _initialize_session_attempt(session_dir, initial_manifest)
     except Exception:
         if lock_acquired:
             _release_session_lock(lock_root)

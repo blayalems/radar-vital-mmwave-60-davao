@@ -48,7 +48,7 @@ describe('release compatibility evaluator', () => {
       serial_width_expected: 222,
       schema_versions: {
         control_api: 'rvt-control-api-v12.0',
-        study_session: 'rvt-study-session-v16.5.1'
+        study_session: STUDY_SESSION_SCHEMA
       }
     });
   });

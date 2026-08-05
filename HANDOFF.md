@@ -5,12 +5,134 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
-### 2026-08-06 - PR #102 audit fixes & Android shell polish in v16.5.8
+### 2026-08-06 - PR #103 API contract alignment and study evidence error hardening in v16.5.9
 
-- **QMS Schema**: Added `approval_required` to root `required` array in `quality/schemas/statistical-analysis-plan.schema.json`.
-- **Android Launcher Icon**: Added density-bucket PNG fallback launcher icon copying in `scripts/patch-android-shell.mjs` and updated `web/angular.json`.
-- **Android Top Layout**: Added `padding-top: env(safe-area-inset-top, 0px)` to `.app` container in `web/src/app/components/layout/layout.component.css` and adjusted topbar padding.
-- **Verification**: `test:version-contract` and QMS checks pass 100%.
+- **API Contract**: Added `study_analysis_list` and `study_analysis_cancel` routes to `web/src/app/services/backend-api.contract.ts`.
+- **Evidence Hardening**: Raised `ValueError` instead of uncaught `KeyError` in `objective_report` and added robust seed fallback in `schedule_for_participant`.
+- **Verification**: `test:version-contract` passes 16.5.9.
+
+### 2026-08-04 - Isolate state-service browser guard fixtures
+
+- **Test isolation**: Reset the Angular test injector and browser storage around each `StateService` spec so a prior demo-mode preference cannot leak into the real-session rejection assertion on CI viewport shards.
+- **Verification**: Run 555 reproduced the same assertion on Pixel 7 and desktop; the fixture now explicitly clears the shared session/demo state before each test. Run 556 passed all four browser smoke shards and the committed Windows visual regression.
+
+### 2026-08-04 - Make active-session unit fixtures injector-stable
+
+- **Test isolation**: The state-service guard spec now configures the canonical `SessionStore` witness directly, matching the production source-mode dependency and avoiding cross-file Angular test-injector timing differences.
+- **Verification**: Run 554 reproduced one iPad-only unit-suite failure after the status-witness change; desktop, iPhone, and local suites were otherwise green. The focused fixture correction needs a fresh CI matrix.
+
+### 2026-08-04 - Preserve status witnesses across live-payload gaps
+
+- **Frontend guard**: Treat a non-sandbox `active_session` in trainer status as authoritative even when the local session flag has been cleared; a transient `NO_LIVE_DASHBOARD` response now keeps the active-session guard and marks the payload as not ready instead of permitting a demo switch.
+- **Browser regression**: Run 553 exposed the race in desktop, iPhone, and iPad smoke shards while Pixel 7 passed; the D-shortcut fixture now matches status requests with optional query strings, and the source/telemetry contracts cover the stale-witness path.
+- **Verification**: Local system-Chrome D-shortcut smoke passed after the fix; the regenerated monolith and focused changes passed the four-viewport browser matrix in run 556.
+
+### 2026-08-04 - Close live-trainer browser smoke regressions
+
+- **Frontend contract**: Bound the Angular release handshake and sandbox status/participant storage to the v16.5.9 study-session schema; manual demo mode now keeps its explicit exit/reconnect action visible even when the trainer reports sandbox mode.
+- **Start reliability**: Bind the Home Start in-flight guard to an Angular signal so rejected or ambiguous requests re-render immediately and re-enable the idempotency retry action; smoke fixtures enter `/home` directly, and status assertions target visible retry/status semantics.
+- **Verification**: System Chrome Pixel 7 browser run passed all 14 targeted session-idempotency, release, polish, and settings tests; `npm run build:web` and monolith regeneration passed. CI smoke shards must confirm all viewports.
+
+### 2026-08-04 - Preserve live-session guards in manual-demo probes
+
+- **Source-mode guard**: Manual demo keeps telemetry and metadata local, while `/api/status` remains a live discovery exception so a real active capture cannot be hidden before the operator toggles simulated data.
+- **Smoke isolation**: Active-session dashboard scenarios now hold an SSE ping stream and use exact subject locators; this prevents the live trainer’s idle stream and substring matching from masking the assertions.
+- **Stop readiness**: Live controls and the command palette now accept an active-session witness directly from trainer status while the local signal catches up, preventing a visible Stop action from remaining disabled during first render.
+- **Verification**: A system-Chrome desktop rerun passed all three corrected active-session scenarios; the full four-viewport matrix still needs to confirm the same live-trainer behavior in CI.
+
+### 2026-08-04 - Run smoke/API shards against the live trainer surface
+
+- **Test contract**: Added `RVT_TEST_MOCK=0` for smoke/API and release-artifact runs, `RVT_TEST_MOCK=1` for visual runs, and made the local Playwright default live so `npm test` exercises the same protected HTTP surface as CI; this prevents sandbox adapter state from bypassing endpoint fixtures and falsely clearing seeded operator tokens.
+- **Verification**: The prior `f3e2fcf` matrix collected 91 tests per shard but failed 23-24 cases per viewport behind the sandbox auth overlay; the idempotency fixtures also now open `/home` explicitly instead of relying on the monolith's `/live` default. A fresh CI run must verify both corrections.
+
+### 2026-08-04 - Bind visual fixtures to the visual trainer shard
+
+- **Test contract**: The visual baseline helper now derives its trainer origin from `RVT_TEST_PORT` (default `8990`) rather than targeting the smoke port, keeping visual and smoke jobs isolated.
+- **Verification**: `git diff --check` passed; the next CI run will include this final test-harness correction.
+
+### 2026-08-04 - Make smoke fixtures release- and shard-aware
+
+- **Test contract**: Smoke fixtures now derive the trainer origin from `RVT_TEST_PORT`, so every Playwright matrix shard exercises its own server instead of hard-coded `8989`; OTA assertions now track the v16.5.9 current release, a v16.5.10 product update, and a v16.5.9 build update.
+- **Verification**: Playwright collected 91 desktop tests with the updated fixtures; `git diff --check` passed. The next CI run will supersede the in-progress pre-fixture run.
+
+### 2026-08-04 - Fix first-run demo navigation and sandbox probes
+
+- **Frontend fix**: Persisted the manual-demo guard marker synchronously before navigation and kept manual-demo API discovery/metadata calls on the sandbox adapter even when callers request a live bypass; this prevents `/connect` bounce loops and CSP noise against the placeholder trainer origin.
+- **Browser evidence**: Installed Chrome smoke probe reached `/live` from “Demo Now”, showed the sandbox banner, rendered `/report`, and recorded zero page/console errors; Angular unit tests passed (32 files, 253 tests), `npm run build:web`, and `npm run build:check` passed.
+
+### 2026-08-04 - Preserve sharded Playwright reports
+
+- **CI diagnostics**: Kept the GitHub and line reporters while explicitly retaining the HTML reporter, so every viewport shard has named failure output and an uploadable `playwright-report` directory.
+- **Verification**: The follow-up is included before the first sharded run completes; no application code or browser baseline changed.
+
+### 2026-08-04 - Partition Playwright smoke by viewport
+
+- **CI diagnostics**: Partitioned the 92-test smoke/API suite into four independent desktop, Pixel 7, iPhone 14, and iPad jobs with isolated trainer ports; each job now emits line-level test names and retains its report artifact on failure or cancellation.
+- **Verification**: The prior combined run was cancelled at the 60-minute limit without a structured report; this workflow-only change is ready for a fresh PR run with a 30-minute per-viewport budget.
+
+### 2026-08-04 - Align PR change record with QMS template
+
+- **Change record**: Expanded PR #103 with the required impact, controlled-document, compatibility, release/rollback, review/authorization, and completion-checklist sections; requirement IDs and objective verification remain explicit.
+- **Verification**: The next CI run must re-evaluate the corrected PR body; the local base-range QMS contract remains clean with one R04-to-R05 controlled-document increment.
+
+### 2026-08-04 - Reconcile PR-base QMS document revisions
+
+- **QMS correction**: The PR base already contained the single R04-to-R05 controlled-document increment. Restored the final register, handoff, README, and feedback-loop identities to R05 so the complete PR range has exactly one revision step; no product or protocol behavior changed.
+- **Verification**: Re-ran the QMS contract against `origin/codex/v16-5-8-statistical-validation` and retained the existing Angular/build evidence for the implementation commit.
+
+### 2026-08-04 - Reserve logical trials and expose study evidence controls
+
+- **Exactly-once collection**: Added durable logical-trial reservations beside request-key idempotency so concurrent clients cannot start the same participant/condition/repetition twice; terminal or failed starts release the slot for a deliberate new attempt.
+- **Study API**: Added operator-protected v16.5.9 protocol, participant schedule, session reference/RR adjudication, analysis-job, and objective-report routes while preserving the existing `/api/study/attempts` no-subject evidence contract and Angular/sandbox route parity; README and feedback-loop documentation now map each control to manuscript evidence. Analysis aliases normalize to the canonical `gradient_boosting` and `cnn_1d` families.
+- **Verification**: Python compileall passed; 18 focused Python API/ledger/idempotency tests and the full Angular suite passed (32 files, 253 tests); `git diff --check` and the web/monolith round-trip passed.
+
+### 2026-08-04 - Refresh objective-evidence Home visual baselines
+
+- **Visual evidence**: Updated only the five Windows Home snapshots changed by the intentional participant protocol, manuscript-objective, completion-matrix, and no-subject evidence UI: all four desktop themes plus night-theme iPad.
+- **CI provenance**: Baselines use the actual images from Playwright run `30834378926` at head `d6d9547`; all other 91 visual cases passed, and desktop retry variation remained below the existing scoped pixel tolerances.
+
+### 2026-08-03 - Bind Python API surface to manuscript objective testing
+
+- **Cross-stack parity**: Added a checked-in Angular inventory for every Python `/api/` route, validated it with a static contract test, corrected session-list/subject-profile/sign-off response and method drift, and added validated subject-profile PUT handling.
+- **Objective readiness**: Exposed the approved four-objective contract, completion matrix, participant status history, no-subject attempt ledger, model training/prediction evidence, session tags, and soft-delete controls in the dashboard; sandbox mode mirrors the same routes.
+- **Verification**: Angular unit suite passed (251 tests), Angular build and monolith round-trip passed, and Python compileall passed. Full Python pytest remains unavailable in this review runtime.
+
+### 2026-08-03 - Refresh v16.5.9 Windows visual baselines
+
+- **Visual evidence**: Replaced the 18 intentional v16.5.9 snapshot variants that failed on the Windows runner with the runner-captured actual images; the other 78 visual cases already passed. Local Playwright browser installation was unavailable, so the refresh is sourced from the CI artifact and must be revalidated by the next Windows workflow.
+
+### 2026-08-03 - Remove model branding from release carriers
+
+- **Artifact hygiene**: Replaced audit/model-name attribution in the trainer and v16.5.9 firmware comments with neutral technical-review wording; runtime behavior and the frozen serial contract are unchanged.
+
+### 2026-08-03 - Refresh QMS change-record evidence after PR-body correction
+
+- **CI follow-up**: The first pushed workflow read the pre-correction PR body and rejected its legacy field labels; the canonical risk-class and requirement-ID fields are now present, and this HANDOFF-only commit retriggers the QMS validation against the current body.
+
+### 2026-08-03 - Close confirmatory-analysis and QMS review findings
+
+- **Statistics**: Strictly parse eligibility/attempt flags, aggregate only eligible confirmatory rows, retain explicit no-subject captures for false-alarm denominators, and verify model/fold/hash/protocol provenance against the predeclared plan.
+- **Controlled identity**: Keep the session-manifest schema stable (`rvt-session-manifest-v1`) and preserve the predeclared statistical plan `RVT-STA-PLAN-16.5.8`; the shipped product carriers remain v16.5.9.
+- **QMS**: Align requirements/document-register revisions, add the missing policy revision header, and remove agent/model branding from the changelog. Focused and full Python tests pass (500 passed, 3 skipped); compileall, version-contract, and QMS gates pass. Frontend/package CI remains pending.
+
+### 2026-08-03 - Rename firmware carrier for v16.5.9
+
+- **Release identity**: Renamed the coordinated firmware source to `radar_vital_v16_5_9.ino`; the wire protocol remains frozen.
+
+### 2026-08-03 - Advance v16.5.9 for protocol-attempt provenance
+
+- **Plan audit**: Reviewed `C:\Users\blaya\Downloads\2026-08-01-implementation_plan.md` against the repository contract and the adversarial statistics audits. The roadmap is directionally sound, but its PR-status table is stale; PR79 and PR93–PR100 are already merged and the controlled follow-up starts at v16.5.9.
+- **Release identity**: Promoted firmware, trainer, Angular, generated dashboard, Capacitor, and Tauri carriers from v16.5.8 to v16.5.9. The frozen v15.2 222-column serial contract is unchanged.
+- **Implementation scope**: v16.5.9 is reserved for immutable capture/build provenance, canonical logical trials, unique protocol attempts, terminal-state evidence, completion denominators, and participant withdrawal history. Statistical plan approval and physical authorization remain explicit gates.
+- **Local documents**: The updated manuscript, user manual, and GBR-versus-experimental-1-D-CNN tradeoff PDF remain outside this repository as controlled local artifacts.
+
+### 2026-08-03 - Add append-only protocol-attempt evidence in v16.5.9
+
+- **Capture identity**: Session allocation now persists an immutable capture-provenance block; re-analysis appends a separate analysis run with current code and input hashes instead of relabelling the original release.
+- **Protocol ledger**: Confirmatory and exploratory sessions receive a stable logical trial key and opaque attempt ID. State transitions are append-only and terminal statuses retain failed, stopped, invalid, and no-output attempts.
+- **Study denominator**: Added an operator-protected completion-matrix endpoint and explicit standalone no-subject attempt records so coverage denominators can include attempts absent from OOF predictions.
+- **Participant governance**: Participant status changes now retain actor, reason, consent revision, timestamp, withdrawal, and reversal history.
+- **Verification**: New protocol-ledger tests cover immutability, terminal transitions, no-subject counting, completion metadata, and status history; full cross-stack gates remain pending.
 
 ### 2026-08-03 - Fail closed confirmatory statistics in v16.5.8
 

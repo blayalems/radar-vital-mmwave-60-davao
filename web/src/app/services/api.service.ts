@@ -2,13 +2,40 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import {
+  BackendDefaults,
   BleScanDevice,
+  CompletionMatrix,
   ControlStatus,
+  ParticipantProfile,
+  ParticipantProfilesResponse,
+  ParticipantStatus,
+  ParticipantStatusResponse,
   PreflightCheck,
+  ProtocolAttemptInput,
+  ProtocolAttemptResponse,
+  SessionBufferResponse,
+  SessionDataPayload,
+  SessionDeleteResponse,
+  SessionListResponse,
   SessionNotesPayload,
+  SessionPredictionResponse,
   SessionRecord,
   SessionSignoff,
-  SubjectProfileRecord
+  SessionTagsResponse,
+  SessionTrainingStatus,
+  SerialPortRecord,
+  ReferenceObservationInput,
+  RrAdjudicationInput,
+  StudyAnalysisRequest,
+  StudyAnalysisResponse,
+  StudyObjectiveReport,
+  SubjectProfileRecord,
+  StudyProtocol,
+  StudyProtocolResponse,
+  StudyReferencesResponse,
+  StudyScheduleResponse,
+  StudyObjectivesResponse,
+  TrainerVersionResponse
 } from '../models/rvt.models';
 import { StateService } from './state.service';
 import { SourceModeService } from './source-mode.service';
@@ -20,6 +47,7 @@ import {
   resolveTrainerRequestTarget
 } from './api-target-policy';
 import { clientReleaseHandshake } from './release-contract';
+import { sessionApiPath } from './backend-api.contract';
 
 interface NativeHttpPlugin {
   request(options: {
@@ -362,10 +390,220 @@ export class ApiService {
   }
 
   async loadSessions(): Promise<SessionRecord[]> {
-    const response = await this.request<{ sessions: SessionRecord[] }>('/api/sessions');
-    const items = response.sessions || [];
+    const response = await this.request<SessionListResponse>('/api/sessions');
+    const items = response.sessions || response.items || [];
     this.state.sessionItems.set(items);
     return items;
+  }
+
+  /** Typed discovery/readiness calls shared by Home, Settings, and Model Lab. */
+  loadVersion(): Promise<TrainerVersionResponse> {
+    return this.request<TrainerVersionResponse>('/api/version', undefined, true);
+  }
+
+  loadUpdateManifest(): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>('/api/update/manifest', undefined, true);
+  }
+
+  loadHelpSchema(): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>('/api/help/schema', undefined, true);
+  }
+
+  loadServerInfo(): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>('/api/server-info', undefined, true);
+  }
+
+  loadNativePairingInfo(format: 'text' | 'qr' = 'text'): Promise<Record<string, unknown>> {
+    const query = format === 'qr' ? '?format=qr' : '';
+    return this.request<Record<string, unknown>>(`/api/native-pairing-info${query}`, undefined, true);
+  }
+
+  loadDefaults(): Promise<BackendDefaults> {
+    return this.request<BackendDefaults>('/api/defaults');
+  }
+
+  saveDefaults(defaults: Partial<BackendDefaults>): Promise<BackendDefaults> {
+    return this.request<BackendDefaults>('/api/defaults', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(defaults)
+    });
+  }
+
+  loadTrainerLog(): Promise<{ ok?: boolean; lines?: string[] }> {
+    return this.request<{ ok?: boolean; lines?: string[] }>('/api/trainer/log');
+  }
+
+  loadSerialPorts(): Promise<{ ports?: SerialPortRecord[]; selected?: string }> {
+    return this.request<{ ports?: SerialPortRecord[]; selected?: string }>('/api/serial/ports');
+  }
+
+  loadCurrentSession(): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>('/api/session/current');
+  }
+
+  loadSessionBuffer(seconds = 60): Promise<SessionBufferResponse> {
+    const bounded = Math.max(1, Math.min(3600, Math.round(seconds)));
+    return this.request<SessionBufferResponse>(`/api/session/buffer?seconds=${bounded}`);
+  }
+
+  loadParticipants(): Promise<ParticipantProfilesResponse> {
+    return this.request<ParticipantProfilesResponse>('/api/participants');
+  }
+
+  createParticipant(payload: Record<string, unknown> = {}): Promise<{ participant: ParticipantProfile; profile?: ParticipantProfile }> {
+    return this.request<{ participant: ParticipantProfile; profile?: ParticipantProfile }>('/api/participants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  }
+
+  updateParticipantStatus(
+    participantId: string,
+    status: ParticipantStatus,
+    audit: { actor?: string; reason?: string; consent_revision?: string } = {}
+  ): Promise<ParticipantStatusResponse> {
+    return this.request<ParticipantStatusResponse>(`/api/participants/${encodeURIComponent(participantId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, ...audit })
+    });
+  }
+
+  loadCompletionMatrix(): Promise<CompletionMatrix> {
+    return this.request<CompletionMatrix>('/api/study/completion-matrix');
+  }
+
+  loadStudyObjectives(): Promise<StudyObjectivesResponse> {
+    return this.request<StudyObjectivesResponse>('/api/study/objectives');
+  }
+
+  loadStudyProtocol(): Promise<StudyProtocolResponse> {
+    return this.request<StudyProtocolResponse>('/api/study/protocol');
+  }
+
+  saveStudyProtocol(protocol: Partial<StudyProtocol>): Promise<StudyProtocolResponse> {
+    return this.request<StudyProtocolResponse>('/api/study/protocol', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(protocol)
+    });
+  }
+
+  loadStudySchedule(participantId?: string): Promise<StudyScheduleResponse> {
+    const query = participantId ? `?participant_id=${encodeURIComponent(participantId)}` : '';
+    return this.request<StudyScheduleResponse>(`/api/study/schedule${query}`);
+  }
+
+  loadSessionReferences(sessionId: string): Promise<StudyReferencesResponse> {
+    return this.request<StudyReferencesResponse>(sessionApiPath(sessionId, '/references'));
+  }
+
+  addSessionReference(sessionId: string, observation: ReferenceObservationInput): Promise<StudyReferencesResponse> {
+    return this.request<StudyReferencesResponse>(sessionApiPath(sessionId, '/references'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(observation)
+    });
+  }
+
+  adjudicateSessionRr(sessionId: string, adjudication: RrAdjudicationInput): Promise<StudyReferencesResponse> {
+    return this.request<StudyReferencesResponse>(sessionApiPath(sessionId, '/references/rr-adjudication'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(adjudication)
+    });
+  }
+
+  startStudyAnalysis(input: StudyAnalysisRequest = {}): Promise<StudyAnalysisResponse> {
+    return this.request<StudyAnalysisResponse>('/api/study/analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+  }
+
+  loadStudyAnalysis(jobId: string): Promise<StudyAnalysisResponse> {
+    return this.request<StudyAnalysisResponse>(`/api/study/analysis/${encodeURIComponent(jobId)}`);
+  }
+
+  loadObjectiveReport(objectiveId: string): Promise<StudyObjectiveReport> {
+    return this.request<StudyObjectiveReport>(`/api/study/objectives/${encodeURIComponent(objectiveId)}/report`);
+  }
+
+  createProtocolAttempt(input: ProtocolAttemptInput): Promise<ProtocolAttemptResponse> {
+    return this.request<ProtocolAttemptResponse>('/api/study/attempts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input)
+    });
+  }
+
+  loadSessionSummary(sessionId: string): Promise<SessionRecord> {
+    return this.request<SessionRecord>(sessionApiPath(sessionId, '/summary'));
+  }
+
+  loadSessionData(sessionId: string, points = 1000): Promise<SessionDataPayload> {
+    const bounded = Math.max(1, Math.min(10000, Math.round(points)));
+    return this.request<SessionDataPayload>(sessionApiPath(sessionId, `/data?points=${bounded}`));
+  }
+
+  loadSessionComparison(sessionId: string): Promise<{ selected?: SessionRecord | null; previous?: SessionRecord | null; best?: SessionRecord | null }> {
+    return this.request<{ selected?: SessionRecord | null; previous?: SessionRecord | null; best?: SessionRecord | null }>(sessionApiPath(sessionId, '/compare'));
+  }
+
+  loadAnalysisStatus(sessionId: string): Promise<{ status?: string; progress_pct?: number; last_line?: string }> {
+    return this.request<{ status?: string; progress_pct?: number; last_line?: string }>(sessionApiPath(sessionId, '/analyse/status'));
+  }
+
+  loadTrainingStatus(sessionId: string): Promise<SessionTrainingStatus> {
+    return this.request<SessionTrainingStatus>(sessionApiPath(sessionId, '/training/status'));
+  }
+
+  loadPrediction(sessionId: string): Promise<SessionPredictionResponse> {
+    return this.request<SessionPredictionResponse>(sessionApiPath(sessionId, '/predict'));
+  }
+
+  startAnalysis(sessionId: string): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>(sessionApiPath(sessionId, '/analyse'), { method: 'POST' });
+  }
+
+  updateSessionTags(sessionId: string, tags: string[]): Promise<SessionTagsResponse> {
+    return this.request<SessionTagsResponse>(sessionApiPath(sessionId, '/tags'), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags })
+    });
+  }
+
+  deleteSession(sessionId: string): Promise<SessionDeleteResponse> {
+    return this.request<SessionDeleteResponse>(sessionApiPath(sessionId, ''), { method: 'DELETE' });
+  }
+
+  /**
+   * Build an authenticated EventSource target for either the live stream or a
+   * recorded session stream.  The caller owns the EventSource lifecycle; this
+   * keeps the two SSE routes available to the dashboard without duplicating
+   * token and origin policy logic.
+   */
+  eventStreamUrl(path: '/api/session/events' | '/api/events/subscribe' | string, token = ''): string {
+    const base = this.currentApiBase();
+    const target = resolveTrainerRequestTarget(path, base);
+    if (!isTrustedTrainerApiTarget(path, base)) {
+      throw new Error('Refusing to create an event stream for an untrusted trainer target.');
+    }
+    const url = new URL(target, window.location.origin);
+    if (token) url.searchParams.set('token', token);
+    return url.toString();
+  }
+
+  liveSessionEventStreamUrl(token = ''): string {
+    return this.eventStreamUrl('/api/session/events', token);
+  }
+
+  recordedSessionEventStreamUrl(sessionId: string, token = ''): string {
+    return this.eventStreamUrl(sessionApiPath(sessionId, '/events'), token);
   }
 
   async startSession(idempotencyKey: string): Promise<{ session_id?: string }> {
@@ -425,7 +663,7 @@ export class ApiService {
 
   async signoffSession(sessionId: string, signoff: SessionSignoff): Promise<void> {
     await this.request(`/api/sessions/${encodeURIComponent(sessionId)}/signoff`, {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(signoff)
     });
@@ -452,15 +690,17 @@ export class ApiService {
   }
 
   async loadSubjectProfiles(): Promise<Record<string, SubjectProfileRecord>> {
-    return this.request<Record<string, SubjectProfileRecord>>('/api/subject-profiles');
+    const response = await this.request<{ profiles?: Record<string, SubjectProfileRecord> }>('/api/subject-profiles');
+    return response.profiles || {};
   }
 
-  async saveSubjectProfiles(profiles: Record<string, SubjectProfileRecord>): Promise<void> {
-    await this.request('/api/subject-profiles', {
+  async saveSubjectProfiles(profiles: Record<string, SubjectProfileRecord>): Promise<Record<string, SubjectProfileRecord>> {
+    const response = await this.request<{ profiles?: Record<string, SubjectProfileRecord> }>('/api/subject-profiles', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(profiles)
     });
+    return response.profiles || {};
   }
 
   async setTauriPairedOrigin(): Promise<void> {

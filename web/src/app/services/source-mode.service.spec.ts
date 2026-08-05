@@ -15,14 +15,17 @@ describe('SourceModeService', () => {
   });
 
   it('owns explicit source transitions and their storage scope', () => {
+    localStorage.removeItem('rvt-demo-mode');
     expect(service.mode()).toBe('live');
     expect(service.storageScope()).toBe('live');
 
     expect(service.setManualDemo(true)).toBe(true);
     expect(service.mode()).toBe('manual-demo');
     expect(service.storageScope()).toBe('demo');
+    expect(localStorage.getItem('rvt-demo-mode')).toBe('1');
 
     service.clearLocalSimulation();
+    expect(localStorage.getItem('rvt-demo-mode')).toBe('0');
     service.applyTrainerStatus({ ok: true, mode: 'sandbox' });
     expect(service.mode()).toBe('trainer-sandbox');
     expect(service.storageScope()).toBe('demo');
@@ -86,14 +89,29 @@ describe('SourceModeService', () => {
     expect(sessionStore.currentSessionId()).toBe('session-live-2');
   });
 
-  it('keeps a real-session Stop on trainer transport despite stale demo state', () => {
+  it('keeps live status and Stop on trainer transport despite stale demo state', () => {
     expect(service.setManualDemo(true)).toBe(true);
     sessionStore.ctlStatus.set({ ok: true, mode: 'live' });
     sessionStore.currentSessionId.set('session-live-3');
     sessionStore.sessionActive.set(true);
 
+    expect(service.shouldUseSandboxApi('/api/status', true)).toBe(false);
+    expect(service.shouldUseSandboxApi('/api/health', true)).toBe(true);
     expect(service.shouldUseSandboxApi('/api/defaults')).toBe(true);
     expect(service.shouldUseSandboxApi('/api/session/stop')).toBe(false);
     expect(service.shouldUseSandboxApi('/api/session/stop?reason=test')).toBe(false);
+  });
+
+  it('blocks demo when the status witness survives a stale local session flag', () => {
+    sessionStore.ctlStatus.set({
+      ok: true,
+      mode: 'live',
+      active_session: { session_id: 'session-status-witness' }
+    });
+    sessionStore.currentSessionId.set(null);
+    sessionStore.sessionActive.set(false);
+
+    expect(service.realSessionActive()).toBe(true);
+    expect(service.setManualDemo(true)).toBe(false);
   });
 });

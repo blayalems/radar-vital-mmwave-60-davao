@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { seedFirstRunComplete } from './helpers/first-run';
 
-const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
+const HOME = '/home';
 
 async function seedUnlockedLiveOperator(page: Page): Promise<void> {
   await seedFirstRunComplete(page);
@@ -100,7 +100,7 @@ test.describe('release mismatch start guidance', () => {
   test('shows a responsive blocking card with concrete recovery steps', async ({ page }) => {
     await seedUnlockedLiveOperator(page);
     await mockHomeDependencies(page);
-    await page.goto(DASHBOARD, { waitUntil: 'domcontentloaded' });
+    await page.goto(HOME, { waitUntil: 'domcontentloaded' });
 
     const card = page.locator('.release-compatibility-card');
     await expect(card).toHaveAttribute('data-state', 'incompatible');

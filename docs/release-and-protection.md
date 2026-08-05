@@ -6,7 +6,7 @@
 | Revision | `R03` |
 | Owner role | Release manager |
 | Approver roles | Release manager, quality manager, and security owner |
-| Effective product version | `16.5.8` |
+| Effective product version | `16.5.9` |
 | Retention | Project lifetime plus five years; archive then review |
 
 This procedure implements the release portion of the

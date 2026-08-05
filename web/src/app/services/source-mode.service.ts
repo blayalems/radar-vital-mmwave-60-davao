@@ -30,7 +30,8 @@ export class SourceModeService {
     const status = this.sessionStore.ctlStatus();
     const activeSession = status?.active_session ?? status?.session;
     const sessionId = this.sessionStore.currentSessionId() || '';
-    return this.sessionStore.sessionActive()
+    const statusHasActiveSession = Boolean(activeSession?.session_id);
+    return (this.sessionStore.sessionActive() || statusHasActiveSession)
       && status?.mode !== 'sandbox'
       && activeSession?.sandbox !== true
       && activeSession?.mock !== true
@@ -40,6 +41,7 @@ export class SourceModeService {
   setManualDemo(enabled: boolean): boolean {
     if (enabled && this.realSessionActive()) return false;
     this.uiStore.demoMode.set(enabled);
+    this.persistManualDemo(enabled);
     return true;
   }
 
@@ -55,11 +57,13 @@ export class SourceModeService {
 
   restorePreferences(manualDemo: boolean, autoDemoOnDisconnect: boolean): void {
     this.uiStore.demoMode.set(manualDemo);
+    this.persistManualDemo(manualDemo);
     this.uiStore.autoDemoOnDisconnect.set(autoDemoOnDisconnect);
   }
 
   clearLocalSimulation(): void {
     this.uiStore.demoMode.set(false);
+    this.persistManualDemo(false);
     this.uiStore.autoDemoActive.set(false);
   }
 
@@ -111,8 +115,23 @@ export class SourceModeService {
   }
 
   shouldUseSandboxApi(path: string, bypassSandbox = false): boolean {
-    if (bypassSandbox || !this.simulated() || !path.startsWith('/api/')) return false;
+    if (!this.simulated() || !path.startsWith('/api/')) return false;
     const pathname = String(path).split('?', 1)[0];
+    // Manual demo keeps data and metadata local, but status discovery is the
+    // one safe exception: it must be able to observe a real active session so
+    // the D shortcut cannot switch simulated data on over a live capture.
+    if (bypassSandbox && (!this.manualDemoActive() || pathname === '/api/status')) return false;
     return !(pathname === '/api/session/stop' && this.realSessionActive());
+  }
+
+  /**
+   * Route guards run during the same navigation turn as Demo Now. Persist the
+   * marker synchronously so a guard cannot bounce the user back to /connect
+   * before StateService's persistence effect is scheduled.
+   */
+  private persistManualDemo(enabled: boolean): void {
+    try {
+      localStorage.setItem('rvt-demo-mode', enabled ? '1' : '0');
+    } catch (_) {}
   }
 }

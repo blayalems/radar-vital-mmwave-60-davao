@@ -22,6 +22,9 @@ ROUTES = (
     ),
     route("session_predict", "GET", "/api/sessions/*/predict", RouteGroup.REPORTS, AuthPolicy.OPERATOR),
     route("session_analyse", "POST", "/api/sessions/*/analyse", RouteGroup.REPORTS, AuthPolicy.OPERATOR),
+    route("study_analysis_start", "POST", "/api/study/analysis", RouteGroup.REPORTS, AuthPolicy.OPERATOR),
+    route("study_analysis_status", "GET", "/api/study/analysis/*", RouteGroup.REPORTS, AuthPolicy.OPERATOR),
+    route("study_objective_report", "GET", "/api/study/objectives/*/report", RouteGroup.REPORTS, AuthPolicy.OPERATOR),
     route("report_export", "GET", "/api/report/export", RouteGroup.REPORTS, AuthPolicy.OPERATOR),
 )
 

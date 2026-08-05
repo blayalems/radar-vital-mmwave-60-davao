@@ -171,6 +171,70 @@ def test_same_key_different_payload_returns_stable_conflict_before_reallocation(
 
 @patch("rvt_trainer.monolith._run_preflight_all", return_value={"checks": []})
 @patch("subprocess.Popen")
+def test_different_keys_cannot_reserve_the_same_logical_trial_concurrently(
+    mock_popen: MagicMock,
+    mock_preflight: MagicMock,
+    control: _ControlServer,
+):
+    spawn_calls: list[str] = []
+    mock_popen.side_effect = _spawn_that_becomes_ready(
+        Path(control.sessions_root),
+        spawn_calls,
+    )
+    first = _confirmatory_payload("logical-trial-client-a")
+    second = {**first, "idempotency_key": "logical-trial-client-b"}
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(
+            pool.map(
+                lambda payload: _request_json(control, payload),
+                (first, second),
+            )
+        )
+
+    assert sorted(status for status, _payload in responses) == [200, 409]
+    conflict = next(payload for status, payload in responses if status == 409)
+    assert conflict["error"]["code"] == "LOGICAL_TRIAL_RESERVED"
+    assert conflict["error"]["logical_trial_id"] == "P-001-d060-none-t1"
+    assert spawn_calls == ["s01"]
+    assert mock_preflight.call_count == 1
+
+
+@patch("rvt_trainer.monolith._run_preflight_all", return_value={"checks": []})
+@patch("subprocess.Popen")
+def test_terminal_session_releases_logical_trial_for_a_deliberate_new_attempt(
+    mock_popen: MagicMock,
+    mock_preflight: MagicMock,
+    control: _ControlServer,
+):
+    spawn_calls: list[str] = []
+    mock_popen.side_effect = _spawn_that_becomes_ready(
+        Path(control.sessions_root),
+        spawn_calls,
+    )
+
+    status, first = _request_json(
+        control,
+        _confirmatory_payload("logical-trial-first-attempt"),
+    )
+    assert status == 200
+    assert first["session_id"] == "s01"
+
+    control.supervisor.proc.poll.return_value = 0
+    assert control.supervisor.current() is None
+
+    status, second = _request_json(
+        control,
+        _confirmatory_payload("logical-trial-second-attempt"),
+    )
+    assert status == 200
+    assert second["session_id"] == "s02"
+    assert spawn_calls == ["s01", "s02"]
+    assert mock_preflight.call_count == 2
+
+
+@patch("rvt_trainer.monolith._run_preflight_all", return_value={"checks": []})
+@patch("subprocess.Popen")
 def test_retry_after_response_loss_replays_original_result(
     mock_popen: MagicMock,
     mock_preflight: MagicMock,

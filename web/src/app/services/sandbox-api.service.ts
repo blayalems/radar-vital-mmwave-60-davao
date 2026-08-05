@@ -1,11 +1,17 @@
 import { Injectable, inject } from '@angular/core';
 import {
+  CompletionMatrix,
   LoginResponse,
   OperatorProfile,
   OperatorProfilesResponse,
   ParticipantProfile,
+  ReferenceObservation,
+  StudyAnalysisRequest,
+  StudyObjectiveReport,
+  StudyProtocol,
   SessionRecord,
-  SessionSignoff
+  SessionSignoff,
+  StudyReferencesResponse
 } from '../models/rvt.models';
 import { PRODUCT_VERSION } from './app-meta';
 import { OPERATOR_TOKEN_KEY, SANDBOX_OPERATOR_PROFILES_KEY } from './rvt-storage-keys';
@@ -19,7 +25,12 @@ interface SandboxOperatorProfile extends OperatorProfile {
 
 const SANDBOX_OPERATOR_SESSIONS_KEY = 'demo:rvt-operator-sessions';
 const SANDBOX_OPERATOR_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-const SANDBOX_PARTICIPANTS_KEY = 'demo:rvt-participants-v16.5.1';
+const SANDBOX_PARTICIPANTS_KEY = 'demo:rvt-participants-v16.5.9';
+const SANDBOX_SUBJECT_PROFILES_KEY = 'demo:rvt-subject-profiles-v16.5.9';
+const SANDBOX_PROTOCOL_ATTEMPTS_KEY = 'demo:rvt-protocol-attempts-v16.5.9';
+const SANDBOX_STUDY_PROTOCOL_KEY = 'demo:rvt-study-protocol-v16.5.9';
+const SANDBOX_STUDY_ANALYSIS_KEY = 'demo:rvt-study-analysis-v16.5.9';
+const SANDBOX_STUDY_SCHEDULE_PREFIX = 'demo:rvt-study-schedule-v16.5.9:';
 
 @Injectable({
   providedIn: 'root'
@@ -57,7 +68,7 @@ export class SandboxApiService {
       serial_width_observed: 222,
       schema_versions: {
         control_api: 'rvt-control-api-v12.0',
-        study_session: 'rvt-study-session-v16.5.1'
+        study_session: 'rvt-study-session-v16.5.9'
       }
     };
     if (url.pathname === '/api/auth/validate') return this.validateOperator();
@@ -74,12 +85,108 @@ export class SandboxApiService {
       if (created.error) throw new Error(`${created.error.message} (${created.error.code})`);
       return created;
     }
+    if (url.pathname === '/api/subject-profiles' && method === 'GET') {
+      return { schema_version: 'rvt-subject-profiles-v12.0', profiles: this.readSubjectProfiles() };
+    }
+    if (url.pathname === '/api/subject-profiles' && method === 'PUT') {
+      const body = this.parseJsonBody<Record<string, unknown>>(init?.body);
+      const profiles = (body['profiles'] && typeof body['profiles'] === 'object' ? body['profiles'] : body) as Record<string, unknown>;
+      localStorage.setItem(SANDBOX_SUBJECT_PROFILES_KEY, JSON.stringify(profiles));
+      return { schema_version: 'rvt-subject-profiles-v12.0', profiles };
+    }
     if (url.pathname === '/api/participants' && method === 'GET') {
       const participants = this.readParticipants();
-      return { ok: true, participants, items: participants };
+      return { ok: true, participants, items: participants, completion_matrix: this.completionMatrix() };
     }
     if (url.pathname === '/api/participants' && method === 'POST') {
       return { ok: true, participant: this.createParticipant() };
+    }
+    if (url.pathname.startsWith('/api/participants/') && method === 'PUT') {
+      const participantId = decodeURIComponent(url.pathname.split('/').pop() || '');
+      const body = this.parseJsonBody<{ status?: string }>(init?.body);
+      const participants = this.readParticipants().map(item => item.participant_id === participantId
+        ? { ...item, status: String(body.status || item.status), status_history: [...(item.status_history || []), { to_status: body.status, changed_at: new Date().toISOString() }] }
+        : item);
+      const profile = participants.find(item => item.participant_id === participantId);
+      if (!profile) throw new Error('Participant not found');
+      localStorage.setItem(SANDBOX_PARTICIPANTS_KEY, JSON.stringify(participants.filter(item => item.participant_id !== 'P-DEMO')));
+      return { ok: true, schema_version: 'rvt-participant-profiles-v16.5.9', profile };
+    }
+    if (url.pathname === '/api/study/completion-matrix') return this.completionMatrix();
+    if (url.pathname === '/api/study/objectives') return this.studyObjectives();
+    if (url.pathname === '/api/study/protocol' && method === 'GET') return { ok: true, protocol: this.studyProtocol() };
+    if (url.pathname === '/api/study/protocol' && method === 'PUT') {
+      const current = this.studyProtocol();
+      if (current.state === 'locked') throw new Error('study protocol is locked and cannot be edited');
+      const body = this.parseJsonBody<Partial<StudyProtocol>>(init?.body);
+      const conditions = Array.isArray(body.conditions) ? body.conditions : current.conditions;
+      const conditionIds = conditions.map(item => String(item?.condition_id || ''));
+      const expected = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
+      if (conditionIds.length !== expected.length || expected.some(id => !conditionIds.includes(id))) {
+        throw new Error('protocol conditions must contain the six canonical condition IDs');
+      }
+      const state = body.state || current.state;
+      if (state !== 'draft' && state !== 'locked') throw new Error('protocol state must be draft or locked');
+      const protocol = {
+        ...current,
+        ...body,
+        conditions,
+        state,
+        schema_version: 'rvt-study-protocol-v2',
+        updated_at: new Date().toISOString(),
+        ...(state === 'locked' ? { locked_at: new Date().toISOString(), locked_by: String(body['actor'] || '') || null } : {})
+      } as StudyProtocol;
+      localStorage.setItem(SANDBOX_STUDY_PROTOCOL_KEY, JSON.stringify(protocol));
+      return { ok: true, protocol };
+    }
+    if (url.pathname === '/api/study/schedule') {
+      const participantId = url.searchParams.get('participant_id') || 'P-DEMO';
+      return this.studySchedule(participantId);
+    }
+    if (url.pathname === '/api/study/analysis' && method === 'POST') {
+      const input = this.parseJsonBody<StudyAnalysisRequest>(init?.body);
+      const requestedFamily = String(input.model_family || 'gradient_boosting').toLowerCase();
+      const modelFamily = requestedFamily === 'gbr' ? 'gradient_boosting' : requestedFamily === 'cnn' ? 'cnn_1d' : requestedFamily;
+      if (!['gradient_boosting', 'cnn_1d'].includes(modelFamily)) throw new Error('model_family must be gradient_boosting/gbr or cnn_1d/cnn');
+      const job = {
+        job_id: `demo-study-${Date.now().toString(36)}`,
+        status: 'completed',
+        objective_id: input.objective_id || null,
+        model_family: modelFamily,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        sandbox: true
+      };
+      localStorage.setItem(SANDBOX_STUDY_ANALYSIS_KEY, JSON.stringify(job));
+      return { ok: true, job };
+    }
+    if (url.pathname.startsWith('/api/study/analysis/')) {
+      const job = this.readSandboxStudyAnalysis(url.pathname.split('/').pop() || '');
+      return { ok: true, job };
+    }
+    if (url.pathname.startsWith('/api/study/objectives/') && url.pathname.endsWith('/report')) {
+      const objectiveId = decodeURIComponent(url.pathname.split('/')[4] || '');
+      return this.sandboxObjectiveReport(objectiveId);
+    }
+    if (url.pathname === '/api/study/attempts' && method === 'POST') {
+      const body = this.parseJsonBody<Record<string, unknown>>(init?.body);
+      const attempts = this.readProtocolAttempts();
+      const attempt = {
+        schema_version: 'rvt-protocol-attempt-ledger-v16.5.9',
+        attempt_id: `AT-sandbox-${Date.now().toString(36)}`,
+        attempt_type: body['attempt_type'] || 'no_subject',
+        participant_id: body['participant_id'] || null,
+        condition_id: body['condition_id'] || null,
+        trial_number: body['trial_number'] || null,
+        status: body['status'] || 'allocated',
+        terminal: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        events: []
+      };
+      attempts.push(attempt);
+      localStorage.setItem(SANDBOX_PROTOCOL_ATTEMPTS_KEY, JSON.stringify(attempts));
+      return { ok: true, schema_version: 'rvt-protocol-attempts-v16.5.9', attempt };
     }
     if (url.pathname === '/api/sessions') {
       const sessions = this.ensureSessions();
@@ -126,6 +233,34 @@ export class SandboxApiService {
       const sessionId = decodeURIComponent(parts[3] || '');
       const session = this.ensureSessions().find(item => item.session_id === sessionId)
         || { session_id: sessionId, sandbox: true, verdict: 'demo', summary: 'Sandbox session summary.' };
+      if (url.pathname.endsWith('/references') && method === 'GET') return this.sessionReferences(sessionId);
+      if (url.pathname.endsWith('/references') && method === 'POST') {
+        const body = this.parseJsonBody<Record<string, unknown>>(init?.body);
+        if (String(body['kind'] || '').toLowerCase() === 'temperature' && String(body['barrier_type'] || 'none').toLowerCase() === 'cardboard') {
+          throw new Error('temperature reference capture is limited to unobstructed trials');
+        }
+        const existing = this.sessionReferences(sessionId);
+        const observation = {
+          observation_id: `OBS-${Date.now().toString(36)}`,
+          session_id: sessionId,
+          kind: String(body['kind'] || 'rr_observer'),
+          ...body,
+          locked: true,
+          observed_at: body['observed_at'] || new Date().toISOString()
+        } as ReferenceObservation;
+        const references = [...existing.references, observation];
+        localStorage.setItem(`demo:rvt-references:${sessionId}`, JSON.stringify(references));
+        return { ok: true, schema_version: 'rvt-reference-observations-v1', session_id: sessionId, references, rr_adjudication: existing.rr_adjudication || null } satisfies StudyReferencesResponse;
+      }
+      if (url.pathname.endsWith('/references/rr-adjudication') && method === 'POST') {
+        const body = this.parseJsonBody<Record<string, unknown>>(init?.body);
+        const existing = this.sessionReferences(sessionId);
+        const lockedRr = existing.references.filter(item => item.kind === 'rr_observer' && item.locked);
+        if (lockedRr.length < 2) throw new Error('RR adjudication requires two locked observer submissions');
+        const response = { ok: true, schema_version: 'rvt-reference-observations-v1', session_id: sessionId, references: existing.references, rr_adjudication: { ...body, locked_at: new Date().toISOString(), sandbox: true } } satisfies StudyReferencesResponse;
+        localStorage.setItem(`demo:rvt-references:${sessionId}:adjudication`, JSON.stringify(response.rr_adjudication));
+        return response;
+      }
       if (url.pathname.endsWith('/summary')) {
         return {
           ...session,
@@ -159,6 +294,17 @@ export class SandboxApiService {
       if (url.pathname.endsWith('/analyse/status')) {
         return { status: 'complete', progress_pct: 100, last_line: 'Sandbox analysis complete.' };
       }
+      if (url.pathname.endsWith('/training/status')) {
+        return { schema_version: 'rvt-training-progress-v16.5.9', session_id: sessionId, status: 'complete', target: 'hr,rr', n_estimators_done: 100, n_estimators_total: 100, elapsed_s: 0.2 };
+      }
+      if (url.pathname.endsWith('/predict')) {
+        return { ok: true, session_id: sessionId, summary: { model_family: 'gradient_boosting', status: 'complete', sandbox: true }, path: null };
+      }
+      if (url.pathname.endsWith('/tags') && method === 'PUT') {
+        const body = this.parseJsonBody<{ tags?: string[] }>(init?.body);
+        return { ok: true, session_id: sessionId, tags: Array.isArray(body.tags) ? body.tags : [] };
+      }
+      if (url.pathname.endsWith('/events')) return { ok: true, session_id: sessionId, sandbox: true };
       if (url.pathname.endsWith('/notes')) {
         const body = method === 'PUT' ? this.parseJsonBody<{ review_summary?: string }>(init?.body) : {};
         return { review_summary: body.review_summary || session.summary || '', sandbox: true };
@@ -174,8 +320,13 @@ export class SandboxApiService {
           sandbox: true
         };
       }
+      if (method === 'DELETE' && url.pathname.split('/').length === 4) {
+        this.sessionStore.sessionItems.update(items => items.filter(item => item.session_id !== sessionId));
+        return { ok: true, session_id: sessionId, sandbox: true };
+      }
     }
-    if (url.pathname === '/api/defaults') return { sandbox: true, radar_port: 'COM4', ble_address: '10:22:33:9E:8F:63', ble_profile: 'ailink_oximeter' };
+    if (url.pathname === '/api/defaults' && method === 'POST') return { ...this.sandboxDefaults(), ...this.parseJsonBody<Record<string, unknown>>(init?.body) };
+    if (url.pathname === '/api/defaults') return this.sandboxDefaults();
     if (url.pathname === '/api/preflight') return { ok: true, checks: [
       { id: 'trainer', label: 'Trainer link', status: 'good', description: 'Demo trainer reachable — simulated control plane.' },
       { id: 'radar', label: 'Radar serial', status: 'good', description: 'COM4 — XIAO ESP32-S3 detected.' },
@@ -209,6 +360,177 @@ export class SandboxApiService {
     } catch {
       return [demo];
     }
+  }
+
+  private readSubjectProfiles(): Record<string, unknown> {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(SANDBOX_SUBJECT_PROFILES_KEY) || '{}');
+      return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private readProtocolAttempts(): Array<Record<string, unknown>> {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(SANDBOX_PROTOCOL_ATTEMPTS_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed.filter(item => item && typeof item === 'object') as Array<Record<string, unknown>> : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private completionMatrix(): CompletionMatrix {
+    const conditions = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
+    const trials = [1, 2, 3];
+    const attempts = this.readProtocolAttempts();
+    const participants: CompletionMatrix['participants'] = {};
+    for (const participant of this.readParticipants()) {
+      const cells: Record<string, { status: string; attempt_type: string; attempt_id: string | null }> = {};
+      let completed = 0;
+      for (const condition of conditions) {
+        for (const trial of trials) {
+          const row = [...attempts].reverse().find(item => item['participant_id'] === participant.participant_id && item['condition_id'] === condition && Number(item['trial_number']) === trial);
+          const status = String(row?.['status'] || 'missing');
+          if (status === 'completed') completed++;
+          cells[`${condition}:t${trial}`] = { status, attempt_type: String(row?.['attempt_type'] || 'subject'), attempt_id: row?.['attempt_id'] ? String(row['attempt_id']) : null };
+        }
+      }
+      participants[participant.participant_id] = {
+        participant_id: participant.participant_id,
+        status: participant.status,
+        completed_trials: completed,
+        expected_trials: conditions.length * trials.length,
+        protocol_complete: completed === conditions.length * trials.length,
+        cells
+      };
+    }
+    return {
+      schema_version: 'rvt-protocol-attempts-v16.5.9',
+      conditions,
+      trials,
+      participants,
+      participant_count: Object.keys(participants).length,
+      protocol_complete_participant_count: Object.values(participants).filter(item => item.protocol_complete).length,
+      no_subject_attempt_count: attempts.filter(item => item['attempt_type'] === 'no_subject').length,
+      no_subject_expected: 72,
+      attempt_count: attempts.length
+    };
+  }
+
+  private sandboxDefaults(): Record<string, unknown> {
+    return { sandbox: true, radar_port: 'COM4', ble_address: '10:22:33:9E:8F:63', ble_profile: 'ailink_oximeter' };
+  }
+
+  private studyObjectives(): Record<string, unknown> {
+    const conditions = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
+    return {
+      schema_version: 'rvt-study-objectives-v16.5.9',
+      product_version: '16.5.9',
+      confirmatory_conditions: conditions,
+      trials_per_condition: 3,
+      planned_duration_s: 150,
+      target_recruited_participants: 40,
+      minimum_protocol_complete_participants: 38,
+      objectives: [
+        { id: 'objective_1_rr', number: 1, outcome: 'rr', label: 'GBR-assisted respiration-rate equivalence', role: 'confirmatory', primary_condition_id: 'd100_none', equivalence_margin_bpm: 2, confidence_level: 0.9, minimum_independent_estimates: 19 },
+        { id: 'objective_2_temperature', number: 2, outcome: 'temperature', label: 'Unobstructed skin-surface-temperature agreement', role: 'exploratory' },
+        { id: 'objective_3_false_alarm', number: 3, outcome: 'false_alarm', label: 'No-subject false-alarm rate', role: 'confirmatory', threshold: 0.05, trial_count: 72, trial_duration_s: 150 },
+        { id: 'objective_4_hr', number: 4, outcome: 'hr', label: 'GBR-assisted heart-rate accuracy and agreement', role: 'exploratory', conditions }
+      ]
+    };
+  }
+
+  private studyProtocol(): StudyProtocol {
+    const fallback: StudyProtocol = {
+      schema_version: 'rvt-study-protocol-v2',
+      protocol_id: 'RVT-THESIS-16.5.9',
+      protocol_version: '2',
+      state: 'draft',
+      randomization_seed: 'sandbox-seed-v16.5.9',
+      conditions: ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'].map(condition_id => {
+        const distance_m = Number(condition_id.slice(1, 4)) / 100;
+        return { condition_id, distance_m, barrier_type: condition_id.endsWith('cardboard') ? 'cardboard' : 'none', trial_count: 3, planned_duration_s: 150, confirmatory: true };
+      }),
+      no_subject: { trial_count: 72, planned_duration_s: 150, frozen_configuration: null }
+    };
+    try {
+      const stored = JSON.parse(localStorage.getItem(SANDBOX_STUDY_PROTOCOL_KEY) || 'null');
+      return stored && typeof stored === 'object' ? { ...fallback, ...stored } as StudyProtocol : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  private studySchedule(participantId: string): Record<string, unknown> {
+    const participant = participantId.trim().toUpperCase();
+    if (!participant) throw new Error('participant_id is required');
+    const key = `${SANDBOX_STUDY_SCHEDULE_PREFIX}${participant}`;
+    try {
+      const stored = JSON.parse(localStorage.getItem(key) || 'null');
+      if (stored && typeof stored === 'object' && Array.isArray(stored.entries)) return stored as Record<string, unknown>;
+    } catch {
+      // Recreate a deterministic schedule when local storage contains invalid data.
+    }
+    const protocol = this.studyProtocol();
+    const seed = `${protocol.randomization_seed || ''}:${participant}`;
+    const conditions = this.stableShuffle(protocol.conditions.map(item => item.condition_id), seed);
+    const result = {
+      ok: true,
+      schema_version: 'rvt-study-schedule-v2',
+      participant_id: participant,
+      seed,
+      entries: conditions.map((condition_id, index) => ({ participant_id: participant, order: index + 1, condition_id, trial_numbers: [1, 2, 3], status: 'missing', seed }))
+    };
+    localStorage.setItem(key, JSON.stringify(result));
+    return result;
+  }
+
+  private sessionReferences(sessionId: string): StudyReferencesResponse {
+    try {
+      const stored = JSON.parse(localStorage.getItem(`demo:rvt-references:${sessionId}`) || '[]');
+      const adjudication = JSON.parse(localStorage.getItem(`demo:rvt-references:${sessionId}:adjudication`) || 'null');
+      return { ok: true, schema_version: 'rvt-reference-observations-v1', session_id: sessionId, references: Array.isArray(stored) ? stored : [], rr_adjudication: adjudication };
+    } catch {
+      return { ok: true, schema_version: 'rvt-reference-observations-v1', session_id: sessionId, references: [], rr_adjudication: null };
+    }
+  }
+
+  private readSandboxStudyAnalysis(jobId: string): Record<string, unknown> {
+    try {
+      const stored = JSON.parse(localStorage.getItem(SANDBOX_STUDY_ANALYSIS_KEY) || 'null');
+      if (stored && typeof stored === 'object' && (!jobId || stored.job_id === jobId)) return stored;
+      throw new Error('study analysis job not found');
+    } catch {
+      throw new Error('study analysis job not found');
+    }
+  }
+
+  private sandboxObjectiveReport(objectiveId: string): StudyObjectiveReport {
+    const objective = this.studyObjectives()['objectives'] as Array<Record<string, unknown>>;
+    const known = objective.some(item => item['id'] === objectiveId);
+    if (!known) throw new Error('study objective not found');
+    return {
+      ok: true,
+      objective_id: objectiveId,
+      schema_version: 'rvt-study-report-v2',
+      status: known ? 'descriptive' : 'blocked',
+      report: known ? { sandbox: true, note: 'Demo evidence is excluded from confirmatory claims.', objective: objective.find(item => item['id'] === objectiveId) || null } : null,
+      exclusions: [{ reason: 'sandbox_data', count: 1 }],
+      provenance: { sandbox: true, product_version: PRODUCT_VERSION }
+    };
+  }
+
+  private stableShuffle(values: string[], seed: string): string[] {
+    let state = 2166136261;
+    for (const char of seed) state = Math.imul(state ^ char.charCodeAt(0), 16777619) >>> 0;
+    const result = [...values];
+    for (let index = result.length - 1; index > 0; index--) {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      const swap = state % (index + 1);
+      [result[index], result[swap]] = [result[swap], result[index]];
+    }
+    return result;
   }
 
   private createParticipant(): ParticipantProfile {

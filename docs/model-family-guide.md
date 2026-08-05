@@ -134,12 +134,15 @@ Do not select the CNN because its training loss is lower. Select a deployable
 family only after participant-held-out comparison at the protocol distances and
 barriers, with identical preprocessing rules and accuracy/statistical gates.
 
-## v16.5.8 statistical comparison contract
+## v16.5.9 statistical comparison contract
 
 The trainer retains one `outer_oof_predictions.csv` per leave-one-participant-
 out run. It contains raw predictions alongside the declared causal
 range/slew-limited outputs, fold identity, participant/session/trial/condition
-metadata, and a file hash. The statistical CLI consumes this artifact with the
+metadata, stable logical-trial and attempt identity, and a file hash. The
+capture manifest and append-only protocol-attempt ledger are the authoritative
+denominators; an OOF row cannot create a trial that was never attempted. The
+statistical CLI consumes this artifact with the
 versioned `quality/statistical-analysis-plan.json` and can emit JSON, flat CSV,
 and LaTeX table outputs.
 

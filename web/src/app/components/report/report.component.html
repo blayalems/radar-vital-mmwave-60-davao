@@ -225,6 +225,97 @@
       </mat-card-content>
     </mat-card>
 
+    <mat-card class="analysis-card" aria-label="Manuscript objective reports">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="header-avatar-ic">fact_check</mat-icon>
+        <mat-card-title>Manuscript objective evidence</mat-card-title>
+        <mat-card-subtitle>Backend-authoritative reports for the four approved objectives; exploratory outcomes stay descriptive.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (objectiveReportsError) {
+          <p class="error-text">{{ objectiveReportsError }}</p>
+        } @else if (!objectiveReports.length) {
+          <p>No objective report has been loaded yet.</p>
+        } @else {
+          <div class="compare-grid objective-report-grid">
+            @for (report of objectiveReports; track report.objective_id) {
+              <section class="compare-item" [attr.data-report-status]="report.status">
+                <strong>{{ report.objective_id }}</strong>
+                <span>Status: {{ report.status }}</span>
+                @if (report.status === 'descriptive') {
+                  <span>Exploratory/descriptive evidence only.</span>
+                }
+                @if (report.exclusions?.length) {
+                  <span>Exclusions: {{ report.exclusions?.length }}</span>
+                }
+              </section>
+            }
+          </div>
+        }
+        <div class="notes-action-row">
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="loadObjectiveReports()" [disabled]="objectiveReportsLoading">
+            <mat-icon>refresh</mat-icon>{{ objectiveReportsLoading ? 'Loading reports...' : 'Refresh objective reports' }}
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="analysis-card" aria-label="Model evidence status">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="header-avatar-ic">model_training</mat-icon>
+        <mat-card-title>Model evidence and objective readiness</mat-card-title>
+        <mat-card-subtitle>GBR remains the default runtime family; experimental 1-D CNN evidence is shown only when the trainer provides it.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (modelEvidenceLoading) {
+          <mat-progress-bar mode="indeterminate" aria-label="Loading model evidence"></mat-progress-bar>
+        } @else {
+          <div class="compare-grid">
+            <section class="compare-item">
+              <strong>Training status</strong>
+              <span>{{ trainingStatus?.status || 'Unavailable' }}</span>
+              <span>Target: {{ trainingStatus?.target || '--' }}</span>
+              <span>Progress: {{ trainingStatus?.n_estimators_done ?? '--' }} / {{ trainingStatus?.n_estimators_total ?? '--' }}</span>
+            </section>
+            <section class="compare-item">
+              <strong>Prediction evidence</strong>
+              <span>{{ prediction?.ok ? 'Available' : 'Unavailable' }}</span>
+              <span>Family: {{ prediction?.summary?.['model_family'] || reportRecord()['model_family'] || '--' }}</span>
+              <span>Summary: {{ prediction?.summary?.['status'] || '--' }}</span>
+            </section>
+          </div>
+        }
+        <div class="notes-action-row">
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="loadModelEvidence()" [disabled]="modelEvidenceLoading">
+            <mat-icon>refresh</mat-icon>Refresh model evidence
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="analysis-card" aria-label="Session evidence controls">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="header-avatar-ic">label</mat-icon>
+        <mat-card-title>Evidence controls</mat-card-title>
+        <mat-card-subtitle>Keep tags and soft-deletion decisions attached to the immutable session record.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <mat-form-field appearance="outline" class="form-field-full">
+          <mat-label>Session tags</mat-label>
+          <input matInput [(ngModel)]="sessionTagsInput" placeholder="e.g. stable, cardboard, review">
+          <mat-hint>Comma-separated, operator-facing labels only.</mat-hint>
+        </mat-form-field>
+        <div class="notes-action-row">
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="saveSessionTags()">
+            <mat-icon>save</mat-icon>Save tags
+          </button>
+          <button mat-button color="warn" type="button" (click)="deleteSelectedSession()" [disabled]="selectedSummary?.sandbox">
+            <mat-icon>delete_outline</mat-icon>Soft-delete session
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
     <!-- DYNAMIC REPORT SPARKLINE GRAPH PLOTS -->
     <mat-card class="report-trends-card">
       <mat-card-header>

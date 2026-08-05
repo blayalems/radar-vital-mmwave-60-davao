@@ -1,12 +1,16 @@
 import { TestBed } from '@angular/core/testing';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { StateService, DEFAULT_KPI_THRESHOLDS } from './state.service';
 import { PersistenceService } from './persistence.service';
+import { SessionStore } from './stores/session.store';
 
 describe('StateService', () => {
   let service: StateService;
   let mockPersistence: Partial<PersistenceService>;
 
   beforeEach(() => {
+    TestBed.resetTestingModule();
+    localStorage.clear();
     mockPersistence = {
       quarantineLegacyLocalStorage: vi.fn().mockResolvedValue(undefined),
       get: vi.fn().mockResolvedValue(undefined),
@@ -21,6 +25,11 @@ describe('StateService', () => {
     });
 
     service = TestBed.inject(StateService);
+  });
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    localStorage.clear();
   });
 
   it('should be created', () => {
@@ -50,8 +59,14 @@ describe('StateService', () => {
   });
 
   it('refuses to switch a real active session to simulated data', () => {
-    service.ctlStatus.set({ ok: true, mode: 'live' });
-    service.sessionActive.set(true);
+    const sessionStore = TestBed.inject(SessionStore);
+    sessionStore.ctlStatus.set({
+      ok: true,
+      mode: 'live',
+      active_session: { session_id: 'state-live-session' }
+    });
+    sessionStore.sessionActive.set(true);
+    sessionStore.currentSessionId.set('state-live-session');
 
     expect(service.trySetDemoMode(true)).toBe(false);
     expect(service.trySetAutoDemoActive(true)).toBe(false);

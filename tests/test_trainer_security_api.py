@@ -276,17 +276,17 @@ def test_api_version_additive_product_and_schema_fields(tmp_path: Path):
     try:
         status, payload = _request(base, "/api/version")
         assert status == 200
-        assert payload["trainer"] == "16.5.8"
-        assert payload["dashboard"] == "16.5.8"
-        assert payload["product_version"] == "16.5.8"
-        assert payload["firmware_expected"] == "v16.5.8"
+        assert payload["trainer"] == "16.5.9"
+        assert payload["dashboard"] == "16.5.9"
+        assert payload["product_version"] == "16.5.9"
+        assert payload["firmware_expected"] == "v16.5.9"
         expected_schema_versions = {
             "control_api": "rvt-control-api-v12.0",
             "session_notes": "rvt-session-notes-v12.0",
             "session_signoff": "rvt-session-signoff-v12.0",
             "training_progress": "rvt-training-progress-v12.0",
             "live_events": "rvt-live-events-v12.0",
-            "session_manifest": "rvt-session-manifest-v16.5.1",
+            "session_manifest": "rvt-session-manifest-v1",
             "chart_annotations": "rvt-chart-annotations-v12.0",
             "subject_profile": "rvt-subject-profiles-v12.0",
         }
@@ -333,7 +333,7 @@ def test_update_manifest_proxy_success(tmp_path: Path):
     base = f"http://127.0.0.1:{server.httpd.server_port}"
 
     mock_data = {
-        "product_version": "16.5.8",
+        "product_version": "16.5.9",
         "minimum_supported": "16.0.0",
         "released_at": "2026-06-06T00:00:00Z",
         "artifacts": {}
@@ -355,7 +355,7 @@ def test_update_manifest_proxy_success(tmp_path: Path):
         with patch("urllib.request.urlopen", side_effect=side_effect):
             status, data = _request(base, "/api/update/manifest")
             assert status == 200
-            assert data["product_version"] == "16.5.8"
+            assert data["product_version"] == "16.5.9"
     finally:
         server.stop()
 

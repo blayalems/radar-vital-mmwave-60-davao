@@ -16,6 +16,8 @@ import fs from 'fs';
 import path from 'path';
 import { seedFirstRunComplete } from './helpers/first-run';
 
+const TRAINER_ORIGIN = `http://127.0.0.1:${process.env.RVT_TEST_PORT || '8989'}`;
+
 const CONFIGURED_SESSIONS_PROFILES_PATH = path.resolve(
   process.cwd(),
   process.env.RVT_TEST_SESSIONS_ROOT || '.playwright-state/sessions',
@@ -70,9 +72,9 @@ test.describe('PIN recovery code flow', () => {
 
   test.beforeEach(async ({ page }) => {
     cleanProfiles();
-    await page.addInitScript(() => {
-      localStorage.setItem('rvt.server.url', 'http://127.0.0.1:8989');
-    });
+    await page.addInitScript((origin) => {
+      localStorage.setItem('rvt.server.url', origin);
+    }, TRAINER_ORIGIN);
     await seedFirstRunComplete(page);
   });
 

@@ -45,12 +45,345 @@ export interface ParticipantProfile {
   display_code: string;
   status: 'active' | 'completed' | 'withdrawn' | string;
   completed_trials?: number;
+  expected_trials?: number;
+  protocol_complete?: boolean;
+  status_history?: Array<Record<string, unknown>>;
   created_at?: string;
 }
 
 export interface ParticipantProfilesResponse {
+  ok?: boolean;
+  schema_version?: string;
   participants?: ParticipantProfile[];
   items?: ParticipantProfile[];
+  profiles?: ParticipantProfile[];
+  completion_matrix?: CompletionMatrix;
+}
+
+export type ParticipantStatus = 'active' | 'completed' | 'withdrawn';
+export type ProtocolAttemptType = 'subject' | 'no_subject';
+export type ProtocolAttemptStatus =
+  | 'allocated'
+  | 'starting'
+  | 'collecting'
+  | 'completed'
+  | 'stopped'
+  | 'failed_start'
+  | 'aborted'
+  | 'invalid'
+  | 'no_output';
+
+export interface CompletionCell {
+  status: ProtocolAttemptStatus | 'missing' | string;
+  attempt_id?: string | null;
+  attempt_type?: ProtocolAttemptType | string;
+}
+
+export interface CompletionParticipant {
+  participant_id: string;
+  status?: ParticipantStatus | string;
+  completed_trials: number;
+  expected_trials: number;
+  protocol_complete: boolean;
+  cells: Record<string, CompletionCell>;
+}
+
+export interface CompletionMatrix {
+  schema_version?: string;
+  conditions: string[];
+  trials: number[];
+  participants: Record<string, CompletionParticipant>;
+  participant_count: number;
+  protocol_complete_participant_count: number;
+  no_subject_attempt_count: number;
+  no_subject_expected: number;
+  attempt_count: number;
+}
+
+export interface ProtocolAttemptInput {
+  attempt_type: ProtocolAttemptType;
+  condition_id: string;
+  trial_number?: number;
+  participant_id?: string;
+  logical_trial_id?: string;
+  trial_id?: string;
+  status?: ProtocolAttemptStatus;
+  actor?: string;
+  reason?: string;
+  product_version?: string;
+  protocol_id?: string;
+}
+
+export interface ProtocolAttemptRecord {
+  schema_version?: string;
+  attempt_id: string;
+  attempt_type: ProtocolAttemptType;
+  participant_id?: string | null;
+  logical_trial_id?: string | null;
+  trial_id?: string | null;
+  condition_id: string;
+  trial_number?: number | null;
+  product_version?: string | null;
+  protocol_id?: string | null;
+  status: ProtocolAttemptStatus | string;
+  terminal?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  events?: Array<Record<string, unknown>>;
+}
+
+export interface ProtocolAttemptResponse {
+  ok: boolean;
+  schema_version?: string;
+  attempt: ProtocolAttemptRecord;
+}
+
+export interface StudyObjective {
+  id: string;
+  number: number;
+  outcome: string;
+  label: string;
+  role: 'confirmatory' | 'exploratory' | string;
+  primary_condition_id?: string;
+  secondary_condition_count?: number;
+  equivalence_margin_bpm?: number;
+  confidence_level?: number;
+  minimum_independent_estimates?: number;
+  threshold?: number;
+  trial_count?: number;
+  trial_duration_s?: number;
+  conditions?: string[];
+  reference?: string;
+  metrics?: string[];
+  required_routes?: string[];
+}
+
+export interface StudyObjectivesResponse {
+  schema_version: string;
+  product_version: string;
+  confirmatory_conditions: string[];
+  trials_per_condition: number;
+  planned_duration_s: number;
+  target_recruited_participants: number;
+  minimum_protocol_complete_participants: number;
+  objectives: StudyObjective[];
+}
+
+export type StudyProtocolState = 'draft' | 'locked' | 'superseded' | string;
+
+export interface StudyProtocolCondition {
+  condition_id: string;
+  distance_m: number;
+  barrier_type: BarrierType;
+  trial_count: number;
+  planned_duration_s: number;
+  confirmatory?: boolean;
+  [key: string]: unknown;
+}
+
+export interface StudyProtocol {
+  schema_version?: string;
+  protocol_id: string;
+  protocol_version: string;
+  state: StudyProtocolState;
+  locked_at?: string | null;
+  locked_by?: string | null;
+  randomization_seed?: string | null;
+  conditions: StudyProtocolCondition[];
+  no_subject?: {
+    trial_count: number;
+    planned_duration_s: number;
+    frozen_configuration?: Record<string, unknown> | null;
+  };
+  [key: string]: unknown;
+}
+
+export interface StudyProtocolResponse {
+  ok?: boolean;
+  protocol: StudyProtocol;
+}
+
+export interface StudyScheduleEntry {
+  participant_id: string;
+  order: number;
+  condition_id: string;
+  trial_numbers: number[];
+  status?: string;
+  seed?: string | null;
+  [key: string]: unknown;
+}
+
+export interface StudyScheduleResponse {
+  ok?: boolean;
+  schema_version?: string;
+  participant_id?: string;
+  seed?: string | null;
+  entries: StudyScheduleEntry[];
+}
+
+export type ReferenceObservationKind = 'rr_observer' | 'temperature' | 'hr' | string;
+
+export interface ReferenceObservation {
+  observation_id: string;
+  session_id: string;
+  kind: ReferenceObservationKind;
+  observer_id?: string | null;
+  value?: number | null;
+  unit?: string | null;
+  observed_at?: string | null;
+  duration_s?: number | null;
+  device_id?: string | null;
+  calibration_id?: string | null;
+  uncertainty?: number | null;
+  locked?: boolean;
+  missing_reason?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ReferenceObservationInput {
+  kind: ReferenceObservationKind;
+  observer_id?: string;
+  value?: number;
+  unit?: string;
+  duration_s?: number;
+  device_id?: string;
+  calibration_id?: string;
+  uncertainty?: number;
+  observed_at?: string;
+  missing_reason?: string;
+  [key: string]: unknown;
+}
+
+export interface StudyReferencesResponse {
+  ok?: boolean;
+  schema_version?: string;
+  session_id: string;
+  references: ReferenceObservation[];
+  rr_adjudication?: Record<string, unknown> | null;
+}
+
+export interface RrAdjudicationInput {
+  final_value: number;
+  rationale: string;
+  actor?: string;
+}
+
+export interface StudyAnalysisRequest {
+  objective_id?: string;
+  session_ids?: string[];
+  /** Canonical trainer values are gradient_boosting and cnn_1d; short aliases remain accepted at the API boundary. */
+  model_family?: 'gradient_boosting' | 'cnn_1d' | 'gbr' | 'cnn' | string;
+  confirmatory?: boolean;
+}
+
+export interface StudyAnalysisJob {
+  job_id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | string;
+  objective_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  error?: string | null;
+  [key: string]: unknown;
+}
+
+export interface StudyAnalysisResponse {
+  ok?: boolean;
+  job: StudyAnalysisJob;
+}
+
+export interface StudyObjectiveReport {
+  ok?: boolean;
+  objective_id: string;
+  schema_version?: string;
+  status: 'ready' | 'inconclusive' | 'descriptive' | 'blocked' | string;
+  report?: Record<string, unknown> | null;
+  exclusions?: Array<Record<string, unknown>>;
+  provenance?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface ParticipantStatusResponse {
+  ok: boolean;
+  schema_version?: string;
+  profile: ParticipantProfile;
+}
+
+export interface BackendDefaults {
+  sandbox?: boolean;
+  radar_port?: string;
+  serial_ports?: string[];
+  ble_address?: string;
+  ble_profile?: string;
+  durations_s?: number[];
+  sessions_root?: string;
+  [key: string]: unknown;
+}
+
+export interface TrainerVersionResponse {
+  product_version?: string;
+  trainer?: string;
+  dashboard?: string;
+  firmware_expected?: string;
+  firmware_observed?: string;
+  serial_protocol?: string;
+  serial_width_expected?: number;
+  serial_width_observed?: number;
+  schema_versions?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface SessionListResponse {
+  ok?: boolean;
+  root?: string;
+  sessions?: SessionRecord[];
+  items?: SessionRecord[];
+}
+
+export interface SessionTrainingStatus {
+  schema_version?: string;
+  session_id: string;
+  status?: string;
+  target?: string;
+  n_estimators_done?: number;
+  n_estimators_total?: number;
+  train_loss?: number | null;
+  val_loss?: number | null;
+  elapsed_s?: number;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+export interface SessionPredictionResponse {
+  ok: boolean;
+  session_id: string;
+  summary?: Record<string, unknown> | null;
+  path?: string | null;
+}
+
+export interface SessionTagsResponse {
+  ok: boolean;
+  session_id: string;
+  tags: string[];
+}
+
+export interface SessionDeleteResponse {
+  ok: boolean;
+  session_id: string;
+  trashed_path?: string;
+  retention_hint?: string;
+}
+
+export interface SessionBufferResponse {
+  ok: boolean;
+  schema_version?: string;
+  session_id?: string;
+  buffer_s?: number;
+  payload?: LivePayload | null;
+}
+
+export interface SessionEventStreamOptions {
+  sessionId?: string;
+  token?: string;
 }
 
 export interface AlertEvent {

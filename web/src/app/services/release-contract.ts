@@ -3,7 +3,7 @@ import { PRODUCT_VERSION } from './app-meta';
 export const SERIAL_PROTOCOL = 'v15.2';
 export const SERIAL_WIDTH_EXPECTED = 222;
 export const CONTROL_API_SCHEMA = 'rvt-control-api-v12.0';
-export const STUDY_SESSION_SCHEMA = 'rvt-study-session-v16.5.1';
+export const STUDY_SESSION_SCHEMA = 'rvt-study-session-v16.5.9';
 
 export interface ClientReleaseHandshake {
   product_version: string;

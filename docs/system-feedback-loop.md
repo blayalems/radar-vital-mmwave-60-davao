@@ -1,8 +1,8 @@
-# Radar Vital v16.5.8 Hardware–Software Feedback Loop
+# Radar Vital v16.5.9 Hardware–Software Feedback Loop
 
 This document is the canonical source for the system-process figures used by
-the repository and manuscript. It describes the shipped v16.5.8 product while
-keeping the wire protocol identity explicit: firmware v16.5.8 emits the frozen
+the repository and manuscript. It describes the shipped v16.5.9 product while
+keeping the wire protocol identity explicit: firmware v16.5.9 emits the frozen
 v15.2 CSV contract (222 columns, including the three fields introduced in
 v16.4 at columns 220–222).
 
@@ -32,9 +32,9 @@ figure IDs and captions below are stable integration points.
 flowchart LR
     subject["Participant and reference device"]
     radar["MR60BHA2 60 GHz radar"]
-    mcu["XIAO ESP32-C6<br/>firmware v16.5.8"]
+    mcu["XIAO ESP32-C6<br/>firmware v16.5.9"]
     serial["USB serial<br/>v15.2 CSV, 222 columns"]
-    capture["Python trainer v16.5.8<br/>capture and quality ledger"]
+    capture["Python trainer v16.5.9<br/>capture and quality ledger"]
     dataset["Immutable session artifacts<br/>participant, session, timestamps"]
     features["Causal feature pipeline<br/>train-only fit and schema hash"]
     split["Recorded group split manifest<br/>outer participant holdout"]
@@ -44,7 +44,7 @@ flowchart LR
     evidence["Hashed evidence bundle<br/>JSON, CSV, plots and LaTeX tables"]
     registry["Signed model artifact and manifest<br/>family, split, seed, hashes"]
     api["Trainer prediction and report API"]
-    ui["Angular dashboard v16.5.8<br/>provenance, status and comparison"]
+    ui["Angular dashboard v16.5.9<br/>provenance, status and comparison"]
     manuscript["LaTeX manuscript<br/>figures, methods and results"]
     protocol["Reviewed protocol decision<br/>acquisition, firmware and software changes"]
     operator["Operator action<br/>placement, capture quality, retraining"]
@@ -62,7 +62,7 @@ flowchart LR
 ```
 
 Manuscript caption (`hardware-software-feedback-loop`):
-“Radar Vital v16.5.8 hardware–software feedback loop. The ESP32-C6 firmware
+“Radar Vital v16.5.9 hardware–software feedback loop. The ESP32-C6 firmware
 streams the frozen v15.2/222-column serial contract to the Python trainer.
 Immutable, participant-grouped session artifacts feed one causal preprocessing
 and holdout manifest shared by gradient boosting and the experimental 1-D CNN.
@@ -144,7 +144,20 @@ The session manifest must contain:
 `trial_number`, `planned_duration_s`, `product_version`, `trainer_version`,
 `dashboard_version`, `firmware_expected`, `firmware_observed`,
 `serial_protocol_version`, `serial_column_count`, `source_commit`,
-`model_family`, and `model_bundle_id`.
+`model_family`, `model_bundle_id`, `logical_trial_id`, `attempt_id`, and
+`attempt_type`.
+
+The v16.5.9 capture rule is that `capture_provenance` is written once at
+allocation and never rewritten by analysis. Re-analysis appends an
+`analysis_runs[]` record containing the current source commit, feature-schema
+hash, and input-file hashes. Each capture also owns an append-only
+`protocol_attempt.json` state ledger. The ledger must retain `allocated`,
+`collecting`, and one terminal state (`completed`, `stopped`, `failed_start`,
+`aborted`, `invalid`, or `no_output`). A standalone `no_subject` attempt is
+recorded in `protocol_attempts.json`; it is never inferred from missing OOF
+rows. The operator-protected completion matrix uses these ledgers to report
+all 18 participant/configuration repetitions and the predeclared 72 no-subject
+attempt denominator.
 
 The software accepts a validated distance domain of 0.5–1.0 m so bench and
 future protocol work can be represented without free-text labels. The attached
@@ -159,6 +172,27 @@ Participant-grouped outer folds are mandatory for confirmatory GBR/1-D CNN
 comparison. Sessions marked `legacy_unassigned`, participant-reassigned,
 outside the frozen condition set, or lacking release/protocol provenance remain
 exploratory and cannot enter confirmatory statistics.
+
+The operator-facing objective contract is served by
+`GET /api/study/objectives` and is rendered in the Angular participant setup.
+The locked protocol is read or written through `/api/study/protocol`, while
+`/api/study/schedule?participant_id=P-NNN` returns the persisted deterministic
+randomization for that participant. This binds the four approved manuscript
+objectives to their evidence paths: primary RR TOST at `d100_none`, exploratory
+unobstructed temperature agreement, the 72-trial no-subject false-alarm
+denominator, and exploratory HR agreement across the six configurations.
+Reference observations are append-only at
+`/api/sessions/<id>/references`; RR requires two locked observer readings before
+`/references/rr-adjudication` can create a final value. Analysis requests and
+objective reports retain job, model-family, and release provenance and never
+report a pass before a completed analysis exists. The completion matrix,
+withdrawal history, attempt ledger, model training/prediction status, and
+session tags are all reachable from the same frontend API surface, including
+the sandbox adapter. The backend's durable logical-trial reservation is
+separate from HTTP idempotency, so two clients cannot allocate one
+participant/condition/repetition concurrently. The static
+`tests/test_frontend_backend_api_contract.py` check prevents a Python route
+from being added without a corresponding dashboard binding.
 
 ## Statistical interpretation rule
 

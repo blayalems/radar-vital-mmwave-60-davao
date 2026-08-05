@@ -178,7 +178,7 @@ describe('HomeComponent preflight request ownership', () => {
       'Dismiss',
       { duration: 7000 }
     );
-    expect(component.isStartingSession).toBe(false);
+    expect(component.isStartingSession()).toBe(false);
   });
 
   it('posts the exact click-time setup after a current successful preflight', async () => {

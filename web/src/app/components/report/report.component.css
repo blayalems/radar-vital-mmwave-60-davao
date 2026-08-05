@@ -412,8 +412,26 @@
   color: var(--md-sys-color-on-surface);
 }
 
+.objective-report-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.objective-report-grid .compare-item[data-report-status='blocked'],
+.objective-report-grid .compare-item[data-report-status='inconclusive'] {
+  border-color: var(--md-sys-color-error);
+}
+
+.objective-report-grid .compare-item[data-report-status='descriptive'] {
+  border-color: var(--md-sys-color-secondary);
+}
+
+.error-text {
+  color: var(--md-sys-color-error);
+}
+
 @media (max-width: 760px) {
-  .compare-grid {
+  .compare-grid,
+  .objective-report-grid {
     grid-template-columns: 1fr;
   }
 

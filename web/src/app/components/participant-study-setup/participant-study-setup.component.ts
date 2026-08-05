@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, output, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -10,10 +10,13 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 
 import {
   BarrierType,
+  CompletionMatrix,
+  CompletionParticipant,
   ParticipantProfile,
   ParticipantProfilesResponse,
   SetupState,
-  StudyMode
+  StudyMode,
+  StudyObjective
 } from '../../models/rvt.models';
 import { ApiService } from '../../services/api.service';
 import { StateService } from '../../services/state.service';
@@ -56,6 +59,7 @@ export function studySetupError(
   selector: 'app-participant-study-setup',
   imports: [
     DecimalPipe,
+    UpperCasePipe,
     FormsModule,
     MatButtonModule,
     MatCardModule,
@@ -75,8 +79,12 @@ export class ParticipantStudySetupComponent implements OnInit {
   readonly durationSelected = output<number>();
   readonly rosterValidityChanged = output<boolean>();
   readonly participants = signal<ParticipantProfile[]>([]);
+  readonly completionMatrix = signal<CompletionMatrix | null>(null);
+  readonly objectives = signal<StudyObjective[]>([]);
   readonly loading = signal(false);
   readonly creating = signal(false);
+  readonly statusUpdating = signal(false);
+  readonly attemptCreating = signal(false);
   readonly loadError = signal('');
   protected readonly confirmatoryDistances = CONFIRMATORY_DISTANCES_M;
   protected readonly trials = STUDY_TRIAL_NUMBERS;
@@ -85,6 +93,17 @@ export class ParticipantStudySetupComponent implements OnInit {
     this.updateCondition({});
     if (this.state.setup().study_mode === 'confirmatory') this.applyConfirmatoryDuration();
     void this.loadParticipants();
+    void this.loadObjectives();
+  }
+
+  async loadObjectives(): Promise<void> {
+    try {
+      if (typeof (this.api as Partial<ApiService>).loadStudyObjectives !== 'function') return;
+      const response = await this.api.loadStudyObjectives();
+      this.objectives.set(response.objectives || []);
+    } catch (_) {
+      this.objectives.set([]);
+    }
   }
 
   async loadParticipants(): Promise<void> {
@@ -92,11 +111,24 @@ export class ParticipantStudySetupComponent implements OnInit {
     this.loadError.set('');
     this.rosterValidityChanged.emit(false);
     try {
-      const response = await this.api.request<ParticipantProfilesResponse>('/api/participants');
+      const response = typeof (this.api as Partial<ApiService>).loadParticipants === 'function'
+        ? await this.api.loadParticipants()
+        : await this.api.request<ParticipantProfilesResponse>('/api/participants');
       const participants = (response.participants ?? response.items ?? [])
         .filter(item => item && item.participant_id && item.display_code)
         .slice(0, 41);
       this.participants.set(participants);
+      if (response.completion_matrix) {
+        this.completionMatrix.set(response.completion_matrix);
+      } else {
+        try {
+          if (typeof (this.api as Partial<ApiService>).loadCompletionMatrix === 'function') {
+            this.completionMatrix.set(await this.api.loadCompletionMatrix());
+          }
+        } catch (_) {
+          this.completionMatrix.set(null);
+        }
+      }
       const selected = this.state.setup().participant_id;
       const selectedParticipant = participants.find(item => item.participant_id === selected);
       if (selected && (!selectedParticipant || selectedParticipant.status === 'withdrawn')) {
@@ -121,16 +153,12 @@ export class ParticipantStudySetupComponent implements OnInit {
     if (this.creating() || this.realParticipantCount() >= 40) return;
     this.creating.set(true);
     try {
-      const response = await this.api.request<
-        ParticipantProfile | { participant: ParticipantProfile } | { profile: ParticipantProfile }
-      >(
-        '/api/participants',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
-        }
-      );
+      const response = typeof (this.api as Partial<ApiService>).createParticipant === 'function'
+        ? await this.api.createParticipant()
+        : await this.api.request<ParticipantProfile | { participant: ParticipantProfile } | { profile: ParticipantProfile }>(
+          '/api/participants',
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }
+        );
       const participant = 'participant' in response
         ? response.participant
         : ('profile' in response ? response.profile : response);
@@ -144,6 +172,50 @@ export class ParticipantStudySetupComponent implements OnInit {
       this.snackBar.open(error instanceof Error ? error.message : 'Participant profile could not be created.', 'Dismiss', { duration: 6000 });
     } finally {
       this.creating.set(false);
+    }
+  }
+
+  async updateStatus(status: 'active' | 'completed' | 'withdrawn'): Promise<void> {
+    const participant = this.selectedParticipant();
+    if (!participant || this.statusUpdating()) return;
+    this.statusUpdating.set(true);
+    try {
+      const response = await this.api.updateParticipantStatus(participant.participant_id, status, {
+        actor: 'dashboard-operator',
+        reason: `Study roster status changed to ${status}`
+      });
+      this.participants.update(items => items.map(item =>
+        item.participant_id === response.profile.participant_id ? response.profile : item
+      ));
+      if (status === 'withdrawn') this.clearParticipantSelection();
+      this.rosterValidityChanged.emit(this.hasActiveSelection());
+      this.snackBar.open(`${participant.display_code} marked ${status}.`, 'Dismiss', { duration: 3500 });
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'Participant status could not be updated.', 'Dismiss', { duration: 6000 });
+    } finally {
+      this.statusUpdating.set(false);
+    }
+  }
+
+  async recordNoSubjectAttempt(): Promise<void> {
+    if (this.attemptCreating()) return;
+    const setup = this.state.setup();
+    this.attemptCreating.set(true);
+    try {
+      await this.api.createProtocolAttempt({
+        attempt_type: 'no_subject',
+        condition_id: setup.condition_id,
+        trial_number: setup.trial_number,
+        status: 'no_output',
+        actor: 'dashboard-operator',
+        reason: 'No-subject false-alarm control attempt'
+      });
+      this.completionMatrix.set(await this.api.loadCompletionMatrix());
+      this.snackBar.open('No-subject attempt recorded in the false-alarm denominator.', 'Dismiss', { duration: 4000 });
+    } catch (error: unknown) {
+      this.snackBar.open(error instanceof Error ? error.message : 'No-subject attempt could not be recorded.', 'Dismiss', { duration: 6000 });
+    } finally {
+      this.attemptCreating.set(false);
     }
   }
 
@@ -188,6 +260,10 @@ export class ParticipantStudySetupComponent implements OnInit {
 
   selectedParticipant(): ParticipantProfile | undefined {
     return this.participants().find(item => item.participant_id === this.state.setup().participant_id);
+  }
+
+  completionFor(participantId: string): CompletionParticipant | undefined {
+    return this.completionMatrix()?.participants?.[participantId];
   }
 
   realParticipantCount(): number {

@@ -126,7 +126,7 @@ def schedule_for_participant(sessions_root: str, participant_id: object) -> Dict
     root = _root(sessions_root)
     schedules = _load_map(root / SCHEDULE_PATH)
     protocol = load_protocol(sessions_root)
-    seed_text = f"{protocol.get('randomization_seed')}:{participant}"
+    seed_text = f"{protocol.get('randomization_seed') or 'DEFAULT_RVT_SEED_V16_5'}:{participant}"
     seed = hashlib.sha256(seed_text.encode("utf-8")).hexdigest()[:16]
     existing = schedules.get(participant)
     if isinstance(existing, dict) and isinstance(existing.get("entries"), list):
@@ -245,7 +245,7 @@ def objective_report(objective_id: object, *, objectives: Mapping[str, Any], ses
     wanted = _text(objective_id, limit=80)
     known = [item for item in objectives.get("objectives", []) if isinstance(item, dict) and str(item.get("id")) == wanted]
     if not known:
-        raise KeyError(wanted)
+        raise ValueError(f"Unknown objective: {wanted}")
     return {
         "ok": True,
         "objective_id": wanted,

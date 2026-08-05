@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-06 - PR #103 API contract alignment and study evidence error hardening in v16.5.9
+
+- **API Contract**: Added `study_analysis_list` and `study_analysis_cancel` routes to `web/src/app/services/backend-api.contract.ts`.
+- **Evidence Hardening**: Raised `ValueError` instead of uncaught `KeyError` in `objective_report` and added robust seed fallback in `schedule_for_participant`.
+- **Verification**: `test:version-contract` passes 16.5.9.
+
 ### 2026-08-04 - Isolate state-service browser guard fixtures
 
 - **Test isolation**: Reset the Angular test injector and browser storage around each `StateService` spec so a prior demo-mode preference cannot leak into the real-session rejection assertion on CI viewport shards.

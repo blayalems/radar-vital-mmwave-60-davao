@@ -6064,24 +6064,32 @@ def _run_study_analysis_job_once(sessions_root: str, job_id: str) -> None:
     family = str(job.get("model_family") or MODEL_FAMILY_GRADIENT_BOOSTING)
     objective_id = str(job.get("objective_id") or "")
     target = str(request.get("target") or ("rr" if objective_id == "objective_1_rr" else "hr"))
+    
+    args_file = output_dir / "analysis_args.txt"
+    with args_file.open("w", encoding="utf-8") as f:
+        f.write("train\n")
+        f.write("--radar\n")
+        for path in radar_paths:
+            f.write(f"{path}\n")
+        f.write("--ref\n")
+        for path in ref_paths:
+            f.write(f"{path}\n")
+        f.write("--out\n")
+        f.write(f"{output_dir}\n")
+        f.write("--model-family\n")
+        f.write(f"{family}\n")
+        f.write("--targets\n")
+        f.write(f"{target}\n")
+        f.write("--no-plots\n")
+        if bool(request.get("confirmatory")):
+            f.write("--three-way-split\n")
+            f.write("--confirmatory-evaluation\n")
+
     argv = [
         sys.executable,
         str(_TRAINER_ENTRYPOINT),
-        "train",
-        "--radar",
-        *radar_paths,
-        "--ref",
-        *ref_paths,
-        "--out",
-        str(output_dir),
-        "--model-family",
-        family,
-        "--targets",
-        target,
-        "--no-plots",
+        f"@{args_file}",
     ]
-    if bool(request.get("confirmatory")):
-        argv.extend(["--three-way-split", "--confirmatory-evaluation"])
 
     log_path = output_dir / "study_analysis.log"
     log_handle = None
@@ -15996,6 +16004,7 @@ def cmd_compare(args):
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
+        fromfile_prefix_chars='@',
         description=f"Radar Vital Trainer v{VERSION} - full session pipeline + ML training",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(

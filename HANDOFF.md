@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-06 - PR #104 Windows command line overflow prevention in v16.5.10
+
+- **Subprocess Arguments**: Updated `_run_study_analysis_job_once` in `rvt_trainer/monolith.py` to write session file paths to `analysis_args.txt` and pass `@analysis_args.txt` to `build_parser`, preventing `OSError: [WinError 206]` command line length overflow on Windows.
+- **Verification**: `test:version-contract` passes 16.5.10.
+
 ### 2026-08-04 - Coordinate v16.5.10 model-analysis readiness
 
 - **Backend evidence**: Added server-derived objective/cohort selection, bounded durable analysis jobs with list/recovery/cancel state, strict LOSO/hash/provenance promotion checks, and qualified no-subject denominators; cancellation is checked again before worker spawn.

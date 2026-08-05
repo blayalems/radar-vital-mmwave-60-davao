@@ -131,7 +131,7 @@ export class ParticipantStudySetupComponent implements OnInit {
       }
       const selected = this.state.setup().participant_id;
       const selectedParticipant = participants.find(item => item.participant_id === selected);
-      if (selected && (!selectedParticipant || selectedParticipant.status === 'withdrawn')) {
+      if (selected && (!selectedParticipant || (selectedParticipant.status !== 'active' && selectedParticipant.participant_id !== 'P-DEMO'))) {
         this.clearParticipantSelection();
       }
       const demo = participants.find(item => item.participant_id === 'P-DEMO');
@@ -207,11 +207,12 @@ export class ParticipantStudySetupComponent implements OnInit {
         condition_id: setup.condition_id,
         trial_number: setup.trial_number,
         status: 'no_output',
+        duration_s: setup.duration_s,
         actor: 'dashboard-operator',
         reason: 'No-subject false-alarm control attempt'
       });
       this.completionMatrix.set(await this.api.loadCompletionMatrix());
-      this.snackBar.open('No-subject attempt recorded in the false-alarm denominator.', 'Dismiss', { duration: 4000 });
+      this.snackBar.open('No-subject attempt logged. It counts toward the attempted ledger; a session-backed 150-second evidence row is required for the qualified denominator.', 'Dismiss', { duration: 5500 });
     } catch (error: unknown) {
       this.snackBar.open(error instanceof Error ? error.message : 'No-subject attempt could not be recorded.', 'Dismiss', { duration: 6000 });
     } finally {
@@ -220,7 +221,7 @@ export class ParticipantStudySetupComponent implements OnInit {
   }
 
   selectParticipant(participant: ParticipantProfile): void {
-    if (participant.status === 'withdrawn') return;
+    if (participant.status !== 'active' && participant.participant_id !== 'P-DEMO') return;
     this.updateSetup({
       participant_id: participant.participant_id,
       subject_label: participant.display_code
@@ -290,7 +291,7 @@ export class ParticipantStudySetupComponent implements OnInit {
   private hasActiveSelection(): boolean {
     const selected = this.state.setup().participant_id;
     return Boolean(selected && this.participants().some(
-      participant => participant.participant_id === selected && participant.status !== 'withdrawn'
+      participant => participant.participant_id === selected && (participant.status === 'active' || participant.participant_id === 'P-DEMO')
     ));
   }
 

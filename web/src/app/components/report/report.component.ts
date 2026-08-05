@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit, ViewChild, ElementRef, AfterViewInit, effect } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 // Angular Material 3 modules
@@ -13,7 +13,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatListModule } from '@angular/material/list';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { DownloadRecord, SessionDataPayload, SessionNotesPayload, SessionPredictionResponse, SessionRecord, SessionSignoff, SessionTagsResponse, SessionTrainingStatus, StudyObjectiveReport } from '../../models/rvt.models';
+import { DownloadRecord, SessionDataPayload, SessionNotesPayload, SessionPredictionResponse, SessionRecord, SessionSignoff, SessionTagsResponse, SessionTrainingStatus, StudyAnalysisJob, StudyObjectiveReport } from '../../models/rvt.models';
 import { StateService } from '../../services/state.service';
 import { ApiService } from '../../services/api.service';
 import { ReportRequestCoordinator } from './report-request-coordinator.service';
@@ -22,6 +22,7 @@ import { ReportRequestCoordinator } from './report-request-coordinator.service';
   selector: 'app-report',
   imports: [
     DatePipe,
+    DecimalPipe,
     FormsModule,
     MatCardModule,
     MatButtonModule,
@@ -71,6 +72,11 @@ export class ReportComponent implements OnInit, AfterViewInit {
   objectiveReports: StudyObjectiveReport[] = [];
   objectiveReportsLoading = false;
   objectiveReportsError = '';
+  studyAnalysisJob: StudyAnalysisJob | null = null;
+  studyAnalysisLoading = false;
+  studyAnalysisError = '';
+  studyAnalysisObjective: 'objective_1_rr' | 'objective_4_hr' = 'objective_1_rr';
+  studyAnalysisFamily: 'gradient_boosting' | 'cnn_1d' = 'gradient_boosting';
   sessionDataRows: Array<Record<string, number | string | null>> = [];
   sessionsLoading = false;
   sessionsError = '';
@@ -80,6 +86,7 @@ export class ReportComponent implements OnInit, AfterViewInit {
   signoff: SessionSignoff = { session_id: '', operator_name: '', initials: '', validation_comment: '', signed_at: null };
   ngOnInit() {
     this.loadSessions();
+    void this.loadLatestStudyAnalysis();
   }
 
   ngAfterViewInit() {
@@ -100,6 +107,90 @@ export class ReportComponent implements OnInit, AfterViewInit {
       this.objectiveReportsLoading = false;
       this.cdr.markForCheck();
     }
+  }
+
+  async startStudyAnalysis(): Promise<void> {
+    if (this.studyAnalysisLoading || this.studyAnalysisIsActive()) return;
+    this.studyAnalysisLoading = true;
+    this.studyAnalysisError = '';
+    try {
+      const response = await this.api.startStudyAnalysis({
+        objective_id: this.studyAnalysisObjective,
+        // The backend resolves the complete participant-bound cohort. Sending
+        // only the selected report session would make a confirmatory run look
+        // complete while silently omitting the protocol denominator.
+        session_ids: [],
+        model_family: this.studyAnalysisFamily
+      });
+      this.studyAnalysisJob = response.job;
+      this.snackBar.open(`Study analysis ${response.job.status}.`, 'Dismiss', { duration: 3500 });
+    } catch (error: unknown) {
+      this.studyAnalysisError = error instanceof Error ? error.message : 'Study analysis could not be started.';
+    } finally {
+      this.studyAnalysisLoading = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  async refreshStudyAnalysis(): Promise<void> {
+    const jobId = this.studyAnalysisJob?.job_id;
+    if (!jobId || this.studyAnalysisLoading) return;
+    this.studyAnalysisLoading = true;
+    try {
+      const response = await this.api.loadStudyAnalysis(jobId);
+      this.studyAnalysisJob = response.job;
+      this.cdr.markForCheck();
+    } catch (error: unknown) {
+      this.studyAnalysisError = error instanceof Error ? error.message : 'Study analysis status is unavailable.';
+      this.cdr.markForCheck();
+    } finally {
+      this.studyAnalysisLoading = false;
+    }
+  }
+
+  async cancelStudyAnalysis(): Promise<void> {
+    const jobId = this.studyAnalysisJob?.job_id;
+    if (!jobId || this.studyAnalysisLoading) return;
+    this.studyAnalysisLoading = true;
+    try {
+      const response = await this.api.cancelStudyAnalysis(jobId);
+      this.studyAnalysisJob = response.job;
+      this.snackBar.open('Study analysis cancellation requested.', 'Dismiss', { duration: 3500 });
+      this.cdr.markForCheck();
+    } catch (error: unknown) {
+      this.studyAnalysisError = error instanceof Error ? error.message : 'Study analysis could not be cancelled.';
+      this.cdr.markForCheck();
+    } finally {
+      this.studyAnalysisLoading = false;
+    }
+  }
+
+  async loadLatestStudyAnalysis(): Promise<void> {
+    try {
+      const response = await this.api.loadStudyAnalyses(1);
+      const latest = response.jobs?.[0];
+      if (latest) {
+        this.studyAnalysisJob = latest;
+        if (latest.objective_id === 'objective_1_rr' || latest.objective_id === 'objective_4_hr') {
+          this.studyAnalysisObjective = latest.objective_id;
+        }
+        const family = latest.model_family;
+        if (family === 'gradient_boosting' || family === 'cnn_1d') this.studyAnalysisFamily = family;
+      }
+    } catch (_) {
+      // The report remains usable when the durable job index is unavailable.
+    } finally {
+      this.cdr.markForCheck();
+    }
+  }
+
+  studyAnalysisIsActive(): boolean {
+    return ['queued', 'running', 'cancelling'].includes(String(this.studyAnalysisJob?.status || ''));
+  }
+
+  studyAnalysisProgress(): number {
+    const progress = Number(this.studyAnalysisJob?.progress_pct);
+    return Number.isFinite(progress) ? Math.max(0, Math.min(100, progress)) : 0;
   }
 
   selectSessionChip(sessionId: string): void {

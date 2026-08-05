@@ -425,13 +425,65 @@
   border-color: var(--md-sys-color-secondary);
 }
 
+.analysis-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.analysis-choice-row button {
+  flex: 1 1 210px;
+  min-height: 40px;
+  border-color: var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.analysis-choice-row button.selected {
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.analysis-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.analysis-evidence-grid span {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--rv-r2);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.75rem;
+}
+
+.analysis-evidence-grid strong {
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--rvt-mono-font);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.analysis-last-line {
+  margin: 10px 0 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
 .error-text {
   color: var(--md-sys-color-error);
 }
 
 @media (max-width: 760px) {
   .compare-grid,
-  .objective-report-grid {
+  .objective-report-grid,
+  .analysis-evidence-grid {
     grid-template-columns: 1fr;
   }
 

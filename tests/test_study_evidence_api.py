@@ -160,6 +160,10 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["job"]["job_id"] == job_id
 
+    status, response = _request(study_server, "GET", "/api/study/analysis?limit=5")
+    assert status == 200
+    assert response["jobs"][0]["job_id"] == job_id
+
     status, response = _request(
         study_server,
         "GET",
@@ -168,7 +172,7 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["objective_id"] == "objective_1_rr"
     assert response["status"] == "inconclusive"
-    assert response["provenance"]["product_version"] == "16.5.9"
+    assert response["provenance"]["product_version"] == "16.5.10"
 
 
 def test_study_evidence_routes_are_operator_protected(study_server: _ControlServer):
@@ -183,7 +187,9 @@ def test_study_evidence_routes_are_operator_protected(study_server: _ControlServ
         ("GET", "/api/sessions/s01/references"),
         ("POST", "/api/sessions/s01/references/rr-adjudication"),
         ("POST", "/api/study/analysis"),
+        ("GET", "/api/study/analysis"),
         ("GET", "/api/study/analysis/JOB-1"),
+        ("DELETE", "/api/study/analysis/JOB-1"),
         ("GET", "/api/study/objectives/objective_1_rr/report"),
     )
     for method, path in cases:

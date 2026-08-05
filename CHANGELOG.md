@@ -6,6 +6,22 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.5.10 model-analysis readiness (in progress)
+
+- Promoted the coordinated firmware, trainer, Angular, PWA, Capacitor, and
+  Tauri carriers to v16.5.10 while keeping the v16.5.9 session/protocol schema
+  identities stable for replay and migration.
+- Added backend-authoritative study-analysis jobs with bounded admission,
+  cancellation, durable status recovery, participant-cohort discovery, LOSO
+  gating, artifact/hash checks, and a statistics phase that fails closed when
+  the draft plan or optional dependencies are unavailable.
+- Kept capture model-agnostic by default (`model_family: "none"`) and moved
+  GBR/experimental 1-D CNN selection into Model Lab for same-cohort comparison;
+  the frontend now exposes RR and HR objectives, progress, provenance state,
+  and actionable worker evidence.
+- Separated attempted from qualified no-subject controls and documented the
+  hardware/software/statistics feedback loop for manuscript reproduction.
+
 ### v16.5.9 protocol-attempt provenance (in progress)
 
 - Advance the coordinated firmware, trainer, dashboard, APK, and EXE release

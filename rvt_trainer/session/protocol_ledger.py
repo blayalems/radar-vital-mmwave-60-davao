@@ -46,6 +46,7 @@ CONFIRMATORY_CONDITION_IDS = (
     "d100_cardboard",
 )
 TRIAL_NUMBERS = (1, 2, 3)
+NO_SUBJECT_MIN_DURATION_S = 150.0
 _PARTICIPANT_RE = re.compile(r"^P-[0-9]{3}$")
 _CONDITION_RE = re.compile(r"^d[0-9]{3}_(?:none|cardboard)$")
 _LEDGER_LOCK = threading.RLock()
@@ -284,6 +285,16 @@ def _register_protocol_attempt_unlocked(
         product_version=payload.get("product_version"),
         protocol_id=payload.get("protocol_id"),
     )
+    if attempt_type == "no_subject":
+        # Preserve the evidence fields needed to distinguish an attempted
+        # click from a qualified 150-second control capture.  Missing fields
+        # intentionally leave the row in the attempted denominator only.
+        record["session_id"] = _safe_text(payload.get("session_id"), limit=120) or None
+        record["duration_s"] = payload.get("duration_s")
+        record["frozen_configuration_hash"] = _safe_text(
+            payload.get("frozen_configuration_hash"), limit=128
+        ) or None
+        record["false_alarm_count"] = payload.get("false_alarm_count")
     attempts.append(record)
     existing["schema_version"] = PROTOCOL_ATTEMPTS_SCHEMA_VERSION
     existing["attempts"] = attempts
@@ -350,6 +361,29 @@ def list_protocol_attempts(
     return rows
 
 
+def _qualified_no_subject(row: Mapping[str, object], sessions_root: str) -> bool:
+    if row.get("attempt_type") != "no_subject" or str(row.get("status") or "") not in TERMINAL_ATTEMPT_STATUSES:
+        return False
+    try:
+        duration = float(row.get("duration_s"))
+        false_alarm_count = int(row.get("false_alarm_count"))
+    except (TypeError, ValueError):
+        return False
+    if duration < NO_SUBJECT_MIN_DURATION_S or false_alarm_count < 0:
+        return False
+    frozen_hash = str(row.get("frozen_configuration_hash") or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", frozen_hash):
+        return False
+    session_id = _safe_text(row.get("session_id"), limit=120)
+    if not session_id or "/" in session_id or "\\" in session_id or session_id in {".", ".."}:
+        return False
+    root = Path(sessions_root).resolve()
+    session_root = (root / session_id).resolve()
+    if session_root.parent != root or session_root.name != session_id:
+        return False
+    return (session_root / "session_manifest.json").is_file()
+
+
 def completion_matrix(sessions_root: str) -> Dict[str, object]:
     """Build participant × condition × repetition completion evidence."""
 
@@ -411,6 +445,12 @@ def completion_matrix(sessions_root: str) -> Dict[str, object]:
             1 for row in matrix.values() if row.get("protocol_complete")
         ),
         "no_subject_attempt_count": len(no_subject),
+        "no_subject_qualified_count": sum(
+            1 for row in no_subject if _qualified_no_subject(row, sessions_root)
+        ),
+        "no_subject_unqualified_count": sum(
+            1 for row in no_subject if not _qualified_no_subject(row, sessions_root)
+        ),
         "no_subject_expected": 72,
         "attempt_count": len(rows),
     }
@@ -423,6 +463,7 @@ __all__ = [
     "CONFIRMATORY_CONDITION_IDS",
     "PROTOCOL_ATTEMPTS_SCHEMA_VERSION",
     "TRIAL_NUMBERS",
+    "NO_SUBJECT_MIN_DURATION_S",
     "allocate_attempt_id",
     "append_session_attempt_event",
     "canonical_logical_trial_id",

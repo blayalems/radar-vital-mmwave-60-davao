@@ -71,6 +71,33 @@ def test_no_subject_attempt_is_explicit_and_counted_in_matrix(tmp_path: Path):
     assert matrix["no_subject_expected"] == 72
 
 
+def test_no_subject_qualification_requires_session_backed_duration_and_hash(tmp_path: Path):
+    sessions_root = tmp_path / "sessions"
+    sessions_root.mkdir()
+    session = sessions_root / "no-subject-001"
+    session.mkdir()
+    (session / "session_manifest.json").write_text(
+        json.dumps({"session_id": session.name, "status": "completed"}),
+        encoding="utf-8",
+    )
+    register_protocol_attempt(
+        str(sessions_root),
+        {
+            "attempt_type": "no_subject",
+            "condition_id": "d060_none",
+            "trial_number": 1,
+            "status": "completed",
+            "session_id": session.name,
+            "duration_s": 150,
+            "frozen_configuration_hash": "a" * 64,
+            "false_alarm_count": 0,
+        },
+    )
+    matrix = completion_matrix(str(sessions_root))
+    assert matrix["no_subject_qualified_count"] == 1
+    assert matrix["no_subject_unqualified_count"] == 0
+
+
 def test_participant_status_history_retains_withdrawal_and_reversal(tmp_path: Path):
     sessions_root = tmp_path / "sessions"
     sessions_root.mkdir()

@@ -1,8 +1,8 @@
-# Radar Vital v16.5.9 Hardware–Software Feedback Loop
+# Radar Vital v16.5.10 Hardware–Software Feedback Loop
 
 This document is the canonical source for the system-process figures used by
-the repository and manuscript. It describes the shipped v16.5.9 product while
-keeping the wire protocol identity explicit: firmware v16.5.9 emits the frozen
+the repository and manuscript. It describes the shipped v16.5.10 product while
+keeping the wire protocol identity explicit: firmware v16.5.10 emits the frozen
 v15.2 CSV contract (222 columns, including the three fields introduced in
 v16.4 at columns 220–222).
 
@@ -27,14 +27,21 @@ The export writes Mermaid sources and LaTeX caption snippets to
 Mermaid-compatible renderer, then include the result in the manuscript. The
 figure IDs and captions below are stable integration points.
 
+Release rule: every product-affecting pull request increments exactly one
+semantic-version patch or minor step. The firmware filename, trainer/API
+identity, Angular/PWA identity, package locks, native packaging metadata,
+controlled-document register, and manuscript figure labels are updated in the
+same change. Stable schema identities (including `rvt-session-manifest-v1` and
+the predeclared statistical-plan ID) are not renamed for a release-only bump.
+
 <!-- figure:hardware-software-feedback-loop -->
 ```mermaid
 flowchart LR
     subject["Participant and reference device"]
     radar["MR60BHA2 60 GHz radar"]
-    mcu["XIAO ESP32-C6<br/>firmware v16.5.9"]
+    mcu["XIAO ESP32-C6<br/>firmware v16.5.10"]
     serial["USB serial<br/>v15.2 CSV, 222 columns"]
-    capture["Python trainer v16.5.9<br/>capture and quality ledger"]
+    capture["Python trainer v16.5.10<br/>capture and quality ledger"]
     dataset["Immutable session artifacts<br/>participant, session, timestamps"]
     features["Causal feature pipeline<br/>train-only fit and schema hash"]
     split["Recorded group split manifest<br/>outer participant holdout"]
@@ -44,7 +51,7 @@ flowchart LR
     evidence["Hashed evidence bundle<br/>JSON, CSV, plots and LaTeX tables"]
     registry["Signed model artifact and manifest<br/>family, split, seed, hashes"]
     api["Trainer prediction and report API"]
-    ui["Angular dashboard v16.5.9<br/>provenance, status and comparison"]
+    ui["Angular dashboard v16.5.10<br/>provenance, status and comparison"]
     manuscript["LaTeX manuscript<br/>figures, methods and results"]
     protocol["Reviewed protocol decision<br/>acquisition, firmware and software changes"]
     operator["Operator action<br/>placement, capture quality, retraining"]
@@ -62,7 +69,7 @@ flowchart LR
 ```
 
 Manuscript caption (`hardware-software-feedback-loop`):
-“Radar Vital v16.5.9 hardware–software feedback loop. The ESP32-C6 firmware
+“Radar Vital v16.5.10 hardware–software feedback loop. The ESP32-C6 firmware
 streams the frozen v15.2/222-column serial contract to the Python trainer.
 Immutable, participant-grouped session artifacts feed one causal preprocessing
 and holdout manifest shared by gradient boosting and the experimental 1-D CNN.
@@ -147,7 +154,7 @@ The session manifest must contain:
 `model_family`, `model_bundle_id`, `logical_trial_id`, `attempt_id`, and
 `attempt_type`.
 
-The v16.5.9 capture rule is that `capture_provenance` is written once at
+The v16.5.10 capture rule is that `capture_provenance` is written once at
 allocation and never rewritten by analysis. Re-analysis appends an
 `analysis_runs[]` record containing the current source commit, feature-schema
 hash, and input-file hashes. Each capture also owns an append-only
@@ -225,6 +232,31 @@ from being added without a corresponding dashboard binding.
 - The CNN remains a host-side experimental option unless a separate, measured
   TinyML deployment and hardware acceptance plan is completed. The diagram
   must not imply that the current firmware performs CNN inference.
+
+## Analysis-job and evidence-promotion rule
+
+The dashboard's Model Lab submits an objective and model family, but the
+trainer owns objective classification and cohort selection. Participant capture
+is model-agnostic (`model_family: "none"`) unless a verified inference bundle is
+active; model selection therefore cannot create separate, confounded cohorts.
+The durable analysis-job index is recoverable after a browser refresh, and the
+frontend exposes the job's progress, phase, cohort selection, statistics state,
+and error/last-line evidence. Confirmatory RR
+analysis discovers the complete manifest-backed participant cohort, requires
+at least 38 independent participants with the six conditions and three trials,
+forces participant-disjoint LOSO outer folds, and writes a hashed run manifest.
+The durable job is bounded to one worker, survives refresh through its JSON
+record, supports cancellation, and exposes `queued`, `running`, `blocked`,
+`failed`, and `completed` states. A completed trainer run is still only
+descriptive until the approved statistics CLI produces a validated report;
+manifest paths, input/OOF/model hashes, source commit, protocol identity, and
+statistical status must all agree before an objective report can be `ready`.
+
+No-subject false-alarm rows are separated into attempted and qualified
+denominators. A qualified row requires a terminal status, a session-backed
+manifest, at least 150 seconds, a frozen configuration hash, and an explicit
+false-alarm count. The UI therefore cannot turn a button click or a missing
+OOF row into one of the 72 confirmatory control trials.
 
 ## Manuscript integration map
 

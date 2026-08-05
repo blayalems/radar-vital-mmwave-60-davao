@@ -293,6 +293,70 @@
       </mat-card-content>
     </mat-card>
 
+    <mat-card class="analysis-card" aria-label="Study model lab">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="header-avatar-ic">science</mat-icon>
+        <mat-card-title>Study Model Lab</mat-card-title>
+        <mat-card-subtitle>Queue a backend-authoritative GBR or experimental 1-D CNN run across the eligible participant cohort.</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="analysis-choice-row" role="radiogroup" aria-label="Study objective">
+          <button mat-stroked-button type="button" role="radio"
+                  [class.selected]="studyAnalysisObjective === 'objective_1_rr'"
+                  [attr.aria-checked]="studyAnalysisObjective === 'objective_1_rr'"
+                  (click)="studyAnalysisObjective = 'objective_1_rr'">RR correction (confirmatory)</button>
+          <button mat-stroked-button type="button" role="radio"
+                  [class.selected]="studyAnalysisObjective === 'objective_4_hr'"
+                  [attr.aria-checked]="studyAnalysisObjective === 'objective_4_hr'"
+                  (click)="studyAnalysisObjective = 'objective_4_hr'">HR correction (exploratory)</button>
+        </div>
+        <div class="analysis-choice-row" role="radiogroup" aria-label="Study model family">
+          <button mat-stroked-button type="button" role="radio"
+                  class="analysis-family-choice"
+                  [class.selected]="studyAnalysisFamily === 'gradient_boosting'"
+                  [attr.aria-checked]="studyAnalysisFamily === 'gradient_boosting'"
+                  (click)="studyAnalysisFamily = 'gradient_boosting'">GBR (default)</button>
+          <button mat-stroked-button type="button" role="radio"
+                  class="analysis-family-choice"
+                  [class.selected]="studyAnalysisFamily === 'cnn_1d'"
+                  [attr.aria-checked]="studyAnalysisFamily === 'cnn_1d'"
+                  (click)="studyAnalysisFamily = 'cnn_1d'">1-D CNN (experimental)</button>
+        </div>
+        @if (studyAnalysisError) {
+          <p class="error-text" role="alert">{{ studyAnalysisError }}</p>
+        }
+        <p>
+          Job: <strong>{{ studyAnalysisJob?.job_id || 'none' }}</strong>
+          · Status: <strong>{{ studyAnalysisJob?.status || 'not started' }}</strong>
+        </p>
+        @if (studyAnalysisJob) {
+          <mat-progress-bar mode="determinate" [value]="studyAnalysisProgress()" aria-label="Study analysis progress"></mat-progress-bar>
+          <div class="analysis-evidence-grid">
+            <span>Progress <strong>{{ studyAnalysisProgress() | number:'1.0-0' }}%</strong></span>
+            <span>Phase <strong>{{ studyAnalysisJob.phase || '--' }}</strong></span>
+            <span>Cohort <strong>{{ studyAnalysisJob.cohort_selection || '--' }}</strong></span>
+            <span>Statistics <strong>{{ studyAnalysisJob.statistics_status || 'not requested' }}</strong></span>
+          </div>
+          <p class="analysis-last-line" [class.error-text]="studyAnalysisJob.error" role="status">
+            {{ studyAnalysisJob.error || studyAnalysisJob.last_line || 'No worker message yet.' }}
+          </p>
+        }
+        <div class="notes-action-row">
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="startStudyAnalysis()" [disabled]="studyAnalysisLoading || studyAnalysisIsActive() || selectedSummary?.sandbox">
+            <mat-icon>play_arrow</mat-icon>{{ studyAnalysisLoading ? 'Starting...' : 'Run study analysis' }}
+          </button>
+          <button mat-button type="button" (click)="refreshStudyAnalysis()" [disabled]="!studyAnalysisJob || studyAnalysisLoading">
+            <mat-icon>refresh</mat-icon>Refresh job
+          </button>
+          <button mat-button color="warn" type="button" (click)="cancelStudyAnalysis()"
+                  [disabled]="!studyAnalysisJob || !['queued', 'running', 'cancelling'].includes(studyAnalysisJob.status) || studyAnalysisLoading">
+            <mat-icon>cancel</mat-icon>Cancel job
+          </button>
+        </div>
+        <small class="settings-help-text">Confirmatory reports remain blocked until the locked protocol, participant-disjoint LOSO OOF, and evidence ledger are present.</small>
+      </mat-card-content>
+    </mat-card>
+
     <mat-card class="analysis-card" aria-label="Session evidence controls">
       <mat-card-header>
         <mat-icon mat-card-avatar class="header-avatar-ic">label</mat-icon>

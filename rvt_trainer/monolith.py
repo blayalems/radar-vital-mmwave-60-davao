@@ -140,13 +140,18 @@ from rvt_trainer.session.study_objectives import study_objectives_payload as _st
 from rvt_trainer.session.study_evidence import (
     adjudicate_rr as _adjudicate_rr,
     append_reference as _append_reference,
+    cancel_analysis_job as _cancel_analysis_job,
     create_analysis_job as _create_analysis_job,
+    finish_analysis_job as _finish_analysis_job,
     load_analysis_job as _load_analysis_job,
+    list_analysis_jobs as _list_analysis_jobs,
     load_protocol as _load_study_protocol,
     load_references as _load_references,
     objective_report as _objective_report,
     save_protocol as _save_study_protocol,
     schedule_for_participant as _schedule_for_participant,
+    request_analysis_cancel as _request_analysis_cancel,
+    update_analysis_job as _update_analysis_job,
 )
 
 import warnings
@@ -156,9 +161,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.9"
-DASHBOARD_VERSION = "16.5.9"
-FIRMWARE_VERSION_EXPECTED = "v16.5.9"
+VERSION = "16.5.10"
+DASHBOARD_VERSION = "16.5.10"
+FIRMWARE_VERSION_EXPECTED = "v16.5.10"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -4728,7 +4733,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_9.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_10.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -5767,6 +5772,9 @@ def _compare_session_payload(root: str, session_id: str) -> Dict[str, object]:
 
 _ANALYSIS_JOBS: Dict[str, Dict[str, object]] = {}
 _ANALYSIS_JOBS_MAX = 32
+_STUDY_ANALYSIS_PROCS: Dict[str, subprocess.Popen] = {}
+_STUDY_ANALYSIS_LOCK = threading.RLock()
+_STUDY_ANALYSIS_SEMAPHORE = threading.BoundedSemaphore(1)
 _TRAINER_LOG: Deque[str] = deque(maxlen=200)
 _RATE_LIMIT: Dict[str, Tuple[float, float]] = {}
 _RATE_LIMIT_LOCK = threading.Lock()
@@ -5902,6 +5910,329 @@ def _session_path(sessions_root: str, session_id: str) -> Path:
     if target.parent != root or not target.is_dir():
         raise FileNotFoundError(session_id)
     return target
+
+
+def _study_analysis_output_dir(sessions_root: str, job_id: str) -> Path:
+    root = (Path(sessions_root).resolve() / "study_analysis" / str(job_id)).resolve()
+    root.parent.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _write_attempt_ledger_csv(sessions_root: str, output_dir: Path) -> Optional[Path]:
+    """Materialize the append-only attempt ledger for the stats CLI."""
+
+    aggregate = _read_json_if_exists(str(Path(sessions_root).resolve() / "protocol_attempts.json"))
+    attempts = aggregate.get("attempts") if isinstance(aggregate, dict) else None
+    if not isinstance(attempts, list) or not attempts:
+        return None
+    rows = [row for row in attempts if isinstance(row, dict)]
+    if not rows:
+        return None
+    fields = sorted({str(key) for row in rows for key in row.keys()})
+    path = output_dir / "attempt_ledger.csv"
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field) for field in fields})
+    return path
+
+
+def _run_study_statistics_job(sessions_root: str, output_dir: Path, job: Mapping[str, object]) -> Dict[str, object]:
+    """Run the controlled statistical phase after confirmatory training."""
+
+    status_path = output_dir / "statistics_status.json"
+    request = job.get("request") if isinstance(job.get("request"), dict) else {}
+    if not bool(request.get("confirmatory")):
+        result = {"status": "not_requested", "reason": "exploratory job"}
+        save_json(result, str(status_path))
+        return result
+    manifest_path = output_dir / "confirmatory_run_manifest.json"
+    manifest = _read_json_if_exists(str(manifest_path))
+    oof = manifest.get("outer_oof_predictions") if isinstance(manifest, dict) else None
+    oof_path = str(oof.get("path") or "") if isinstance(oof, dict) else ""
+    ledger_path = _write_attempt_ledger_csv(sessions_root, output_dir)
+    if not oof_path or ledger_path is None:
+        result = {
+            "status": "blocked",
+            "reason": "confirmatory statistics require outer OOF predictions and an attempted-trial ledger",
+        }
+        save_json(result, str(status_path))
+        return result
+    provenance_path = output_dir / "statistics_provenance.json"
+    provenance = {
+        "source_commit": manifest.get("source_commit"),
+        "product_version": manifest.get("product_version"),
+        "protocol_id": "rvt-study-session-v16.5.9",
+        "model_family": manifest.get("model_family"),
+        "split_ledger_sha256": manifest.get("split_ledger_sha256"),
+        "prediction_file_sha256": (oof or {}).get("sha256") if isinstance(oof, dict) else None,
+    }
+    save_json(provenance, str(provenance_path))
+    stats_path = output_dir / "statistical_report.json"
+    stats_log = output_dir / "statistics.log"
+    argv = [
+        sys.executable,
+        "-m",
+        "rvt_trainer.statistics",
+        "--input",
+        oof_path,
+        "--reference-column",
+        "ref_rr",
+        "--estimate-column",
+        "pred_rr_raw",
+        "--analysis-plan",
+        str(_REPO_ROOT / "quality" / "statistical-analysis-plan.json"),
+        "--provenance-json",
+        str(provenance_path),
+        "--attempt-ledger",
+        str(ledger_path),
+        "--confirmatory",
+        "--out",
+        str(stats_path),
+    ]
+    with stats_log.open("w", encoding="utf-8", errors="replace") as handle:
+        completed = subprocess.run(
+            argv,
+            cwd=str(_REPO_ROOT),
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+    result = {
+        "status": "completed" if completed.returncode == 0 and stats_path.is_file() else "blocked",
+        "exit_code": int(completed.returncode),
+        "report_path": str(stats_path) if stats_path.is_file() else None,
+        "log_path": str(stats_log),
+    }
+    save_json(result, str(status_path))
+    return result
+
+
+def _run_study_analysis_job_once(sessions_root: str, job_id: str) -> None:
+    """Execute one explicit study-analysis request and persist truthful state."""
+
+    job = _load_analysis_job(sessions_root, job_id)
+    if not isinstance(job, dict):
+        return
+    if str(job.get("status") or "") in {"cancelling", "cancelled"} or job.get("cancel_requested") is True:
+        return
+    request = job.get("request") if isinstance(job.get("request"), dict) else {}
+    session_ids = [str(value) for value in request.get("session_ids", []) if str(value).strip()]
+    if not session_ids:
+        _update_analysis_job(
+            sessions_root,
+            job_id,
+            {
+                "status": "blocked",
+                "error": "Select at least one recorded session before starting study analysis.",
+                "last_line": "Blocked: no recorded session IDs were supplied.",
+            },
+        )
+        return
+
+    radar_paths: list[str] = []
+    ref_paths: list[str] = []
+    try:
+        for session_id in session_ids:
+            session_dir = _session_path(sessions_root, session_id)
+            radar = session_dir / "radar.csv"
+            ref = session_dir / "ref.csv"
+            if not radar.is_file():
+                raise FileNotFoundError(f"{session_id}: radar.csv is missing")
+            if not ref.is_file():
+                raise FileNotFoundError(f"{session_id}: ref.csv is missing")
+            radar_paths.append(str(radar))
+            ref_paths.append(str(ref))
+    except (FileNotFoundError, ValueError) as exc:
+        _update_analysis_job(
+            sessions_root,
+            job_id,
+            {"status": "failed", "error": str(exc), "last_line": str(exc)},
+        )
+        return
+
+    # Cancellation can arrive after cohort validation but before the child
+    # process is spawned. Re-read the durable CAS state so a cancelled queued
+    # job never consumes trainer resources.
+    current = _load_analysis_job(sessions_root, job_id) or {}
+    if str(current.get("status") or "") in {"cancelling", "cancelled"} or current.get("cancel_requested") is True:
+        return
+
+    output_dir = _study_analysis_output_dir(sessions_root, job_id)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    family = str(job.get("model_family") or MODEL_FAMILY_GRADIENT_BOOSTING)
+    objective_id = str(job.get("objective_id") or "")
+    target = str(request.get("target") or ("rr" if objective_id == "objective_1_rr" else "hr"))
+    
+    args_file = output_dir / "analysis_args.txt"
+    with args_file.open("w", encoding="utf-8") as f:
+        f.write("train\n")
+        f.write("--radar\n")
+        for path in radar_paths:
+            f.write(f"{path}\n")
+        f.write("--ref\n")
+        for path in ref_paths:
+            f.write(f"{path}\n")
+        f.write("--out\n")
+        f.write(f"{output_dir}\n")
+        f.write("--model-family\n")
+        f.write(f"{family}\n")
+        f.write("--targets\n")
+        f.write(f"{target}\n")
+        f.write("--no-plots\n")
+        if bool(request.get("confirmatory")):
+            f.write("--three-way-split\n")
+            f.write("--confirmatory-evaluation\n")
+
+    argv = [
+        sys.executable,
+        str(_TRAINER_ENTRYPOINT),
+        f"@{args_file}",
+    ]
+
+    log_path = output_dir / "study_analysis.log"
+    log_handle = None
+    try:
+        log_handle = log_path.open("w", encoding="utf-8", errors="replace")
+        child_env = os.environ.copy()
+        child_env["RVT_STUDY_ANALYSIS_JOB_ID"] = job_id
+        proc = subprocess.Popen(
+            argv,
+            cwd=str(_REPO_ROOT),
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            env=child_env,
+        )
+    except OSError as exc:
+        if log_handle is not None:
+            try:
+                log_handle.close()
+            except Exception:
+                pass
+        _update_analysis_job(
+            sessions_root,
+            job_id,
+            {"status": "failed", "error": str(exc), "last_line": str(exc)},
+        )
+        return
+
+    with _STUDY_ANALYSIS_LOCK:
+        _STUDY_ANALYSIS_PROCS[job_id] = proc
+    try:
+        _update_analysis_job(
+            sessions_root,
+            job_id,
+            {
+                "status": "running",
+                "pid": proc.pid,
+                "argv": argv,
+                "output_dir": str(output_dir),
+                "log_path": str(log_path),
+                "started_at": _iso_now(),
+                "progress_pct": 1,
+                "last_line": "Trainer worker started.",
+            },
+        )
+        while proc.poll() is None:
+            progress = _read_json_if_exists(str(output_dir / "training_progress.json"))
+            if isinstance(progress, dict):
+                total = max(0, int(progress.get("n_estimators_total") or 0))
+                done = max(0, int(progress.get("n_estimators_done") or 0))
+                pct = min(99, int(round(done * 100 / total))) if total else 1
+                _update_analysis_job(
+                    sessions_root,
+                    job_id,
+                    {
+                        "progress_pct": pct,
+                        "phase": progress.get("phase"),
+                        "last_line": f"{progress.get('phase') or progress.get('status') or 'running'}",
+                    },
+                )
+            time.sleep(0.5)
+        exit_code = int(proc.returncode or 0)
+        current = _load_analysis_job(sessions_root, job_id) or {}
+        if str(current.get("status") or "") in {"cancelling", "cancelled"}:
+            return
+        statistics = _run_study_statistics_job(sessions_root, output_dir, job) if exit_code == 0 else {"status": "not_run"}
+        _finish_analysis_job(
+            sessions_root,
+            job_id,
+            {
+                "status": "completed" if exit_code == 0 else "failed",
+                "exit_code": exit_code,
+                "progress_pct": 100 if exit_code == 0 else int(current.get("progress_pct") or 0),
+                "last_line": "Trainer worker completed." if exit_code == 0 else "Trainer worker failed; inspect study_analysis.log.",
+                "completed_at": _iso_now(),
+                "statistics_status": statistics.get("status"),
+                "statistics_report": statistics.get("report_path"),
+            },
+        )
+    except Exception as exc:
+        try:
+            if proc.poll() is None:
+                proc.terminate()
+                proc.wait(timeout=3.0)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        try:
+            _finish_analysis_job(
+                sessions_root,
+                job_id,
+                {
+                    "status": "failed",
+                    "error": str(exc),
+                    "last_line": "Study analysis worker failed before terminal status was written.",
+                    "completed_at": _iso_now(),
+                },
+            )
+        except Exception:
+            pass
+    finally:
+        if log_handle is not None:
+            try:
+                log_handle.close()
+            except Exception:
+                pass
+        with _STUDY_ANALYSIS_LOCK:
+            _STUDY_ANALYSIS_PROCS.pop(job_id, None)
+
+
+def _run_study_analysis_job(sessions_root: str, job_id: str) -> None:
+    if not _STUDY_ANALYSIS_SEMAPHORE.acquire(blocking=False):
+        _update_analysis_job(
+            sessions_root,
+            job_id,
+            {
+                "status": "blocked",
+                "error": "Another study analysis is already running; retry after it completes.",
+                "last_line": "Blocked by the single-worker analysis admission limit.",
+            },
+        )
+        return
+    try:
+        _run_study_analysis_job_once(sessions_root, job_id)
+    finally:
+        _STUDY_ANALYSIS_SEMAPHORE.release()
+
+
+def _start_study_analysis_job(sessions_root: str, job: Mapping[str, object]) -> None:
+    job_id = str(job.get("job_id") or "").strip()
+    if not job_id:
+        return
+    with _STUDY_ANALYSIS_LOCK:
+        existing = _STUDY_ANALYSIS_PROCS.get(job_id)
+        if existing is not None and existing.poll() is None:
+            return
+    threading.Thread(
+        target=_run_study_analysis_job,
+        args=(sessions_root, job_id),
+        name=f"study-analysis-{job_id}",
+        daemon=True,
+    ).start()
 
 
 def _process_memory_mb() -> float:
@@ -7566,6 +7897,14 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             found = next((p for p in candidates if p.exists()), None)
             self._send_json(200, {"ok": bool(found), "session_id": sid, "summary": (_read_json_if_exists(str(found)) if found else None), "path": str(found) if found else None})
             return
+        if route_name == "study_analysis_list":
+            limit_raw = (parse_qs(parsed.query).get("limit") or ["20"])[-1]
+            try:
+                limit = int(limit_raw)
+            except (TypeError, ValueError):
+                limit = 20
+            self._send_json(200, {"ok": True, "jobs": _list_analysis_jobs(self.server.sessions_root, limit=limit)})
+            return
         if route_name == "study_analysis_status":
             job_id = unquote(path.rsplit("/", 1)[-1])
             job = _load_analysis_job(self.server.sessions_root, job_id)
@@ -7584,6 +7923,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     objective_id,
                     objectives=_study_objectives_payload(),
                     sessions_root=self.server.sessions_root,
+                    product_version=VERSION,
                 )
             except KeyError:
                 self._send_json(
@@ -7749,6 +8089,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     _api_error("INVALID_STUDY_ANALYSIS", str(exc)),
                 )
                 return
+            _start_study_analysis_job(self.server.sessions_root, job)
             self._send_json(202, {"ok": True, "job": job})
             return
         if route_name == "auth_login":
@@ -7883,14 +8224,24 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "duration_s",
                 study_assignment.get("planned_duration_s"),
             )
+            # Session capture is model-neutral unless a concrete bundle is
+            # attached.  This protects provenance from stale client state and
+            # keeps model-family choice inside the evidence-bound Model Lab
+            # workflow.
+            model_bundle = str(body.get("model_bundle") or "").strip()
+            model_family = (
+                str(body.get("model_family") or "").strip() or None
+                if model_bundle
+                else None
+            )
             start_provenance = {
                 **study_assignment,
                 "subject_profile_id": body.get(
                     "subject_profile_id",
                     "adult_default",
                 ),
-                "model_family": body.get("model_family"),
-                "model_bundle": body.get("model_bundle"),
+                "model_family": model_family,
+                "model_bundle": model_bundle or None,
                 "client_compatibility": client_compatibility,
             }
             advanced = body.get("advanced") if isinstance(body.get("advanced"), dict) else {}
@@ -7908,8 +8259,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 "notify_char": advanced.get("notify_char"),
                 "dashboard_refresh_s": advanced.get("dashboard_refresh_s"),
                 **study_assignment,
-                "model_family": body.get("model_family"),
-                "model_bundle": body.get("model_bundle"),
+                "model_family": model_family,
+                "model_bundle": model_bundle or None,
                 "client_compatibility": client_compatibility,
             }
 
@@ -7983,8 +8334,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     notify_char=advanced.get("notify_char"),
                     dashboard_refresh_s=advanced.get("dashboard_refresh_s"),
                     **study_assignment,
-                    model_family=body.get("model_family"),
-                    model_bundle=body.get("model_bundle"),
+                    model_family=model_family,
+                    model_bundle=model_bundle or None,
                     client_compatibility=client_compatibility,
                 )
                 self._send_json(200, result)
@@ -8196,6 +8547,34 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         route_spec = _match_route("DELETE", path)
         route_name = route_spec.name if route_spec is not None else None
+        if route_name == "study_analysis_cancel":
+            job_id = unquote(path.rsplit("/", 1)[-1])
+            _request_analysis_cancel(
+                self.server.sessions_root,
+                job_id,
+                reason="Cancelled by operator.",
+            )
+            with _STUDY_ANALYSIS_LOCK:
+                proc = _STUDY_ANALYSIS_PROCS.get(job_id)
+            if proc is not None and proc.poll() is None:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=3.0)
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+            job = _cancel_analysis_job(
+                self.server.sessions_root,
+                job_id,
+                reason="Cancelled by operator.",
+            )
+            if job is None:
+                self._send_json(404, _api_error("STUDY_ANALYSIS_NOT_FOUND", "study analysis job not found"))
+            else:
+                self._send_json(200, {"ok": True, "job": job})
+            return
         if route_name == "session_delete":
             sid = unquote(path.split("/")[3])
             try:
@@ -8446,7 +8825,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_9.ino"),
+        Path("radar_vital_v16_5_10.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
@@ -13994,18 +14373,31 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
     participant_aware = _has_complete_study_metadata(base_df)
     group_column = "participant_id" if participant_aware else "session_id"
     group_ids = list(dict.fromkeys(base_df[group_column].tolist()))
+    expected_groups = [str(value) for value in group_ids]
     if len(group_ids) < 3:
         return {
             "enabled": False,
             "reason": f"need at least 3 {group_column} groups",
             "group_column": group_column,
+            "expected_groups": expected_groups,
+            "completed_groups": [],
+            "skipped_groups": expected_groups,
+            "complete": False,
         }
     folds = []
     outer_oof_frames = []
+    completed_groups = []
+    skipped_groups = []
     for i, holdout in enumerate(group_ids):
         train_source = base_df[base_df[group_column] != holdout].copy().reset_index(drop=True)
         eval_base = base_df[base_df[group_column] == holdout].copy().reset_index(drop=True)
         if train_source.empty or eval_base.empty:
+            skipped_groups.append(str(holdout))
+            folds.append({
+                f"holdout_{group_column}": str(holdout),
+                "skipped": True,
+                "reason": "empty_training_or_holdout_partition",
+            })
             continue
         fold_split = None
         if participant_aware:
@@ -14034,8 +14426,9 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
             allow_policy_features=bool(getattr(args, "allow_policy_features", False)),
         )
         if not fold_feature_cols:
+            skipped_groups.append(str(holdout))
             folds.append({
-                f"holdout_{group_column}": holdout,
+                f"holdout_{group_column}": str(holdout),
                 "skipped": True,
                 "reason": "no numeric features selected from the fold training sessions",
             })
@@ -14069,6 +14462,19 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
             model_rr, _ = fit_selected_target_model(
                 loo_train_df, loo_stop_df, "rr", X_train, X_stop,
                 params=params, args=args, random_state=args.random_state + 100 + i)
+        missing_targets = [
+            target for target, model in (("hr", model_hr), ("rr", model_rr))
+            if target in available_targets and model is None
+        ]
+        if missing_targets:
+            skipped_groups.append(str(holdout))
+            folds.append({
+                f"holdout_{group_column}": str(holdout),
+                "skipped": True,
+                "reason": "insufficient_training_rows_for_target",
+                "missing_targets": missing_targets,
+            })
+            continue
         pred = add_predictions(loo_eval_df, X_eval, model_hr=model_hr, model_rr=model_rr,
                                hr_slew_limit=args.slew_limit_hr_per_s, rr_slew_limit=args.slew_limit_rr_per_s)
         oof = pred.copy()
@@ -14076,6 +14482,8 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
         oof["outer_holdout_group"] = str(holdout)
         oof["model_family"] = str(getattr(args, "model_family", MODEL_FAMILY_GRADIENT_BOOSTING))
         oof["participant_disjoint"] = bool(participant_aware)
+        oof["source_commit"] = _source_commit()
+        oof["product_version"] = VERSION
         outer_oof_frames.append(oof)
         fold = {
             f"holdout_{group_column}": holdout,
@@ -14088,6 +14496,7 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
         if model_rr is not None:
             fold["rr_model"] = model_summary(pred, "rr")
         folds.append(fold)
+        completed_groups.append(str(holdout))
     out = {
         "enabled": True,
         "mode": (
@@ -14097,6 +14506,10 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
         ),
         "group_column": group_column,
         "folds": folds,
+        "expected_groups": expected_groups,
+        "completed_groups": completed_groups,
+        "skipped_groups": skipped_groups,
+        "complete": bool(not skipped_groups and set(completed_groups) == set(expected_groups)),
     }
     output_root = getattr(args, "out", None)
     if outer_oof_frames and output_root:
@@ -14105,7 +14518,8 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
             "participant_id", "session_id", "trial_id", "condition_id", "distance_m",
             "barrier_type", "timestamp_s", "ref_hr", "pred_hr_raw", "pred_hr",
             "hr_valid_for_eval", "ref_rr", "pred_rr_raw", "pred_rr", "rr_valid_for_eval",
-            "confirmatory_eligible",
+            "confirmatory_eligible", "logical_trial_id", "attempt_id", "source_commit",
+            "product_version",
         ]
         oof = pd.concat(outer_oof_frames, ignore_index=True)
         for column in oof_columns:
@@ -14139,6 +14553,133 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
             out[f"{target}_mean_rmse"] = float(np.mean(rmses)) if rmses else float("nan")
             out[f"{target}_mean_r"] = float(np.mean(rs)) if rs else float("nan")
     return out
+
+
+def _validate_confirmatory_loso(
+    loo_eval: Mapping[str, object],
+    *,
+    required_targets: Sequence[str] = ("rr",),
+) -> None:
+    """Fail closed unless a confirmatory run produced complete participant LOSO OOF."""
+
+    outer = loo_eval.get("outer_oof_predictions")
+    failures = []
+    if (
+        not bool(loo_eval.get("enabled"))
+        or loo_eval.get("mode") != "leave_one_participant_out"
+        or not bool(loo_eval.get("complete"))
+        or not isinstance(outer, Mapping)
+    ):
+        failures.append("complete participant-disjoint LOSO metadata")
+    expected = {str(value) for value in loo_eval.get("expected_groups") or []}
+    completed = {str(value) for value in loo_eval.get("completed_groups") or []}
+    skipped = {str(value) for value in loo_eval.get("skipped_groups") or []}
+    if not expected or expected != completed or skipped:
+        failures.append("exact outer-fold coverage with no skipped groups")
+    if isinstance(outer, Mapping):
+        path_value = str(outer.get("path") or "").strip()
+        path = Path(path_value).resolve() if path_value else None
+        expected_hash = str(outer.get("sha256") or "").strip().lower()
+        try:
+            row_count = int(outer.get("rows") or 0)
+        except (TypeError, ValueError):
+            row_count = 0
+        if path is None or not path.is_file() or not re.fullmatch(r"[0-9a-f]{64}", expected_hash) or _file_sha256(str(path)) != expected_hash or row_count < 1:
+            failures.append("non-empty hashed outer_oof_predictions.csv")
+        else:
+            try:
+                oof = pd.read_csv(path)
+            except Exception as exc:
+                failures.append(f"readable outer OOF artifact ({exc})")
+            else:
+                required_columns = {
+                    "outer_holdout_group", "participant_id", "session_id", "trial_id",
+                    "participant_disjoint", "confirmatory_eligible",
+                }
+                for target in required_targets:
+                    required_columns.update({
+                        f"ref_{target}", f"pred_{target}_raw", f"pred_{target}",
+                        f"{target}_valid_for_eval",
+                    })
+                missing = sorted(required_columns - set(oof.columns))
+                if missing:
+                    failures.append("OOF columns: " + ", ".join(missing))
+                else:
+                    if len(oof) != row_count or oof.empty:
+                        failures.append("OOF row count is positive and matches the manifest")
+                    if not oof["participant_disjoint"].map(lambda value: value is True or str(value).strip().lower() == "true").all():
+                        failures.append("all OOF rows are participant-disjoint")
+                    if not oof["confirmatory_eligible"].map(lambda value: value is True or str(value).strip().lower() == "true").all():
+                        failures.append("all OOF rows are confirmatory eligible")
+                    for target in required_targets:
+                        if not np.isfinite(pd.to_numeric(oof[f"ref_{target}"], errors="coerce")).any() or not np.isfinite(pd.to_numeric(oof[f"pred_{target}_raw"], errors="coerce")).any():
+                            failures.append(f"OOF contains finite {target.upper()} reference and raw predictions")
+                    if expected and set(oof["outer_holdout_group"].astype(str)) != expected:
+                        failures.append("OOF holdout groups match the LOSO ledger")
+    if failures:
+        raise ValueError(
+            "Confirmatory evaluation requires a complete participant-disjoint LOSO "
+            "run with a valid outer OOF artifact: " + "; ".join(failures)
+        )
+
+
+CONFIRMATORY_RUN_MANIFEST_SCHEMA_VERSION = "rvt-confirmatory-run-manifest-v1"
+CONFIRMATORY_ANALYSIS_PLAN_ID = "RVT-STA-PLAN-16.5.8"
+
+
+def _write_confirmatory_run_manifest(
+    args,
+    *,
+    split_info: Mapping[str, object],
+    loo_eval: Mapping[str, object],
+    available_targets: Sequence[str],
+) -> Dict[str, object]:
+    """Persist one auditable identity joining inputs, folds, OOF, and models."""
+
+    radar_paths = [str(path) for path in getattr(args, "radar", [])]
+    ref_paths = [str(path) for path in getattr(args, "ref", [])]
+    input_hashes = {
+        "radar": {os.path.abspath(path): _file_sha256(path) for path in radar_paths},
+        "reference": {os.path.abspath(path): _file_sha256(path) for path in ref_paths},
+    }
+    outer_oof = loo_eval.get("outer_oof_predictions")
+    outer_oof = outer_oof if isinstance(outer_oof, Mapping) else {}
+    manifest: Dict[str, object] = {
+        "schema_version": CONFIRMATORY_RUN_MANIFEST_SCHEMA_VERSION,
+        "status": "ready",
+        "product_version": VERSION,
+        "source_commit": _source_commit(),
+        "analysis_job_id": str(os.environ.get("RVT_STUDY_ANALYSIS_JOB_ID") or "") or None,
+        "model_family": str(getattr(args, "model_family", MODEL_FAMILY_GRADIENT_BOOSTING)),
+        "targets": [str(target) for target in available_targets],
+        # This is intentionally the predeclared, controlled analysis-plan
+        # identity.  It is not changed merely because the product patch moved.
+        "analysis_plan_id": CONFIRMATORY_ANALYSIS_PLAN_ID,
+        "protocol_id": STUDY_SESSION_SCHEMA_VERSION,
+        "collection_protocol_ids": [STUDY_SESSION_SCHEMA_VERSION],
+        "split_ledger_sha256": split_info.get("sha256"),
+        "outer_oof_predictions": {
+            "path": outer_oof.get("path"),
+            "sha256": outer_oof.get("sha256"),
+            "rows": outer_oof.get("rows"),
+        },
+        "input_file_sha256": input_hashes,
+        "model_artifact_sha256": _model_artifact_hashes(str(getattr(args, "out", ""))),
+        "folds": {
+            "group_column": loo_eval.get("group_column"),
+            "expected_groups": list(loo_eval.get("expected_groups") or []),
+            "completed_groups": list(loo_eval.get("completed_groups") or []),
+            "skipped_groups": list(loo_eval.get("skipped_groups") or []),
+            "complete": bool(loo_eval.get("complete")),
+        },
+        "created_at": _iso_now(),
+    }
+    path = os.path.join(str(getattr(args, "out", "")), "confirmatory_run_manifest.json")
+    save_json(manifest, path)
+    manifest["path"] = os.path.abspath(path)
+    manifest["sha256"] = _file_sha256(path)
+    return manifest
+
 
 def cmd_train(args):
     os.makedirs(args.out, exist_ok=True)
@@ -14195,11 +14736,29 @@ def cmd_train(args):
     _write_training_progress(status="running", n_done=0, phase="feature_engineering")
 
     require_confirmatory = bool(getattr(args, "confirmatory_evaluation", False))
+    if require_confirmatory and not bool(getattr(args, "three_way_split", False)):
+        raise ValueError(
+            "Confirmatory evaluation requires --three-way-split so the held-out "
+            "participant test partition remains separate from training and early stopping."
+        )
+    # A manuscript-confirmatory run is never allowed to silently fall back to
+    # the pooled validation metrics.  LOSO is forced here even when an older
+    # caller omitted --loo-eval; the run manifest below records that it was
+    # required by the confirmatory contract.
+    if require_confirmatory:
+        args.loo_eval = True
     if _has_any_study_metadata(base_df) and not _has_complete_study_metadata(base_df):
         raise ValueError(
             "Study metadata is present for only part of the training input. "
             "Every radar file must resolve to a complete session_manifest.json."
         )
+    if require_confirmatory:
+        participant_count = int(base_df["participant_id"].astype(str).nunique()) if "participant_id" in base_df else 0
+        if participant_count < 38:
+            raise ValueError(
+                "Confirmatory evaluation requires at least 38 independent participants "
+                f"from the approved protocol; found {participant_count}."
+            )
     if _has_complete_study_metadata(base_df):
         train_base, stop_base, eval_base, split_info = _participant_split(
             base_df,
@@ -14563,6 +15122,19 @@ def cmd_train(args):
 
     loo_eval = _run_loso_evaluation(base_df, args, params, available_targets) \
         if getattr(args, "loo_eval", False) else {"enabled": False}
+    if require_confirmatory:
+        _validate_confirmatory_loso(loo_eval, required_targets=available_targets)
+
+    confirmatory_manifest = (
+        _write_confirmatory_run_manifest(
+            args,
+            split_info=split_info,
+            loo_eval=loo_eval,
+            available_targets=available_targets,
+        )
+        if require_confirmatory
+        else None
+    )
 
     summary = {
         "version": VERSION, "split": split_info,
@@ -14604,6 +15176,14 @@ def cmd_train(args):
         "slew_limits": {"hr_per_s": args.slew_limit_hr_per_s, "rr_per_s": args.slew_limit_rr_per_s},
         "embedded_export": embedded_info,
         "loo_evaluation": loo_eval,
+        "confirmatory_contract": {
+            "requested": require_confirmatory,
+            "loso_required": require_confirmatory,
+            "loso_forced": bool(require_confirmatory),
+            "outer_oof_required": require_confirmatory,
+            "status": "ready" if require_confirmatory else "not_requested",
+        },
+        "confirmatory_run_manifest": confirmatory_manifest,
         "loo_eval": loo_eval,
         "train": {
             "hr_baseline": hr_base_train, "hr_model": hr_model_train,
@@ -15424,6 +16004,7 @@ def cmd_compare(args):
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
+        fromfile_prefix_chars='@',
         description=f"Radar Vital Trainer v{VERSION} - full session pipeline + ML training",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(

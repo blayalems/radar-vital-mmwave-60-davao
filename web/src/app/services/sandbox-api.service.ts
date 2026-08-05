@@ -143,6 +143,13 @@ export class SandboxApiService {
       const participantId = url.searchParams.get('participant_id') || 'P-DEMO';
       return this.studySchedule(participantId);
     }
+    if (url.pathname === '/api/study/analysis' && method === 'GET') {
+      try {
+        return { ok: true, jobs: [this.readSandboxStudyAnalysis('')] };
+      } catch {
+        return { ok: true, jobs: [] };
+      }
+    }
     if (url.pathname === '/api/study/analysis' && method === 'POST') {
       const input = this.parseJsonBody<StudyAnalysisRequest>(init?.body);
       const requestedFamily = String(input.model_family || 'gradient_boosting').toLowerCase();
@@ -153,6 +160,14 @@ export class SandboxApiService {
         status: 'completed',
         objective_id: input.objective_id || null,
         model_family: modelFamily,
+        request: {
+          ...input,
+          session_ids: [],
+          confirmatory: input.objective_id === 'objective_1_rr' || input.objective_id === 'objective_3_false_alarm'
+        },
+        progress_pct: 100,
+        statistics_status: 'blocked',
+        last_line: 'Sandbox analysis is descriptive only; no confirmatory statistics are fabricated.',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         sandbox: true
@@ -161,6 +176,12 @@ export class SandboxApiService {
       return { ok: true, job };
     }
     if (url.pathname.startsWith('/api/study/analysis/')) {
+      if (method === 'DELETE') {
+        const existing = this.readSandboxStudyAnalysis(url.pathname.split('/').pop() || '');
+        const job = { ...existing, status: 'cancelled', last_line: 'Sandbox analysis cancelled.', updated_at: new Date().toISOString() };
+        localStorage.setItem(SANDBOX_STUDY_ANALYSIS_KEY, JSON.stringify(job));
+        return { ok: true, job };
+      }
       const job = this.readSandboxStudyAnalysis(url.pathname.split('/').pop() || '');
       return { ok: true, job };
     }
@@ -179,6 +200,10 @@ export class SandboxApiService {
         condition_id: body['condition_id'] || null,
         trial_number: body['trial_number'] || null,
         status: body['status'] || 'allocated',
+        session_id: body['session_id'] || null,
+        duration_s: body['duration_s'] ?? null,
+        frozen_configuration_hash: body['frozen_configuration_hash'] || null,
+        false_alarm_count: body['false_alarm_count'] ?? null,
         terminal: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -220,6 +245,8 @@ export class SandboxApiService {
         barrier_type: setup.barrier_type,
         trial_number: setup.trial_number,
         planned_duration_s: setup.duration_s,
+        model_family: setup.model_family,
+        model_bundle: setup.model_bundle || undefined,
         operator: setup.operator_label || 'Demo operator',
         verdict: 'demo',
         summary: 'Sandbox session stopped locally; trainer was unavailable.',
@@ -413,6 +440,8 @@ export class SandboxApiService {
       participant_count: Object.keys(participants).length,
       protocol_complete_participant_count: Object.values(participants).filter(item => item.protocol_complete).length,
       no_subject_attempt_count: attempts.filter(item => item['attempt_type'] === 'no_subject').length,
+      no_subject_qualified_count: 0,
+      no_subject_unqualified_count: attempts.filter(item => item['attempt_type'] === 'no_subject').length,
       no_subject_expected: 72,
       attempt_count: attempts.length
     };
@@ -426,7 +455,7 @@ export class SandboxApiService {
     const conditions = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
     return {
       schema_version: 'rvt-study-objectives-v16.5.9',
-      product_version: '16.5.9',
+      product_version: PRODUCT_VERSION,
       confirmatory_conditions: conditions,
       trials_per_condition: 3,
       planned_duration_s: 150,
@@ -510,13 +539,14 @@ export class SandboxApiService {
     const objective = this.studyObjectives()['objectives'] as Array<Record<string, unknown>>;
     const known = objective.some(item => item['id'] === objectiveId);
     if (!known) throw new Error('study objective not found');
+    const status = objectiveId === 'objective_3_false_alarm' ? 'inconclusive' : 'descriptive';
     return {
       ok: true,
       objective_id: objectiveId,
       schema_version: 'rvt-study-report-v2',
-      status: known ? 'descriptive' : 'blocked',
+      status: known ? status : 'blocked',
       report: known ? { sandbox: true, note: 'Demo evidence is excluded from confirmatory claims.', objective: objective.find(item => item['id'] === objectiveId) || null } : null,
-      exclusions: [{ reason: 'sandbox_data', count: 1 }],
+      exclusions: [{ reason: objectiveId === 'objective_3_false_alarm' ? 'insufficient_qualified_no_subject_evidence' : 'sandbox_data', count: 1 }],
       provenance: { sandbox: true, product_version: PRODUCT_VERSION }
     };
   }

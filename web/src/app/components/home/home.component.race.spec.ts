@@ -210,6 +210,7 @@ describe('HomeComponent preflight request ownership', () => {
         barrier_type: 'none',
         trial_number: 1,
         planned_duration_s: 30,
+        model_family: 'none',
         ble_profile: 'ailink_oximeter',
         skip_countdown: false,
         client_handshake: clientReleaseHandshake(),

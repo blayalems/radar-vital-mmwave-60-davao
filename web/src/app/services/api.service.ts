@@ -27,6 +27,7 @@ import {
   ReferenceObservationInput,
   RrAdjudicationInput,
   StudyAnalysisRequest,
+  StudyAnalysisJobsResponse,
   StudyAnalysisResponse,
   StudyObjectiveReport,
   SubjectProfileRecord,
@@ -528,6 +529,15 @@ export class ApiService {
     return this.request<StudyAnalysisResponse>(`/api/study/analysis/${encodeURIComponent(jobId)}`);
   }
 
+  loadStudyAnalyses(limit = 20): Promise<StudyAnalysisJobsResponse> {
+    const bounded = Math.max(1, Math.min(100, Math.round(limit)));
+    return this.request<StudyAnalysisJobsResponse>(`/api/study/analysis?limit=${bounded}`);
+  }
+
+  cancelStudyAnalysis(jobId: string): Promise<StudyAnalysisResponse> {
+    return this.request<StudyAnalysisResponse>(`/api/study/analysis/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+  }
+
   loadObjectiveReport(objectiveId: string): Promise<StudyObjectiveReport> {
     return this.request<StudyObjectiveReport>(`/api/study/objectives/${encodeURIComponent(objectiveId)}/report`);
   }
@@ -612,6 +622,10 @@ export class ApiService {
       throw new Error('Session Start requires an idempotency key.');
     }
     const setup = this.state.setup();
+    // Do not carry a stale model selector into capture provenance without an
+    // explicitly attached bundle.  Model Lab owns model selection.
+    const modelBundle = String(setup.model_bundle || '').trim();
+    const modelFamily = modelBundle ? (setup.model_family || 'none') : 'none';
     const payload = {
       idempotency_key: stableIdempotencyKey,
       duration_s: setup.duration_s,
@@ -630,6 +644,8 @@ export class ApiService {
       barrier_type: setup.barrier_type,
       trial_number: setup.trial_number,
       planned_duration_s: setup.duration_s,
+      model_family: modelFamily,
+      model_bundle: modelBundle || undefined,
       ble_profile: setup.ble_profile,
       skip_countdown: setup.skip_countdown,
       client_handshake: clientReleaseHandshake(),

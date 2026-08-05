@@ -38,6 +38,9 @@ export interface SetupState {
   barrier_type: BarrierType;
   trial_number: number;
   skip_countdown: boolean;
+  /** Captures are model-agnostic unless a verified inference bundle is active. */
+  model_family?: 'none' | 'gradient_boosting' | 'cnn_1d';
+  model_bundle?: string;
 }
 
 export interface ParticipantProfile {
@@ -96,6 +99,8 @@ export interface CompletionMatrix {
   participant_count: number;
   protocol_complete_participant_count: number;
   no_subject_attempt_count: number;
+  no_subject_qualified_count?: number;
+  no_subject_unqualified_count?: number;
   no_subject_expected: number;
   attempt_count: number;
 }
@@ -112,6 +117,10 @@ export interface ProtocolAttemptInput {
   reason?: string;
   product_version?: string;
   protocol_id?: string;
+  session_id?: string;
+  duration_s?: number;
+  frozen_configuration_hash?: string;
+  false_alarm_count?: number;
 }
 
 export interface ProtocolAttemptRecord {
@@ -280,10 +289,22 @@ export interface StudyAnalysisJob {
   job_id: string;
   status: 'queued' | 'running' | 'completed' | 'failed' | string;
   objective_id?: string | null;
+  model_family?: 'gradient_boosting' | 'cnn_1d' | string;
+  progress_pct?: number;
+  phase?: string | null;
+  last_line?: string | null;
+  error?: string | null;
+  cohort_selection?: string | null;
+  statistics_status?: string | null;
+  request?: StudyAnalysisRequest;
   created_at?: string;
   updated_at?: string;
-  error?: string | null;
   [key: string]: unknown;
+}
+
+export interface StudyAnalysisJobsResponse {
+  ok?: boolean;
+  jobs: StudyAnalysisJob[];
 }
 
 export interface StudyAnalysisResponse {

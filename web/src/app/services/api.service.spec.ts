@@ -220,9 +220,19 @@ describe('ApiService', () => {
     analysisRequest.flush({ ok: true, job: { job_id: 'JOB-1', status: 'queued' } });
     await expect(analysis).resolves.toMatchObject({ job: { job_id: 'JOB-1' } });
 
+    const jobs = service.loadStudyAnalyses(1);
+    httpMock.expectOne('/api/study/analysis?limit=1').flush({ ok: true, jobs: [{ job_id: 'JOB-1', status: 'queued' }] });
+    await expect(jobs).resolves.toMatchObject({ jobs: [{ job_id: 'JOB-1' }] });
+
     const status = service.loadStudyAnalysis('JOB-1');
     httpMock.expectOne('/api/study/analysis/JOB-1').flush({ ok: true, job: { job_id: 'JOB-1', status: 'completed' } });
     await expect(status).resolves.toMatchObject({ job: { status: 'completed' } });
+
+    const cancelled = service.cancelStudyAnalysis('JOB-1');
+    const cancelRequest = httpMock.expectOne('/api/study/analysis/JOB-1');
+    expect(cancelRequest.request.method).toBe('DELETE');
+    cancelRequest.flush({ ok: true, job: { job_id: 'JOB-1', status: 'cancelled' } });
+    await expect(cancelled).resolves.toMatchObject({ job: { status: 'cancelled' } });
 
     const report = service.loadObjectiveReport('objective_1_rr');
     httpMock.expectOne('/api/study/objectives/objective_1_rr/report').flush({ ok: true, objective_id: 'objective_1_rr', status: 'inconclusive' });

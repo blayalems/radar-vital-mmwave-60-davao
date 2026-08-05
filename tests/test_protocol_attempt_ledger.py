@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from rvt_trainer.monolith import _write_session_manifest, save_json
+from rvt_trainer.monolith import _write_session_manifest, save_json, VERSION
 from rvt_trainer.session.protocol_ledger import (
     append_session_attempt_event,
     canonical_logical_trial_id,
@@ -164,7 +164,7 @@ def test_manifest_reanalysis_keeps_capture_identity_and_appends_analysis_run(tmp
     assert manifest["capture_provenance"]["product_version"] == "16.5.8"
     assert manifest["capture_provenance"]["source_commit"] == "capture-commit"
     assert manifest["analysis_runs"]
-    assert manifest["analysis_runs"][-1]["trainer_version"] == "16.5.9"
+    assert manifest["analysis_runs"][-1]["trainer_version"] == VERSION
     ledger = json.loads((session / "protocol_attempt.json").read_text(encoding="utf-8"))
     assert ledger["attempt_id"] == "AT-fixed"
     assert ledger["status"] == "completed"

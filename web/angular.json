@@ -26,10 +26,6 @@
               {
                 "glob": "**/*",
                 "input": "public"
-              },
-              {
-                "glob": "**/*",
-                "input": "../assets"
               }
             ],
             "styles": [

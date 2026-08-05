@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-06 - Verify main branch contracts and standalone dashboard build
+
+- **Test & Dashboard Verification**: Updated dynamic version assertion in `tests/test_protocol_attempt_ledger.py` and built the standalone HTML dashboard (`radar_vital_live_dashboard_v12_for_v16_0.html`). Verified 516/516 pytest cases, 10/10 QMS contract tests, 3/3 service worker tests, version contract (16.5.10), and source integrity across 17 critical files.
+- **Verification**: `npm run test:source-integrity`, `npm run test:qms-contract`, `npm run test:unit:sw`, `python -m pytest`, and `node scripts/build-angular.mjs` passed cleanly.
+
 ### 2026-08-06 - PR #104 Windows command line overflow prevention in v16.5.10
 
 - **Subprocess Arguments**: Updated `_run_study_analysis_job_once` in `rvt_trainer/monolith.py` to write session file paths to `analysis_args.txt` and pass `@analysis_args.txt` to `build_parser`, preventing `OSError: [WinError 206]` command line length overflow on Windows.

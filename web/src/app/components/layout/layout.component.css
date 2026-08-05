@@ -86,6 +86,7 @@
   min-height: 0;
   width: 100%;
   overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .rail.mat-drawer {

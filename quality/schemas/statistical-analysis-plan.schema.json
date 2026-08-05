@@ -4,7 +4,7 @@
   "title": "Radar Vital statistical analysis plan",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "schema_version", "plan_id", "effective_product_version", "status", "owner_role", "protocol", "primary", "secondary", "aggregation", "reports", "exclusions", "interpretation"],
+  "required": ["$schema", "schema_version", "plan_id", "effective_product_version", "status", "owner_role", "approval_required", "protocol", "primary", "secondary", "aggregation", "reports", "exclusions", "interpretation"],
   "properties": {
     "$schema": { "type": "string" },
     "schema_version": { "const": "rvt-analysis-plan-v1" },

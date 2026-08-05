@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-06 - PR #102 audit fixes & Android shell polish in v16.5.8
+
+- **QMS Schema**: Added `approval_required` to root `required` array in `quality/schemas/statistical-analysis-plan.schema.json`.
+- **Android Launcher Icon**: Added density-bucket PNG fallback launcher icon copying in `scripts/patch-android-shell.mjs` and updated `web/angular.json`.
+- **Android Top Layout**: Added `padding-top: env(safe-area-inset-top, 0px)` to `.app` container in `web/src/app/components/layout/layout.component.css` and adjusted topbar padding.
+- **Verification**: `test:version-contract` and QMS checks pass 100%.
+
 ### 2026-08-03 - Fail closed confirmatory statistics in v16.5.8
 
 - **Analysis unit**: Confirmatory OOF rows now form unique 30-second windows at 5-second stride before the 15-window/2-trial participant-balanced gates; short endpoint bursts and duplicate timestamps cannot qualify.

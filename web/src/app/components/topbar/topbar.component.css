@@ -219,7 +219,7 @@
   :host .topbar {
     gap: 8px !important;
     min-height: 64px;
-    padding: max(8px, env(safe-area-inset-top, 0px)) 10px 8px !important;
+    padding: 8px 10px 8px !important;
   }
 
   :host .crumbs {

@@ -343,7 +343,34 @@ async function installAdaptiveIcon() {
   await fs.writeFile(path.join(resMipmapAnydpiPath, 'ic_launcher_round.xml'), IC_LAUNCHER_ROUND_XML);
   console.log(`Installed adaptive icon XMLs into res/mipmap-anydpi-v26/`);
 
-  // 3. Ensure background color resource exists
+  // 3. Install rasterized PNG fallback icons into density mipmap directories
+  const resRoot = path.join(ROOT, 'android', 'app', 'src', 'main', 'res');
+  const srcPng512 = path.join(ROOT, 'assets', 'icons', 'icon-512.png');
+  const srcPng192 = path.join(ROOT, 'assets', 'icons', 'icon-192.png');
+  let pngSourceBuffer = null;
+  try {
+    pngSourceBuffer = await fs.readFile(srcPng512);
+  } catch (_) {
+    try {
+      pngSourceBuffer = await fs.readFile(srcPng192);
+    } catch (e) {
+      console.warn('[patch-android-shell] Warning: Source PNG icon not found for legacy mipmap density fallback:', e.message);
+    }
+  }
+
+  if (pngSourceBuffer) {
+    const densities = ['mipmap-mdpi', 'mipmap-hdpi', 'mipmap-xhdpi', 'mipmap-xxhdpi', 'mipmap-xxxhdpi'];
+    for (const density of densities) {
+      const dir = path.join(resRoot, density);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(path.join(dir, 'ic_launcher.png'), pngSourceBuffer);
+      await fs.writeFile(path.join(dir, 'ic_launcher_round.png'), pngSourceBuffer);
+      await fs.writeFile(path.join(dir, 'ic_launcher_foreground.png'), pngSourceBuffer);
+    }
+    console.log(`Installed PNG fallback launcher icons into density buckets: ${densities.join(', ')}`);
+  }
+
+  // 4. Ensure background color resource exists
   await ensureLauncherBackgroundColor('#0E5E63');
 }
 

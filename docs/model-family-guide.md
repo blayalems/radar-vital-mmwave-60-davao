@@ -11,6 +11,11 @@ Neither family replaces the firmware DSP/funnel estimator. Both consume the
 trainer's leakage-filtered, engineered feature matrix and predict HR and/or RR
 corrections on the host.
 
+Install `rvt-trainer[stats]` when the optional participant-random-intercept
+distance×barrier mixed-effects table is required. Reports fail closed with an
+explicit unavailable-dependency status when that research-only extra is not
+installed; GBR training itself does not import it.
+
 ## Recommended order
 
 1. Fix firmware publish coverage and validate the telemetry contract.
@@ -128,3 +133,21 @@ training, loading metadata for, or running the default gradient-boosting path.
 Do not select the CNN because its training loss is lower. Select a deployable
 family only after participant-held-out comparison at the protocol distances and
 barriers, with identical preprocessing rules and accuracy/statistical gates.
+
+## v16.5.8 statistical comparison contract
+
+The trainer retains one `outer_oof_predictions.csv` per leave-one-participant-
+out run. It contains raw predictions alongside the declared causal
+range/slew-limited outputs, fold identity, participant/session/trial/condition
+metadata, and a file hash. The statistical CLI consumes this artifact with the
+versioned `quality/statistical-analysis-plan.json` and can emit JSON, flat CSV,
+and LaTeX table outputs.
+
+For confirmatory results, 30-second windows at 5-second stride are reduced to a
+trial only when at least 15 windows are valid; a participant-condition requires
+at least two valid trials. The 1.0 m/no-cardboard RR TOST (±2 breaths/minute,
+alpha 0.05, 90% CI) is primary. The five remaining conditions are secondary
+and use Holm adjustment. RMSE/MAE and agreement are participant-balanced, and
+coverage/non-output denominators remain explicit. Fewer than 19 independent
+primary estimates is reported as inconclusive. These rules do not authorize
+CNN inference on the ESP32-C6.

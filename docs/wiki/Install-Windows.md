@@ -7,7 +7,7 @@ a Python trainer sidecar so the operator can run sessions from one PC.
 
 - Use a Windows 10/11 PC with WebView2 available.
 - Connect the XIAO ESP32-C6 / MR60BHA2 radar over USB.
-- Flash the current firmware, `radar_vital_v16_5_7.ino`, before validating the
+- Flash the current firmware, `radar_vital_v16_5_8.ino`, before validating the
   session-data metrics.
 - Keep the PC physically secured. Session CSV files and operator profiles live
   on this host.

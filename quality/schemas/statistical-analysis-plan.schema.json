@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/blayalems/radar-vital-mmwave-60-davao/quality/schemas/statistical-analysis-plan.schema.json",
+  "title": "Radar Vital statistical analysis plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "plan_id", "effective_product_version", "status", "owner_role", "approval_required", "protocol", "primary", "secondary", "aggregation", "reports", "exclusions", "interpretation"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "const": "rvt-analysis-plan-v1" },
+    "plan_id": { "type": "string", "pattern": "^RVT-STA-PLAN-[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "effective_product_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "status": { "enum": ["draft", "approved", "superseded"] },
+    "owner_role": { "const": "research_lead" },
+    "approval_required": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmatory_distances_m", "barriers", "trials_per_condition", "planned_duration_s", "window_duration_s", "window_stride_s", "minimum_valid_windows_per_trial", "minimum_valid_trials_per_participant_condition", "target_recruited_participants", "minimum_protocol_complete_participants", "no_subject_trial_count"],
+      "properties": {
+        "confirmatory_distances_m": { "type": "array", "const": [0.6, 0.8, 1.0] },
+        "barriers": { "type": "array", "const": ["none", "cardboard"] },
+        "trials_per_condition": { "const": 3 },
+        "planned_duration_s": { "const": 150 },
+        "window_duration_s": { "const": 30 },
+        "window_stride_s": { "const": 5 },
+        "minimum_valid_windows_per_trial": { "const": 15 },
+        "minimum_valid_trials_per_participant_condition": { "const": 2 },
+        "target_recruited_participants": { "const": 40 },
+        "minimum_protocol_complete_participants": { "const": 38 },
+        "no_subject_trial_count": { "const": 72 }
+      }
+    },
+    "primary": { "type": "object", "required": ["condition_id", "target", "margin_bpm", "alpha", "confidence_level", "minimum_independent_estimates"], "properties": { "condition_id": { "const": "d100_none" }, "target": { "const": "rr" }, "margin_bpm": { "const": 2.0 }, "alpha": { "const": 0.05 }, "confidence_level": { "const": 0.9 }, "minimum_independent_estimates": { "const": 19 } }, "additionalProperties": false },
+    "secondary": { "type": "object", "required": ["condition_ids", "multiplicity_adjustment"], "properties": { "condition_ids": { "const": ["d060_none", "d080_none", "d060_cardboard", "d080_cardboard", "d100_cardboard"] }, "multiplicity_adjustment": { "const": "holm" } }, "additionalProperties": false },
+    "aggregation": { "type": "object", "required": ["input", "unit", "sequence", "participant_balanced"], "properties": { "input": { "const": "outer_oof_predictions.csv" }, "unit": { "const": "participant_condition" }, "sequence": { "type": "array", "minItems": 3, "items": { "type": "string" } }, "participant_balanced": { "const": true } }, "additionalProperties": false },
+    "reports": { "type": "object", "required": ["retain_raw_predictions", "retain_raw_and_postprocessed_columns", "metrics", "agreement", "coverage_denominator", "false_alarm_test", "exports", "provenance"], "properties": { "retain_raw_predictions": { "const": true }, "retain_raw_and_postprocessed_columns": { "const": true }, "metrics": { "type": "array", "minItems": 1 }, "agreement": { "type": "string" }, "coverage_denominator": { "type": "string" }, "false_alarm_test": { "type": "string" }, "exports": { "const": ["json", "csv", "latex"] }, "provenance": { "type": "array", "minItems": 1 } }, "additionalProperties": false },
+    "exclusions": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "interpretation": { "type": "object", "required": ["equivalence_requires_both_one_sided_tost_tests", "non_significant_difference_is_not_equivalence", "fewer_than_minimum_independent_estimates", "cnn_deployment_claim"], "properties": { "equivalence_requires_both_one_sided_tost_tests": { "const": true }, "non_significant_difference_is_not_equivalence": { "const": true }, "fewer_than_minimum_independent_estimates": { "const": "inconclusive" }, "cnn_deployment_claim": { "type": "string" } }, "additionalProperties": false }
+  }
+}

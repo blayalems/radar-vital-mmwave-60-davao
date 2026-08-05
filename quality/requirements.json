@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R03",
-  "effective_product_version": "16.5.7",
+  "register_revision": "R04",
+  "effective_product_version": "16.5.8",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -78,7 +78,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_5_7.ino",
+        "radar_vital_v16_5_8.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [
@@ -369,13 +369,19 @@
           "path": "tests/test_trainer_model_families.py",
           "selector": "test_cnn_normalization_is_fitted_on_training_windows_only",
           "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_trainer_model_families.py",
+          "selector": "test_loso_retains_outer_oof_raw_and_postprocessed_prediction_contract",
+          "kind": "automated_test"
         }
       ],
       "artifact_types": ["trainer", "model_bundle", "dataset_manifest", "statistical_report"],
       "acceptance_criteria": [
         "GBR remains available without the optional CNN dependency.",
         "Confirmatory folds are participant-grouped and leak no preprocessing state from held-out participants.",
-        "Every model bundle records family, data, split, feature, hyperparameter, seed, dependency, and source provenance."
+        "Every model bundle records family, data, split, feature, hyperparameter, seed, dependency, and source provenance.",
+        "LOSO evaluation retains a canonical outer-OOF file with raw and declared post-processed predictions."
       ],
       "change_record_required": true
     },
@@ -390,9 +396,27 @@
       "status": "draft",
       "implementation_paths": [
         "docs/system-feedback-loop.md",
-        "rvt_trainer/monolith.py"
+        "rvt_trainer/statistics.py",
+        "rvt_trainer/monolith.py",
+        "quality/statistical-analysis-plan.json",
+        "quality/schemas/statistical-report.schema.json"
       ],
       "verification_refs": [
+        {
+          "path": "tests/test_statistical_analysis.py",
+          "selector": "test_confirmatory_aggregation_enforces_windows_and_trials_and_holm_conditions",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_statistical_analysis.py",
+          "selector": "test_exact_proportion_uses_clopper_pearson_interval",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_statistical_analysis.py",
+          "selector": "test_repeated_measures_agreement_clusters_bootstrap_by_participant",
+          "kind": "automated_test"
+        },
         {
           "path": "docs/system-feedback-loop.md",
           "selector": "Statistical interpretation rule and manuscript integration review",

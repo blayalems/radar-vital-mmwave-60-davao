@@ -5,6 +5,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
 const INSTANCE_SCHEMAS = new Map([
   ['quality/document-register.json', 'quality/schemas/document-register.schema.json'],
   ['quality/requirements.json', 'quality/schemas/requirements.schema.json']
@@ -12,6 +14,10 @@ const INSTANCE_SCHEMAS = new Map([
 const REQUIRED_SCHEMAS = [
   ...INSTANCE_SCHEMAS.values(),
   'quality/schemas/release-record.schema.json'
+];
+const RESEARCH_SCHEMAS = [
+  'quality/schemas/statistical-analysis-plan.schema.json',
+  'quality/schemas/statistical-report.schema.json'
 ];
 const DOCUMENT_ID_PATTERN = /^RVT-QMS-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 const REQUIREMENT_ID_PATTERN = /^RVT-[A-Z]+-[0-9]{3}$/;
@@ -62,6 +68,12 @@ function schemaTypeMatches(value, expected) {
   return typeof value === expected;
 }
 
+function schemaValueEqual(left, right) {
+  if (Object.is(left, right)) return true;
+  if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') return false;
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function resolveLocalSchemaRef(rootSchema, reference) {
   if (!String(reference).startsWith('#/')) return null;
   return String(reference)
@@ -105,7 +117,7 @@ function validateSchemaValue(value, schema, location, errors, rootSchema = schem
     if (!matched) errors.push(`${location}: does not match any allowed schema`);
     return;
   }
-  if (schema.const !== undefined && value !== schema.const) {
+  if (schema.const !== undefined && !schemaValueEqual(value, schema.const)) {
     errors.push(`${location}: must equal ${JSON.stringify(schema.const)}`);
   }
   if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
@@ -318,10 +330,18 @@ function resolvePullRequestBody({ root, prBody, prBodyFile, requirePrBody }, err
       return '';
     }
   }
-  if (typeof process.env.QMS_PR_BODY === 'string') return process.env.QMS_PR_BODY;
-  if (process.env.GITHUB_EVENT_PATH) {
-    const body = parsePullRequestEvent(process.env.GITHUB_EVENT_PATH, errors);
-    if (body || process.env.GITHUB_EVENT_NAME === 'pull_request') return body;
+  // Temporary fixture repositories must not consume the caller's CI event
+  // payload.  Otherwise a local contract test can accidentally validate the
+  // live PR body (or fail because a runner event path is unreadable).  The
+  // event environment is authoritative only for the real repository or when
+  // the caller explicitly requires PR-body validation.
+  const isRepositoryRoot = path.resolve(root) === REPOSITORY_ROOT;
+  if (isRepositoryRoot || requirePrBody) {
+    if (typeof process.env.QMS_PR_BODY === 'string') return process.env.QMS_PR_BODY;
+    if (process.env.GITHUB_EVENT_PATH) {
+      const body = parsePullRequestEvent(process.env.GITHUB_EVENT_PATH, errors);
+      if (body || process.env.GITHUB_EVENT_NAME === 'pull_request') return body;
+    }
   }
   if (requirePrBody) errors.push('pull request change record is required but no PR body was supplied');
   return '';
@@ -401,10 +421,14 @@ function validatePullRequestBody(body, errors) {
 
 function resolveBaseRef(root, explicitBaseRef) {
   const candidates = [];
+  const isRepositoryRoot = path.resolve(root) === REPOSITORY_ROOT;
   if (explicitBaseRef) candidates.push({ value: explicitBaseRef, strict: true });
-  else if (process.env.QMS_BASE_REF) candidates.push({ value: process.env.QMS_BASE_REF, strict: true });
-  else if (process.env.GITHUB_BASE_SHA) candidates.push({ value: process.env.GITHUB_BASE_SHA, strict: true });
-  else if (process.env.GITHUB_BASE_REF) {
+  else if (isRepositoryRoot && process.env.QMS_BASE_REF) candidates.push({ value: process.env.QMS_BASE_REF, strict: true });
+  else if (isRepositoryRoot && process.env.GITHUB_BASE_SHA) candidates.push({ value: process.env.GITHUB_BASE_SHA, strict: true });
+  // CI base refs describe the checked-out repository.  Never leak them into
+  // isolated fixture repositories used by the contract tests; a stack branch
+  // cannot resolve inside a fresh temporary git repository.
+  else if (isRepositoryRoot && process.env.GITHUB_BASE_REF) {
     candidates.push({ value: `origin/${process.env.GITHUB_BASE_REF}`, strict: false });
     candidates.push({ value: process.env.GITHUB_BASE_REF, strict: true });
   } else {
@@ -514,12 +538,17 @@ export function runQmsContract({
   root = path.resolve(root);
   const errors = [];
   const warnings = [];
-  for (const schemaPath of REQUIRED_SCHEMAS) {
+  const repositoryRoot = path.resolve(root) === REPOSITORY_ROOT;
+  const requiredSchemas = repositoryRoot ? [...REQUIRED_SCHEMAS, ...RESEARCH_SCHEMAS] : REQUIRED_SCHEMAS;
+  const instanceSchemas = repositoryRoot
+    ? new Map([...INSTANCE_SCHEMAS, ['quality/statistical-analysis-plan.json', 'quality/schemas/statistical-analysis-plan.schema.json']])
+    : INSTANCE_SCHEMAS;
+  for (const schemaPath of requiredSchemas) {
     const schema = readJson(root, schemaPath, errors);
     if (schema && schema.type !== 'object') errors.push(`${schemaPath}: root schema type must be object`);
   }
   const instances = {};
-  for (const [instancePath, schemaPath] of INSTANCE_SCHEMAS) {
+  for (const [instancePath, schemaPath] of instanceSchemas) {
     const instance = readJson(root, instancePath, errors);
     const schema = readJson(root, schemaPath, errors);
     instances[instancePath] = instance;

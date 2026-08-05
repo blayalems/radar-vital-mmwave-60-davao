@@ -79,7 +79,7 @@ def test_gbr_metadata_is_default_runtime_without_tensorflow_import(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", recording_import)
     bundle = build_model_bundle_metadata(
-        trainer_version="16.5.7",
+        trainer_version="16.5.8",
         model_family=MODEL_FAMILY_GRADIENT_BOOSTING,
         trained_targets=["hr", "rr"],
         feature_contract=_contract(),
@@ -99,7 +99,7 @@ def test_gbr_metadata_is_default_runtime_without_tensorflow_import(monkeypatch):
 def test_cnn_metadata_requires_and_checks_window_contract():
     with pytest.raises(ValueError, match="sequence.window_size"):
         build_model_bundle_metadata(
-            trainer_version="16.5.7",
+            trainer_version="16.5.8",
             model_family=MODEL_FAMILY_CNN_1D,
             trained_targets=["hr"],
             feature_contract=_contract(),
@@ -107,7 +107,7 @@ def test_cnn_metadata_requires_and_checks_window_contract():
         )
 
     bundle = build_model_bundle_metadata(
-        trainer_version="16.5.7",
+        trainer_version="16.5.8",
         model_family=MODEL_FAMILY_CNN_1D,
         trained_targets=["hr"],
         feature_contract=_contract(),
@@ -125,7 +125,7 @@ def test_cnn_metadata_requires_and_checks_window_contract():
 
 def test_bundle_rejects_corrupt_feature_contract_hash():
     bundle = build_model_bundle_metadata(
-        trainer_version="16.5.7",
+        trainer_version="16.5.8",
         model_family=MODEL_FAMILY_GRADIENT_BOOSTING,
         trained_targets=["rr"],
         feature_contract=_contract(),
@@ -143,7 +143,7 @@ def test_bundle_rejects_corrupt_feature_contract_hash():
 
 def test_bundle_rejects_metadata_changed_after_contract_was_created():
     bundle = build_model_bundle_metadata(
-        trainer_version="16.5.7",
+        trainer_version="16.5.8",
         model_family=MODEL_FAMILY_GRADIENT_BOOSTING,
         trained_targets=["hr"],
         feature_contract=_contract(),
@@ -206,7 +206,7 @@ def test_bundle_metadata_is_in_signed_artifact_boundary_and_loads(tmp_path):
         with (model_dir / name).open("wb") as handle:
             pickle.dump({"artifact": name}, handle)
     bundle = build_model_bundle_metadata(
-        trainer_version="16.5.7",
+        trainer_version="16.5.8",
         model_family=MODEL_FAMILY_GRADIENT_BOOSTING,
         trained_targets=["hr"],
         feature_contract=_contract(),

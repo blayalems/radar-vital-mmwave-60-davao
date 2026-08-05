@@ -3,11 +3,11 @@
 | Control | Value |
 |---|---|
 | Document ID | `RVT-QMS-POL-001` |
-| Revision | `R02` |
+| Revision | `R03` |
 | Status | Active when the approving pull request is merged |
 | Owner role | Quality manager |
 | Approver roles | Quality manager and technical lead |
-| Effective product version | `16.5.6` |
+| Effective product version | `16.5.8` |
 | Review interval | 12 months or before a controlled process changes |
 | Retention | Project lifetime plus five years; review before disposal |
 
@@ -116,6 +116,19 @@ migration, test, and manuscript review.
   only another local patch.
 - Verification records and release records are retained according to the
   register and must remain readable for their retention period.
+
+## Frozen analysis-plan and deviation control
+
+The confirmatory statistical inputs are controlled in
+`quality/statistical-analysis-plan.json`. A research-lead approval is required
+before changing distances, barriers, trial duration/count, window rules,
+equivalence margins, multiplicity handling, exclusions, or the primary
+condition. A report records the plan ID and hash; a changed plan requires a
+new product increment and manuscript/protocol review. If an external gate is
+unavailable or a planned acceptance scenario is incomplete, the PR records the
+deviation, containment, owner, and closure evidence. A project-team statement
+of hardware completion is not substituted for a signed controlled acceptance
+record.
 
 ## Release authorization and rollback
 

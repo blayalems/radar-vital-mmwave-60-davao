@@ -1,0 +1,72 @@
+{
+  "$schema": "./schemas/statistical-analysis-plan.schema.json",
+  "schema_version": "rvt-analysis-plan-v1",
+  "plan_id": "RVT-STA-PLAN-16.5.8",
+  "effective_product_version": "16.5.8",
+  "status": "draft",
+  "owner_role": "research_lead",
+  "approval_required": ["research_lead", "quality_manager"],
+  "protocol": {
+    "confirmatory_distances_m": [0.6, 0.8, 1.0],
+    "barriers": ["none", "cardboard"],
+    "trials_per_condition": 3,
+    "planned_duration_s": 150,
+    "window_duration_s": 30,
+    "window_stride_s": 5,
+    "minimum_valid_windows_per_trial": 15,
+    "minimum_valid_trials_per_participant_condition": 2,
+    "target_recruited_participants": 40,
+    "minimum_protocol_complete_participants": 38,
+    "no_subject_trial_count": 72
+  },
+  "primary": {
+    "condition_id": "d100_none",
+    "target": "rr",
+    "margin_bpm": 2.0,
+    "alpha": 0.05,
+    "confidence_level": 0.90,
+    "minimum_independent_estimates": 19
+  },
+  "secondary": {
+    "condition_ids": [
+      "d060_none",
+      "d080_none",
+      "d060_cardboard",
+      "d080_cardboard",
+      "d100_cardboard"
+    ],
+    "multiplicity_adjustment": "holm"
+  },
+  "aggregation": {
+    "input": "outer_oof_predictions.csv",
+    "unit": "participant_condition",
+    "sequence": [
+      "30-second windows at 5-second stride",
+      "median of at least 15 valid windows to trial summary",
+      "mean of at least 2 valid trials to participant-condition summary"
+    ],
+    "participant_balanced": true
+  },
+  "reports": {
+    "retain_raw_predictions": true,
+    "retain_raw_and_postprocessed_columns": true,
+    "metrics": ["rmse", "mae", "bias", "pearson_r", "spearman_rho"],
+    "agreement": "repeated_measures_bland_altman_with_participant_bootstrap",
+    "coverage_denominator": "every_eligible_protocol_attempted_trial_including_non_output",
+    "false_alarm_test": "exact_binomial_vs_0.05_with_separate_two_sided_95_percent_clopper_pearson_interval",
+    "exports": ["json", "csv", "latex"],
+    "provenance": ["source_commit", "model_family", "split_ledger_sha256", "prediction_file_sha256"]
+  },
+  "exclusions": [
+    "legacy_unassigned",
+    "participant_reassigned",
+    "outside_confirmatory_condition_set",
+    "missing_release_or_protocol_provenance"
+  ],
+  "interpretation": {
+    "equivalence_requires_both_one_sided_tost_tests": true,
+    "non_significant_difference_is_not_equivalence": true,
+    "fewer_than_minimum_independent_estimates": "inconclusive",
+    "cnn_deployment_claim": "not_permitted_without_separate_tinyml_hardware_acceptance"
+  }
+}

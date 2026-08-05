@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rvt-trainer"
-version = "16.5.7"
+version = "16.5.8"
 description = "Radar Vital mmWave 60 GHz trainer — ThreadingHTTPServer, session management, ML-readiness audit, and REST/SSE API"
 requires-python = ">=3.11"
 dependencies = [
@@ -12,6 +12,7 @@ dependencies = [
     "pandas>=2.0.0,<3.0.0",
     "matplotlib>=3.5.0,<4.0.0",
     "scikit-learn>=1.2.0,<2.0.0",
+    "scipy>=1.10.0,<2.0.0",
     "pyserial>=3.5,<4.0",
     "bleak>=0.21,<4.0",
     "cryptography>=41.0.0,<49.0.0",
@@ -19,9 +20,11 @@ dependencies = [
 
 [project.optional-dependencies]
 ble = ["bleak>=0.21,<4.0"]
+stats = ["statsmodels>=0.14,<1.0"]
 
 [project.scripts]
 rvt-trainer = "rvt_trainer.cli:main"
+rvt-statistics = "rvt_trainer.statistics:main"
 
 [tool.setuptools.packages.find]
 include = ["rvt_trainer*"]

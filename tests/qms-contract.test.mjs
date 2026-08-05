@@ -36,7 +36,7 @@ function fixture() {
   git(root, 'config', 'user.email', 'qms@example.invalid');
   git(root, 'config', 'user.name', 'QMS Test');
   git(root, 'config', 'core.autocrlf', 'false');
-  write(root, 'package.json', { version: '16.5.7' });
+  write(root, 'package.json', { version: '16.5.8' });
   write(root, 'HANDOFF.md', '# Handoff\n');
   write(root, 'docs/controlled.md', '# Controlled\n');
   write(root, 'src/feature.ts', 'export const enabled = true;\n');
@@ -143,7 +143,7 @@ function fixture() {
     schema_version: 'rvt-qms-document-register-v1',
     register_id: 'RVT-QMS-DOCUMENT-REGISTER',
     register_revision: 'R01',
-    effective_product_version: '16.5.7',
+    effective_product_version: '16.5.8',
     status: 'active',
     owner_role: 'Quality lead',
     approval_method: 'protected_pull_request',
@@ -158,7 +158,7 @@ function fixture() {
         record_type: 'guide',
         status: 'active',
         revision: 'R01',
-        effective_product_version: '16.5.7',
+        effective_product_version: '16.5.8',
         supersedes: null,
         retention: {
           class: 'project_lifetime_plus_5_years',
@@ -174,7 +174,7 @@ function fixture() {
     schema_version: 'rvt-qms-requirements-v1',
     register_id: 'RVT-QMS-REQUIREMENTS',
     register_revision: 'R01',
-    effective_product_version: '16.5.7',
+    effective_product_version: '16.5.8',
     status: 'active',
     owner_role: 'Quality lead',
     requirements: [
@@ -213,7 +213,7 @@ function validPrBody() {
 - Related issue, review, CAPA, or decision: Review finding
 - Requirement IDs from \`quality/requirements.json\`: RVT-SESSION-001
 - Administrative-only \`N/A\` justification, if applicable: Not applicable
-- Intended product version: 16.5.7
+- Intended product version: 16.5.8
 - Release step from base: patch
 
 ## Purpose and scope
@@ -395,6 +395,26 @@ test('loads PR change record body from the GitHub event payload', t => {
   });
 
   const result = runQmsContract({ root, requirePrBody: true });
+  assert.equal(result.ok, true, result.errors.join('\n'));
+});
+
+test('does not leak the caller GitHub event into an optional fixture check', t => {
+  const root = fixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const eventPath = path.join(root, 'event.json');
+  write(root, 'event.json', { pull_request: { body: 'not a fixture change record' } });
+  const previousEventPath = process.env.GITHUB_EVENT_PATH;
+  const previousEventName = process.env.GITHUB_EVENT_NAME;
+  process.env.GITHUB_EVENT_PATH = eventPath;
+  process.env.GITHUB_EVENT_NAME = 'pull_request';
+  t.after(() => {
+    if (previousEventPath === undefined) delete process.env.GITHUB_EVENT_PATH;
+    else process.env.GITHUB_EVENT_PATH = previousEventPath;
+    if (previousEventName === undefined) delete process.env.GITHUB_EVENT_NAME;
+    else process.env.GITHUB_EVENT_NAME = previousEventName;
+  });
+
+  const result = runQmsContract({ root, requirePrBody: false });
   assert.equal(result.ok, true, result.errors.join('\n'));
 });
 

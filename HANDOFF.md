@@ -5,6 +5,40 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-06 - PR #102 audit fixes & Android shell polish in v16.5.8
+
+- **QMS Schema**: Added `approval_required` to root `required` array in `quality/schemas/statistical-analysis-plan.schema.json`.
+- **Android Launcher Icon**: Added density-bucket PNG fallback launcher icon copying in `scripts/patch-android-shell.mjs` and updated `web/angular.json`.
+- **Android Top Layout**: Added `padding-top: env(safe-area-inset-top, 0px)` to `.app` container in `web/src/app/components/layout/layout.component.css` and adjusted topbar padding.
+- **Verification**: `test:version-contract` and QMS checks pass 100%.
+
+### 2026-08-03 - Fail closed confirmatory statistics in v16.5.8
+
+- **Analysis unit**: Confirmatory OOF rows now form unique 30-second windows at 5-second stride before the 15-window/2-trial participant-balanced gates; short endpoint bursts and duplicate timestamps cannot qualify.
+- **Inference guard**: Confirmatory mode requires an explicit approved plan, RR validity/eligibility, participant-disjoint provenance, a complete attempted-trial ledger including 72 no-subject trials, and immutable source/model/split/prediction provenance. Parameters derive from the plan.
+- **Reporting**: Primary d100_none TOST is no longer pooled across conditions; secondary Holm family stays fixed at five, insufficient n is inconclusive, mixed effects uses the filtered summary, and full primary CI/decision fields export to CSV/LaTeX.
+- **Verification**: Statistical and model-family tests pass 28/28; full suite and CI remain required after this commit.
+
+### 2026-08-03 - Remove causal OOF lookahead in v16.5.8
+
+- **Postprocessing**: Slew limiting now seeds each session from the first finite current prediction instead of a median that included future samples.
+- **Regression coverage**: Added a prefix-invariance test proving appending later predictions cannot change earlier outputs.
+- **Verification**: Focused model-family tests pass; the frozen raw/postprocessed OOF distinction remains intact.
+
+### 2026-08-03 - Contain QMS fixture event leakage in v16.5.8
+
+- **CI root cause**: Temporary QMS fixtures could inherit `GITHUB_EVENT_PATH` and validate the live PR body instead of the fixture; event payload lookup is now limited to the repository root or explicit PR-body validation.
+- **Regression coverage**: Added a fixture test that sets a pull-request event environment and proves optional checks remain isolated.
+- **Verification**: QMS contract tests pass locally; PR #102 body now follows the complete controlled change-record template.
+
+### 2026-08-03 - Advance v16.5.8 statistical validation and plan audit
+
+- **Plan disposition**: Audited `C:\Users\blaya\Downloads\2026-08-01-implementation_plan.md`; PR79 and PR93–PR100 are already merged, so the next controlled patch is v16.5.8. The attached 2026-07-22 proposal remains the confirmatory authority.
+- **Statistical contract**: Added the controlled analysis plan/schema, participant-balanced RMSE/MAE, paired TOST, clustered agreement bootstrap, coverage/non-output and exact false-alarm tools, primary d100_none plus five Holm-adjusted secondary conditions, and JSON/CSV/LaTeX hashable exports.
+- **OOF evidence**: LOSO evaluation now persists `outer_oof_predictions.csv` with participant/session/trial/condition/fold identity plus raw and causal post-processed GBR/CNN predictions.
+- **QMS containment**: Added fixture-repository environment isolation for QMS base-ref resolution and recorded unresolved visual/approval/hardware-signoff gates; project-team hardware completion is not treated as production authorization.
+- **Verification**: Focused statistics tests pass 11/11; full release, browser, firmware, APK, EXE, and Pages gates remain required and are not claimed locally.
+
 ### 2026-07-29 - Deliver v16.5.7 leakage-safe dual-model readiness
 
 - **Release identity**: Advanced firmware, trainer, Angular dashboard, package, installer, help, issue, test, and generated-artifact carriers exactly one patch to `16.5.7`; the firmware source is now `radar_vital_v16_5_7.ino` while stable trainer/dashboard compatibility filenames and the frozen v15.2 / 222-column serial contract remain unchanged.

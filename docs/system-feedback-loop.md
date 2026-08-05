@@ -1,8 +1,8 @@
-# Radar Vital v16.5 Hardware–Software Feedback Loop
+# Radar Vital v16.5.8 Hardware–Software Feedback Loop
 
 This document is the canonical source for the system-process figures used by
-the repository and manuscript. It describes the shipped v16.5 product while
-keeping the wire protocol identity explicit: firmware v16.5.7 emits the frozen
+the repository and manuscript. It describes the shipped v16.5.8 product while
+keeping the wire protocol identity explicit: firmware v16.5.8 emits the frozen
 v15.2 CSV contract (222 columns, including the three fields introduced in
 v16.4 at columns 220–222).
 
@@ -32,9 +32,9 @@ figure IDs and captions below are stable integration points.
 flowchart LR
     subject["Participant and reference device"]
     radar["MR60BHA2 60 GHz radar"]
-    mcu["XIAO ESP32-C6<br/>firmware v16.5.7"]
+    mcu["XIAO ESP32-C6<br/>firmware v16.5.8"]
     serial["USB serial<br/>v15.2 CSV, 222 columns"]
-    capture["Python trainer v16.5.7<br/>capture and quality ledger"]
+    capture["Python trainer v16.5.8<br/>capture and quality ledger"]
     dataset["Immutable session artifacts<br/>participant, session, timestamps"]
     features["Causal feature pipeline<br/>train-only fit and schema hash"]
     split["Recorded group split manifest<br/>outer participant holdout"]
@@ -44,7 +44,7 @@ flowchart LR
     evidence["Hashed evidence bundle<br/>JSON, CSV, plots and LaTeX tables"]
     registry["Signed model artifact and manifest<br/>family, split, seed, hashes"]
     api["Trainer prediction and report API"]
-    ui["Angular dashboard v16.5.7<br/>provenance, status and comparison"]
+    ui["Angular dashboard v16.5.8<br/>provenance, status and comparison"]
     manuscript["LaTeX manuscript<br/>figures, methods and results"]
     protocol["Reviewed protocol decision<br/>acquisition, firmware and software changes"]
     operator["Operator action<br/>placement, capture quality, retraining"]
@@ -62,7 +62,7 @@ flowchart LR
 ```
 
 Manuscript caption (`hardware-software-feedback-loop`):
-“Radar Vital v16.5 hardware–software feedback loop. The ESP32-C6 firmware
+“Radar Vital v16.5.8 hardware–software feedback loop. The ESP32-C6 firmware
 streams the frozen v15.2/222-column serial contract to the Python trainer.
 Immutable, participant-grouped session artifacts feed one causal preprocessing
 and holdout manifest shared by gradient boosting and the experimental 1-D CNN.
@@ -84,13 +84,13 @@ flowchart TD
     cnnfit["Fit 1-D CNN<br/>seed, epochs and window length recorded"]
     raw["Generate raw held-out predictions"]
     post["Apply declared causal post-processing<br/>report raw and post-processed results"]
-    trial["Aggregate eligible endpoints<br/>trial then participant-condition level"]
+    trial["Aggregate 30-s/5-s endpoints<br/>median >=15 windows per trial<br/>mean >=2 trials per participant-condition"]
     metric["Engineering accuracy<br/>RMSE, MAE, bias, Pearson/Spearman"]
     agreement["Repeated-measures agreement<br/>mixed-effects Bland–Altman and bootstrap CI"]
     coverage["Protocol-attempt coverage<br/>participant-cluster bootstrap CI"]
-    tost["Hierarchical RR TOST<br/>predeclared bounds and 90% CI"]
-    alarm["No-subject false alarm<br/>exact binomial test and Clopper–Pearson CI"]
-    publish["Write OOF rows, pooled/macro summary,<br/>JSON/CSV/plots/LaTeX and artifact hashes"]
+    tost["Primary RR TOST d100_none<br/>+/-2 bpm, alpha=.05, 90% CI<br/>five secondary conditions + Holm"]
+    alarm["No-subject false alarm<br/>exact binomial vs .05 + separate 95% CP CI"]
+    publish["Write outer_oof_predictions.csv,<br/>pooled/macro summary, JSON/CSV/LaTeX,<br/>provenance and artifact hashes"]
 
     freeze --> validate --> outer --> inner --> transform
     transform --> gbrfit --> raw
@@ -109,7 +109,7 @@ experimental 1-D CNN. Both families receive identical participant-grouped
 outer folds and training-fitted causal transforms. Raw and declared
 post-processed held-out predictions are retained, then aggregated by trial and
 participant-condition. Accuracy, repeated-measures agreement, clustered
-coverage, hierarchical equivalence, and exact false-alarm evidence are exported
+coverage, predeclared primary/secondary equivalence, and exact false-alarm evidence are exported
 from the same outer-OOF prediction and study manifests.”
 
 ## Required reproducibility fields
@@ -167,10 +167,13 @@ exploratory and cannot enter confirmatory statistics.
 - The current manuscript plan uses RR bounds of ±2 breaths/minute, alpha 0.05,
   and a 90% confidence interval. Store these as a versioned analysis-plan input,
   not as an unchangeable implementation constant.
-- Aggregate eligible outer-OOF endpoints to a frozen trial summary, then to
-  paired participant-condition values for TOST. The cardboard condition is
-  confirmatory only after the unobstructed condition passes; otherwise report
-  `not_tested_hierarchical`.
+- Use the versioned `quality/statistical-analysis-plan.json`: aggregate 30-second
+  windows at 5-second stride, retain a trial only when at least 15 windows are
+  valid, then retain a participant-condition only when at least two trials are
+  valid. The primary RR TOST is 1.0 m/no-cardboard (+/-2 breaths/minute,
+  alpha=0.05, 90% CI); the other five protocol conditions are secondary and
+  use Holm adjustment. Fewer than 19 independent primary participant estimates
+  is inconclusive, never a pass.
 - Use repeated-measures Bland–Altman/mixed-effects agreement rather than
   naïve row-wise `bias ± 1.96 SD`, and bootstrap complete participants for
   interval estimates.

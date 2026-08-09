@@ -3,7 +3,7 @@
 | Control | Value |
 |---|---|
 | Document ID | `RVT-QMS-PRO-001` |
-| Revision | `R07` |
+| Revision | `R08` |
 | Owner role | Release manager |
 | Approver roles | Release manager, quality manager, and security owner |
 | Effective product version | `16.5.11` |
@@ -136,10 +136,20 @@ bundle (`rvt-latest.json`, `rvt-latest-tauri.json`, `qms-release-record.json`,
 fall back to the legacy branch/Jekyll publisher or publish a partial evidence
 set.
 
-The dependency audit is a blocking gate. Python advisories and
-moderate-or-higher findings in either npm lockfile fail the workflow. Any future
-exception requires an advisory ID, owner, rationale, compensating control, and
-expiry instead of a blanket `continue-on-error`.
+The dependency audit is a blocking gate. Python and actionable Rust advisories,
+plus moderate-or-higher findings in the root, Angular, or standalone Capacitor
+npm trees, fail the workflow. The Linux GTK-only `RUSTSEC-2024-0429` glib
+advisory is temporarily excepted because the shipped Tauri artifact is
+Windows-only and does not call the affected iterator; the desktop maintainer
+owns the exception, Dependabot remains the compensating monitor, and the
+exception expires on 2026-11-10 or when the Tauri/wry GTK graph upgrades.
+Every exception requires an advisory ID, owner, rationale, compensating control,
+and expiry instead of a blanket `continue-on-error`.
+
+The contracts job uploads the generated and round-trip-verified `www/` bundle as
+a one-day artifact. Every isolated smoke and visual runner downloads that exact
+bundle before browser execution; a shard must never assume another runner's
+workspace is shared or rebuild an unverified variant.
 
 Required ruleset settings:
 

@@ -1,9 +1,8 @@
 name: Security Audit
 
-# Blocking supply-chain audit. Python findings and moderate-or-higher npm
-# findings fail the job; no lower-severity exceptions are currently registered.
-# Any future exception must be narrowly scoped and documented here with its
-# advisory ID, owner, rationale, compensating control, and expiry date.
+# Blocking supply-chain audit. Python, Rust, and moderate-or-higher npm findings
+# fail the job. Any exception must be narrowly scoped below with its advisory
+# ID, owner, rationale, compensating control, and expiry date.
 
 on:
   pull_request:
@@ -21,6 +20,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
@@ -40,10 +41,31 @@ jobs:
         run: python -m pip_audit -r requirements-v12.txt
 
       # --- npm dependency audit ----------------------------------------
-      # Fail on moderate, high, and critical findings in both lockfiles. This is
-      # stricter than the high/critical merge gate and keeps exceptions explicit.
+      # Fail on moderate, high, and critical findings in all three npm trees.
+      # This is stricter than the high/critical merge gate and keeps exceptions
+      # explicit.
       - name: npm audit (root)
         run: npm audit --audit-level=moderate
 
       - name: npm audit (web)
         run: npm --prefix web audit --audit-level=moderate
+
+      - name: npm audit (Capacitor packaging)
+        run: npm --prefix packaging/capacitor audit --audit-level=moderate
+
+      # cargo-audit is installed from a checksum-verified release by a pinned
+      # action commit. RUSTSEC-2024-0429 is a Linux GTK-only transitive glib
+      # advisory in the Tauri lock graph; Radar Vital ships its Tauri artifact
+      # only on Windows and does not call glib::VariantStrIter. Owner: desktop
+      # maintainer. Compensating control: Windows-only release runner plus
+      # Dependabot monitoring. Expiry: 2026-11-10 or when Tauri/wry lifts GTK
+      # from glib 0.18, whichever comes first.
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026 # v2.85.11
+        with:
+          tool: cargo-audit@0.22.2
+          checksum: true
+          fallback: none
+
+      - name: cargo audit (Tauri lockfile)
+        run: cargo audit --file src-tauri/Cargo.lock --ignore RUSTSEC-2024-0429

@@ -3,7 +3,7 @@
 Guards the wiring added for supply-chain hardening so the workflows cannot
 silently regress:
 
-  D9  - the dependency audit is blocking and covers Python plus both npm trees.
+  D9  - the dependency audit is blocking and covers Python, Rust, and all npm trees.
   D8  - Pages preserves the complete release-evidence bundle atomically while
         distinguishing a first-release 404 from transient/network errors.
   CI  - expensive contracts run once, browser shards stay browser-only, and one
@@ -44,21 +44,30 @@ def test_security_audit_workflow_exists_and_runs_audits():
     text = _text(WORKFLOWS / "security-audit.yml")
     norm = _normalise(text)
 
-    # Python and npm audits must both be present.
+    # Python, npm, and Rust audits must all be present.
     assert "pip-audit" in norm, "security-audit.yml must run pip-audit"
     assert "npm audit" in norm, "security-audit.yml must run npm audit"
+    assert "cargo audit" in norm, "security-audit.yml must run cargo-audit"
 
     # requirements.txt includes the canonical file, so audit it once.
     assert "requirements-v12.txt" in text
     assert "python -m pip_audit -r requirements-v12.txt" in norm
 
-    # The web/ package tree is audited too.
+    # The web and standalone Capacitor package trees are audited too.
     assert "npm --prefix web audit" in norm
+    assert "npm --prefix packaging/capacitor audit" in norm
+
+    # Rust uses a pinned, checksum-verified auditor. The one platform-specific
+    # exception must retain its advisory ID, rationale, owner, and expiry.
+    assert "taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026" in text
+    assert "cargo-audit@0.22.2" in text
+    assert "--ignore RUSTSEC-2024-0429" in text
+    assert "Owner: desktop" in text
+    assert "Expiry: 2026-11-10" in text
 
     # Findings are a hard gate; exceptions must remain explicit and scoped.
     assert "continue-on-error" not in norm
     assert "--audit-level=moderate" in norm
-    assert "no lower-severity exceptions are currently registered" in norm
 
     # Expected triggers and runner.
     assert "workflow_dispatch" in norm
@@ -140,6 +149,13 @@ def test_playwright_contracts_run_once_and_publish_stable_test_check():
     assert "CONTRACTS_RESULT: ${{ needs.contracts.result }}" in text
     assert "SMOKE_RESULT: ${{ needs.smoke.result }}" in text
     assert "VISUAL_RESULT: ${{ needs.visual.result }}" in text
+
+    # Browser jobs run on isolated runners, so the verified build must be
+    # transferred rather than assumed to exist after the contracts job.
+    assert text.count("name: verified-web-bundle") == 3
+    assert text.count("actions/download-artifact@v4") == 2
+    assert "Upload verified web bundle for browser shards" in text
+    assert "retention-days: 1" in text
 
     # Successful shards should not consume report storage; cancellation still
     # gets a best-effort diagnostic upload.

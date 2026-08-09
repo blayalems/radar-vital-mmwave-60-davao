@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-10 - Close secondary dependency and browser-shard gaps
+
+- **Dependency closure**: Extend the blocking audit from Python/root/web to the standalone Capacitor npm tree and Tauri Rust lockfile; update vulnerable `tar`, `brace-expansion`, `quinn-proto`, `plist`, and `quick-xml` resolutions.
+- **Bounded Rust exception**: Record the Linux GTK-only `RUSTSEC-2024-0429` glib exception with owner, Windows-only compensating control, Dependabot monitoring, and a 2026-11-10 expiry while keeping all actionable Rust vulnerabilities blocking.
+- **Browser runner isolation**: Upload the contracts job's verified `www/` bundle once and download it into every smoke/visual runner so static-route tests retain `404.html` without rebuilding Angular four times.
+- **Verification**: Root, web, and Capacitor npm audits report zero vulnerabilities; local cargo-audit reports no actionable vulnerabilities with the one documented platform exception; 29 workflow/QMS tests and actionlint pass. Hosted Playwright and Windows packaging rerun on this commit.
+
 ### 2026-08-10 - Harden v16.5.11 study evidence, dependencies, CI, and Pages
 
 - **Objective 3 evidence**: Build the 72-trial false-alarm result directly from unique, non-overlapping completed no-subject captures bound to one locked 72 x 150-second protocol and frozen firmware/rules/threshold configuration; corroborate expected and observed firmware, release provenance, duration, and trial-level any-alert evidence; report the exact one-sided binomial decision and separate two-sided 95% Clopper–Pearson interval while retaining attempted/unqualified denominators.
@@ -13,7 +20,7 @@
 - **CI and packaging**: Run contracts/unit/build once, retain four browser shards plus Windows visual regression behind a stable aggregate `test` check, scope workflow permissions, honor manual release tags before automatic main tags, preserve the complete Pages/PWA/legal/QMS bundle, stop swallowing Capacitor failures, and shorten transient artifact retention.
 - **Repository configuration**: Switch GitHub Pages from legacy Jekyll publishing to GitHub Actions, verify deployment of main, enable Dependabot security updates plus secret-scanning push protection, and create the main-only `release-production` environment with a required named reviewer and approval sentinel.
 - **Release/QMS**: Advance coordinated product carriers to v16.5.11 and affected controlled documents to their registered revisions while preserving the v15.2/222-column wire contract and stable v16.5.9 study-session plus v16.5.8 statistical-plan identities.
-- **Verification**: Full Python suite (525 passed, three skipped), focused Objective 3 suite (50 passed), workflow/packaging tests (29 passed, one skipped), 255 Angular tests, production build/monolith round trip, actionlint, compileall, clean npm installs, version/PR/QMS/document contracts, and Python/root/web dependency audits pass. Local Playwright execution is unavailable because the pinned browser download timed out; hosted packaging/browser gates remain authoritative.
+- **Verification**: Full Python suite (535 passed, three skipped), focused Objective 3 suite (50 passed), workflow/packaging tests (29 passed, one skipped), 255 Angular tests, production build/monolith round trip, actionlint, compileall, clean npm installs, version/PR/QMS/document contracts, and Python/root/web dependency audits pass. Local Playwright execution is unavailable because the pinned browser download timed out; hosted packaging/browser gates remain authoritative.
 
 ### 2026-08-09 - Stabilize main visual regression telemetry
 

@@ -79,6 +79,14 @@ jobs:
       - name: Verify web/ ↔ monolith round-trip
         run: npm run build:check
 
+      - name: Upload verified web bundle for browser shards
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-web-bundle
+          path: www/
+          if-no-files-found: error
+          retention-days: 1
+
   smoke:
     name: Smoke and API (${{ matrix.project }})
     needs: contracts
@@ -100,6 +108,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Download verified web bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: verified-web-bundle
+          path: www
 
       - uses: actions/setup-node@v4
         with:
@@ -152,6 +166,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Download verified web bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: verified-web-bundle
+          path: www
 
       - uses: actions/setup-node@v4
         with:

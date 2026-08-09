@@ -8,8 +8,9 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ### v16.5.11 evidence and CI hardening (in progress)
 
-- Upgraded vulnerable Python and Angular dependency ranges and made Python plus
-  both npm dependency audits blocking instead of advisory-only.
+- Upgraded vulnerable Python, Angular, Capacitor, and Rust dependency
+  resolutions and made Python, all three npm trees, and the Tauri Rust lockfile
+  blocking audits instead of advisory-only checks.
 - Reworked Objective 3 to qualify only non-overlapping, capture-backed
   no-subject trials under a locked 72 x 150-second protocol with corroborated
   firmware/rules/threshold identity, and to generate the observed false-alarm
@@ -20,7 +21,8 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 - Split CI contracts from browser shards, added the stable aggregate `test`
   check, narrowed workflow permissions, preserved the complete Pages release
   evidence plus PWA/legal bundle, honored manual release tags on main, stopped
-  swallowing Capacitor failures, and reduced transient artifact retention.
+  swallowing Capacitor failures, transferred the verified `www/` bundle into
+  isolated browser runners, and reduced transient artifact retention.
 - Coordinated firmware, trainer, Angular/PWA, Capacitor, and Tauri carriers at
   v16.5.11 while preserving the v15.2/222-column serial contract and existing
   study-session/statistical-plan schema identities.

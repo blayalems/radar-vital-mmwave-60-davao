@@ -2,7 +2,7 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R07",
+  "register_revision": "R08",
   "effective_product_version": "16.5.11",
   "status": "active",
   "owner_role": "quality_manager",
@@ -148,7 +148,7 @@
     {
       "requirement_id": "RVT-SEC-002",
       "title": "Blocking dependency vulnerability gate",
-      "statement": "Every supported Python and npm dependency tree shall be reproducibly audited, and unresolved policy-level vulnerabilities shall fail CI unless a bounded approved exception is recorded.",
+      "statement": "Every supported Python, npm, and Rust dependency tree shall be reproducibly audited, and unresolved policy-level vulnerabilities shall fail CI unless a bounded approved exception is recorded.",
       "source_refs": ["docs/release-and-protection.md#required-branch-protection-for-main"],
       "category": "security",
       "risk_class": "high",
@@ -158,7 +158,9 @@
         ".github/workflows/security-audit.yml",
         "requirements-v12.txt",
         "package-lock.json",
-        "web/package-lock.json"
+        "web/package-lock.json",
+        "packaging/capacitor/package-lock.json",
+        "src-tauri/Cargo.lock"
       ],
       "verification_refs": [
         {
@@ -169,7 +171,7 @@
       ],
       "artifact_types": ["trainer", "dashboard", "pwa", "apk", "exe", "ci_evidence"],
       "acceptance_criteria": [
-        "The canonical Python requirements and both npm lockfiles have no unresolved audit finding at the configured blocking level.",
+        "The canonical Python requirements, all three npm lockfiles, and the Tauri Rust lockfile have no unresolved audit finding at the configured blocking level outside documented bounded exceptions.",
         "Audit failures produce a failing workflow conclusion instead of a successful advisory-only result.",
         "Any exception identifies the advisory, owner, rationale, compensating control, and expiry."
       ],

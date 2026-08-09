@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-09 - Stabilize main visual regression telemetry
+
+- **CI root cause**: The Windows visual job allowed the sandbox trainer to publish HR/RR/range samples after navigation, so 16 Live and three desktop Home screenshots raced between the committed no-session baseline and live mock values while all smoke/API shards remained green.
+- **Fixture correction**: Visual setup now fixes the current-dashboard endpoint to an explicit no-active-session response and installs a no-message EventSource before Angular boots; functional live telemetry remains covered by smoke/API tests.
+- **Controlled record**: Advanced the document register and engineering handoff revisions together from R07 to R08 without changing the v16.5.10 product, study, API, or serial identities.
+- **Verification**: Formerly failing desktop light Home/Live baselines pass locally (2/2); QMS, source-integrity, version, 255 Angular/service-worker tests, visual discovery (80 cases), and the Angular-to-monolith build round trip pass. The authoritative pinned-Chromium Windows visual matrix remains the GitHub Actions gate.
+
 ### 2026-08-06 - Fix CI QMS contract and update visual regression baselines
 
 - **QMS compliance**: Included `HANDOFF.md` in commit, incrementing document-register and handoff revisions to R07 to satisfy the `enforceHandoffPerCommit` contract rule for all CI steps.

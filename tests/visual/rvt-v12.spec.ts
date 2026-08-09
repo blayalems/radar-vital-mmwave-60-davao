@@ -43,6 +43,49 @@ test.describe('v12 dashboard visual baseline', () => {
         body: JSON.stringify({ ok: true, sessions: [], items: [] })
       });
     });
+    // Visual tests validate layout and theme rendering, not the trainer's
+    // continuously changing sandbox telemetry. Pin both the initial payload
+    // and the SSE transport before Angular starts so screenshots cannot race
+    // a mock sample arriving between the assertion's repeated captures.
+    await page.route('**/api/session/current/live_dashboard.json*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          meta: { status: 'idle', session_id: null, elapsed_s: 0, remaining_s: 0 },
+          radar: {},
+          ble: {},
+          faults: [],
+          events: [],
+          alerts: [],
+          series: { reported_hr: [], reported_rr: [] }
+        })
+      });
+    });
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'EventSource', {
+        configurable: true,
+        value: class VisualBaselineEventSource {
+          private openHandler: ((event: Event) => void) | null = null;
+          onerror: ((event: Event) => void) | null = null;
+          onmessage: ((event: MessageEvent) => void) | null = null;
+
+          set onopen(handler: ((event: Event) => void) | null) {
+            this.openHandler = handler;
+            queueMicrotask(() => this.openHandler?.(new Event('open')));
+          }
+
+          get onopen(): ((event: Event) => void) | null {
+            return this.openHandler;
+          }
+
+          addEventListener(): void {}
+          removeEventListener(): void {}
+          close(): void {}
+          dispatchEvent(): boolean { return true; }
+        }
+      });
+    });
     await page.addInitScript(() => {
       sessionStorage.setItem('rvt-operator-token', 'mock-test-operator-token');
       const setup = JSON.parse(localStorage.getItem('rvt-setup') || '{}');

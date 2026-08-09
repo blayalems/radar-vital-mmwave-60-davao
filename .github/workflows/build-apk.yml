@@ -21,12 +21,17 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+permissions:
+  contents: read
+
 jobs:
   apk:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -62,7 +67,11 @@ jobs:
 
       - name: Add Capacitor Android platform
         run: |
-          npx cap add android || echo "android platform already exists"
+          if [ ! -d android ]; then
+            npx cap add android
+          else
+            echo "Capacitor Android platform already exists; synchronizing it."
+          fi
           npx cap sync android
           node scripts/patch-android-shell.mjs
 
@@ -78,4 +87,4 @@ jobs:
           name: radar-vital-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7

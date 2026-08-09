@@ -7,27 +7,19 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  test:
-    name: Smoke and API (${{ matrix.project }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - project: desktop
-            port: 8989
-          - project: pixel-7
-            port: 8991
-          - project: iphone-14
-            port: 8992
-          - project: ipad
-            port: 8993
+  contracts:
+    name: Contracts, unit tests, and build
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -43,13 +35,13 @@ jobs:
           cache: 'pip'
           cache-dependency-path: requirements-v12.txt
 
-      - name: Install npm deps
+      - name: Install npm dependencies
         run: npm ci
 
       - name: Install Angular web dependencies
         run: npm --prefix web ci
 
-      - name: Install Python deps
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-v12.txt
@@ -87,6 +79,51 @@ jobs:
       - name: Verify web/ ↔ monolith round-trip
         run: npm run build:check
 
+  smoke:
+    name: Smoke and API (${{ matrix.project }})
+    needs: contracts
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: desktop
+            port: 8989
+          - project: pixel-7
+            port: 8991
+          - project: iphone-14
+            port: 8992
+          - project: ipad
+            port: 8993
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements-v12.txt
+
+      - name: Install browser-test dependencies
+        run: npm ci
+
+      - name: Install Python runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-v12.txt
+
+      - name: Warm matplotlib font cache
+        run: python -c "import matplotlib.pyplot"
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
 
@@ -97,29 +134,30 @@ jobs:
           RVT_TEST_PORT: ${{ matrix.port }}
           RVT_TEST_MOCK: '0'
 
-      - name: Upload Playwright report on failure
-        if: always()
+      - name: Upload Playwright report on failure or cancellation
+        if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ matrix.project }}
           path: playwright-report/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
 
   visual:
     name: Visual regression (committed Windows baselines)
+    needs: contracts
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            web/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - uses: actions/setup-python@v5
         with:
@@ -127,27 +165,16 @@ jobs:
           cache: 'pip'
           cache-dependency-path: requirements-v12.txt
 
-      - name: Install npm deps
+      - name: Install browser-test dependencies
         run: npm ci
 
-      - name: Install Angular web dependencies
-        run: npm --prefix web ci
-
-      - name: Install Python deps
+      - name: Install Python runtime dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-v12.txt
 
       - name: Warm matplotlib font cache
         run: python -c "import matplotlib.pyplot"
-
-      - name: Verify web/ ↔ monolith round-trip on main
-        if: github.event_name != 'pull_request'
-        run: npm run build:check
-
-      - name: Build web bundle for PR visual tests
-        if: github.event_name == 'pull_request'
-        run: npm run build:web
 
       - name: Install Playwright browsers
         run: npx playwright install chromium webkit
@@ -159,10 +186,33 @@ jobs:
           RVT_TEST_PORT: 8990
           RVT_TEST_MOCK: '1'
 
-      - name: Upload Playwright report on failure
-        if: failure()
+      - name: Upload Playwright report on failure or cancellation
+        if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-visual-report
           path: playwright-report/
-          retention-days: 7
+          if-no-files-found: ignore
+          retention-days: 3
+
+  test:
+    name: test
+    if: always()
+    needs:
+      - contracts
+      - smoke
+      - visual
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require every CI stage to pass
+        env:
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+          VISUAL_RESULT: ${{ needs.visual.result }}
+        run: |
+          printf 'contracts=%s\nsmoke=%s\nvisual=%s\n' \
+            "$CONTRACTS_RESULT" "$SMOKE_RESULT" "$VISUAL_RESULT"
+          test "$CONTRACTS_RESULT" = success
+          test "$SMOKE_RESULT" = success
+          test "$VISUAL_RESULT" = success

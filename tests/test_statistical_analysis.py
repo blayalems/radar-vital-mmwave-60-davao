@@ -606,6 +606,7 @@ def test_no_subject_rows_are_retained_for_false_alarm_analysis():
     )
     assert report["no_subject_denominator"] == 1
     assert report["no_subject_false_alarms"] == 1
+    assert report["false_alarm_exact"]["alternative"] == "less"
 
 
 def test_condition_tost_primary_is_inconclusive_below_predeclared_n():
@@ -658,6 +659,7 @@ def test_coverage_uses_attempt_ledger_for_no_subject_denominator():
     assert result["n_with_output"] == 2
     assert result["no_subject_denominator"] == 2
     assert result["no_subject_false_alarms"] == 1
+    assert result["false_alarm_exact"]["alternative"] == "less"
 
 
 @pytest.mark.parametrize(

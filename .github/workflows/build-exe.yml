@@ -26,12 +26,17 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+permissions:
+  contents: read
+
 jobs:
   windows:
     runs-on: windows-latest
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -136,4 +141,4 @@ jobs:
           name: radar-vital-windows-exe
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7

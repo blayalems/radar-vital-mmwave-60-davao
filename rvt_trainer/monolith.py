@@ -161,9 +161,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.5.10"
-DASHBOARD_VERSION = "16.5.10"
-FIRMWARE_VERSION_EXPECTED = "v16.5.10"
+VERSION = "16.5.11"
+DASHBOARD_VERSION = "16.5.11"
+FIRMWARE_VERSION_EXPECTED = "v16.5.11"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -4733,7 +4733,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_5_10.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_5_11.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -6202,21 +6202,46 @@ def _run_study_analysis_job_once(sessions_root: str, job_id: str) -> None:
 
 
 def _run_study_analysis_job(sessions_root: str, job_id: str) -> None:
-    if not _STUDY_ANALYSIS_SEMAPHORE.acquire(blocking=False):
-        _update_analysis_job(
-            sessions_root,
-            job_id,
-            {
-                "status": "blocked",
-                "error": "Another study analysis is already running; retry after it completes.",
-                "last_line": "Blocked by the single-worker analysis admission limit.",
-            },
-        )
-        return
+    acquired = False
     try:
+        acquired = _STUDY_ANALYSIS_SEMAPHORE.acquire(blocking=False)
+        if not acquired:
+            _update_analysis_job(
+                sessions_root,
+                job_id,
+                {
+                    "status": "blocked",
+                    "error": "Another study analysis is already running; retry after it completes.",
+                    "last_line": "Blocked by the single-worker analysis admission limit.",
+                },
+            )
+            return
         _run_study_analysis_job_once(sessions_root, job_id)
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"[:1000]
+        try:
+            _finish_analysis_job(
+                sessions_root,
+                job_id,
+                {
+                    "status": "failed",
+                    "error": error,
+                    "last_line": "Study analysis worker failed before terminal state was written.",
+                    "completed_at": _iso_now(),
+                },
+            )
+        except Exception as persistence_exc:
+            # A disappearing/unwritable sessions root cannot be repaired by a
+            # daemon thread.  Contain both failures so they never surface as an
+            # unhandled thread exception, and retain the diagnostic in memory.
+            _append_trainer_log(
+                f"[STUDY_ANALYSIS] {job_id} could not persist failure state: "
+                f"{type(persistence_exc).__name__}: {persistence_exc}"
+            )
+        _append_trainer_log(f"[STUDY_ANALYSIS] {job_id} failed: {error}")
     finally:
-        _STUDY_ANALYSIS_SEMAPHORE.release()
+        if acquired:
+            _STUDY_ANALYSIS_SEMAPHORE.release()
 
 
 def _start_study_analysis_job(sessions_root: str, job: Mapping[str, object]) -> None:
@@ -8825,7 +8850,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_5_10.ino"),
+        Path("radar_vital_v16_5_11.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),

@@ -4,9 +4,8 @@ name: Deploy to GitHub Pages
 # whatever trainer URL the user has paired (see S.apiBase in localStorage).
 #
 # Manual setup required (one-time):
-#   Settings → Pages → Source: "GitHub Actions" (NOT "Deploy from a branch").
-#   Without this, the deploy job fails fast (~4s) with no useful diagnostic.
-#   See https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site#publishing-with-a-custom-github-actions-workflow
+#   Settings -> Pages -> Source: "GitHub Actions" (NOT "Deploy from a branch").
+#   Without this, the deploy job fails fast with no useful diagnostic.
 
 on:
   push:
@@ -43,8 +42,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -55,13 +52,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          # Installs root deps (npm ci) and web deps (npm --prefix web ci),
-          # so include both lockfiles in the npm cache key.
+          # Installs root deps and Angular web deps, so key both lockfiles.
           cache-dependency-path: |
             package-lock.json
             web/package-lock.json
@@ -80,48 +78,71 @@ jobs:
           cp docs/privacy.html www/privacy.html
           cp docs/terms.html www/terms.html
 
-      - name: Preserve latest release manifest
+      - name: Preserve latest release manifest bundle
         if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
-          manifest_url="https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
-          dest="www/rvt-latest.json"
-
-          # Distinguish three cases so a transient blip never silently ships an
-          # artifact that drops the live manifest:
-          #   200  -> keep the fetched file (happy path).
-          #   404  -> manifest not published yet; proceed without it (OK).
-          #   other/network errors -> retry, then fail the step on persistence.
+          pages_origin="https://blayalems.github.io/radar-vital-mmwave-60-davao"
+          release_files=(
+            rvt-latest.json
+            rvt-latest-tauri.json
+            qms-release-record.json
+            controlled-document-revisions.json
+            SHA256SUMS
+          )
           attempts=3
-          status=""
-          for attempt in $(seq 1 "$attempts"); do
-            # -w prints only the final HTTP status; -o writes the body to dest.
-            # No -f here: we want to inspect the status code ourselves rather
-            # than let curl collapse every failure into a single exit code.
-            status="$(curl -sS -w '%{http_code}' -o "$dest" "$manifest_url" || echo '000')"
-            echo "Attempt ${attempt}/${attempts}: HTTP ${status} for ${manifest_url}"
+          present=0
+          missing=0
+          bundle_dir="$(mktemp -d)"
+          trap 'rm -rf "$bundle_dir"' EXIT
+
+          # Preserve authorized release evidence as one atomic bundle. A first
+          # deployment may legitimately have no bundle yet; a partial bundle
+          # would mix release identities and therefore fails closed.
+          for file in "${release_files[@]}"; do
+            url="${pages_origin}/${file}"
+            dest="${bundle_dir}/${file}"
+            status=""
+
+            for attempt in $(seq 1 "$attempts"); do
+              # No -f: distinguish a first-release 404 from transient errors.
+              if ! status="$(curl -sS -w '%{http_code}' -o "$dest" "$url")"; then
+                status="000"
+              fi
+              echo "Attempt ${attempt}/${attempts}: HTTP ${status} for ${url}"
+
+              if [ "$status" = "200" ] || [ "$status" = "404" ]; then
+                break
+              fi
+
+              rm -f "$dest"
+              echo "Transient error fetching ${file} (HTTP ${status}); retrying after backoff..."
+              sleep $(( attempt * 3 ))
+            done
 
             if [ "$status" = "200" ]; then
-              echo "Preserved published rvt-latest.json in Pages artifact."
-              exit 0
-            fi
-
-            if [ "$status" = "404" ]; then
-              # Legitimate "not published yet" — remove the 404 body we wrote and
-              # proceed. release-artifacts.yml publishes it after the next release.
+              present=$((present + 1))
+            elif [ "$status" = "404" ]; then
+              missing=$((missing + 1))
               rm -f "$dest"
-              echo "No published rvt-latest.json found yet (404); release-artifacts.yml will publish it after the next release."
-              exit 0
+            else
+              echo "::error::Failed to fetch ${url} after ${attempts} attempts (last HTTP ${status})."
+              exit 1
             fi
-
-            # Transient/network/5xx: discard the partial body and back off.
-            rm -f "$dest"
-            echo "Transient error fetching manifest (HTTP ${status}); retrying after backoff..."
-            sleep $(( attempt * 3 ))
           done
 
-          echo "::error::Failed to fetch ${manifest_url} after ${attempts} attempts (last HTTP ${status}). Refusing to ship Pages artifact without the live manifest."
-          exit 1
+          if [ "$present" -eq 0 ]; then
+            echo "No published release manifest bundle found yet (all files returned 404)."
+            exit 0
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Published release manifest bundle is incomplete (${present} present, ${missing} missing)."
+            exit 1
+          fi
+
+          cp "$bundle_dir"/* www/
+          echo "Preserved ${present} release manifest and QMS evidence files in the Pages artifact."
 
       - name: Verify repository-scoped static PWA output
         run: |
@@ -147,7 +168,7 @@ jobs:
 
       - name: Add CNAME and robots
         run: |
-          # No custom domain by default; remove if/when one is added via repo settings.
+          # No custom domain by default; remove if one is added in repo settings.
           touch www/.nojekyll
           cat > www/robots.txt <<'EOF'
           User-agent: *
@@ -160,11 +181,13 @@ jobs:
           path: ./www
 
   deploy:
-    # Pull-request preview builds only run the build job. Actual deploy to
-    # github-pages only runs on push to main, after the build artifact is ready.
+    # Pull-request preview builds only run build. Deployment is main/manual only.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

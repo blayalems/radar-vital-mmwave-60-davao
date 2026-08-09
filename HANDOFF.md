@@ -5,6 +5,16 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-10 - Harden v16.5.11 study evidence, dependencies, CI, and Pages
+
+- **Objective 3 evidence**: Build the 72-trial false-alarm result directly from unique, non-overlapping completed no-subject captures bound to one locked 72 x 150-second protocol and frozen firmware/rules/threshold configuration; corroborate expected and observed firmware, release provenance, duration, and trial-level any-alert evidence; report the exact one-sided binomial decision and separate two-sided 95% Clopper–Pearson interval while retaining attempted/unqualified denominators.
+- **Worker reliability**: Convert pre-terminal analysis-worker exceptions into durable failed jobs and always release the single-worker semaphore without surfacing daemon-thread exceptions.
+- **Supply chain**: Move Python cryptography and Angular/transitive dependencies to audited versions with zero known findings, and make the Python/root/web audits blocking at the configured policy level.
+- **CI and packaging**: Run contracts/unit/build once, retain four browser shards plus Windows visual regression behind a stable aggregate `test` check, scope workflow permissions, honor manual release tags before automatic main tags, preserve the complete Pages/PWA/legal/QMS bundle, stop swallowing Capacitor failures, and shorten transient artifact retention.
+- **Repository configuration**: Switch GitHub Pages from legacy Jekyll publishing to GitHub Actions, verify deployment of main, enable Dependabot security updates plus secret-scanning push protection, and create the main-only `release-production` environment with a required named reviewer and approval sentinel.
+- **Release/QMS**: Advance coordinated product carriers to v16.5.11 and affected controlled documents to their registered revisions while preserving the v15.2/222-column wire contract and stable v16.5.9 study-session plus v16.5.8 statistical-plan identities.
+- **Verification**: Full Python suite (525 passed, three skipped), focused Objective 3 suite (50 passed), workflow/packaging tests (29 passed, one skipped), 255 Angular tests, production build/monolith round trip, actionlint, compileall, clean npm installs, version/PR/QMS/document contracts, and Python/root/web dependency audits pass. Local Playwright execution is unavailable because the pinned browser download timed out; hosted packaging/browser gates remain authoritative.
+
 ### 2026-08-09 - Stabilize main visual regression telemetry
 
 - **CI root cause**: The Windows visual job allowed the sandbox trainer to publish HR/RR/range samples after navigation, so 16 Live and three desktop Home screenshots raced between the committed no-session baseline and live mock values while all smoke/API shards remained green.

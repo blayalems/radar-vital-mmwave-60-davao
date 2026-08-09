@@ -3,10 +3,10 @@
 | Control | Value |
 |---|---|
 | Document ID | `RVT-QMS-PRO-001` |
-| Revision | `R03` |
+| Revision | `R07` |
 | Owner role | Release manager |
 | Approver roles | Release manager, quality manager, and security owner |
-| Effective product version | `16.5.10` |
+| Effective product version | `16.5.11` |
 | Retention | Project lifetime plus five years; archive then review |
 
 This procedure implements the release portion of the
@@ -119,6 +119,7 @@ Configure GitHub branch protection or a ruleset for `main` with these required
 checks:
 
 - `Playwright tests / test`
+- `Security Audit / audit`
 - `Build Android APK (Capacitor) / apk`
 - `Build Windows EXE (Tauri) / windows`
 
@@ -127,6 +128,18 @@ one-step product-version check, trainer and Angular tests, the release-manifest
 self-test, and the generated-dashboard round trip. If the QMS check later moves
 to a separate named job, add that job to the required checks before merging the
 workflow change.
+
+GitHub Pages must use the `GitHub Actions` publishing source. The custom Pages
+workflow builds the Angular PWA and preserves the complete updater/QMS evidence
+bundle (`rvt-latest.json`, `rvt-latest-tauri.json`, `qms-release-record.json`,
+`controlled-document-revisions.json`, and `SHA256SUMS`) atomically; it must not
+fall back to the legacy branch/Jekyll publisher or publish a partial evidence
+set.
+
+The dependency audit is a blocking gate. Python advisories and
+moderate-or-higher findings in either npm lockfile fail the workflow. Any future
+exception requires an advisory ID, owner, rationale, compensating control, and
+expiry instead of a blanket `continue-on-error`.
 
 Required ruleset settings:
 
@@ -151,6 +164,12 @@ thesis-evidence publication. Environment approval is the durable release
 authorization. An automated prerelease can be generated without production
 promotion, but its release record must keep authorization `pending` and label
 the artifact accordingly.
+
+The repository's `release-production` environment is restricted to `main`,
+requires a named reviewer, disables administrator bypass, and holds the
+`QMS_PRODUCTION_RELEASE_APPROVAL` sentinel. Production dispatch still fails
+closed unless the source commit is reachable from `main` and the workflow run's
+durable approval history names that reviewer.
 
 ## Controlled release evidence
 

@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import http.client
 import json
+import threading
 from pathlib import Path
 
 import pytest
 
+import rvt_trainer.monolith as monolith
 from rvt_trainer.monolith import _ControlServer
 from rvt_trainer.session.study_contract import create_participant_profile
+from rvt_trainer.session.study_evidence import create_analysis_job, load_analysis_job
 
 
 def _request(
@@ -64,6 +67,27 @@ def test_protocol_schedule_and_no_subject_attempt_contract(study_server: _Contro
         "PUT",
         "/api/study/protocol",
         {"state": "locked", "actor": "OP-001"},
+    )
+    assert status == 400
+    assert response["error"]["code"] == "INVALID_STUDY_PROTOCOL"
+
+    status, response = _request(
+        study_server,
+        "PUT",
+        "/api/study/protocol",
+        {
+            "state": "locked",
+            "actor": "OP-001",
+            "no_subject": {
+                "trial_count": 72,
+                "planned_duration_s": 150,
+                "frozen_configuration": {
+                    "firmware": "v16.5.11",
+                    "artifact_rules": "frozen-rules-1",
+                    "alert_threshold": 0.8,
+                },
+            },
+        },
     )
     assert status == 200
     assert response["protocol"]["state"] == "locked"
@@ -172,7 +196,7 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["objective_id"] == "objective_1_rr"
     assert response["status"] == "inconclusive"
-    assert response["provenance"]["product_version"] == "16.5.10"
+    assert response["provenance"]["product_version"] == "16.5.11"
 
 
 def test_study_evidence_routes_are_operator_protected(study_server: _ControlServer):
@@ -196,3 +220,36 @@ def test_study_evidence_routes_are_operator_protected(study_server: _ControlServ
         route = match_route(method, path)
         assert route is not None
         assert route.auth is AuthPolicy.OPERATOR
+
+
+def test_analysis_worker_exception_becomes_durable_failed_job(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    sessions_root = tmp_path / "sessions"
+    sessions_root.mkdir()
+    job = create_analysis_job(
+        str(sessions_root),
+        {"objective_id": "objective_1_rr", "model_family": "gbr"},
+    )
+    semaphore = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(monolith, "_STUDY_ANALYSIS_SEMAPHORE", semaphore)
+
+    def fail_before_inner_worker_guard(_sessions_root: str, _job_id: str) -> None:
+        raise RuntimeError("synthetic top-level worker failure")
+
+    monkeypatch.setattr(
+        monolith,
+        "_run_study_analysis_job_once",
+        fail_before_inner_worker_guard,
+    )
+    monolith._run_study_analysis_job(str(sessions_root), str(job["job_id"]))
+
+    persisted = load_analysis_job(str(sessions_root), job["job_id"])
+    assert persisted is not None
+    assert persisted["status"] == "failed"
+    assert persisted["completed_at"]
+    assert persisted["error"] == "RuntimeError: synthetic top-level worker failure"
+    assert "failed before terminal state" in persisted["last_line"]
+    assert semaphore.acquire(blocking=False) is True
+    semaphore.release()

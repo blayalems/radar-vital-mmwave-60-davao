@@ -1142,7 +1142,7 @@ def coverage_report(
                 result["no_subject_false_alarms"],
                 len(no_subject_keys),
                 null_proportion=false_alarm_null,
-                alternative="greater",
+                alternative="less",
             )
         return result
     if "trial_id" in frame:
@@ -1194,7 +1194,7 @@ def coverage_report(
             int(np.sum(truth & eligible_alarm)),
             int(np.sum(eligible_alarm)),
             null_proportion=false_alarm_null,
-            alternative="greater",
+            alternative="less",
         )
     return result
 

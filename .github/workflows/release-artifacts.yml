@@ -19,11 +19,7 @@ on:
         type: boolean
 
 permissions:
-  actions: read
-  attestations: write
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -41,6 +37,8 @@ jobs:
       publication_class: ${{ steps.version.outputs.publication_class }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Resolve release tag and embedded native version
         id: version
@@ -50,10 +48,10 @@ jobs:
           NAMED_PRERELEASE: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
         run: |
           base_version="$(node -p "require('./src-tauri/tauri.conf.json').version.split('-')[0]")"
-          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            release_tag="v${base_version}-main.${GITHUB_RUN_NUMBER}"
-          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             release_tag="$REQUESTED_TAG"
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            release_tag="v${base_version}-main.${GITHUB_RUN_NUMBER}"
           else
             release_tag="$GITHUB_REF_NAME"
           fi
@@ -90,6 +88,8 @@ jobs:
       signature_state: ${{ steps.android_signature_state.outputs.signature_state }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -117,7 +117,11 @@ jobs:
 
       - name: Add Capacitor Android platform
         run: |
-          npx cap add android || echo "android platform already exists"
+          if [ ! -d android ]; then
+            npx cap add android
+          else
+            echo "Capacitor Android platform already exists; synchronizing it."
+          fi
           npx cap sync android
           node scripts/patch-android-shell.mjs
 
@@ -210,17 +214,22 @@ jobs:
             dist/*.apk
             dist/*.aab
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
 
   windows:
     name: Windows EXE
     runs-on: windows-latest
     timeout-minutes: 80
     needs: release_metadata
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       signature_state: ${{ steps.windows_signature_state.outputs.signature_state }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -432,7 +441,7 @@ jobs:
             dist/*.exe
             dist/*.sig
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
 
   release:
     name: Publish GitHub Release
@@ -447,11 +456,18 @@ jobs:
       - release_metadata
       - android
       - windows
+    permissions:
+      actions: read
+      attestations: write
+      contents: write
+      pages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -678,11 +694,44 @@ jobs:
       - name: Build Pages artifact with latest manifest
         if: steps.authorization.outputs.state == 'authorized'
         run: |
+          cp docs/privacy.html www/privacy.html
+          cp docs/terms.html www/terms.html
           cp dist/rvt-latest.json www/rvt-latest.json
           cp dist/rvt-latest-tauri.json www/rvt-latest-tauri.json
           cp dist/qms-release-record.json www/qms-release-record.json
           cp dist/controlled-document-revisions.json www/controlled-document-revisions.json
           cp dist/SHA256SUMS www/SHA256SUMS
+          touch www/.nojekyll
+          cat > www/robots.txt <<'EOF'
+          User-agent: *
+          Allow: /
+          EOF
+
+      - name: Verify complete production Pages artifact
+        if: steps.authorization.outputs.state == 'authorized'
+        run: |
+          required_files=(
+            index.html
+            404.html
+            sw.js
+            privacy.html
+            terms.html
+            rvt-latest.json
+            rvt-latest-tauri.json
+            qms-release-record.json
+            controlled-document-revisions.json
+            SHA256SUMS
+            .nojekyll
+            robots.txt
+          )
+          for file in "${required_files[@]}"; do
+            test -f "www/${file}"
+          done
+          cmp -s www/index.html www/404.html
+          grep -q 'Radar Vital Privacy Notice' www/privacy.html
+          grep -q 'Radar Vital Terms and Conditions' www/terms.html
+          grep -q 'User-agent: \*' www/robots.txt
+          grep -q 'Allow: /' www/robots.txt
 
       - name: Configure Pages
         if: steps.authorization.outputs.state == 'authorized'

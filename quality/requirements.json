@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R06",
-  "effective_product_version": "16.5.10",
+  "register_revision": "R07",
+  "effective_product_version": "16.5.11",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -78,7 +78,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_5_10.ino",
+        "radar_vital_v16_5_11.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [
@@ -142,6 +142,36 @@
         "No private-key path resolves through the static asset router.",
         "Private TLS material is ignored by Git and absent from packaged web assets.",
         "Unsupported methods and malformed route segments cannot fall through to filesystem serving or protected handlers."
+      ],
+      "change_record_required": true
+    },
+    {
+      "requirement_id": "RVT-SEC-002",
+      "title": "Blocking dependency vulnerability gate",
+      "statement": "Every supported Python and npm dependency tree shall be reproducibly audited, and unresolved policy-level vulnerabilities shall fail CI unless a bounded approved exception is recorded.",
+      "source_refs": ["docs/release-and-protection.md#required-branch-protection-for-main"],
+      "category": "security",
+      "risk_class": "high",
+      "owner_role": "security_owner",
+      "status": "active",
+      "implementation_paths": [
+        ".github/workflows/security-audit.yml",
+        "requirements-v12.txt",
+        "package-lock.json",
+        "web/package-lock.json"
+      ],
+      "verification_refs": [
+        {
+          "path": "tests/test_ci_supply_chain.py",
+          "selector": "test_security_audit_workflow_exists_and_runs_audits",
+          "kind": "automated_test"
+        }
+      ],
+      "artifact_types": ["trainer", "dashboard", "pwa", "apk", "exe", "ci_evidence"],
+      "acceptance_criteria": [
+        "The canonical Python requirements and both npm lockfiles have no unresolved audit finding at the configured blocking level.",
+        "Audit failures produce a failing workflow conclusion instead of a successful advisory-only result.",
+        "Any exception identifies the advisory, owner, rationale, compensating control, and expiry."
       ],
       "change_record_required": true
     },
@@ -308,6 +338,11 @@
         },
         {
           "path": "tests/test_protocol_attempt_ledger.py",
+          "selector": "test_no_subject_qualification_requires_protocol_and_capture_bound_evidence",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_protocol_attempt_ledger.py",
           "selector": "test_manifest_reanalysis_keeps_capture_identity_and_appends_analysis_run",
           "kind": "automated_test"
         }
@@ -316,6 +351,7 @@
       "acceptance_criteria": [
         "Re-analysis cannot mutate capture release, participant, logical trial, or attempt identity.",
         "Failed, stopped, invalid, no-output, and no-subject attempts remain visible in denominators.",
+        "Qualified no-subject evidence requires a locked 72 x 150-second protocol, frozen firmware/rules/threshold identity, matching capture provenance, and non-overlapping intervals.",
         "Participant withdrawal and reversal retain actor, reason, consent revision, and timestamp history."
       ],
       "change_record_required": true
@@ -422,6 +458,11 @@
           "path": "tests/test_trainer_model_families.py",
           "selector": "test_loso_retains_outer_oof_raw_and_postprocessed_prediction_contract",
           "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_study_evidence_api.py",
+          "selector": "test_analysis_worker_exception_becomes_durable_failed_job",
+          "kind": "automated_test"
         }
       ],
       "artifact_types": ["trainer", "model_bundle", "dataset_manifest", "statistical_report"],
@@ -447,6 +488,8 @@
         "docs/system-feedback-loop.md",
         "rvt_trainer/statistics.py",
         "rvt_trainer/monolith.py",
+        "rvt_trainer/session/protocol_ledger.py",
+        "rvt_trainer/session/study_evidence.py",
         "quality/statistical-analysis-plan.json",
         "quality/schemas/statistical-report.schema.json"
       ],
@@ -459,6 +502,11 @@
         {
           "path": "tests/test_statistical_analysis.py",
           "selector": "test_exact_proportion_uses_clopper_pearson_interval",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_protocol_attempt_ledger.py",
+          "selector": "test_objective_three_report_is_built_directly_from_72_qualified_trials",
           "kind": "automated_test"
         },
         {
@@ -476,6 +524,7 @@
       "acceptance_criteria": [
         "Equivalence margins, alpha, hierarchy, aggregation, and exclusions are fixed before confirmatory evaluation.",
         "Outputs retain participant, trial, session, prediction, coverage, and uncertainty denominators.",
+        "The Objective 3 exact result is produced only from exactly 72 unique, non-overlapping, protocol-qualified no-subject captures.",
         "A non-significant difference test is never reported as equivalence."
       ],
       "change_record_required": true

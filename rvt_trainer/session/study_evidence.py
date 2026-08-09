@@ -152,6 +152,35 @@ def save_protocol(sessions_root: str, payload: Mapping[str, Any], *, actor: obje
     requested_state = str(payload.get("state") or current.get("state") or "draft")
     if requested_state not in {"draft", "locked"}:
         raise ValueError("protocol state must be draft or locked")
+    if requested_state == "locked":
+        from rvt_trainer.session.protocol_ledger import (
+            NO_SUBJECT_MIN_DURATION_S,
+            NO_SUBJECT_TRIAL_COUNT,
+            validate_frozen_no_subject_configuration,
+        )
+
+        no_subject = merged.get("no_subject")
+        if not isinstance(no_subject, dict):
+            raise ValueError("protocol lock requires no_subject configuration")
+        if (
+            type(no_subject.get("trial_count")) is not int
+            or no_subject.get("trial_count") != NO_SUBJECT_TRIAL_COUNT
+        ):
+            raise ValueError(
+                f"protocol lock requires exactly {NO_SUBJECT_TRIAL_COUNT} no-subject trials"
+            )
+        planned_duration = no_subject.get("planned_duration_s")
+        if (
+            isinstance(planned_duration, bool)
+            or not isinstance(planned_duration, (int, float))
+            or float(planned_duration) != NO_SUBJECT_MIN_DURATION_S
+        ):
+            raise ValueError(
+                f"protocol lock requires {NO_SUBJECT_MIN_DURATION_S:g}-second no-subject trials"
+            )
+        validate_frozen_no_subject_configuration(
+            no_subject.get("frozen_configuration")
+        )
     merged["state"] = requested_state
     merged["schema_version"] = STUDY_PROTOCOL_SCHEMA_VERSION
     merged["updated_at"] = _now()
@@ -419,7 +448,7 @@ def _validate_completed_job_artifacts(
     """Validate the immutable identity and hashes before objective promotion."""
 
     root = _root(sessions_root)
-    expected_version = _text(product_version, limit=32) or "16.5.10"
+    expected_version = _text(product_version, limit=32) or "16.5.11"
     job_id = _text(job.get("job_id"), limit=100)
     expected_output_root = (root / "study_analysis" / job_id).resolve()
     output_value = _text(job.get("output_dir"), limit=1000)
@@ -538,22 +567,41 @@ def objective_report(
     *,
     objectives: Mapping[str, Any],
     sessions_root: str,
-    product_version: object = "16.5.10",
+    product_version: object = "16.5.11",
 ) -> Dict[str, Any]:
     wanted = _text(objective_id, limit=80)
     known = [item for item in objectives.get("objectives", []) if isinstance(item, dict) and str(item.get("id")) == wanted]
     if not known:
         raise KeyError(wanted)
-    # False-alarm evidence is a denominator problem, not a model-job problem.
-    # Keep the report explicitly inconclusive until every planned control trial
-    # has a session-backed, duration-qualified evidence row.
+    # False-alarm evidence is a trial-ledger problem, not a model-training job.
+    # Build the approved report directly from exactly 72 independently bound,
+    # protocol-qualified control captures.
     if wanted == "objective_3_false_alarm":
-        from rvt_trainer.session.protocol_ledger import completion_matrix
+        from rvt_trainer.session.protocol_ledger import (
+            completion_matrix,
+            no_subject_capture_interval,
+            qualified_no_subject_attempts,
+        )
 
         matrix = completion_matrix(sessions_root)
-        qualified = int(matrix.get("no_subject_qualified_count") or 0)
-        expected = int(matrix.get("no_subject_expected") or 72)
-        if qualified < expected:
+        rows = qualified_no_subject_attempts(sessions_root)
+        qualified = len(rows)
+        expected = int(known[0].get("trial_count") or matrix.get("no_subject_expected") or 72)
+        threshold = float(known[0].get("threshold") or 0.05)
+        common_provenance = {
+            "product_version": _text(product_version, limit=32) or "16.5.11",
+            "objective": known[0],
+            "sessions_root": str(Path(sessions_root).resolve()),
+            "no_subject_attempt_count": int(matrix.get("no_subject_attempt_count") or 0),
+            "no_subject_qualified_count": qualified,
+            "no_subject_unqualified_count": int(matrix.get("no_subject_unqualified_count") or 0),
+        }
+        if qualified != expected:
+            reason = (
+                "insufficient_qualified_no_subject_evidence"
+                if qualified < expected
+                else "excess_qualified_no_subject_evidence"
+            )
             return {
                 "ok": True,
                 "objective_id": wanted,
@@ -561,17 +609,160 @@ def objective_report(
                 "status": "inconclusive",
                 "report": None,
                 "exclusions": [{
-                    "reason": "insufficient_qualified_no_subject_evidence",
+                    "reason": reason,
                     "qualified": qualified,
                     "expected": expected,
                 }],
-                "provenance": {
-                    "product_version": _text(product_version, limit=32) or "16.5.10",
-                    "objective": known[0],
-                    "sessions_root": str(Path(sessions_root).resolve()),
-                    "no_subject_qualified_count": qualified,
-                },
+                "provenance": common_provenance,
             }
+
+        attempt_ids = [_text(row.get("attempt_id"), limit=64) for row in rows]
+        session_ids = [_text(row.get("session_id"), limit=120) for row in rows]
+        configuration_hashes = sorted({
+            _text(row.get("frozen_configuration_hash"), limit=64).lower()
+            for row in rows
+        })
+        if (
+            len(set(attempt_ids)) != expected
+            or len(set(session_ids)) != expected
+            or len(configuration_hashes) != 1
+        ):
+            return {
+                "ok": True,
+                "objective_id": wanted,
+                "schema_version": STUDY_REPORT_SCHEMA_VERSION,
+                "status": "inconclusive",
+                "report": None,
+                "exclusions": [{
+                    "reason": "non_independent_or_mixed_configuration_no_subject_evidence",
+                    "unique_attempts": len(set(attempt_ids)),
+                    "unique_sessions": len(set(session_ids)),
+                    "configuration_count": len(configuration_hashes),
+                    "expected": expected,
+                }],
+                "provenance": common_provenance,
+            }
+
+        capture_intervals = []
+        for row in rows:
+            interval = no_subject_capture_interval(row, sessions_root)
+            if interval is None:
+                return {
+                    "ok": True,
+                    "objective_id": wanted,
+                    "schema_version": STUDY_REPORT_SCHEMA_VERSION,
+                    "status": "inconclusive",
+                    "report": None,
+                    "exclusions": [{
+                        "reason": "missing_no_subject_capture_interval_evidence",
+                        "session_id": _text(row.get("session_id"), limit=120),
+                    }],
+                    "provenance": common_provenance,
+                }
+            capture_intervals.append((
+                interval[0],
+                interval[1],
+                _text(row.get("session_id"), limit=120),
+            ))
+        capture_intervals.sort(key=lambda item: (item[0], item[1], item[2]))
+        previous_start, previous_end, previous_session = capture_intervals[0]
+        for captured_at, ended_at, session_id in capture_intervals[1:]:
+            if captured_at < previous_end:
+                return {
+                    "ok": True,
+                    "objective_id": wanted,
+                    "schema_version": STUDY_REPORT_SCHEMA_VERSION,
+                    "status": "inconclusive",
+                    "report": None,
+                    "exclusions": [{
+                        "reason": "overlapping_no_subject_capture_intervals",
+                        "first_session_id": previous_session,
+                        "first_captured_at": previous_start.isoformat(),
+                        "first_ended_at": previous_end.isoformat(),
+                        "overlapping_session_id": session_id,
+                        "overlapping_captured_at": captured_at.isoformat(),
+                        "overlapping_ended_at": ended_at.isoformat(),
+                    }],
+                    "provenance": common_provenance,
+                }
+            previous_start, previous_end, previous_session = (
+                captured_at,
+                ended_at,
+                session_id,
+            )
+
+        false_alarm_trials = sum(int(row["false_alarm_count"]) for row in rows)
+        try:
+            from rvt_trainer.statistics import exact_proportion
+
+            exact = exact_proportion(
+                false_alarm_trials,
+                expected,
+                confidence=0.95,
+                null_proportion=threshold,
+                alternative="less",
+            )
+        except Exception as exc:
+            return {
+                "ok": True,
+                "objective_id": wanted,
+                "schema_version": STUDY_REPORT_SCHEMA_VERSION,
+                "status": "blocked",
+                "report": None,
+                "exclusions": [{
+                    "reason": "false_alarm_statistics_unavailable",
+                    "detail": _text(exc, limit=240),
+                }],
+                "provenance": common_provenance,
+            }
+
+        alpha = 0.05
+        reject_null = float(exact["p_value"]) < alpha
+        report = {
+            "estimand": "trial-level no-subject false-alarm proportion",
+            "planned_trial_count": expected,
+            "qualified_trial_count": qualified,
+            "false_alarm_trial_count": false_alarm_trials,
+            "observed_false_alarm_rate": exact["proportion"],
+            "confidence_interval_95": {
+                "confidence": exact["confidence"],
+                "low": exact["ci_low"],
+                "high": exact["ci_high"],
+                "method": exact["method"],
+            },
+            "exact_binomial_test": {
+                "null_hypothesis": f"p >= {threshold:g}",
+                "alternative_hypothesis": f"p < {threshold:g}",
+                "null_proportion": exact["null_proportion"],
+                "alternative": exact["alternative"],
+                "p_value": exact["p_value"],
+                "alpha": alpha,
+                "reject_null": reject_null,
+                "decision": (
+                    "supports_false_alarm_rate_below_threshold"
+                    if reject_null
+                    else "does_not_support_false_alarm_rate_below_threshold"
+                ),
+            },
+            # Retain the common statistics payload so downstream manuscript
+            # exporters can use the same field contract as coverage_report().
+            "false_alarm_exact": exact,
+        }
+        return {
+            "ok": True,
+            "objective_id": wanted,
+            "schema_version": STUDY_REPORT_SCHEMA_VERSION,
+            "status": "ready",
+            "report": report,
+            "exclusions": [],
+            "provenance": {
+                **common_provenance,
+                "frozen_configuration_hash": configuration_hashes[0],
+                "capture_interval_count": len(capture_intervals),
+                "attempt_ids": attempt_ids,
+                "session_ids": session_ids,
+            },
+        }
 
     jobs = _load_map(_root(sessions_root) / ANALYSIS_PATH)
     completed = [
@@ -622,7 +813,7 @@ def objective_report(
         "report": report,
         "exclusions": exclusions,
         "provenance": {
-            "product_version": _text(product_version, limit=32) or "16.5.10",
+            "product_version": _text(product_version, limit=32) or "16.5.11",
             "objective": known[0],
             "latest_job_id": latest.get("job_id") if latest else None,
             "sessions_root": str(Path(sessions_root).resolve()),

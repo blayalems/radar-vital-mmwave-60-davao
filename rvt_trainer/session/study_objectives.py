@@ -80,7 +80,7 @@ def study_objectives_payload() -> Dict[str, object]:
 
     return {
         "schema_version": STUDY_OBJECTIVES_SCHEMA_VERSION,
-        "product_version": "16.5.10",
+        "product_version": "16.5.11",
         "confirmatory_conditions": [
             "d060_none",
             "d080_none",

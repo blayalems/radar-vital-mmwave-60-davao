@@ -9,10 +9,14 @@ prediction file.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import math
 import re
 import secrets
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional
 
@@ -47,8 +51,12 @@ CONFIRMATORY_CONDITION_IDS = (
 )
 TRIAL_NUMBERS = (1, 2, 3)
 NO_SUBJECT_MIN_DURATION_S = 150.0
+NO_SUBJECT_TRIAL_COUNT = 72
 _PARTICIPANT_RE = re.compile(r"^P-[0-9]{3}$")
 _CONDITION_RE = re.compile(r"^d[0-9]{3}_(?:none|cardboard)$")
+_FIRMWARE_VERSION_RE = re.compile(
+    r"^v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9][A-Za-z0-9.-]*)?$"
+)
 _LEDGER_LOCK = threading.RLock()
 
 
@@ -59,6 +67,98 @@ def _iso_now() -> str:
 def _safe_text(value: object, *, default: str = "", limit: int = 160) -> str:
     text = str(value or "").replace("\r", " ").replace("\n", " ").strip()
     return text[:limit]
+
+
+def frozen_configuration_hash(configuration: Mapping[str, object]) -> str:
+    """Return the stable SHA-256 identity for one frozen no-subject setup."""
+
+    if not isinstance(configuration, Mapping) or not configuration:
+        raise ValueError("frozen configuration must be a non-empty JSON object")
+    try:
+        canonical = json.dumps(
+            dict(configuration),
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("frozen configuration must contain JSON values") from exc
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def validate_frozen_no_subject_configuration(
+    configuration: Mapping[str, object],
+) -> Dict[str, object]:
+    """Validate the minimum frozen identities required by Objective 3."""
+
+    if not isinstance(configuration, Mapping) or not configuration:
+        raise ValueError("frozen configuration must be a non-empty JSON object")
+    firmware = _safe_text(configuration.get("firmware"), limit=100)
+    if not _FIRMWARE_VERSION_RE.fullmatch(firmware):
+        raise ValueError("frozen configuration firmware must use vMAJOR.MINOR.PATCH form")
+    artifact_rules = configuration.get("artifact_rules")
+    if not isinstance(artifact_rules, str) or not artifact_rules.strip():
+        raise ValueError("frozen configuration artifact_rules identity is required")
+    alert_threshold = _finite_number(configuration.get("alert_threshold"))
+    if alert_threshold is None:
+        raise ValueError("frozen configuration alert_threshold must be finite")
+    # Confirm JSON canonicalization while validation errors can still be
+    # attributed to the protocol lock rather than a later report request.
+    frozen_configuration_hash(configuration)
+    return {
+        "firmware": firmware,
+        "artifact_rules": artifact_rules.strip(),
+        "alert_threshold": alert_threshold,
+    }
+
+
+def _finite_number(value: object) -> Optional[float]:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _parse_timestamp(value: object) -> Optional[datetime]:
+    text = _safe_text(value, limit=64)
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def no_subject_capture_interval(
+    row: Mapping[str, object],
+    sessions_root: str,
+) -> Optional[tuple[datetime, datetime]]:
+    """Return one safely resolved no-subject capture interval."""
+
+    session_id = _safe_text(row.get("session_id"), limit=120)
+    if not session_id or "/" in session_id or "\\" in session_id or session_id in {".", ".."}:
+        return None
+    root = Path(sessions_root).resolve()
+    session_root = (root / session_id).resolve()
+    if session_root.parent != root or session_root.name != session_id:
+        return None
+    manifest = read_json_if_exists(str(session_root / "session_manifest.json"))
+    if not isinstance(manifest, dict):
+        return None
+    provenance = manifest.get("capture_provenance")
+    if not isinstance(provenance, dict):
+        return None
+    captured_at = _parse_timestamp(provenance.get("captured_at"))
+    ended_at = _parse_timestamp(manifest.get("ended_at"))
+    if captured_at is None or ended_at is None or ended_at <= captured_at:
+        return None
+    return captured_at, ended_at
 
 
 def canonical_logical_trial_id(
@@ -362,26 +462,146 @@ def list_protocol_attempts(
 
 
 def _qualified_no_subject(row: Mapping[str, object], sessions_root: str) -> bool:
-    if row.get("attempt_type") != "no_subject" or str(row.get("status") or "") not in TERMINAL_ATTEMPT_STATUSES:
+    # A confirmatory control trial must be a completed capture, not merely any
+    # terminal click (for example, an aborted or failed-start attempt).
+    if (
+        row.get("attempt_type") != "no_subject"
+        or row.get("status") != "completed"
+        or row.get("terminal") is not True
+    ):
         return False
-    try:
-        duration = float(row.get("duration_s"))
-        false_alarm_count = int(row.get("false_alarm_count"))
-    except (TypeError, ValueError):
+    events = row.get("events")
+    if not isinstance(events, list) or not any(
+        isinstance(event, dict)
+        and event.get("status") == "completed"
+        and bool(_safe_text(event.get("event_id"), limit=64))
+        and bool(_safe_text(event.get("at"), limit=64))
+        for event in events
+    ):
         return False
-    if duration < NO_SUBJECT_MIN_DURATION_S or false_alarm_count < 0:
+
+    duration = _finite_number(row.get("duration_s"))
+    false_alarm_count = row.get("false_alarm_count")
+    if (
+        duration is None
+        or duration < NO_SUBJECT_MIN_DURATION_S
+        or type(false_alarm_count) is not int
+        or false_alarm_count not in {0, 1}
+    ):
         return False
     frozen_hash = str(row.get("frozen_configuration_hash") or "").strip().lower()
     if not re.fullmatch(r"[0-9a-f]{64}", frozen_hash):
         return False
+
+    # The hash must resolve to the single configuration frozen in the locked
+    # protocol.  A syntactically valid, caller-invented hash is not evidence.
+    root = Path(sessions_root).resolve()
+    protocol = read_json_if_exists(str(root / "study_protocol.json"))
+    no_subject = protocol.get("no_subject") if isinstance(protocol, dict) else None
+    configuration = (
+        no_subject.get("frozen_configuration")
+        if isinstance(no_subject, dict)
+        else None
+    )
+    if not isinstance(protocol, dict) or protocol.get("state") != "locked":
+        return False
+    if not isinstance(no_subject, dict):
+        return False
+    if (
+        type(no_subject.get("trial_count")) is not int
+        or no_subject.get("trial_count") != NO_SUBJECT_TRIAL_COUNT
+    ):
+        return False
+    protocol_duration = _finite_number(no_subject.get("planned_duration_s"))
+    if protocol_duration != NO_SUBJECT_MIN_DURATION_S or duration != protocol_duration:
+        return False
+    try:
+        configuration_evidence = validate_frozen_no_subject_configuration(configuration)
+        if frozen_configuration_hash(configuration) != frozen_hash:
+            return False
+    except ValueError:
+        return False
+
     session_id = _safe_text(row.get("session_id"), limit=120)
     if not session_id or "/" in session_id or "\\" in session_id or session_id in {".", ".."}:
         return False
-    root = Path(sessions_root).resolve()
     session_root = (root / session_id).resolve()
     if session_root.parent != root or session_root.name != session_id:
         return False
-    return (session_root / "session_manifest.json").is_file()
+    manifest = read_json_if_exists(str(session_root / "session_manifest.json"))
+    if not isinstance(manifest, dict):
+        return False
+
+    attempt_id = _safe_text(row.get("attempt_id"), limit=64)
+    if (
+        not attempt_id
+        or manifest.get("attempt_id") != attempt_id
+        or manifest.get("attempt_type") != "no_subject"
+        or manifest.get("participant_id") not in (None, "")
+        or manifest.get("status") != "completed"
+        or manifest.get("terminal") is not True
+    ):
+        return False
+    manifest_session_id = _safe_text(manifest.get("session_id"), limit=120)
+    if manifest_session_id and manifest_session_id != session_id:
+        return False
+
+    # Bind the separately appended trial classification back to the immutable
+    # capture evidence.  Duration, configuration, and alert activation must
+    # agree in both records; zero is accepted only as an explicitly recorded
+    # integer classification, never as a missing/default value.
+    manifest_duration = _finite_number(
+        manifest.get("duration_s", manifest.get("planned_duration_s"))
+    )
+    manifest_false_alarm_count = manifest.get("false_alarm_count")
+    if (
+        manifest_duration != duration
+        or str(manifest.get("frozen_configuration_hash") or "").strip().lower()
+        != frozen_hash
+        or type(manifest_false_alarm_count) is not int
+        or manifest_false_alarm_count != false_alarm_count
+    ):
+        return False
+
+    provenance = manifest.get("capture_provenance")
+    if not isinstance(provenance, dict):
+        return False
+    if (
+        provenance.get("source") != "session_start"
+        or provenance.get("attempt_id") != attempt_id
+    ):
+        return False
+    for field in (
+        "product_version",
+        "trainer_version",
+        "dashboard_version",
+        "firmware_expected",
+        "firmware_observed",
+        "source_commit",
+    ):
+        captured_value = _safe_text(provenance.get(field), limit=100)
+        if not captured_value or _safe_text(manifest.get(field), limit=100) != captured_value:
+            return False
+    frozen_firmware = str(configuration_evidence["firmware"])
+    if (
+        _safe_text(manifest.get("firmware_expected"), limit=100) != frozen_firmware
+        or _safe_text(manifest.get("firmware_observed"), limit=100) != frozen_firmware
+    ):
+        return False
+    captured_at = _parse_timestamp(provenance.get("captured_at"))
+    ended_at = _parse_timestamp(manifest.get("ended_at"))
+    if captured_at is None or ended_at is None:
+        return False
+    if (ended_at - captured_at).total_seconds() + 1.0 < duration:
+        return False
+    return True
+
+
+def qualified_no_subject_attempts(sessions_root: str) -> list[Dict[str, object]]:
+    """Return only protocol- and capture-backed no-subject trial evidence."""
+
+    rows = list_protocol_attempts(sessions_root, attempt_type="no_subject")
+    return [row for row in rows if _qualified_no_subject(row, sessions_root)]
 
 
 def completion_matrix(sessions_root: str) -> Dict[str, object]:
@@ -435,6 +655,9 @@ def completion_matrix(sessions_root: str) -> Dict[str, object]:
             "protocol_complete": completed == len(CONFIRMATORY_CONDITION_IDS) * len(TRIAL_NUMBERS),
             "cells": cells,
         }
+    qualified_no_subject = [
+        row for row in no_subject if _qualified_no_subject(row, sessions_root)
+    ]
     return {
         "schema_version": PROTOCOL_ATTEMPTS_SCHEMA_VERSION,
         "conditions": list(CONFIRMATORY_CONDITION_IDS),
@@ -445,13 +668,9 @@ def completion_matrix(sessions_root: str) -> Dict[str, object]:
             1 for row in matrix.values() if row.get("protocol_complete")
         ),
         "no_subject_attempt_count": len(no_subject),
-        "no_subject_qualified_count": sum(
-            1 for row in no_subject if _qualified_no_subject(row, sessions_root)
-        ),
-        "no_subject_unqualified_count": sum(
-            1 for row in no_subject if not _qualified_no_subject(row, sessions_root)
-        ),
-        "no_subject_expected": 72,
+        "no_subject_qualified_count": len(qualified_no_subject),
+        "no_subject_unqualified_count": len(no_subject) - len(qualified_no_subject),
+        "no_subject_expected": NO_SUBJECT_TRIAL_COUNT,
         "attempt_count": len(rows),
     }
 
@@ -464,13 +683,18 @@ __all__ = [
     "PROTOCOL_ATTEMPTS_SCHEMA_VERSION",
     "TRIAL_NUMBERS",
     "NO_SUBJECT_MIN_DURATION_S",
+    "NO_SUBJECT_TRIAL_COUNT",
     "allocate_attempt_id",
     "append_session_attempt_event",
     "canonical_logical_trial_id",
     "completion_matrix",
+    "frozen_configuration_hash",
     "initialize_session_attempt",
     "ledger_path",
     "list_protocol_attempts",
+    "no_subject_capture_interval",
     "protocol_attempts_path",
+    "qualified_no_subject_attempts",
     "register_protocol_attempt",
+    "validate_frozen_no_subject_configuration",
 ]

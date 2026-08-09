@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-10 - Approve v16.5.11 Help visual baselines
+
+- **Visual review**: Inspected the hosted Windows expected, actual, and diff images for all 12 failures; every change is limited to the intentional Help release badge update from 16.5.10 to 16.5.11 and its responsive reflow on narrow layouts.
+- **Baseline scope**: Refreshed only Help snapshots for desktop, Pixel 7, and iPad across light, dark, night, and high-contrast themes; the iPhone 14 Help snapshots and all 84 already-passing visual cases remain unchanged.
+- **Verification**: Each replaced file was hash-matched to the failing run's committed expected image before copying the deterministic first-attempt actual image; the replacement hosted Playwright aggregate is the authoritative Windows rendering gate.
+
 ### 2026-08-10 - Close secondary dependency and browser-shard gaps
 
 - **Dependency closure**: Extend the blocking audit from Python/root/web to the standalone Capacitor npm tree and Tauri Rust lockfile; update vulnerable `tar`, `brace-expansion`, `quinn-proto`, `plist`, and `quick-xml` resolutions.

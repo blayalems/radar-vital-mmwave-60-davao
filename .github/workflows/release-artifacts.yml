@@ -226,6 +226,7 @@ jobs:
       id-token: write
     outputs:
       signature_state: ${{ steps.windows_signature_state.outputs.signature_state }}
+      updater_signature_state: ${{ steps.windows_updater_signature_state.outputs.signature_state }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -302,7 +303,23 @@ jobs:
         run: cargo install tauri-cli --version '^2.0' --locked
 
       - name: Build NSIS EXE installer
-        run: cargo tauri build --verbose --bundles nsis
+        shell: pwsh
+        run: |
+          $maxAttempts = 3
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "Tauri NSIS build attempt $attempt of $maxAttempts."
+            cargo tauri build --verbose --bundles nsis
+            if ($LASTEXITCODE -eq 0) { break }
+
+            $exitCode = $LASTEXITCODE
+            if ($attempt -eq $maxAttempts) {
+              throw "Tauri NSIS build failed after $maxAttempts attempts (exit code $exitCode)."
+            }
+
+            $delaySeconds = 15 * $attempt
+            Write-Warning "Tauri NSIS build attempt $attempt failed (exit code $exitCode); retrying in $delaySeconds seconds."
+            Start-Sleep -Seconds $delaySeconds
+          }
         env:
           RUST_BACKTRACE: '1'
           TAURI_BUNDLE__WEBVIEW_FIXED_RUNTIME_PATH: ''
@@ -410,16 +427,28 @@ jobs:
           if (-not (Test-Path $sigPath)) { throw "Tauri updater signature was not generated at $sigPath." }
 
       - name: Stage EXE release asset
+        id: windows_updater_signature_state
         shell: pwsh
+        env:
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           $exe = Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter *.exe | Select-Object -First 1
           if (-not $exe) { throw "No NSIS EXE found." }
           Copy-Item $exe.FullName "dist\radar-vital-windows-installer.exe"
-          $sig = Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter *.exe.sig | Select-Object -First 1
-          if ($sig) {
-            Copy-Item $sig.FullName "dist\radar-vital-windows-installer.exe.sig"
+          $sigPath = "$($exe.FullName).sig"
+          if (Test-Path -LiteralPath $sigPath) {
+            if (-not $env:TAURI_UPDATER_PUBLIC_KEY) {
+              throw "Updater signature exists but TAURI_UPDATER_PUBLIC_KEY is not configured."
+            }
+            Copy-Item $sigPath "dist\radar-vital-windows-installer.exe.sig"
+            cargo run --quiet --release --locked --manifest-path src-tauri/Cargo.toml --example verify_updater_signature -- "dist\radar-vital-windows-installer.exe" "dist\radar-vital-windows-installer.exe.sig"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Detached updater signature did not verify against the configured public key and staged EXE."
+            }
+            "signature_state=signed" >> $env:GITHUB_OUTPUT
           } else {
+            "signature_state=missing" >> $env:GITHUB_OUTPUT
             Write-Host "No Tauri updater signature found; Windows install automation will remain disabled in the manifest."
           }
 
@@ -589,6 +618,9 @@ jobs:
         env:
           PUBLICATION_CLASS: ${{ needs.release_metadata.outputs.publication_class }}
           RELEASED_AT: ${{ needs.release_metadata.outputs.released_at }}
+          ANDROID_SIGNATURE_STATE: ${{ needs.android.outputs.signature_state }}
+          WINDOWS_SIGNATURE_STATE: ${{ needs.windows.outputs.signature_state }}
+          WINDOWS_UPDATER_SIGNATURE_STATE: ${{ needs.windows.outputs.updater_signature_state }}
           PRODUCTION_APPROVAL_SENTINEL: ${{ secrets.QMS_PRODUCTION_RELEASE_APPROVAL }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -601,6 +633,18 @@ jobs:
             exit 0
           fi
 
+          if [ "$ANDROID_SIGNATURE_STATE" != "signed_release" ]; then
+            echo "Production publication requires a signed Android release, received: ${ANDROID_SIGNATURE_STATE}." >&2
+            exit 1
+          fi
+          if [ "$WINDOWS_SIGNATURE_STATE" != "authenticode_verified" ]; then
+            echo "Production publication requires an Authenticode-verified Windows installer, received: ${WINDOWS_SIGNATURE_STATE}." >&2
+            exit 1
+          fi
+          if [ "$WINDOWS_UPDATER_SIGNATURE_STATE" != "signed" ]; then
+            echo "Production publication requires a detached Tauri updater signature, received: ${WINDOWS_UPDATER_SIGNATURE_STATE}." >&2
+            exit 1
+          fi
           if [ -z "$PRODUCTION_APPROVAL_SENTINEL" ]; then
             echo "Production publication requires QMS_PRODUCTION_RELEASE_APPROVAL from the protected release-production environment." >&2
             exit 1

@@ -82,7 +82,7 @@ def test_protocol_schedule_and_no_subject_attempt_contract(study_server: _Contro
                 "trial_count": 72,
                 "planned_duration_s": 150,
                 "frozen_configuration": {
-                    "firmware": "v16.5.11",
+                    "firmware": "v16.5.12",
                     "artifact_rules": "frozen-rules-1",
                     "alert_threshold": 0.8,
                 },
@@ -196,7 +196,7 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["objective_id"] == "objective_1_rr"
     assert response["status"] == "inconclusive"
-    assert response["provenance"]["product_version"] == "16.5.11"
+    assert response["provenance"]["product_version"] == "16.5.12"
 
 
 def test_study_evidence_routes_are_operator_protected(study_server: _ControlServer):

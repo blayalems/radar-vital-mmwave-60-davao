@@ -5,6 +5,15 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-13 - Fail closed on unsigned production publication
+
+- **Production authorization**: Require a signed Android release, an Authenticode-verified final Windows installer, and a detached Tauri updater signature before protected approval can authorize a production publication; unsigned outputs remain diagnostic prereleases.
+- **Updater identity proof**: Stream-verify the detached updater signature against the configured Tauri public key and staged final EXE bytes before reporting it signed; mismatched rotations, malformed keys/signatures, and modified installers fail closed, with Rust acceptance and tamper-rejection coverage.
+- **Packaging resilience**: Retry the Tauri NSIS build up to three times with bounded backoff so a transient GitHub dependency-download disconnect cannot discard an otherwise completed Windows compilation; persistent failures still stop the job.
+- **Traceability**: Add release-workflow regression tests, update the `RVT-REL-001` acceptance criteria, and advance coordinated product carriers to v16.5.12 while preserving the v15.2 / 222-column wire contract and existing study/statistical schema identities.
+- **Browser CI correction**: Keep the OTA "newer version" fixture ahead of the current product at v16.5.13, and refresh only the 12 reviewed Help snapshots changed by the v16.5.12 badge on desktop, Pixel 7, and iPad across light, dark, night, and high-contrast themes; iPhone and the other 84 visual baselines remain unchanged.
+- **Verification**: 538 Python tests passed with three expected skips; 255 Angular tests, version/source/QMS/PR-step/contrast/service-worker contracts, production build/monolith round trip, 16 release-provenance tests, and Python plus all three npm audits passed. The first hosted browser run passed 91/92 functional cases per viewport; its 12 expected/actual/diff Help-image sets were inspected and hash-matched before baseline replacement. The first Windows job compiled successfully before a transient `nsis_tauri_utils.dll` peer disconnect exercised the new bounded-retry case. Replacement hosted package/security/browser jobs remain authoritative; physical hardware acceptance, signing-secret custody, named release authorization, branch-protection policy changes, and the interactive Codex-browser audit remain external gates.
+
 ### 2026-08-10 - Approve v16.5.11 Help visual baselines
 
 - **Visual review**: Inspected the hosted Windows expected, actual, and diff images for all 12 failures; every change is limited to the intentional Help release badge update from 16.5.10 to 16.5.11 and its responsive reflow on narrow layouts.

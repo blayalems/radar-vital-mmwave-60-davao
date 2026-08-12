@@ -38,7 +38,7 @@ def _manifest(participant_id="P-001", trial_number=1):
 
 def _valid_no_subject_configuration() -> dict:
     return {
-        "firmware": "v16.5.11",
+        "firmware": "v16.5.12",
         "artifact_rules": "frozen-rules-1",
         "alert_threshold": 0.80,
     }
@@ -101,22 +101,22 @@ def _register_no_subject_capture(
         "duration_s": 150,
         "frozen_configuration_hash": configuration_hash,
         "false_alarm_count": false_alarm_count,
-        "product_version": "16.5.11",
-        "trainer_version": "16.5.11",
-        "dashboard_version": "16.5.11",
-        "firmware_expected": "v16.5.11",
-        "firmware_observed": "v16.5.11",
+        "product_version": "16.5.12",
+        "trainer_version": "16.5.12",
+        "dashboard_version": "16.5.12",
+        "firmware_expected": "v16.5.12",
+        "firmware_observed": "v16.5.12",
         "source_commit": "a" * 40,
         "ended_at": ended_at_text,
         "capture_provenance": {
             "captured_at": captured_at_text,
             "source": "session_start",
             "attempt_id": attempt_id,
-            "product_version": "16.5.11",
-            "trainer_version": "16.5.11",
-            "dashboard_version": "16.5.11",
-            "firmware_expected": "v16.5.11",
-            "firmware_observed": "v16.5.11",
+            "product_version": "16.5.12",
+            "trainer_version": "16.5.12",
+            "dashboard_version": "16.5.12",
+            "firmware_expected": "v16.5.12",
+            "firmware_observed": "v16.5.12",
             "source_commit": "a" * 40,
         },
     }
@@ -158,12 +158,12 @@ def test_canonical_logical_trial_key_is_stable_and_condition_bound():
         ),
         (
             72,
-            {"firmware": "v16.5.11", "alert_threshold": 0.8},
+            {"firmware": "v16.5.12", "alert_threshold": 0.8},
             "artifact_rules identity is required",
         ),
         (
             72,
-            {"firmware": "v16.5.11", "artifact_rules": "rules-1"},
+            {"firmware": "v16.5.12", "artifact_rules": "rules-1"},
             "alert_threshold must be finite",
         ),
     ],

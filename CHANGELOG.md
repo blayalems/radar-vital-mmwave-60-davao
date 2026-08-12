@@ -6,6 +6,23 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.5.12 production-signing authorization (in progress)
+
+- Made production publication fail closed unless Android reports a signed
+  release APK/AAB, Windows reports a valid Authenticode signature on the final
+  installer, and that installer has a detached Tauri updater signature.
+- Bound the signature proofs to the protected authorization step before the
+  approval sentinel or named authorizer can be accepted, while retaining
+  unsigned builds as diagnostic prereleases.
+- Cryptographically verify the detached updater signature against the
+  configured Tauri public key and staged final EXE before reporting it signed,
+  rejecting mismatched key rotations or modified installer bytes.
+- Added bounded NSIS build retries so transient upstream dependency-download
+  disconnects do not discard a completed Windows compilation.
+- Added automated release-workflow regression coverage and advanced the
+  coordinated product/QMS identity to v16.5.12 without changing the frozen
+  v15.2 / 222-column wire contract or existing study/statistical schemas.
+
 ### v16.5.11 evidence and CI hardening (in progress)
 
 - Upgraded vulnerable Python, Angular, Capacitor, and Rust dependency

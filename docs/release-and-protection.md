@@ -3,10 +3,10 @@
 | Control | Value |
 |---|---|
 | Document ID | `RVT-QMS-PRO-001` |
-| Revision | `R08` |
+| Revision | `R09` |
 | Owner role | Release manager |
 | Approver roles | Release manager, quality manager, and security owner |
-| Effective product version | `16.5.11` |
+| Effective product version | `16.5.12` |
 | Retention | Project lifetime plus five years; archive then review |
 
 This procedure implements the release portion of the
@@ -52,6 +52,20 @@ The release tag's base semantic version must equal the authoritative product
 version. A syntactically valid but different tag is rejected. Tags and
 published assets are immutable; a correction receives a new controlled version
 instead of replacing evidence in place.
+
+A publication may leave the protected `release-production` environment as a
+production release only when all three native signature proofs are present:
+
+- Android reports `signed_release` for the release APK/AAB rather than the
+  unsigned debug fallback.
+- Windows reports `authenticode_verified` for the final NSIS installer bytes.
+- The final installer has a detached Tauri updater signature generated after
+  Authenticode signing.
+
+The release workflow checks these states before it consumes the protected QMS
+approval sentinel or records a named authorizer. A missing or unexpected state
+fails the production publication. Unsigned or partially signed builds remain
+diagnostic prereleases and cannot deploy production Pages metadata.
 
 ## Signing secrets
 

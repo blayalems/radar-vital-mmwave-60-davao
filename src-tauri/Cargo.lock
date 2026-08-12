@@ -2819,11 +2819,12 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "radar-vital"
-version = "16.5.11"
+version = "16.5.12"
 dependencies = [
  "base64 0.22.1",
  "btleplug",
  "futures-util",
+ "minisign-verify",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

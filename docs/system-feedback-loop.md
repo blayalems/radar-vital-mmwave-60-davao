@@ -1,8 +1,8 @@
-# Radar Vital v16.5.11 Hardware–Software Feedback Loop
+# Radar Vital v16.5.12 Hardware–Software Feedback Loop
 
 This document is the canonical source for the system-process figures used by
-the repository and manuscript. It describes the shipped v16.5.11 product while
-keeping the wire protocol identity explicit: firmware v16.5.11 emits the frozen
+the repository and manuscript. It describes the shipped v16.5.12 product while
+keeping the wire protocol identity explicit: firmware v16.5.12 emits the frozen
 v15.2 CSV contract (222 columns, including the three fields introduced in
 v16.4 at columns 220–222).
 
@@ -39,9 +39,9 @@ the predeclared statistical-plan ID) are not renamed for a release-only bump.
 flowchart LR
     subject["Participant and reference device"]
     radar["MR60BHA2 60 GHz radar"]
-    mcu["XIAO ESP32-C6<br/>firmware v16.5.11"]
+    mcu["XIAO ESP32-C6<br/>firmware v16.5.12"]
     serial["USB serial<br/>v15.2 CSV, 222 columns"]
-    capture["Python trainer v16.5.11<br/>capture and quality ledger"]
+    capture["Python trainer v16.5.12<br/>capture and quality ledger"]
     dataset["Immutable session artifacts<br/>participant, session, timestamps"]
     features["Causal feature pipeline<br/>train-only fit and schema hash"]
     split["Recorded group split manifest<br/>outer participant holdout"]
@@ -51,7 +51,7 @@ flowchart LR
     evidence["Hashed evidence bundle<br/>JSON, CSV, plots and LaTeX tables"]
     registry["Signed model artifact and manifest<br/>family, split, seed, hashes"]
     api["Trainer prediction and report API"]
-    ui["Angular dashboard v16.5.11<br/>provenance, status and comparison"]
+    ui["Angular dashboard v16.5.12<br/>provenance, status and comparison"]
     manuscript["LaTeX manuscript<br/>figures, methods and results"]
     protocol["Reviewed protocol decision<br/>acquisition, firmware and software changes"]
     operator["Operator action<br/>placement, capture quality, retraining"]
@@ -69,7 +69,7 @@ flowchart LR
 ```
 
 Manuscript caption (`hardware-software-feedback-loop`):
-“Radar Vital v16.5.11 hardware–software feedback loop. The ESP32-C6 firmware
+“Radar Vital v16.5.12 hardware–software feedback loop. The ESP32-C6 firmware
 streams the frozen v15.2/222-column serial contract to the Python trainer.
 Immutable, participant-grouped session artifacts feed one causal preprocessing
 and holdout manifest shared by gradient boosting and the experimental 1-D CNN.
@@ -154,7 +154,7 @@ The session manifest must contain:
 `model_family`, `model_bundle_id`, `logical_trial_id`, `attempt_id`, and
 `attempt_type`.
 
-The v16.5.11 capture rule is that `capture_provenance` is written once at
+The v16.5.12 capture rule is that `capture_provenance` is written once at
 allocation and never rewritten by analysis. Re-analysis appends an
 `analysis_runs[]` record containing the current source commit, feature-schema
 hash, and input-file hashes. Each capture also owns an append-only

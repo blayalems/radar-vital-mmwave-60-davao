@@ -1,12 +1,17 @@
 [package]
 name = "radar-vital"
-version = "16.5.11"
+version = "16.5.12"
 description = "Mobile-first console for mmWave 60 GHz radar vital-sign monitoring."
 edition = "2021"
 rust-version = "1.77"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+
+[[example]]
+name = "verify_updater_signature"
+path = "examples/verify_updater_signature.rs"
+test = true
 
 [dependencies]
 tauri = { version = "2", features = [] }
@@ -21,6 +26,9 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 tokio = { version = "1", features = ["time"] }
 url = "2"
 uuid = "1"
+
+[dev-dependencies]
+minisign-verify = "=0.2.5"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

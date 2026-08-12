@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R08",
-  "effective_product_version": "16.5.11",
+  "register_revision": "R09",
+  "effective_product_version": "16.5.12",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -78,7 +78,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_5_11.ino",
+        "radar_vital_v16_5_12.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [
@@ -542,6 +542,7 @@
       "status": "active",
       "implementation_paths": [
         ".github/workflows/release-artifacts.yml",
+        "src-tauri/examples/verify_updater_signature.rs",
         "scripts/generate-rvt-latest.mjs",
         "scripts/generate-qms-release-record.mjs",
         "scripts/verify-release-artifacts.ps1"
@@ -556,12 +557,30 @@
           "path": "tests/test_packaging.py",
           "selector": "test_release_manifest_generator_self_test_covers_aab",
           "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_qms_release_record.py",
+          "selector": "test_production_release_requires_every_native_signature_proof",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_qms_release_record.py",
+          "selector": "test_updater_signed_state_requires_cryptographic_verification",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_qms_release_record.py",
+          "selector": "test_windows_nsis_build_retries_transient_dependency_downloads",
+          "kind": "automated_test"
         }
       ],
       "artifact_types": ["apk", "aab", "exe", "release_manifest", "release_record", "checksums", "attestation"],
       "acceptance_criteria": [
         "The release tag product version matches the authoritative source version.",
         "Hashes describe the final published bytes after signing.",
+        "Production authorization requires a signed Android release, an Authenticode-verified Windows installer, and a detached Tauri updater signature.",
+        "Before updater signature_state=signed is emitted, the detached updater signature is cryptographically verified against the configured public key and staged final EXE bytes.",
+        "Transient NSIS dependency-download failures are retried a bounded number of times before Windows packaging fails.",
         "Authorization and any external or skipped gate are explicit in the release record.",
         "Existing tags and release assets are never overwritten during rollback."
       ],

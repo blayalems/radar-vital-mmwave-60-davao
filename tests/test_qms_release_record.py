@@ -16,6 +16,9 @@ QMS_GENERATOR = ROOT / "scripts" / "generate-qms-release-record.mjs"
 LATEST_GENERATOR = ROOT / "scripts" / "generate-rvt-latest.mjs"
 VERIFIER = ROOT / "scripts" / "verify-release-artifacts.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "release-artifacts.yml"
+UPDATER_SIGNATURE_VERIFIER = (
+    ROOT / "src-tauri" / "examples" / "verify_updater_signature.rs"
+)
 
 
 def _version() -> str:
@@ -257,6 +260,88 @@ def test_release_workflow_attests_and_publishes_qms_evidence():
     assert "Duplicate recorded release artifact" in verifier
     assert "Duplicate SHA256SUMS entry" in verifier
     assert "SHA256SUMS coverage mismatch" in verifier
+
+
+def test_production_release_requires_every_native_signature_proof():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert (
+        "updater_signature_state: "
+        "${{ steps.windows_updater_signature_state.outputs.signature_state }}"
+        in workflow
+    )
+    assert (
+        "WINDOWS_UPDATER_SIGNATURE_STATE: "
+        "${{ needs.windows.outputs.updater_signature_state }}"
+        in workflow
+    )
+    assert '"signature_state=signed" >> $env:GITHUB_OUTPUT' in workflow
+    assert '"signature_state=missing" >> $env:GITHUB_OUTPUT' in workflow
+    android_gate = 'if [ "$ANDROID_SIGNATURE_STATE" != "signed_release" ]; then'
+    windows_gate = (
+        'if [ "$WINDOWS_SIGNATURE_STATE" != "authenticode_verified" ]; then'
+    )
+    updater_gate = 'if [ "$WINDOWS_UPDATER_SIGNATURE_STATE" != "signed" ]; then'
+    authorization = 'echo "state=authorized" >> "$GITHUB_OUTPUT"'
+    assert android_gate in workflow
+    assert windows_gate in workflow
+    assert updater_gate in workflow
+    assert workflow.index("Diagnostic publication remains pending") < workflow.index(
+        android_gate
+    )
+    assert workflow.index(android_gate) < workflow.index(authorization)
+    assert workflow.index(windows_gate) < workflow.index(authorization)
+    assert workflow.index(updater_gate) < workflow.index(authorization)
+
+
+def test_updater_signed_state_requires_cryptographic_verification():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    verifier = UPDATER_SIGNATURE_VERIFIER.read_text(encoding="utf-8")
+    stage_start = workflow.index("- name: Stage EXE release asset")
+    stage_end = workflow.index(
+        "- name: Record Windows Authenticode signature state", stage_start
+    )
+    stage = workflow[stage_start:stage_end]
+    verify_command = (
+        "cargo run --quiet --release --locked --manifest-path "
+        "src-tauri/Cargo.toml --example verify_updater_signature"
+    )
+    signed_output = '"signature_state=signed" >> $env:GITHUB_OUTPUT'
+
+    assert (
+        "TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}"
+        in stage
+    )
+    assert '$sigPath = "$($exe.FullName).sig"' in stage
+    assert verify_command in stage
+    assert "$LASTEXITCODE -ne 0" in stage
+    assert stage.index(verify_command) < stage.index(signed_output)
+    assert '"dist\\radar-vital-windows-installer.exe"' in stage
+    assert '"dist\\radar-vital-windows-installer.exe.sig"' in stage
+    assert "PublicKey::from_base64" in verifier
+    assert "Signature::from_file" in verifier
+    assert ".verify_stream(signature)" in verifier
+    assert ".finalize()" in verifier
+    assert "rejects_signature_for_modified_bytes" in verifier
+    assert "rejects_signature_from_different_public_key" in verifier
+
+
+def test_windows_nsis_build_retries_transient_dependency_downloads():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    retry_limit = "$maxAttempts = 3"
+    build_command = "cargo tauri build --verbose --bundles nsis"
+    terminal_failure = (
+        'throw "Tauri NSIS build failed after $maxAttempts attempts '
+        '(exit code $exitCode)."'
+    )
+    assert retry_limit in workflow
+    assert "for ($attempt = 1; $attempt -le $maxAttempts; $attempt++)" in workflow
+    assert build_command in workflow
+    assert "Start-Sleep -Seconds $delaySeconds" in workflow
+    assert terminal_failure in workflow
+    assert workflow.index(retry_limit) < workflow.index(build_command)
+    assert workflow.index(build_command) < workflow.index(terminal_failure)
 
 
 def _verify_qms_evidence(dist: Path) -> subprocess.CompletedProcess[str]:

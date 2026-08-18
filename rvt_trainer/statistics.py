@@ -28,6 +28,8 @@ DEFAULT_ANALYSIS_PLAN = {
     "schema_version": "rvt-analysis-plan-v1",
     "plan_id": "RVT-STA-PLAN-16.5.8",
     "effective_product_version": "16.5.8",
+    "study_protocol_id": "RVT-THESIS-16.5.9",
+    "study_session_schema_version": "rvt-study-session-v16.5.9",
     "status": "draft",
     "owner_role": "research_lead",
     "approval_required": ["research_lead", "quality_manager"],
@@ -80,7 +82,17 @@ DEFAULT_ANALYSIS_PLAN = {
         "coverage_denominator": "every_eligible_protocol_attempted_trial_including_non_output",
         "false_alarm_test": "exact_binomial_vs_0.05_with_separate_two_sided_95_percent_clopper_pearson_interval",
         "exports": ["json", "csv", "latex"],
-        "provenance": ["source_commit", "model_family", "split_ledger_sha256", "prediction_file_sha256"],
+        "provenance": [
+            "source_commit",
+            "model_family",
+            "split_ledger_sha256",
+            "prediction_file_sha256",
+            "run_product_version",
+            "analysis_plan_id",
+            "analysis_plan_sha256",
+            "study_protocol_id",
+            "study_session_schema_version",
+        ],
     },
     "exclusions": [
         "legacy_unassigned",
@@ -99,6 +111,18 @@ DEFAULT_ANALYSIS_PLAN = {
 
 class StatisticalInputError(ValueError):
     """Raised when a statistical contract is incomplete or invalid."""
+
+
+def analysis_plan_sha256(plan: Mapping[str, Any]) -> str:
+    """Return the canonical digest used to bind a run to parsed plan content."""
+
+    canonical = json.dumps(
+        dict(plan),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def _validate_analysis_plan(
@@ -131,6 +155,16 @@ def _validate_analysis_plan(
         str(normalized.get("effective_product_version", "")),
     ):
         raise StatisticalInputError("analysis_plan effective_product_version is invalid")
+    if not re.fullmatch(
+        r"RVT-THESIS-[0-9]+\.[0-9]+\.[0-9]+",
+        str(normalized.get("study_protocol_id", "")),
+    ):
+        raise StatisticalInputError("analysis_plan study_protocol_id is invalid")
+    if not re.fullmatch(
+        r"rvt-study-session-v[0-9]+\.[0-9]+\.[0-9]+",
+        str(normalized.get("study_session_schema_version", "")),
+    ):
+        raise StatisticalInputError("analysis_plan study_session_schema_version is invalid")
     if normalized.get("owner_role") != "research_lead":
         raise StatisticalInputError("analysis_plan owner_role must be research_lead")
     approvals = normalized.get("approval_required")
@@ -305,21 +339,30 @@ def _validate_confirmatory_provenance(
 
     required = (
         "source_commit", "model_family", "split_ledger_sha256",
-        "prediction_file_sha256", "product_version", "protocol_id",
+        "prediction_file_sha256", "run_product_version", "analysis_plan_id",
+        "analysis_plan_sha256", "study_protocol_id",
+        "study_session_schema_version",
     )
     if not isinstance(provenance, Mapping) or any(not str(provenance.get(key, "")).strip() for key in required):
         raise StatisticalInputError(
-            "confirmatory analysis requires source/model/split/prediction/protocol provenance"
+            "confirmatory analysis requires explicit run/plan/study provenance"
         )
-    expected_version = str(plan.get("effective_product_version", "")).strip()
-    if str(provenance["product_version"]).strip() != expected_version:
-        raise StatisticalInputError("confirmatory provenance product_version does not match the approved plan")
-    if str(provenance["protocol_id"]).strip() != str(plan.get("plan_id", "")).strip():
-        raise StatisticalInputError("confirmatory provenance protocol_id does not match the approved plan")
+    run_product_version = str(provenance["run_product_version"]).strip()
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", run_product_version):
+        raise StatisticalInputError("confirmatory provenance run_product_version is invalid")
+    if str(provenance["analysis_plan_id"]).strip() != str(plan.get("plan_id", "")).strip():
+        raise StatisticalInputError("confirmatory provenance analysis_plan_id does not match the approved plan")
+    expected_plan_sha256 = analysis_plan_sha256(plan)
+    if str(provenance["analysis_plan_sha256"]).strip().lower() != expected_plan_sha256:
+        raise StatisticalInputError("confirmatory provenance analysis_plan_sha256 does not match the approved plan")
+    if str(provenance["study_protocol_id"]).strip() != str(plan.get("study_protocol_id", "")).strip():
+        raise StatisticalInputError("confirmatory provenance study_protocol_id does not match the approved plan")
+    if str(provenance["study_session_schema_version"]).strip() != str(plan.get("study_session_schema_version", "")).strip():
+        raise StatisticalInputError("confirmatory provenance study_session_schema_version does not match the approved plan")
     source_commit = str(provenance["source_commit"]).strip()
     if not re.fullmatch(r"[0-9a-fA-F]{7,64}", source_commit):
         raise StatisticalInputError("confirmatory provenance source_commit is not a commit hash")
-    for key in ("split_ledger_sha256", "prediction_file_sha256"):
+    for key in ("split_ledger_sha256", "prediction_file_sha256", "analysis_plan_sha256"):
         if not re.fullmatch(r"[0-9a-fA-F]{64}", str(provenance[key]).strip()):
             raise StatisticalInputError(f"confirmatory provenance {key} is not a SHA-256 hash")
     model_family = str(provenance["model_family"]).strip().lower()
@@ -334,7 +377,11 @@ def _validate_confirmatory_provenance(
     frame_families = frame["model_family"].map(lambda value: str(value).strip().lower())
     if frame_families.empty or bool((frame_families == "").any()) or bool((frame_families != model_family).any()):
         raise StatisticalInputError("confirmatory frame model_family does not match provenance")
-    for column in ("source_commit", "split_ledger_sha256", "prediction_file_sha256", "product_version", "protocol_id"):
+    for column in (
+        "source_commit", "split_ledger_sha256", "prediction_file_sha256",
+        "run_product_version", "analysis_plan_id", "analysis_plan_sha256",
+        "study_protocol_id", "study_session_schema_version",
+    ):
         if column in frame:
             values = frame[column].map(lambda value: str(value).strip())
             expected = str(provenance[column]).strip()
@@ -369,8 +416,11 @@ def _validate_confirmatory_provenance(
         "model_family": model_family,
         "split_ledger_sha256": str(provenance["split_ledger_sha256"]).strip().lower(),
         "prediction_file_sha256": str(provenance["prediction_file_sha256"]).strip().lower(),
-        "product_version": expected_version,
-        "protocol_id": str(plan.get("plan_id", "")).strip(),
+        "run_product_version": run_product_version,
+        "analysis_plan_id": str(plan.get("plan_id", "")).strip(),
+        "analysis_plan_sha256": expected_plan_sha256,
+        "study_protocol_id": str(plan.get("study_protocol_id", "")).strip(),
+        "study_session_schema_version": str(plan.get("study_session_schema_version", "")).strip(),
     }
 
 

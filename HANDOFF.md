@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-19 - Separate v16.6.1 research provenance identities
+
+- **Identity correction**: Replace overloaded `product_version` / `protocol_id` confirmatory provenance with explicit `run_product_version`, `analysis_plan_id`, `analysis_plan_sha256`, `study_protocol_id`, and `study_session_schema_version` fields.
+- **Artifact binding**: Carry the five identities through outer-OOF rows, the confirmatory-run manifest, statistics provenance input, completed-job promotion checks, and the statistical report schema; canonical JSON hashing detects plan-content drift even when an ID is unchanged.
+- **Governance boundary**: Keep `quality/statistical-analysis-plan.json` and `RVT-STA-001` draft. Draft controls may prepare software and tests but cannot authorize recruitment, confirmatory collection/evaluation, exclusions, or manuscript claims.
+- **Compatibility**: Advance product carriers to v16.6.1 while preserving the v15.2 / 222-column wire contract and v16.5.9 study protocol/session schema lineage.
+- **Verification**: Full Python suite passed (552 tests, three expected skips); 69 focused statistical/model/study/static tests, 257 Angular tests, 10 QMS contract tests, version/source/PR-step/contrast/service-worker contracts, and the production dashboard/monolith clean round trip passed. Hosted package/browser jobs and physical hardware remain external gates.
+
 ### 2026-08-19 - Stabilize version-independent visual evidence
 
 - **Visual fixture**: Lock the Help trainer and schema release labels to explicit fixture text before screenshots so exact product identity remains covered by version contracts without forcing twelve baseline replacements for every patch.

@@ -20,6 +20,7 @@ from rvt_trainer.api.common import atomic_write_json, read_json_if_exists
 
 
 STUDY_PROTOCOL_SCHEMA_VERSION = "rvt-study-protocol-v2"
+STUDY_PROTOCOL_ID = "RVT-THESIS-16.5.9"
 STUDY_SCHEDULE_SCHEMA_VERSION = "rvt-study-schedule-v2"
 REFERENCE_SCHEMA_VERSION = "rvt-reference-observations-v1"
 STUDY_ANALYSIS_SCHEMA_VERSION = "rvt-study-analysis-v1"
@@ -104,7 +105,7 @@ def _discover_analysis_sessions(root: Path, *, confirmatory: bool) -> list[str]:
 def default_protocol() -> Dict[str, Any]:
     return {
         "schema_version": STUDY_PROTOCOL_SCHEMA_VERSION,
-        "protocol_id": "RVT-THESIS-16.5.9",
+        "protocol_id": STUDY_PROTOCOL_ID,
         "protocol_version": "2",
         "state": "draft",
         "randomization_seed": "rvt-v16.5.9-study-seed",
@@ -448,7 +449,7 @@ def _validate_completed_job_artifacts(
     """Validate the immutable identity and hashes before objective promotion."""
 
     root = _root(sessions_root)
-    expected_version = _text(product_version, limit=32) or "16.6.0"
+    expected_version = _text(product_version, limit=32) or "16.6.1"
     job_id = _text(job.get("job_id"), limit=100)
     expected_output_root = (root / "study_analysis" / job_id).resolve()
     output_value = _text(job.get("output_dir"), limit=1000)
@@ -466,14 +467,19 @@ def _validate_completed_job_artifacts(
     request = job.get("request") if isinstance(job.get("request"), dict) else {}
     if manifest.get("analysis_job_id") != job_id:
         reasons.append({"reason": "analysis_job_identity_mismatch"})
-    if manifest.get("product_version") != expected_version:
+    if manifest.get("run_product_version") != expected_version:
         reasons.append({"reason": "product_version_mismatch"})
     if manifest.get("model_family") != job.get("model_family"):
         reasons.append({"reason": "model_family_mismatch"})
     if manifest.get("analysis_plan_id") != "RVT-STA-PLAN-16.5.8":
         reasons.append({"reason": "analysis_plan_identity_mismatch"})
-    if manifest.get("protocol_id") != "rvt-study-session-v16.5.9":
-        reasons.append({"reason": "protocol_identity_missing"})
+    plan_sha256 = _text(manifest.get("analysis_plan_sha256"), limit=64).lower()
+    if len(plan_sha256) != 64 or any(char not in "0123456789abcdef" for char in plan_sha256):
+        reasons.append({"reason": "analysis_plan_hash_invalid"})
+    if manifest.get("study_protocol_id") != STUDY_PROTOCOL_ID:
+        reasons.append({"reason": "study_protocol_identity_mismatch"})
+    if manifest.get("study_session_schema_version") != "rvt-study-session-v16.5.9":
+        reasons.append({"reason": "study_session_schema_identity_mismatch"})
     if not _text(manifest.get("source_commit"), limit=100):
         reasons.append({"reason": "source_commit_missing"})
     if not isinstance(manifest.get("folds"), dict) or manifest["folds"].get("complete") is not True:
@@ -522,6 +528,20 @@ def _validate_completed_job_artifacts(
         reasons.append({"reason": "training_confirmatory_contract_missing"})
     if job.get("statistics_status") != "completed" or not isinstance(stats, dict) or stats.get("confirmatory") is not True:
         reasons.append({"reason": "statistical_report_missing_or_blocked"})
+    else:
+        stats_provenance = stats.get("provenance")
+        identity_fields = (
+            "run_product_version",
+            "analysis_plan_id",
+            "analysis_plan_sha256",
+            "study_protocol_id",
+            "study_session_schema_version",
+        )
+        if not isinstance(stats_provenance, dict) or any(
+            stats_provenance.get(field) != manifest.get(field)
+            for field in identity_fields
+        ):
+            reasons.append({"reason": "statistical_report_identity_mismatch"})
     return not reasons, reasons, output_dir, manifest, summary if isinstance(summary, dict) else None
 
 
@@ -567,7 +587,7 @@ def objective_report(
     *,
     objectives: Mapping[str, Any],
     sessions_root: str,
-    product_version: object = "16.6.0",
+    product_version: object = "16.6.1",
 ) -> Dict[str, Any]:
     wanted = _text(objective_id, limit=80)
     known = [item for item in objectives.get("objectives", []) if isinstance(item, dict) and str(item.get("id")) == wanted]
@@ -589,7 +609,7 @@ def objective_report(
         expected = int(known[0].get("trial_count") or matrix.get("no_subject_expected") or 72)
         threshold = float(known[0].get("threshold") or 0.05)
         common_provenance = {
-            "product_version": _text(product_version, limit=32) or "16.6.0",
+            "product_version": _text(product_version, limit=32) or "16.6.1",
             "objective": known[0],
             "sessions_root": str(Path(sessions_root).resolve()),
             "no_subject_attempt_count": int(matrix.get("no_subject_attempt_count") or 0),
@@ -813,7 +833,7 @@ def objective_report(
         "report": report,
         "exclusions": exclusions,
         "provenance": {
-            "product_version": _text(product_version, limit=32) or "16.6.0",
+            "product_version": _text(product_version, limit=32) or "16.6.1",
             "objective": known[0],
             "latest_job_id": latest.get("job_id") if latest else None,
             "sessions_root": str(Path(sessions_root).resolve()),
@@ -823,6 +843,7 @@ def objective_report(
 
 __all__ = [
     "STUDY_PROTOCOL_SCHEMA_VERSION",
+    "STUDY_PROTOCOL_ID",
     "STUDY_SCHEDULE_SCHEMA_VERSION",
     "REFERENCE_SCHEMA_VERSION",
     "STUDY_ANALYSIS_SCHEMA_VERSION",

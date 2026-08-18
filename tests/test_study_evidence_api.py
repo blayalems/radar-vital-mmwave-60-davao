@@ -66,6 +66,12 @@ def test_protocol_schedule_and_no_subject_attempt_contract(study_server: _Contro
     assert response["protocol"]["schema_version"] == "rvt-study-protocol-v2"
     assert response["protocol"]["protocol_id"] == "RVT-THESIS-16.5.9"
 
+    status, readiness = _request(study_server, "GET", "/api/study/readiness")
+    assert status == 200
+    assert readiness["authorized"] is False
+    assert readiness["plan_status"] == "draft"
+    assert "authorization_record_missing_or_invalid" in readiness["blockers"]
+
     status, response = _request(
         study_server,
         "PUT",
@@ -119,8 +125,8 @@ def test_protocol_schedule_and_no_subject_attempt_contract(study_server: _Contro
             "status": "completed",
         },
     )
-    assert status == 201
-    assert response["attempt"]["attempt_type"] == "no_subject"
+    assert status == 412
+    assert response["error"]["code"] == "STUDY_COLLECTION_NOT_AUTHORIZED"
 
     status, matrix = _request(
         study_server,
@@ -128,12 +134,18 @@ def test_protocol_schedule_and_no_subject_attempt_contract(study_server: _Contro
         "/api/study/completion-matrix",
     )
     assert status == 200
-    assert matrix["no_subject_attempt_count"] == 1
+    assert matrix["no_subject_attempt_count"] == 0
+
+    status, response = _request(study_server, "POST", "/api/participants", {})
+    assert status == 412
+    assert response["error"]["code"] == "STUDY_COLLECTION_NOT_AUTHORIZED"
 
 
 def test_reference_adjudication_analysis_and_objective_report_contract(
     study_server: _ControlServer,
+    monkeypatch: pytest.MonkeyPatch,
 ):
+    monkeypatch.setattr(monolith, "_require_collection_authorization", lambda _root: {"authorized": True})
     for observer_id, value in (("OBS-A", 15), ("OBS-B", 16)):
         status, response = _request(
             study_server,
@@ -200,7 +212,7 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["objective_id"] == "objective_1_rr"
     assert response["status"] == "inconclusive"
-    assert response["provenance"]["product_version"] == "16.6.1"
+    assert response["provenance"]["product_version"] == "16.6.2"
 
 
 def test_study_evidence_routes_are_operator_protected(study_server: _ControlServer):
@@ -209,6 +221,7 @@ def test_study_evidence_routes_are_operator_protected(study_server: _ControlServ
 
     cases = (
         ("GET", "/api/study/protocol"),
+        ("GET", "/api/study/readiness"),
         ("PUT", "/api/study/protocol"),
         ("GET", "/api/study/schedule"),
         ("POST", "/api/sessions/s01/references"),
@@ -264,7 +277,7 @@ def test_completed_job_promotion_rejects_report_manifest_identity_mismatch(tmp_p
     output_dir = sessions_root / "study_analysis" / "job-1"
     output_dir.mkdir(parents=True)
     identity = {
-        "run_product_version": "16.6.1",
+        "run_product_version": "16.6.2",
         "analysis_plan_id": "RVT-STA-PLAN-16.5.8",
         "analysis_plan_sha256": "a" * 64,
         "study_protocol_id": "RVT-THESIS-16.5.9",
@@ -303,7 +316,7 @@ def test_completed_job_promotion_rejects_report_manifest_identity_mismatch(tmp_p
             "request": {"confirmatory": True},
         },
         sessions_root=str(sessions_root),
-        product_version="16.6.1",
+        product_version="16.6.2",
     )
 
     assert valid is False

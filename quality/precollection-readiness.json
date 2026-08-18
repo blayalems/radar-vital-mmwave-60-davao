@@ -1,0 +1,68 @@
+{
+  "$schema": "./schemas/precollection-readiness.schema.json",
+  "schema_version": "rvt-precollection-readiness-v1",
+  "manifest_id": "RVT-PRECOLLECT-16.6.2",
+  "status": "blocked",
+  "schedule_status": "proposed_not_authorized",
+  "as_of_date": "2026-08-19",
+  "timezone": "Asia/Manila",
+  "authorization_boundary": {
+    "software_merge_authorizes_collection": false,
+    "draft_plan_authorizes_collection": false,
+    "draft_requirement_gates_software_only": true,
+    "collection_may_start_when": "Every required approval and pre-collection gate is complete with a dated evidence reference.",
+    "required_approvals": [
+      {"role": "research_lead", "status": "pending", "target_date": "2026-08-28", "evidence_ref": null},
+      {"role": "quality_manager", "status": "pending", "target_date": "2026-08-28", "evidence_ref": null},
+      {"role": "REC_or_ethics_authority", "status": "pending", "target_date": "2026-08-28", "evidence_ref": null},
+      {"role": "privacy_reviewer", "status": "pending", "target_date": "2026-08-28", "evidence_ref": null}
+    ]
+  },
+  "study_scale": {
+    "target_recruited_participants": 40,
+    "minimum_protocol_complete_participants": 38,
+    "minimum_independent_primary_estimates": 19,
+    "confirmatory_conditions_per_participant": 6,
+    "trials_per_condition": 3,
+    "trials_per_protocol_complete_participant": 18,
+    "minimum_protocol_complete_trial_captures": 684,
+    "target_recruited_trial_capacity": 720,
+    "no_subject_trial_count": 72,
+    "no_subject_trial_duration_s": 150,
+    "no_subject_minimum_capture_s": 10800,
+    "no_subject_minimum_capture_hours": 3
+  },
+  "workstreams": [
+    {"id": "approvals", "owner_role": "research_lead", "earliest_start_date": "2026-08-19", "target_date": "2026-08-28", "status": "blocked", "abort_or_replan": "No recruitment or collection if any required approval remains pending."},
+    {"id": "synchronization_bench", "owner_role": "hardware_test_lead", "earliest_start_date": "2026-08-20", "target_date": "2026-08-29", "status": "blocked", "abort_or_replan": "Do not make Objective 4 timing claims until method uncertainty and USB buffering latency are characterized."},
+    {"id": "no_subject_capture", "owner_role": "study_operator_lead", "earliest_start_date": "2026-09-01", "target_date": "2026-09-04", "status": "blocked", "abort_or_replan": "Stop and investigate on configuration drift, overlap, duration shortfall, or missing trial-level alert evidence."},
+    {"id": "participant_recruitment", "owner_role": "study_coordinator", "earliest_start_date": "2026-09-01", "target_date": "2026-10-10", "status": "blocked", "abort_or_replan": "Freeze recruitment and revise the calendar with the research lead if 40 recruits are not feasible without changing approved eligibility criteria."},
+    {"id": "protocol_completion", "owner_role": "study_coordinator", "earliest_start_date": "2026-09-01", "target_date": "2026-10-24", "status": "blocked", "abort_or_replan": "Do not run confirmatory analysis below 38 protocol-complete participants or below 19 independent primary estimates."},
+    {"id": "confirmatory_data_lock", "owner_role": "research_lead", "earliest_start_date": "2026-10-25", "target_date": "2026-10-31", "status": "blocked", "abort_or_replan": "No data lock until exclusions, withdrawals, provenance, synchronization evidence, and approvals reconcile."}
+  ],
+  "withdrawal_reconciliation": {
+    "status": "blocked_pending_REC_and_privacy_review",
+    "append_only_scope": "audit_and_control_metadata_only",
+    "participant_data_is_unconditionally_append_only": false,
+    "current_crypto_shredding_available": false,
+    "required_decision": "The REC/privacy-approved SOP must choose and document retention, processing restriction, physical deletion, or key-destruction treatment for each withdrawal case.",
+    "tombstone_required": true,
+    "tombstone_must_not_identify_participant": true,
+    "required_tombstone_fields": ["participant_code", "requested_at", "decided_at", "actor_role", "consent_revision", "disposition", "authority_reference", "affected_artifact_classes"],
+    "prohibited_claim": "Do not describe withdrawal as erased or crypto-shredded unless the selected disposition was technically completed and independently verified."
+  },
+  "synchronization": {
+    "serial_contract_change": false,
+    "anchor_clock": "host_monotonic_receive",
+    "required_artifacts": ["sync_anchors.json", "alignment_report.json"],
+    "sync_anchors_required_fields": ["schema_version", "session_id", "method", "clock", "anchors", "uncertainty_model", "source_commit"],
+    "alignment_report_required_fields": ["schema_version", "session_id", "method", "estimated_offset_s", "uncertainty_s", "latency_characterization_ref", "limitations"],
+    "method_must_be_recorded": true,
+    "uncertainty_must_be_numeric_seconds": true,
+    "usb_buffering_latency_physical_bench_required": true,
+    "objective_sensitivity": {
+      "objective_1_rr": "lower_timing_sensitivity_for_30_second_windows_but_uncertainty_still_reported",
+      "objective_4_hr": "higher_timing_sensitivity_no_precision_claim_before_physical_latency_characterization"
+    }
+  }
+}

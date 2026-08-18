@@ -5,6 +5,15 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-19 - Block v16.6.2 collection until external authorization
+
+- **Separate authority**: Treat protocol `locked` as configuration-frozen only; require a separate plan/protocol/schema/hash/date/approval/withdrawal/timing authorization before recruitment, confirmatory capture, no-subject evidence, or confirmatory analysis.
+- **Non-mutating rejection**: Return stable `412 STUDY_COLLECTION_NOT_AUTHORIZED` and reject before participant, attempt, idempotency, reservation, session-directory, subprocess, or analysis-job mutation; operational and exploratory capture remain available.
+- **Calendar and denominators**: Control the proposed 40 recruited, 38 protocol-complete, at least 19 independent-primary-estimate, 684 minimum participant-trial, and 72 × 150-second no-subject workload with owner roles, dates, gaps, and abort criteria.
+- **Withdrawal and timing truthfulness**: Limit append-only semantics to audit/control metadata, require evidence for withdrawal reversal, make no plaintext crypto-shredding claim, and record alignment method/uncertainty while leaving Objective 4 timing blocked on physical latency characterization.
+- **Roadmap and compatibility**: Supersede the v16.5 roadmap with one controlled v16.6 roadmap, advance product carriers to v16.6.2, and preserve v15.2 / 222-column wire plus v16.5.9 study-session identities.
+- **Verification**: Full Python suite passed (565 tests, three expected skips); 258 Angular tests, 60 focused API/route/static/compatibility tests, 10 QMS self-tests, 25-document/17-requirement QMS validation, version/source/PR-step/contrast/service-worker contracts, and the production dashboard/monolith clean round trip passed. Hosted package/browser jobs, external approvals, physical timing characterization, and hardware acceptance remain external gates.
+
 ### 2026-08-19 - Separate v16.6.1 research provenance identities
 
 - **Identity correction**: Replace overloaded `product_version` / `protocol_id` confirmatory provenance with explicit `run_product_version`, `analysis_plan_id`, `analysis_plan_sha256`, `study_protocol_id`, and `study_session_schema_version` fields.

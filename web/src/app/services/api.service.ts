@@ -36,6 +36,7 @@ import {
   StudyReferencesResponse,
   StudyScheduleResponse,
   StudyObjectivesResponse,
+  StudyReadinessResponse,
   TrainerVersionResponse
 } from '../models/rvt.models';
 import { StateService } from './state.service';
@@ -482,6 +483,10 @@ export class ApiService {
 
   loadStudyObjectives(): Promise<StudyObjectivesResponse> {
     return this.request<StudyObjectivesResponse>('/api/study/objectives');
+  }
+
+  loadStudyReadiness(): Promise<StudyReadinessResponse> {
+    return this.request<StudyReadinessResponse>('/api/study/readiness');
   }
 
   loadStudyProtocol(): Promise<StudyProtocolResponse> {

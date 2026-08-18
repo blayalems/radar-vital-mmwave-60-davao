@@ -1,6 +1,6 @@
 # Physical Hardware Acceptance Checklist (v12 stable)
 
-## v16.5.12 acceptance disposition
+## v16.6.2 acceptance disposition
 
 The project team reports that the firmware bench tests are complete, including
 presence loss/recovery and peripheral recovery. This is a pending controlled
@@ -19,7 +19,7 @@ Ensure the following hardware components are available:
 1. **Target Mobile Device**: Android 10+ (tested against Pixel baseline).
 2. **Target Windows Machine**: Windows 10 or 11 with a working Bluetooth 4.2+ BLE USB adapter or integrated chip.
 3. **Reference BLE Device**: AiLink Pulse Oximeter or compatible GATT simulator.
-4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_5_12.ino`.
+4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_6_2.ino`.
 5. **LAN Test Environment**: Both the trainer server (PC) and the mobile device must be connected to the exact same subnet (e.g., local Wi-Fi router).
 
 ---
@@ -97,6 +97,14 @@ Ensure the following hardware components are available:
 - [ ] Verify `module_fw_major`, `module_fw_sub`, `module_fw_mod`, and `module_fw_valid` populate after boot/recovery when the MR60BHA2 version TLV is observed.
 - [ ] Confirm BLE reference quality uses time-based `coverage_pct` and does not label expected AiLink protocol gaps as decode errors.
 - [ ] Confirm `ref_ble_summary.json` is present after a Windows-side BLE reference run, including interrupted/terminated child-process cases.
+
+### Phase I: Pre-collection Authorization and Timing Evidence
+- [ ] With no external authorization record installed, confirm `GET /api/study/readiness` reports collection as not authorized and confirmatory participant creation, session start, no-subject collection, and analysis return `412 STUDY_COLLECTION_NOT_AUTHORIZED`.
+- [ ] Lock the study protocol and confirm that configuration lock alone does not change the not-authorized result.
+- [ ] Characterize the physical USB/radar-to-reference latency on the intended bench. Record the radar, reference-device, USB adapter, host, and firmware identifiers; synchronization method; sample count; tested load states; offset; jitter; uncertainty and its calculation basis; operator; timestamp; and immutable evidence ID plus SHA-256.
+- [ ] Verify each aligned session emits `sync_anchors.json` and `alignment_report.json` with the applied method, source clocks, offset, numeric uncertainty, uncertainty basis, physical-latency evidence identity/status, and explicit limitations. First-sample alignment and merge residuals must not be described as physical latency characterization.
+- [ ] Keep confirmatory timing-dependent and Objective 4 claims blocked until the physical-latency record and synchronization method receive the required research and quality approvals.
+- [ ] Attach the approved withdrawal disposition SOP and REC/privacy evidence. Confirm unresolved withdrawals block authorization and analysis, and do not claim deletion or cryptographic shredding unless the deployed storage and recorded evidence actually support it.
 
 ---
 

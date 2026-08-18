@@ -31,6 +31,7 @@ export const BACKEND_API_ROUTES: readonly BackendApiRoute[] = [
   { name: 'participant_status', methods: ['PUT'], path: '/api/participants/*' },
   { name: 'study_completion_matrix', methods: ['GET'], path: '/api/study/completion-matrix' },
   { name: 'study_objectives', methods: ['GET'], path: '/api/study/objectives' },
+  { name: 'study_readiness', methods: ['GET'], path: '/api/study/readiness' },
   { name: 'study_protocol', methods: ['GET', 'PUT'], path: '/api/study/protocol' },
   { name: 'study_schedule', methods: ['GET'], path: '/api/study/schedule' },
   { name: 'study_attempt_create', methods: ['POST'], path: '/api/study/attempts' },

@@ -6,6 +6,23 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.6.2 fail-closed pre-collection readiness (in progress)
+
+- Separated a configuration-locked study protocol from a dated, identity-bound
+  collection authorization; the checked-in state remains blocked and returns
+  `412 STUDY_COLLECTION_NOT_AUTHORIZED` before recruitment, confirmatory
+  capture, no-subject evidence, or confirmatory-analysis mutation.
+- Added a controlled readiness manifest with the 40 recruited, 38
+  protocol-complete, at least 19 independent-primary-estimate, and 72 ×
+  150-second no-subject workload, proposed dates, owners, and abort criteria.
+- Made withdrawal audit metadata append-only while keeping participant-data
+  disposition pending REC/privacy review; the plaintext system makes no
+  crypto-shredding claim and reversal requires consent and authority evidence.
+- Added explicit alignment method, numeric uncertainty, limitations, and a
+  missing-physical-latency state without changing the frozen serial contract.
+- Superseded the v16.5 roadmap with one controlled v16.6 thesis-readiness
+  roadmap and advanced coordinated product/QMS identity to v16.6.2.
+
 ### v16.6.1 explicit research provenance identities (in progress)
 
 - Separated run product, analysis-plan ID and canonical digest, study-protocol

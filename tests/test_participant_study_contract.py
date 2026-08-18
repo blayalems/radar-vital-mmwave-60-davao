@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import rvt_trainer.monolith as monolith
+import rvt_trainer.session.supervisor as supervisor_module
 from rvt_trainer.api.route_registry import match_route
 from rvt_trainer.monolith import (
     FIRMWARE_VERSION_EXPECTED,
@@ -212,6 +214,7 @@ def test_release_provenance_carries_cross_stack_and_model_identity(monkeypatch):
     import rvt_trainer.session.study_contract as contract
 
     monkeypatch.setattr(contract, "_SOURCE_COMMIT", None)
+    monkeypatch.setattr(supervisor_module, "require_collection_authorization", lambda _root: {"authorized": True})
     payload = release_provenance(
         product_version="16.5.8",
         trainer_version="16.5.8",
@@ -247,6 +250,8 @@ def test_supervisor_persists_assignment_before_child_and_passes_cli_flags(
     import rvt_trainer.session.study_contract as contract
 
     monkeypatch.setattr(contract, "_SOURCE_COMMIT", None)
+    monkeypatch.setattr(monolith, "_require_collection_authorization", lambda _root: {"authorized": True})
+    monkeypatch.setattr(supervisor_module, "require_collection_authorization", lambda _root: {"authorized": True})
     create_participant_profile(str(sessions_root), {})
     proc = MagicMock()
     proc.pid = 12345
@@ -345,6 +350,8 @@ def test_api_start_persists_release_bound_participant_manifest(
     import rvt_trainer.session.study_contract as contract
 
     monkeypatch.setattr(contract, "_SOURCE_COMMIT", None)
+    monkeypatch.setattr(monolith, "_require_collection_authorization", lambda _root: {"authorized": True})
+    monkeypatch.setattr(supervisor_module, "require_collection_authorization", lambda _root: {"authorized": True})
     proc = MagicMock()
     proc.pid = 54321
     proc.poll.return_value = None

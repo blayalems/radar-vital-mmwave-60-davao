@@ -16,6 +16,7 @@ from rvt_trainer.session.protocol_ledger import (
 from rvt_trainer.session.study_evidence import objective_report, save_protocol
 from rvt_trainer.session.study_objectives import study_objectives_payload
 from rvt_trainer.session.study_contract import (
+    StudyContractError,
     create_participant_profile,
     update_participant_status,
     validate_study_assignment,
@@ -215,6 +216,31 @@ def test_no_subject_attempt_is_explicit_and_counted_in_matrix(tmp_path: Path):
     matrix = completion_matrix(str(sessions_root))
     assert matrix["no_subject_attempt_count"] == 1
     assert matrix["no_subject_expected"] == 72
+    assert matrix["no_subject_remaining"] == 72
+
+
+def test_completion_matrix_keeps_recruitment_completion_primary_and_withdrawal_gates_distinct(tmp_path: Path):
+    sessions_root = tmp_path / "sessions"
+    sessions_root.mkdir()
+    create_participant_profile(str(sessions_root), {})
+    create_participant_profile(str(sessions_root), {})
+    update_participant_status(
+        str(sessions_root), "P-002", "withdrawn", reason="participant request"
+    )
+
+    matrix = completion_matrix(str(sessions_root))
+
+    assert matrix["target_recruited_participant_count"] == 40
+    assert matrix["recruited_participant_count"] == 2
+    assert matrix["recruitment_target_gap"] == 38
+    assert matrix["minimum_protocol_complete_participant_count"] == 38
+    assert matrix["eligible_protocol_complete_participant_count"] == 0
+    assert matrix["protocol_complete_target_gap"] == 38
+    assert matrix["minimum_primary_independent_estimate_count"] == 19
+    assert matrix["primary_independent_estimate_count"] is None
+    assert matrix["primary_independent_estimate_status"] == "analysis_required"
+    assert matrix["withdrawn_participant_count"] == 1
+    assert matrix["unresolved_withdrawal_count"] == 1
 
 
 def test_no_subject_qualification_requires_protocol_and_capture_bound_evidence(tmp_path: Path):
@@ -368,7 +394,9 @@ def test_participant_status_history_retains_withdrawal_and_reversal(tmp_path: Pa
         "active",
         actor="OP-001",
         reason="withdrawal reversal approved",
-        consent_revision="2026-06-12.1",
+        consent_revision="2026-08-19.1",
+        authority_reference="REC-DECISION-2026-08-19",
+        evidence_ref="controlled://consent/P-001/reconsent-2026-08-19",
     )
     assert profile["status"] == "active"
     assert [(row["from_status"], row["to_status"]) for row in profile["status_history"]] == [
@@ -377,6 +405,29 @@ def test_participant_status_history_retains_withdrawal_and_reversal(tmp_path: Pa
         ("withdrawn", "active"),
     ]
     assert profile["status_history"][1]["reason"] == "participant request"
+    assert profile["withdrawal_history"][0]["disposition"] == "pending_rec_legal_review"
+    assert profile["withdrawal_history"][0]["participant_data_deleted"] is False
+    assert profile["withdrawal_history"][1]["event"] == "reversal"
+    assert profile["withdrawal_history"][1]["authority_reference"] == "REC-DECISION-2026-08-19"
+
+
+def test_withdrawal_reversal_requires_new_consent_and_authority_evidence(tmp_path: Path):
+    sessions_root = tmp_path / "sessions"
+    sessions_root.mkdir()
+    create_participant_profile(str(sessions_root), {})
+    update_participant_status(str(sessions_root), "P-001", "withdrawn", reason="request")
+
+    with pytest.raises(StudyContractError) as exc:
+        update_participant_status(
+            str(sessions_root),
+            "P-001",
+            "active",
+            actor="OP-001",
+            reason="requested reversal",
+            consent_revision="2026-08-19.1",
+        )
+
+    assert exc.value.code == "WITHDRAWAL_REVERSAL_EVIDENCE_REQUIRED"
 
 
 def test_manifest_reanalysis_keeps_capture_identity_and_appends_analysis_run(tmp_path: Path):

@@ -1,5 +1,5 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
-import { ApiService } from './api.service';
+import { ApiRequestError, ApiService } from './api.service';
 import { StateService } from './state.service';
 import { FirstRunService } from './first-run.service';
 import { ControlStatus, OperatorProfile, OperatorProfilesResponse, LoginResponse } from '../models/rvt.models';
@@ -25,6 +25,16 @@ export class AuthService {
   private lockoutTimers = new Map<string, any>();
   private authInitAttempted = false;
   private suppressUnauthenticatedUntil = 0;
+
+  private authErrorMessage(err: unknown, fallback: string): string {
+    if (
+      err instanceof ApiRequestError &&
+      err.code === 'OPERATOR_STORE_UNAVAILABLE'
+    ) {
+      return 'Operator profile storage is unavailable. Existing signed-in sessions remain active, but sign-in and profile or PIN changes may be unavailable until storage is restored.';
+    }
+    return err instanceof Error && err.message ? err.message : fallback;
+  }
 
   constructor() {
     effect(() => {
@@ -184,7 +194,7 @@ export class AuthService {
       return false;
     } catch (err: any) {
       console.error('Login failed', err);
-      const msg = err.message || '';
+      const msg = this.authErrorMessage(err, 'Invalid PIN.');
       if (msg.includes('LOCKOUT_ACTIVE') || msg.toLowerCase().includes('lockout')) {
         let retryAfter = 30;
         const match = msg.match(/(\d+)\s*second/i);
@@ -221,7 +231,7 @@ export class AuthService {
       return { success: false };
     } catch (err: any) {
       console.error('Failed to create profile', err);
-      this.loginError.set(err.message || 'Failed to create profile.');
+      this.loginError.set(this.authErrorMessage(err, 'Failed to create profile.'));
       return { success: false };
     } finally {
       this.loading.set(false);
@@ -248,7 +258,7 @@ export class AuthService {
       return { success: false };
     } catch (err: any) {
       console.error('Reset PIN failed', err);
-      const msg = err.message || 'Failed to reset PIN.';
+      const msg = this.authErrorMessage(err, 'Failed to reset PIN.');
       if (msg.includes('LOCKOUT_ACTIVE') || msg.toLowerCase().includes('lockout')) {
         let retryAfter = 30;
         const match = msg.match(/(\d+)\s*second/i);
@@ -283,7 +293,7 @@ export class AuthService {
       return { success: false };
     } catch (err: any) {
       console.error('Host reset failed', err);
-      const msg = err.message || 'Host reset failed.';
+      const msg = this.authErrorMessage(err, 'Host reset failed.');
       this.loginError.set(msg);
       return { success: false, error: msg };
     } finally {

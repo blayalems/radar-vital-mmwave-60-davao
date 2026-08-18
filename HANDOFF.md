@@ -5,6 +5,15 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-19 - Make v16.6.0 operator credential persistence fail closed
+
+- **Atomic store**: Validate, flush, re-read, and atomically replace `operator_profiles.json`; retain a validated last-known-good `.bak` and remove the unsafe direct-write fallback.
+- **Mutation semantics**: Return `503 OPERATOR_STORE_UNAVAILABLE` when profile creation, recovery reset, or host reset cannot be persisted; report no mutation and retain existing operator sessions.
+- **Lockout continuity**: Merge persisted counters with process-monotonic PIN and recovery failure state so repeated write failures cannot reset the attempt budget; a correctly verified login may issue a token during a reset-write failure but does not clear the pessimistic process state.
+- **Availability boundary**: Keep already-issued, unexpired operator tokens usable if the profile store later becomes unreadable; new authentication fails closed, and the dashboard explains the degraded-storage state.
+- **Traceability and compatibility**: Add `RVT-SEC-003`, advance controlled records and product carriers to v16.6.0, rename the current firmware source, and preserve the frozen v15.2 / 222-column serial and v16.5.9 study schema identities.
+- **Verification**: Full Python suite passed (546 tests, three expected skips); 257 Angular tests, 10 QMS contract tests, version/source/PR-step/contrast/service-worker contracts, compileall, and two production dashboard/monolith round trips passed. Hosted package/browser jobs and physical hardware remain external gates.
+
 ### 2026-08-13 - Fail closed on unsigned production publication
 
 - **Production authorization**: Require a signed Android release, an Authenticode-verified final Windows installer, and a detached Tauri updater signature before protected approval can authorize a production publication; unsigned outputs remain diagnostic prereleases.

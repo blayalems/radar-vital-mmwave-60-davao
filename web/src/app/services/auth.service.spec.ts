@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from './auth.service';
-import { ApiService } from './api.service';
+import { ApiRequestError, ApiService } from './api.service';
 import { StateService } from './state.service';
 import { CONSENT_KEY, OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
 import { TERMS_VERSION } from './app-meta';
@@ -115,6 +115,23 @@ describe('AuthService', () => {
     expect(service.loginError()).toContain('Try again in 25 seconds');
   });
 
+  it('explains degraded operator storage without clearing an existing token', async () => {
+    sessionStorage.setItem(OPERATOR_TOKEN_KEY, 'existing-token');
+    mockApi.request.mockRejectedValueOnce(
+      new ApiRequestError(
+        'Operator profile storage is unavailable.',
+        503,
+        'OPERATOR_STORE_UNAVAILABLE',
+      ),
+    );
+
+    const success = await service.login('op_1', '1234');
+
+    expect(success).toBe(false);
+    expect(sessionStorage.getItem(OPERATOR_TOKEN_KEY)).toBe('existing-token');
+    expect(service.loginError()).toContain('Existing signed-in sessions remain active');
+  });
+
   it('should perform logout and call API logout', async () => {
     sessionStorage.setItem(OPERATOR_TOKEN_KEY, 'some-token');
     service.isLocked.set(false);
@@ -200,6 +217,21 @@ describe('AuthService', () => {
 
     expect(result.success).toBe(false);
     expect(result.recoveryCode).toBeUndefined();
+  });
+
+  it('createProfile surfaces the operator-store recovery guidance', async () => {
+    mockApi.request.mockRejectedValueOnce(
+      new ApiRequestError(
+        'Operator profile storage is unavailable.',
+        503,
+        'OPERATOR_STORE_UNAVAILABLE',
+      ),
+    );
+
+    const result = await service.createProfile('New Op', 'NO', '1234');
+
+    expect(result.success).toBe(false);
+    expect(service.loginError()).toContain('profile or PIN changes may be unavailable');
   });
 
   it('resetPin returns success and rotated recovery code', async () => {

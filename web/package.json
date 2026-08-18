@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "16.5.12",
+  "version": "16.6.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",

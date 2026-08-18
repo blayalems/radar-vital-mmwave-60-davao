@@ -23,9 +23,12 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import secrets
+import shutil
+import tempfile
 import threading
 import time
 import unicodedata
@@ -44,6 +47,8 @@ _PIN_LOCK = threading.Lock()
 _RECOVERY_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789"
 _RECOVERY_FAILURE_LIMIT = 5
 _RECOVERY_LOCKOUT_S = 30.0
+_OPERATOR_FAILURE_LIMIT = 5
+_OPERATOR_LOCKOUT_S = 30.0
 
 
 def make_pair_pin(server) -> str:
@@ -165,10 +170,70 @@ def exchange_pair_pin(server, pin: str, client_id: str = "") -> Tuple[int, Dict[
 
 
 _OPERATOR_LOCK = threading.Lock()
+_OPERATOR_STORE_LOCK = threading.Lock()
 
 
 def _operator_profiles_path(sessions_root: str) -> Path:
     return Path(sessions_root).resolve() / "operator_profiles.json"
+
+
+def _validate_operator_profiles_data(data: object) -> dict:
+    """Return a validated operator-store object or raise ``ValueError``.
+
+    The validation is intentionally narrow: older stores remain compatible,
+    while the top-level mapping required to authenticate safely is guaranteed.
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("profiles"), dict):
+        raise ValueError("operator profile store must contain a profiles object")
+    return data
+
+
+def _fsync_directory(path: Path) -> None:
+    """Best-effort directory sync after an atomic replace.
+
+    Windows does not expose a portable directory fsync through Python. File
+    contents are still flushed before replacement there; POSIX platforms also
+    persist the directory entry when supported.
+    """
+    flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
+    try:
+        fd = os.open(str(path), flags)
+    except OSError:
+        return
+    try:
+        try:
+            os.fsync(fd)
+        except OSError:
+            # The primary replacement has already committed. Treat directory
+            # fsync support as an additional durability aid, not as a failed
+            # credential mutation with an ambiguous caller-visible result.
+            return
+    finally:
+        os.close(fd)
+
+
+def _write_operator_store_temp(directory: Path, data: dict, prefix: str) -> Path:
+    """Write, flush, and re-read one JSON candidate in ``directory``."""
+    handle = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=directory,
+        prefix=prefix,
+        suffix=".tmp",
+        delete=False,
+    )
+    temp_path = Path(handle.name)
+    try:
+        with handle:
+            json.dump(data, handle, indent=2, ensure_ascii=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        with open(temp_path, "r", encoding="utf-8") as check:
+            _validate_operator_profiles_data(json.load(check))
+        return temp_path
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
 
 
 def load_operator_profiles(sessions_root: str) -> dict:
@@ -190,10 +255,16 @@ def load_operator_profiles(sessions_root: str) -> dict:
                     type(exc).__name__,
                 )
                 return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}, "_load_error": "legacy_unreadable"}
-            if not isinstance(data, dict) or "profiles" not in data or not isinstance(data.get("profiles"), dict):
+            try:
+                _validate_operator_profiles_data(data)
+            except ValueError:
                 logger.warning("legacy operator profiles DB has an invalid schema; failing closed")
                 return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}, "_load_error": "legacy_bad_schema"}
-            save_operator_profiles(sessions_root, data)
+            try:
+                save_operator_profiles(sessions_root, data)
+            except OSError:
+                logger.warning("legacy operator profiles DB could not be migrated; failing closed")
+                return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}, "_load_error": "legacy_migration_failed"}
             try:
                 old_path.unlink()
             except OSError:
@@ -217,7 +288,9 @@ def load_operator_profiles(sessions_root: str) -> dict:
             path.name, type(exc).__name__,
         )
         return {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {}, "_load_error": "unreadable"}
-    if not isinstance(data, dict) or "profiles" not in data or not isinstance(data.get("profiles"), dict):
+    try:
+        _validate_operator_profiles_data(data)
+    except ValueError:
         logger.warning(
             "operator profiles DB at %s has an invalid schema; failing closed",
             path.name,
@@ -227,19 +300,47 @@ def load_operator_profiles(sessions_root: str) -> dict:
 
 
 def save_operator_profiles(sessions_root: str, data: dict):
+    """Atomically persist a validated operator store and recoverable backup.
+
+    There is deliberately no direct-write fallback. If a temporary write,
+    validation, flush, backup, or replace fails, the prior primary file remains
+    authoritative and the caller receives an error.
+    """
+    _validate_operator_profiles_data(data)
     path = _operator_profiles_path(sessions_root)
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_suffix(".tmp")
-        with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        temp_path.replace(path)
-    except Exception as e:
+    backup_path = path.with_suffix(path.suffix + ".bak")
+    primary_temp: Optional[Path] = None
+    backup_temp: Optional[Path] = None
+    with _OPERATOR_STORE_LOCK:
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-        except Exception as e2:
-            raise IOError(f"Failed to persist operator profiles: {e2}") from e
+            path.parent.mkdir(parents=True, exist_ok=True)
+            primary_temp = _write_operator_store_temp(path.parent, data, ".operator_profiles.")
+
+            if path.exists():
+                with tempfile.NamedTemporaryFile(
+                    dir=path.parent,
+                    prefix=".operator_profiles_backup.",
+                    suffix=".tmp",
+                    delete=False,
+                ) as backup_candidate:
+                    backup_temp = Path(backup_candidate.name)
+                shutil.copyfile(path, backup_temp)
+                with open(backup_temp, "rb+") as backup_handle:
+                    os.fsync(backup_handle.fileno())
+                with open(backup_temp, "r", encoding="utf-8") as check:
+                    _validate_operator_profiles_data(json.load(check))
+                os.replace(backup_temp, backup_path)
+                backup_temp = None
+
+            os.replace(primary_temp, path)
+            primary_temp = None
+            _fsync_directory(path.parent)
+        except Exception as exc:
+            if primary_temp is not None:
+                primary_temp.unlink(missing_ok=True)
+            if backup_temp is not None:
+                backup_temp.unlink(missing_ok=True)
+            raise IOError(f"Failed to persist operator profiles: {exc}") from exc
 
 
 def _operator_store_unavailable(db: dict) -> Optional[Tuple[int, dict]]:
@@ -253,6 +354,61 @@ def _operator_store_unavailable(db: dict) -> Optional[Tuple[int, dict]]:
             "message": "Operator profile storage is unavailable; the existing file was preserved.",
         },
     }
+
+
+def _operator_store_write_error(message: str) -> Tuple[int, dict]:
+    """Return the stable fail-closed response for a durable mutation failure."""
+    return 503, {
+        "ok": False,
+        "error": {
+            "code": "OPERATOR_STORE_UNAVAILABLE",
+            "message": message,
+        },
+    }
+
+
+def _operator_security_state(server, operator_id: str, profile: dict) -> dict:
+    """Return process-monotonic PIN/recovery failure state.
+
+    Disk state is merged by maximum rather than copied over the process state.
+    Consequently a write failure can never make a later request observe fewer
+    failures or an earlier lockout deadline during this process lifetime.
+    """
+    states = getattr(server, "operator_security_state", None)
+    if states is None:
+        states = {}
+        server.operator_security_state = states
+    state = states.setdefault(operator_id, {})
+    for counter in ("failed_attempts", "recovery_failed_attempts"):
+        state[counter] = max(int(state.get(counter, 0)), int(profile.get(counter, 0)))
+    for deadline in ("locked_until", "recovery_locked_until"):
+        state[deadline] = max(float(state.get(deadline, 0.0)), float(profile.get(deadline, 0.0)))
+    return state
+
+
+def _record_failed_attempt(
+    state: dict,
+    profile: dict,
+    *,
+    counter: str,
+    deadline: str,
+    limit: int,
+    lockout_s: float,
+    now: float,
+) -> int:
+    attempts = max(int(state.get(counter, 0)), int(profile.get(counter, 0))) + 1
+    state[counter] = attempts
+    profile[counter] = attempts
+    if attempts >= limit:
+        locked_until = now + lockout_s
+        state[deadline] = max(float(state.get(deadline, 0.0)), locked_until)
+        profile[deadline] = state[deadline]
+    return attempts
+
+
+def _clear_security_state(state: dict, *, counter: str, deadline: str) -> None:
+    state[counter] = 0
+    state[deadline] = 0.0
 
 
 def hash_pin(pin: str, salt: str, iterations: int = 200000) -> str:
@@ -305,9 +461,13 @@ def login_operator(server, operator_id: str, pin: str) -> Tuple[int, dict]:
             return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid operator ID or PIN"}}
 
         profile = profiles[operator_id]
+        security_state = _operator_security_state(server, operator_id, profile)
 
         # Check lockout
-        locked_until = float(profile.get("locked_until", 0.0))
+        locked_until = max(
+            float(profile.get("locked_until", 0.0)),
+            float(security_state.get("locked_until", 0.0)),
+        )
         if locked_until > now:
             retry_after = int(locked_until - now)
             if retry_after <= 0:
@@ -332,9 +492,21 @@ def login_operator(server, operator_id: str, pin: str) -> Tuple[int, dict]:
 
             try:
                 save_operator_profiles(server.sessions_root, db)
+                _clear_security_state(
+                    security_state,
+                    counter="failed_attempts",
+                    deadline="locked_until",
+                )
             except Exception as e:
-                import sys
-                print(f"[ERROR] Failed to save operator profiles database on successful login: {e}", file=sys.stderr)
+                # Credential verification remains valid, so an operator may keep
+                # controlling an active capture. The unsaved failure state is
+                # deliberately retained in memory (pessimistic) and no durable
+                # profile or credential mutation is claimed.
+                logger.error(
+                    "operator login verified but lockout reset could not be persisted; "
+                    "retaining pessimistic process state: %s",
+                    e,
+                )
 
             token = secrets.token_urlsafe(24)
             expires_at = now + 8 * 3600  # 8 hours
@@ -360,27 +532,32 @@ def login_operator(server, operator_id: str, pin: str) -> Tuple[int, dict]:
                 }
             }
         else:
-            attempts = int(profile.get("failed_attempts", 0)) + 1
-            profile["failed_attempts"] = attempts
+            attempts = _record_failed_attempt(
+                security_state,
+                profile,
+                counter="failed_attempts",
+                deadline="locked_until",
+                limit=_OPERATOR_FAILURE_LIMIT,
+                lockout_s=_OPERATOR_LOCKOUT_S,
+                now=now,
+            )
             profile["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-            if attempts >= 5:
-                profile["locked_until"] = now + 30.0
 
             try:
                 save_operator_profiles(server.sessions_root, db)
             except Exception as e:
-                import sys
-                print(f"[ERROR] Failed to save operator profiles database on invalid PIN attempt: {e}", file=sys.stderr)
-                # Lockout is enforced in-memory regardless of save outcome
+                logger.error(
+                    "failed PIN attempt could not be persisted; process lockout state remains active: %s",
+                    e,
+                )
 
-            if attempts >= 5:
+            if attempts >= _OPERATOR_FAILURE_LIMIT:
                 return 429, {
                     "ok": False,
                     "error": {
                         "code": "LOCKOUT_ACTIVE",
-                        "message": "Too many failed attempts. Try again in 30 seconds.",
-                        "retry_after_s": 30
+                        "message": f"Too many failed attempts. Try again in {int(_OPERATOR_LOCKOUT_S)} seconds.",
+                        "retry_after_s": int(_OPERATOR_LOCKOUT_S)
                     }
                 }
             else:
@@ -465,9 +642,10 @@ def create_operator_profile(server, body: dict) -> Tuple[int, dict]:
         try:
             save_operator_profiles(server.sessions_root, db)
         except Exception as e:
-            import sys
-            print(f"[ERROR] Failed to save operator profiles database on profile creation: {e}", file=sys.stderr)
-            return 500, {"ok": False, "error": {"code": "INTERNAL_SERVER_ERROR", "message": "Failed to persist operator profile."}}
+            logger.error("failed to persist new operator profile: %s", e)
+            return _operator_store_write_error(
+                "Operator profile storage is unavailable; no profile was created."
+            )
 
         return 200, {
             "ok": True,
@@ -554,9 +732,13 @@ def reset_pin_with_recovery(server, operator_id: str, recovery_code: str, new_pi
             return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid operator ID"}}
 
         profile = profiles[operator_id]
+        security_state = _operator_security_state(server, operator_id, profile)
 
         # Check recovery lockout (separate from PIN lockout)
-        recovery_locked_until = float(profile.get("recovery_locked_until", 0.0))
+        recovery_locked_until = max(
+            float(profile.get("recovery_locked_until", 0.0)),
+            float(security_state.get("recovery_locked_until", 0.0)),
+        )
         if recovery_locked_until > now:
             retry_after = max(1, int(recovery_locked_until - now))
             return 429, {
@@ -590,15 +772,23 @@ def reset_pin_with_recovery(server, operator_id: str, recovery_code: str, new_pi
         code_str = str(recovery_code or "").strip().upper()
 
         if not verify_pin(code_str, r_salt, r_hash, r_iters):
-            attempts = int(profile.get("recovery_failed_attempts", 0)) + 1
-            profile["recovery_failed_attempts"] = attempts
+            attempts = _record_failed_attempt(
+                security_state,
+                profile,
+                counter="recovery_failed_attempts",
+                deadline="recovery_locked_until",
+                limit=_RECOVERY_FAILURE_LIMIT,
+                lockout_s=_RECOVERY_LOCKOUT_S,
+                now=now,
+            )
             profile["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-            if attempts >= _RECOVERY_FAILURE_LIMIT:
-                profile["recovery_locked_until"] = now + _RECOVERY_LOCKOUT_S
             try:
                 save_operator_profiles(server.sessions_root, db)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.error(
+                    "failed recovery attempt could not be persisted; process lockout state remains active: %s",
+                    exc,
+                )
             import sys
             print(f"[AUTH] reset-pin failed recovery attempt {attempts}/{_RECOVERY_FAILURE_LIMIT} for operator {operator_id}", file=sys.stderr)
             if attempts >= _RECOVERY_FAILURE_LIMIT:
@@ -634,9 +824,21 @@ def reset_pin_with_recovery(server, operator_id: str, recovery_code: str, new_pi
         try:
             save_operator_profiles(server.sessions_root, db)
         except Exception as e:
-            import sys
-            print(f"[ERROR] Failed to save profiles after PIN reset: {e}", file=sys.stderr)
-            return 500, {"ok": False, "error": {"code": "INTERNAL_SERVER_ERROR", "message": "Failed to persist PIN reset."}}
+            logger.error("failed to persist recovery PIN reset: %s", e)
+            return _operator_store_write_error(
+                "Operator profile storage is unavailable; the PIN and recovery code were not changed."
+            )
+
+        _clear_security_state(
+            security_state,
+            counter="failed_attempts",
+            deadline="locked_until",
+        )
+        _clear_security_state(
+            security_state,
+            counter="recovery_failed_attempts",
+            deadline="recovery_locked_until",
+        )
 
         _invalidate_operator_sessions(server, operator_id)
 
@@ -669,6 +871,7 @@ def host_reset_pin(server, operator_id: str, new_pin: str) -> Tuple[int, dict]:
             return 401, {"ok": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid operator ID"}}
 
         profile = profiles[operator_id]
+        security_state = _operator_security_state(server, operator_id, profile)
 
         new_salt = secrets.token_hex(16)
         new_iterations = 200000
@@ -691,9 +894,21 @@ def host_reset_pin(server, operator_id: str, new_pin: str) -> Tuple[int, dict]:
         try:
             save_operator_profiles(server.sessions_root, db)
         except Exception as e:
-            import sys
-            print(f"[ERROR] Failed to save profiles after host PIN reset: {e}", file=sys.stderr)
-            return 500, {"ok": False, "error": {"code": "INTERNAL_SERVER_ERROR", "message": "Failed to persist host PIN reset."}}
+            logger.error("failed to persist host PIN reset: %s", e)
+            return _operator_store_write_error(
+                "Operator profile storage is unavailable; the PIN and recovery code were not changed."
+            )
+
+        _clear_security_state(
+            security_state,
+            counter="failed_attempts",
+            deadline="locked_until",
+        )
+        _clear_security_state(
+            security_state,
+            counter="recovery_failed_attempts",
+            deadline="recovery_locked_until",
+        )
 
         _invalidate_operator_sessions(server, operator_id)
 
@@ -724,6 +939,8 @@ __all__ = [
     "_RECOVERY_ALPHABET",
     "_RECOVERY_FAILURE_LIMIT",
     "_RECOVERY_LOCKOUT_S",
+    "_OPERATOR_FAILURE_LIMIT",
+    "_OPERATOR_LOCKOUT_S",
     "_PIN_TTL_S",
     "_PIN_MAX",
     "_PAIR_FAILURE_LIMIT",

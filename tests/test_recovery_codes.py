@@ -18,6 +18,7 @@ from email.message import Message
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 import pytest
 
@@ -240,6 +241,27 @@ def test_recovery_lockout_blocks_correct_code(server: _StubServer, sessions_root
     assert b["error"]["code"] == "LOCKOUT_ACTIVE"
 
 
+def test_recovery_lockout_accumulates_when_every_write_fails(server: _StubServer):
+    body = _make_profile(server, pin="123456")
+    op_id = body["operator"]["operator_id"]
+    code = body["recovery_code"]
+
+    with mock.patch("rvt_trainer.api.auth.save_operator_profiles", side_effect=IOError("disk full")):
+        for _ in range(_RECOVERY_FAILURE_LIMIT - 1):
+            status, response = reset_pin_with_recovery(
+                server, op_id, "AAAA-BBBB-CCCC", "567890"
+            )
+            assert status == 401
+            assert response["error"]["code"] == "UNAUTHORIZED"
+        status, response = reset_pin_with_recovery(
+            server, op_id, "AAAA-BBBB-CCCC", "567890"
+        )
+        assert status == 429
+        assert response["error"]["code"] == "LOCKOUT_ACTIVE"
+        status, response = reset_pin_with_recovery(server, op_id, code, "567890")
+        assert status == 429
+
+
 # ---------------------------------------------------------------------------
 # Single-use: rotated code is new, old code rejected
 # ---------------------------------------------------------------------------
@@ -264,6 +286,24 @@ def test_recovery_code_is_single_use(server: _StubServer, sessions_root: str):
     # New code works
     s3, r3 = reset_pin_with_recovery(server, op_id, new_code, "999999")
     assert s3 == 200
+
+
+def test_recovery_reset_write_failure_changes_nothing_and_keeps_session(server: _StubServer):
+    body = _make_profile(server, pin="123456")
+    op_id = body["operator"]["operator_id"]
+    code = body["recovery_code"]
+    status, login = login_operator(server, op_id, "123456")
+    assert status == 200
+    token = login["token"]
+
+    with mock.patch("rvt_trainer.api.auth.save_operator_profiles", side_effect=IOError("read-only")):
+        status, response = reset_pin_with_recovery(server, op_id, code, "567890")
+
+    assert status == 503
+    assert response["error"]["code"] == "OPERATOR_STORE_UNAVAILABLE"
+    assert token in server.operator_sessions
+    assert login_operator(server, op_id, "123456")[0] == 200
+    assert login_operator(server, op_id, "567890")[0] == 401
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +349,23 @@ def test_host_reset_new_recovery_code_persisted_as_hash_only(server: _StubServer
 
     raw = (Path(sessions_root) / "operator_profiles.json").read_text(encoding="utf-8")
     assert new_code not in raw
+
+
+def test_host_reset_write_failure_changes_nothing_and_keeps_session(server: _StubServer):
+    body = _make_profile(server, pin="123456")
+    op_id = body["operator"]["operator_id"]
+    status, login = login_operator(server, op_id, "123456")
+    assert status == 200
+    token = login["token"]
+
+    with mock.patch("rvt_trainer.api.auth.save_operator_profiles", side_effect=IOError("read-only")):
+        status, response = host_reset_pin(server, op_id, "567890")
+
+    assert status == 503
+    assert response["error"]["code"] == "OPERATOR_STORE_UNAVAILABLE"
+    assert token in server.operator_sessions
+    assert login_operator(server, op_id, "123456")[0] == 200
+    assert login_operator(server, op_id, "567890")[0] == 401
 
 
 def test_host_reset_clears_lockouts(server: _StubServer, sessions_root: str):

@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R09",
-  "effective_product_version": "16.5.12",
+  "register_revision": "R10",
+  "effective_product_version": "16.6.0",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -78,7 +78,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_5_12.ino",
+        "radar_vital_v16_6_0.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [
@@ -174,6 +174,56 @@
         "The canonical Python requirements, all three npm lockfiles, and the Tauri Rust lockfile have no unresolved audit finding at the configured blocking level outside documented bounded exceptions.",
         "Audit failures produce a failing workflow conclusion instead of a successful advisory-only result.",
         "Any exception identifies the advisory, owner, rationale, compensating control, and expiry."
+      ],
+      "change_record_required": true
+    },
+    {
+      "requirement_id": "RVT-SEC-003",
+      "title": "Fail-closed operator credential persistence",
+      "statement": "Operator credential mutations shall be atomic and fail closed, authentication lockout state shall not weaken after a persistence failure, and already-issued sessions shall remain usable during an operator-store outage.",
+      "source_refs": ["quality/qms-policy.md#requirement-and-design-change-control"],
+      "category": "security",
+      "risk_class": "critical",
+      "owner_role": "security_owner",
+      "status": "active",
+      "implementation_paths": [
+        "rvt_trainer/api/auth.py",
+        "web/src/app/services/api.service.ts",
+        "web/src/app/services/auth.service.ts"
+      ],
+      "verification_refs": [
+        {
+          "path": "tests/test_operator_auth.py",
+          "selector": "test_operator_store_keeps_validated_backup_and_primary_on_replace_failure",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_operator_auth.py",
+          "selector": "test_lockout_accumulates_when_every_failure_write_fails",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_operator_auth.py",
+          "selector": "test_existing_session_remains_authorized_when_store_becomes_unreadable",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_recovery_codes.py",
+          "selector": "test_recovery_reset_write_failure_changes_nothing_and_keeps_session",
+          "kind": "automated_test"
+        },
+        {
+          "path": "web/src/app/services/auth.service.spec.ts",
+          "selector": "OPERATOR_STORE_UNAVAILABLE",
+          "kind": "automated_test"
+        }
+      ],
+      "artifact_types": ["trainer", "dashboard", "operator_profile_store", "security_evidence"],
+      "acceptance_criteria": [
+        "Credential-store writes use a validated, flushed temporary file and atomic replacement without a direct-write fallback.",
+        "Profile creation and PIN or recovery-code mutation return OPERATOR_STORE_UNAVAILABLE without reporting success when durable persistence fails.",
+        "PIN and recovery failures accumulate monotonically in process memory even when each persistence attempt fails.",
+        "A previously issued unexpired operator session remains authorized when the profile store later becomes unavailable."
       ],
       "change_record_required": true
     },

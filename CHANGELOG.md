@@ -6,6 +6,21 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.6.0 fail-closed operator credential persistence (in progress)
+
+- Replaced direct operator-profile writes with validated, flushed temporary
+  files, atomic replacement, and a validated last-known-good backup.
+- Made profile creation and PIN/recovery mutations return the stable
+  `OPERATOR_STORE_UNAVAILABLE` response when durable storage fails, without
+  reporting a credential change or invalidating existing sessions.
+- Kept PIN and recovery lockout counters monotonic in process memory across
+  repeated write failures, while allowing a correctly verified login to mint
+  a session without weakening the retained failure state.
+- Preserved already-issued, unexpired operator sessions during a later profile
+  store outage and added dashboard guidance for the degraded-storage state.
+- Advanced coordinated product and QMS identity to v16.6.0 without changing
+  the frozen v15.2 / 222-column wire contract or existing study schemas.
+
 ### v16.5.12 production-signing authorization (in progress)
 
 - Made production publication fail closed unless Android reports a signed

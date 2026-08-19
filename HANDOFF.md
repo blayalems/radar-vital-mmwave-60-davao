@@ -13,6 +13,7 @@
 - **Protected-check continuity**: Preserve `Playwright tests / test`, `Security Audit / audit`, `Build Android APK (Capacitor) / apk`, and `Build Windows EXE (Tauri) / windows`; branch-only draft work now uses PR or manual-dispatch events instead of duplicate branch-push jobs.
 - **Measured baseline**: Record the exact v16.5.12 source SHA, seven Actions run IDs, per-run non-skipped job seconds, and 92.5333-runner-minute aggregate so the single-pass result can be compared with the same calculation.
 - **Durable job reads**: Serialize study-analysis status/list readers with the existing evidence writer lock so a Windows atomic-replacement interval cannot appear as an empty job ledger during the full CI suite.
+- **BLE compile flags**: Pass `ENABLE_BLE` through the C++ compiler-extra-flags property so the gate retains the ESP32 core's board defines instead of replacing `build.extra_flags` and making the Seeed library misidentify the target.
 - **Compatibility**: Advance product carriers to v16.6.3 while preserving the v15.2/222-column serial and v16.5.9 study-session identities; no participant/session migration or release publication occurs in this change.
 - **Verification**: Focused workflow/release/package/static, full Python, Angular, QMS, version/source, dashboard round-trip, action syntax, and hosted unchanged-check-name evidence are pending for the final diff; hardware behavior, signing, protected authorization, and publication remain external gates.
 

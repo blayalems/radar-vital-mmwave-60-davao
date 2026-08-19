@@ -260,7 +260,8 @@ def test_firmware_compile_uses_the_pinned_toolchain_contract():
     assert all("main" not in str(value) and "latest" not in str(value) for value in lock.values())
     assert f"arduino/setup-arduino-cli@{lock['setup_action_commit']}" in workflow
     assert "arduino-cli core install \"${{ steps.toolchain.outputs.core }}\"" in workflow
-    assert "--build-property 'build.extra_flags=-DENABLE_BLE=1'" in workflow
+    assert "--build-property 'compiler.cpp.extra_flags=-DENABLE_BLE=1'" in workflow
+    assert "build.extra_flags=-DENABLE_BLE=1" not in workflow
     assert "- firmware" in workflow
 
 

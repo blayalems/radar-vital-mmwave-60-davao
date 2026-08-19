@@ -12,7 +12,7 @@
     "BH1750": "1.3.0",
     "Adafruit NeoPixel": "1.15.5",
     "hp_BH1750": "1.0.2",
-    "NimBLE-Arduino": "2.5.0"
+    "NimBLE-Arduino": "2.5.1"
   },
   "seeed_mmwave_repository": "https://github.com/Love4yzp/Seeed-mmWave-library.git",
   "seeed_mmwave_commit": "ade050c62f874c214fe83ebb586d723c46b03226"

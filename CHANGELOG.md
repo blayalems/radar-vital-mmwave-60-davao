@@ -17,8 +17,8 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
   and authorized Pages assembly, and removed the duplicate Tauri web build.
 - Added an installed-wheel operational server/resource probe and pinned
   default/BLE XIAO ESP32-C6 firmware compilation behind the unchanged
-  aggregate `test` check; the BLE build pins NimBLE-Arduino 2.5.0 and its 2.x
-  callback API.
+  aggregate `test` check; the BLE build pins NimBLE-Arduino 2.5.1 for ESP32
+  core 3.3.11 C5/C6 compatibility and uses its 2.x callback API.
 - Advanced coordinated product/QMS identity to v16.6.3 without changing the
   frozen v15.2/222-column serial or v16.5.9 study-session contracts.
 

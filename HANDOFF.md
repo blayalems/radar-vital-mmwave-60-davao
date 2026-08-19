@@ -9,6 +9,7 @@
 
 - **Readiness fixture**: Pin `/api/study/readiness` to the explicit unauthorized draft state before Angular boots and wait for the collection-lock banner before Home screenshots.
 - **Visual scope**: Keep the new safety boundary visible and deterministic across themes/viewports while inheriting version-independent Help labels from v16.6.0; no application behavior or serial/session schema changes.
+- **Reviewed Windows baseline**: Accept the hosted desktop Night Home actual from run `32218197956` after confirming the only changed region is the intentional collection-authorization lock banner; the other 95 visual cases passed.
 - **Verification**: Visual test discovery and local QMS/version checks precede the replacement hosted Windows baseline review; browser execution remains hosted because the local Playwright binary is unavailable.
 
 ### 2026-08-19 - Block v16.6.2 collection until external authorization

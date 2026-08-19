@@ -165,7 +165,9 @@ jobs:
           mkdir -p "$sketch_dir"
           cp "$sketch" "$sketch_dir/$sketch"
           arduino-cli compile --fqbn "${{ steps.toolchain.outputs.fqbn }}" --warnings all "$sketch_dir"
-          arduino-cli compile --fqbn "${{ steps.toolchain.outputs.fqbn }}" --warnings all --build-property 'compiler.cpp.extra_flags=-DENABLE_BLE=1' "$sketch_dir"
+          sed -i 's/^#define ENABLE_BLE false$/#define ENABLE_BLE true/' "$sketch_dir/$sketch"
+          grep -qx '#define ENABLE_BLE true' "$sketch_dir/$sketch"
+          arduino-cli compile --fqbn "${{ steps.toolchain.outputs.fqbn }}" --warnings all "$sketch_dir"
 
   smoke:
     name: Smoke and API (${{ matrix.project }})

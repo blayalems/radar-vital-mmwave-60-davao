@@ -248,6 +248,38 @@ test.describe('v12 dashboard visual baseline', () => {
           });
         });
 
+        if (view === 'help') {
+          // Product/version contracts exercise the exact release identities.
+          // Screenshot baselines instead lock those two labels to stable
+          // fixture text so every patch does not require twelve otherwise
+          // identical Windows baseline replacements.
+          await expect(page.locator('.help-header-card mat-chip').nth(1)).toBeVisible();
+          await page.evaluate(() => {
+            const lockVisualVersions = () => {
+              const trainerLabel = document.querySelector<HTMLElement>('.bl-bot');
+              if (trainerLabel && trainerLabel.textContent !== 'TRAINER \u00b7 v16.5') {
+                trainerLabel.textContent = 'TRAINER \u00b7 v16.5';
+              }
+              const schemaChip = Array.from(
+                document.querySelectorAll<HTMLElement>('.help-header-card mat-chip')
+              ).find((chip) => /^\d+\.\d+\.\d+$/.test(chip.textContent?.trim() ?? ''));
+              if (schemaChip && schemaChip.textContent !== '16.5.12') {
+                const label = schemaChip.querySelector<HTMLElement>('.mat-mdc-chip-action-label');
+                const textNode = Array.from(label?.childNodes ?? []).find(
+                  (node) => node.nodeType === Node.TEXT_NODE
+                );
+                if (textNode) textNode.textContent = '16.5.12';
+              }
+            };
+            lockVisualVersions();
+            new MutationObserver(lockVisualVersions).observe(document.body, {
+              childList: true,
+              characterData: true,
+              subtree: true
+            });
+          });
+        }
+
         if (view === 'home') {
           try {
             await expect(page.locator('.preflight-row')).toHaveCount(10, { timeout: 5000 });

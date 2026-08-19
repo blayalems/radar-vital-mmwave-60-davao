@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-19 - Stabilize version-independent visual evidence
+
+- **Visual fixture**: Lock the Help trainer and schema release labels to explicit fixture text before screenshots so exact product identity remains covered by version contracts without forcing twelve baseline replacements for every patch.
+- **Semantic selector**: Locate the schema-version chip by its semantic-version text instead of a DOM index so the source-label chip remains present and the committed layout is unchanged.
+- **Material structure**: Rewrite only the projected chip label text node, preserving Angular Material's outline, focus indicator, spacing, and adjacent control positions.
+- **CI change record**: Align draft PR #113 with the controlled pull-request-template field labels so hosted QMS validation can parse the approved scope, requirement IDs, product step, and rollback.
+- **Verification**: Focused Playwright visual execution, QMS change-record validation, and the replacement hosted matrix are pending; application behavior and committed baselines are unchanged.
+
 ### 2026-08-19 - Make v16.6.0 operator credential persistence fail closed
 
 - **Atomic store**: Validate, flush, re-read, and atomically replace `operator_profiles.json`; retain a validated last-known-good `.bak` and remove the unsafe direct-write fallback.

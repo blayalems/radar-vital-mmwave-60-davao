@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-      - 'codex/**'
-      - 'gpt55/**'
     paths:
       - 'web/**'
       - 'assets/**'
@@ -19,8 +17,6 @@ on:
       - 'scripts/**'
       - '.github/workflows/build-exe.yml'
   pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 env:
@@ -34,11 +30,11 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 75
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -49,7 +45,7 @@ jobs:
             package-lock.json
             web/package-lock.json
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -60,9 +56,11 @@ jobs:
       # Keep the EXE gate on the locally verified packaging toolchain. The
       # app Cargo.lock pins Tauri transitive deps so CI does not float to the
       # time 0.3.48 / tauri-utils 2.9.2 coherence break.
-      - uses: dtolnay/rust-toolchain@1.94.1
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: 1.94.1
 
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: 'src-tauri -> target'
 
@@ -71,9 +69,6 @@ jobs:
 
       - name: Install Angular web dependencies
         run: npm --prefix web ci
-
-      - name: Build www/
-        run: npm run build:web
 
       - name: Build Python trainer sidecar
         shell: pwsh
@@ -87,11 +82,10 @@ jobs:
           python --version
           rustc --version
           cargo --version
-          Get-ChildItem www | Select-Object -First 10
           Get-ChildItem src-tauri/binaries | Select-Object -First 10
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version '^2.0' --locked
+        run: cargo install tauri-cli --version '2.11.4' --locked
 
       - name: Print Tauri CLI version
         run: cargo tauri --version
@@ -127,6 +121,12 @@ jobs:
           RUST_BACKTRACE: '1'
           TAURI_BUNDLE__WEBVIEW_FIXED_RUNTIME_PATH: ''
 
+      - name: Verify Tauri-built web bundle
+        shell: pwsh
+        run: |
+          if (-not (Test-Path www/index.html)) { throw "Tauri beforeBuildCommand did not produce www/index.html." }
+          Get-ChildItem www | Select-Object -First 10
+
       - name: List bundled EXE
         shell: pwsh
         run: |
@@ -136,7 +136,7 @@ jobs:
           if ($exeCount -eq 0) { exit 1 }
 
       - name: Upload EXE installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: radar-vital-windows-exe
           path: src-tauri/target/release/bundle/nsis/*.exe

@@ -20,13 +20,12 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote
 
-_PACKAGE_ROOT = Path(__file__).resolve().parent.parent       # rvt_trainer/
-_REPO_ROOT = _PACKAGE_ROOT.parent                            # repo root
+from rvt_trainer.runtime_paths import runtime_root
 
 
 def assets_root() -> Path:
     """Return the public assets directory shipped with the repo."""
-    return _REPO_ROOT / "assets"
+    return runtime_root() / "assets"
 
 
 def safe_asset_path(url_path: str) -> Optional[Path]:
@@ -53,7 +52,7 @@ def safe_asset_path(url_path: str) -> Optional[Path]:
         target.relative_to(root)
     except (OSError, ValueError):
         return None
-    private_root = (_REPO_ROOT / ".rvt_tls").resolve()
+    private_root = (runtime_root() / ".rvt_tls").resolve()
     try:
         target.relative_to(private_root)
         return None

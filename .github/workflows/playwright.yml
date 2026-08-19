@@ -16,12 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -29,7 +29,7 @@ jobs:
             package-lock.json
             web/package-lock.json
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -45,6 +45,28 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-v12.txt
+
+      - name: Build and exercise the installed trainer wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheelhouse="$RUNNER_TEMP/rvt-wheelhouse"
+          venv="$RUNNER_TEMP/rvt-wheel-venv"
+          python -m pip wheel --no-deps --wheel-dir "$wheelhouse" .
+          wheel="$(find "$wheelhouse" -maxdepth 1 -name 'rvt_trainer-*.whl' -print -quit)"
+          test -n "$wheel"
+          python -m pip install --no-deps --force-reinstall "$wheel"
+          python -m venv --system-site-packages "$venv"
+          "$venv/bin/python" -m pip install --no-deps --force-reinstall "$wheel"
+          expected_version="$(node -p "require('./package.json').version")"
+          (
+            cd "$RUNNER_TEMP"
+            env -u PYTHONPATH RVT_WHEEL_ROOT="$venv" RVT_EXPECTED_VERSION="$expected_version" "$venv/bin/python" -c 'import importlib.metadata as m, os, pathlib, rvt_trainer; root = pathlib.Path(os.environ["RVT_WHEEL_ROOT"]).resolve(); assert pathlib.Path(rvt_trainer.__file__).resolve().is_relative_to(root); assert m.version("rvt-trainer") == os.environ["RVT_EXPECTED_VERSION"]'
+            env -u PYTHONPATH "$venv/bin/rvt-trainer" --help > /dev/null
+            env -u PYTHONPATH "$venv/bin/rvt-statistics" --help > /dev/null
+            env -u PYTHONPATH "$venv/bin/python" -m rvt_trainer --help > /dev/null
+            env -u PYTHONPATH "$venv/bin/python" "$GITHUB_WORKSPACE/tests/installed_wheel_probe.py"
+          )
 
       - name: Validate one release increment for this PR
         if: github.event_name == 'pull_request'
@@ -69,23 +91,81 @@ jobs:
 
       - name: Run Python contract and unit tests
         run: python -m pytest tests -v
+        env:
+          RVT_REQUIRE_INSTALLED_PACKAGE: '1'
 
       - name: Run Angular unit tests
         run: npm run test:unit:web
 
       - name: Validate release manifest generator
-        run: node scripts/generate-rvt-latest.mjs --self-test
+        run: |
+          node scripts/generate-rvt-latest.mjs --self-test
+          npm run test:unit:release
 
       - name: Verify web/ ↔ monolith round-trip
         run: npm run build:check
 
       - name: Upload verified web bundle for browser shards
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: verified-web-bundle
           path: www/
           if-no-files-found: error
           retention-days: 1
+
+  firmware:
+    name: Firmware compile (XIAO ESP32-C6)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Load pinned firmware toolchain
+        id: toolchain
+        shell: bash
+        run: |
+          lock=packaging/firmware/arduino-toolchain.json
+          echo "sketch=$(jq -r .sketch "$lock")" >> "$GITHUB_OUTPUT"
+          echo "fqbn=$(jq -r .fqbn "$lock")" >> "$GITHUB_OUTPUT"
+          echo "core=$(jq -r .core "$lock")" >> "$GITHUB_OUTPUT"
+          echo "seeed_repository=$(jq -r .seeed_mmwave_repository "$lock")" >> "$GITHUB_OUTPUT"
+          echo "seeed_commit=$(jq -r .seeed_mmwave_commit "$lock")" >> "$GITHUB_OUTPUT"
+
+      - uses: arduino/setup-arduino-cli@7ef629dcdf0f458ab7ae83149d629443deac6eac
+        with:
+          version: '1.5.1'
+
+      - name: Install pinned ESP32 core and libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          lock=packaging/firmware/arduino-toolchain.json
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install "${{ steps.toolchain.outputs.core }}"
+          while IFS=$'\t' read -r name version; do
+            arduino-cli lib install "${name}@${version}"
+          done < <(jq -r '.libraries | to_entries[] | [.key, .value] | @tsv' "$lock")
+          mkdir -p "$HOME/Arduino/libraries/Seeed_Arduino_mmWave"
+          git -C "$HOME/Arduino/libraries/Seeed_Arduino_mmWave" init
+          git -C "$HOME/Arduino/libraries/Seeed_Arduino_mmWave" remote add origin "${{ steps.toolchain.outputs.seeed_repository }}"
+          git -C "$HOME/Arduino/libraries/Seeed_Arduino_mmWave" fetch --depth 1 origin "${{ steps.toolchain.outputs.seeed_commit }}"
+          git -C "$HOME/Arduino/libraries/Seeed_Arduino_mmWave" checkout --detach FETCH_HEAD
+
+      - name: Compile default and gated BLE firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          sketch="${{ steps.toolchain.outputs.sketch }}"
+          sketch_name="${sketch%.ino}"
+          sketch_dir="$RUNNER_TEMP/$sketch_name"
+          mkdir -p "$sketch_dir"
+          cp "$sketch" "$sketch_dir/$sketch"
+          arduino-cli compile --fqbn "${{ steps.toolchain.outputs.fqbn }}" --warnings all "$sketch_dir"
+          arduino-cli compile --fqbn "${{ steps.toolchain.outputs.fqbn }}" --warnings all --build-property 'build.extra_flags=-DENABLE_BLE=1' "$sketch_dir"
 
   smoke:
     name: Smoke and API (${{ matrix.project }})
@@ -105,23 +185,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
       - name: Download verified web bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: verified-web-bundle
           path: www
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -150,7 +230,7 @@ jobs:
 
       - name: Upload Playwright report on failure or cancellation
         if: ${{ failure() || cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-report-${{ matrix.project }}
           path: playwright-report/
@@ -163,23 +243,23 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
       - name: Download verified web bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: verified-web-bundle
           path: www
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -208,7 +288,7 @@ jobs:
 
       - name: Upload Playwright report on failure or cancellation
         if: ${{ failure() || cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-visual-report
           path: playwright-report/
@@ -220,6 +300,7 @@ jobs:
     if: always()
     needs:
       - contracts
+      - firmware
       - smoke
       - visual
     runs-on: ubuntu-latest
@@ -228,11 +309,13 @@ jobs:
       - name: Require every CI stage to pass
         env:
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          FIRMWARE_RESULT: ${{ needs.firmware.result }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
           VISUAL_RESULT: ${{ needs.visual.result }}
         run: |
-          printf 'contracts=%s\nsmoke=%s\nvisual=%s\n' \
-            "$CONTRACTS_RESULT" "$SMOKE_RESULT" "$VISUAL_RESULT"
+          printf 'contracts=%s\nfirmware=%s\nsmoke=%s\nvisual=%s\n' \
+            "$CONTRACTS_RESULT" "$FIRMWARE_RESULT" "$SMOKE_RESULT" "$VISUAL_RESULT"
           test "$CONTRACTS_RESULT" = success
+          test "$FIRMWARE_RESULT" = success
           test "$SMOKE_RESULT" = success
           test "$VISUAL_RESULT" = success

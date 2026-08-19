@@ -5,6 +5,17 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-08-19 - Make v16.6.3 CI and release evidence single-pass
+
+- **Intentional immutable release**: Remove automatic main-push publications; an early guard now requires a matching/new tag, no existing Release, and successful latest exact-source runs for all four protected workflows before packaging fans out.
+- **Build-once promotion**: Build and round-trip-verify release `www/` once, then provide the same bytes to Android, Windows, and authorized Pages assembly; Tauri's release job disables its second web build only after downloading that artifact.
+- **Meaningful missing gates**: Build and install the Python wheel outside the checkout, launch its server and probe health/dashboard/font/icon/service-worker/readiness resources, exercise both console scripts and module entrypoint, and compile default plus gated-BLE firmware with a pinned Arduino CLI/core/library/Seeed commit contract. The BLE gate pins NimBLE-Arduino 2.5.0 and compiles the 2.x callback signature.
+- **Protected-check continuity**: Preserve `Playwright tests / test`, `Security Audit / audit`, `Build Android APK (Capacitor) / apk`, and `Build Windows EXE (Tauri) / windows`; branch-only draft work now uses PR or manual-dispatch events instead of duplicate branch-push jobs.
+- **Measured baseline**: Record the exact v16.5.12 source SHA, seven Actions run IDs, per-run non-skipped job seconds, and 92.5333-runner-minute aggregate so the single-pass result can be compared with the same calculation.
+- **Durable job reads**: Serialize study-analysis status/list readers with the existing evidence writer lock so a Windows atomic-replacement interval cannot appear as an empty job ledger during the full CI suite.
+- **Compatibility**: Advance product carriers to v16.6.3 while preserving the v15.2/222-column serial and v16.5.9 study-session identities; no participant/session migration or release publication occurs in this change.
+- **Verification**: Focused workflow/release/package/static, full Python, Angular, QMS, version/source, dashboard round-trip, action syntax, and hosted unchanged-check-name evidence are pending for the final diff; hardware behavior, signing, protected authorization, and publication remain external gates.
+
 ### 2026-08-19 - Stabilize precollection visual evidence
 
 - **Readiness fixture**: Pin `/api/study/readiness` to the explicit unauthorized draft state before Angular boots and wait for the collection-lock banner before Home screenshots.

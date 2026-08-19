@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R12",
-  "effective_product_version": "16.6.2",
+  "register_revision": "R13",
+  "effective_product_version": "16.6.3",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -78,7 +78,8 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_6_2.ino",
+        "radar_vital_v16_6_3.ino",
+        "packaging/firmware/arduino-toolchain.json",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [
@@ -90,6 +91,11 @@
         {
           "path": "tests/test_v12_static_contract.py",
           "selector": "test_trainer_pads_legacy_207_rows_to_v15_1_contract",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_ci_supply_chain.py",
+          "selector": "test_firmware_compile_uses_the_pinned_toolchain_contract",
           "kind": "automated_test"
         }
       ],
@@ -675,6 +681,11 @@
       "status": "active",
       "implementation_paths": [
         ".github/workflows/release-artifacts.yml",
+        ".github/workflows/playwright.yml",
+        "pyproject.toml",
+        "rvt_trainer/runtime_paths.py",
+        "rvt_trainer/assets/static.py",
+        "scripts/check-release-source.mjs",
         "src-tauri/examples/verify_updater_signature.rs",
         "scripts/generate-rvt-latest.mjs",
         "scripts/generate-qms-release-record.mjs",
@@ -705,6 +716,26 @@
           "path": "tests/test_qms_release_record.py",
           "selector": "test_windows_nsis_build_retries_transient_dependency_downloads",
           "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_ci_supply_chain.py",
+          "selector": "test_release_is_intentional_immutable_and_builds_web_once",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/release-source.test.mjs",
+          "selector": "rejects any already-published Release",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_packaging.py",
+          "selector": "test_installed_entry_point_matches_declaration",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/installed_wheel_probe.py",
+          "selector": "main",
+          "kind": "ci_check"
         }
       ],
       "artifact_types": ["apk", "aab", "exe", "release_manifest", "release_record", "checksums", "attestation"],
@@ -714,6 +745,9 @@
         "Production authorization requires a signed Android release, an Authenticode-verified Windows installer, and a detached Tauri updater signature.",
         "Before updater signature_state=signed is emitted, the detached updater signature is cryptographically verified against the configured public key and staged final EXE bytes.",
         "Transient NSIS dependency-download failures are retried a bounded number of times before Windows packaging fails.",
+        "Every publication is intentional, rejects an existing Release or different-SHA tag before native builds, and records successful exact-source protected-workflow evidence.",
+        "Android, Windows, and authorized Pages assembly consume one round-trip-verified release web bundle.",
+        "The protected aggregate includes pinned firmware compilation and an installed-wheel console-entrypoint gate.",
         "Authorization and any external or skipped gate are explicit in the release record.",
         "Existing tags and release assets are never overwritten during rollback."
       ],

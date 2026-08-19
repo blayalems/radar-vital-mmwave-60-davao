@@ -3,10 +3,10 @@
 | Control | Value |
 |---|---|
 | Document ID | `RVT-QMS-PRO-001` |
-| Revision | `R09` |
+| Revision | `R10` |
 | Owner role | Release manager |
 | Approver roles | Release manager, quality manager, and security owner |
-| Effective product version | `16.5.12` |
+| Effective product version | `16.6.3` |
 | Retention | Project lifetime plus five years; archive then review |
 
 This procedure implements the release portion of the
@@ -16,21 +16,13 @@ It is a project control and is not a claim of ISO 9001 certification.
 ## Permanent releases
 
 The `Release APK and EXE` workflow publishes permanent GitHub Release assets
-when either of these happens:
-
-- A pull request merge or other accepted update is pushed to `main`.
-- A tag matching `v*` is pushed.
-- The workflow is manually dispatched with a `tag_name`.
-
-Every `main` publication is an automated prerelease tagged
-`v<app-version>-main.<workflow-run>`, for example `v12.0.0-main.42`. The
-workflow run number increases on each release workflow invocation, so each
-published main build receives a new version. All release routes require a
-semantic-version tag and stamp that tag's version into the APK `versionName`
-and Tauri installer version. The APK `versionCode` uses the increasing
-workflow-run value so later signed APKs can upgrade earlier ones.
-GitHub-generated release notes are enabled for every publication and serve as
-the build changelog.
+only for an intentional `v*` tag push or a manual dispatch with `tag_name`.
+Ordinary `main` updates run protected validation but do not create diagnostic
+releases. Tag pushes remain diagnostic prereleases by default; a manual
+dispatch with `prerelease: false` is the sole production request path. All
+release routes stamp the tag version into the APK `versionName` and Tauri
+installer version. The APK `versionCode` uses the increasing workflow-run
+value so later signed APKs can upgrade earlier ones.
 
 The release attaches:
 
@@ -42,16 +34,18 @@ The release attaches:
 - `radar-vital-windows-installer.exe`, signed only when Windows certificate
   secrets are configured.
 
-Each publication also retains the QMS release record, detached `SHA256SUMS`,
-and build-provenance evidence. The release record binds the final artifact
+Each publication also retains `required-check-evidence.json`, the QMS release
+record, detached `SHA256SUMS`, and build-provenance evidence. The release record binds the final artifact
 bytes to the approved source commit, workflow run, controlled-document
 register revision, verification results, signing state, authorization, and
 rollback strategy. Hashes must be calculated after the final signing step.
 
-The release tag's base semantic version must equal the authoritative product
-version. A syntactically valid but different tag is rejected. Tags and
-published assets are immutable; a correction receives a new controlled version
-instead of replacing evidence in place.
+Before native builds fan out, the release tag's base semantic version must
+equal the authoritative product version, an existing tag must resolve to the
+exact source SHA, no GitHub Release may already exist, and the latest
+exact-source runs for all four protected workflows must be successful. A
+same-SHA tag may be retried only while no Release exists. Published assets are
+never updated in place; a correction receives a new controlled version.
 
 A publication may leave the protected `release-production` environment as a
 production release only when all three native signature proofs are present:
@@ -138,17 +132,20 @@ checks:
 - `Build Windows EXE (Tauri) / windows`
 
 The test job must include the QMS document/requirement contract, the exact
-one-step product-version check, trainer and Angular tests, the release-manifest
-self-test, and the generated-dashboard round trip. If the QMS check later moves
+one-step product-version check, installed-wheel console-entrypoint proof,
+trainer and Angular tests, the release-manifest self-test, pinned XIAO ESP32-C6
+firmware compilation, and the generated-dashboard round trip. If the QMS check later moves
 to a separate named job, add that job to the required checks before merging the
 workflow change.
 
 GitHub Pages must use the `GitHub Actions` publishing source. The custom Pages
-workflow builds the Angular PWA and preserves the complete updater/QMS evidence
-bundle (`rvt-latest.json`, `rvt-latest-tauri.json`, `qms-release-record.json`,
-`controlled-document-revisions.json`, and `SHA256SUMS`) atomically; it must not
-fall back to the legacy branch/Jekyll publisher or publish a partial evidence
-set.
+preview workflow builds the Angular PWA and verifies that it preserves the
+complete updater/QMS evidence bundle (`rvt-latest.json`,
+`rvt-latest-tauri.json`, `qms-release-record.json`,
+`controlled-document-revisions.json`, and `SHA256SUMS`) atomically, but it has
+no deployment permission. The authorized tag/manual release workflow is the
+only production Pages deployer; neither workflow may fall back to the legacy
+branch/Jekyll publisher or publish a partial evidence set.
 
 The dependency audit is a blocking gate. Python and actionable Rust advisories,
 plus moderate-or-higher findings in the root, Angular, or standalone Capacitor
@@ -164,6 +161,18 @@ The contracts job uploads the generated and round-trip-verified `www/` bundle as
 a one-day artifact. Every isolated smoke and visual runner downloads that exact
 bundle before browser execution; a shard must never assume another runner's
 workspace is shared or rebuild an unverified variant.
+
+The pre-change runner baseline is retained in
+`docs/audit/ci-runner-baseline-v16.5.12.json`. It identifies the exact source
+SHA and seven workflow-run IDs and records the reproducible non-skipped-job
+elapsed-time calculation: 5,552 runner-seconds, or 92.5333 runner-minutes.
+Future comparisons must use the same calculation rather than comparing only
+workflow wall-clock duration.
+
+Release packaging similarly builds and round-trip-verifies `www/` once. Android,
+Windows, and authorized Pages assembly download those exact bytes. The release
+publisher consumes durable protected-check evidence instead of rerunning the
+full Python, Angular, and browser suites after approval.
 
 Required ruleset settings:
 
@@ -185,9 +194,9 @@ the actual reviewer and must not imply independent approval that did not occur.
 
 Configure the release environment with required reviewers for production or
 thesis-evidence publication. Environment approval is the durable release
-authorization. An automated prerelease can be generated without production
-promotion, but its release record must keep authorization `pending` and label
-the artifact accordingly.
+authorization. An intentionally requested diagnostic prerelease can be
+generated without production promotion, but its release record must keep
+authorization `pending` and label the artifact accordingly.
 
 The repository's `release-production` environment is restricted to `main`,
 requires a named reviewer, disables administrator bypass, and holds the

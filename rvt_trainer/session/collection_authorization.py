@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Mapping
 
 from rvt_trainer.api.common import read_json_if_exists
+from rvt_trainer.runtime_paths import runtime_root
 
 
 COLLECTION_AUTHORIZATION_SCHEMA_VERSION = "rvt-collection-authorization-v1"
@@ -32,7 +33,7 @@ def _canonical_sha256(value: Mapping[str, Any]) -> str:
 
 
 def _controlled_plan() -> Dict[str, Any]:
-    path = Path(__file__).resolve().parents[2] / "quality" / "statistical-analysis-plan.json"
+    path = runtime_root() / "quality" / "statistical-analysis-plan.json"
     value = read_json_if_exists(str(path))
     return dict(value) if isinstance(value, dict) else {}
 

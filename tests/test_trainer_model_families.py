@@ -136,7 +136,7 @@ def test_controlled_research_identity_keeps_plan_and_run_versions_independent():
 
     assert plan == DEFAULT_ANALYSIS_PLAN
     assert plan["effective_product_version"] == "16.5.8"
-    assert identity["run_product_version"] == "16.6.2"
+    assert identity["run_product_version"] == "16.6.3"
     assert identity["analysis_plan_id"] == plan["plan_id"]
     assert identity["analysis_plan_sha256"] == analysis_plan_sha256(plan)
     assert identity["study_protocol_id"] == plan["study_protocol_id"]

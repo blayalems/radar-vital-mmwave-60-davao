@@ -5,6 +5,11 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-09-03 - Restore www build prerequisite in Windows EXE gate
+
+- **EXE frontend prerequisite**: Restore `npm run build:web` before Tauri compilation in `.github/workflows/build-exe.yml`; `cargo test` compiles `src/main.rs` and requires `../www` to exist during `tauri::generate_context!()`.
+- **Packaging continuity**: Preserve the verified toolchain and single-pass release evidence while unblocking the Windows EXE CI gate.
+
 ### 2026-08-19 - Make v16.6.3 CI and release evidence single-pass
 
 - **Intentional immutable release**: Remove automatic main-push publications; an early guard now requires a matching/new tag, no existing Release, and successful latest exact-source runs for all four protected workflows before packaging fans out.

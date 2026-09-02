@@ -70,6 +70,9 @@ jobs:
       - name: Install Angular web dependencies
         run: npm --prefix web ci
 
+      - name: Build www/
+        run: npm run build:web
+
       - name: Build Python trainer sidecar
         shell: pwsh
         run: python scripts/build-trainer-sidecar.py --self-test

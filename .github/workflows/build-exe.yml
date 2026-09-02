@@ -70,8 +70,9 @@ jobs:
       - name: Install Angular web dependencies
         run: npm --prefix web ci
 
-      - name: Build www/
-        run: npm run build:web
+      - name: Prepare Tauri frontend target directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force www
 
       - name: Build Python trainer sidecar
         shell: pwsh

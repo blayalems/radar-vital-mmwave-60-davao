@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-09-03 - Prepare Tauri target directory without redundant web build
+
+- **EXE gate contract**: Ensure `www/` directory exists before Tauri `cargo test` and `cargo build` in `.github/workflows/build-exe.yml` without introducing an explicit `npm run build:web` step; preserves the single-pass build contract in `tests/test_ci_supply_chain.py` while preventing `tauri::generate_context!()` panic.
+
 ### 2026-09-03 - Remediate transitive dependencies in web and packaging lockfiles
 
 - **Security audit clean**: Update `browserslist`, `fast-uri`, `qs` in `web/package-lock.json` and `@xmldom/xmldom` in `packaging/capacitor/package-lock.json`; all three package trees report 0 vulnerabilities under `--audit-level=moderate`.

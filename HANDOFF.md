@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-09-03 - Remediate transitive dependencies in web and packaging lockfiles
+
+- **Security audit clean**: Update `browserslist`, `fast-uri`, `qs` in `web/package-lock.json` and `@xmldom/xmldom` in `packaging/capacitor/package-lock.json`; all three package trees report 0 vulnerabilities under `--audit-level=moderate`.
+
 ### 2026-09-03 - Remediate xmldom advisory in root lockfile
 
 - **Security gate**: Update transitive `@xmldom/xmldom` to 0.9.12 in `package-lock.json` resolving GHSA-6gmq-8vp8-gcm6; unblocks the Security Audit gate with zero reported vulnerabilities.

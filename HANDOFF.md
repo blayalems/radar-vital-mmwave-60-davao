@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-09-03 - Remediate xmldom advisory in root lockfile
+
+- **Security gate**: Update transitive `@xmldom/xmldom` to 0.9.12 in `package-lock.json` resolving GHSA-6gmq-8vp8-gcm6; unblocks the Security Audit gate with zero reported vulnerabilities.
+
 ### 2026-09-03 - Restore www build prerequisite in Windows EXE gate
 
 - **EXE frontend prerequisite**: Restore `npm run build:web` before Tauri compilation in `.github/workflows/build-exe.yml`; `cargo test` compiles `src/main.rs` and requires `../www` to exist during `tauri::generate_context!()`.

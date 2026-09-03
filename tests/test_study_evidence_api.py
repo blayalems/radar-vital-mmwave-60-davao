@@ -212,7 +212,7 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["objective_id"] == "objective_1_rr"
     assert response["status"] == "inconclusive"
-    assert response["provenance"]["product_version"] == "16.6.2"
+    assert response["provenance"]["product_version"] == "16.6.3"
 
 
 def test_study_evidence_routes_are_operator_protected(study_server: _ControlServer):
@@ -277,7 +277,7 @@ def test_completed_job_promotion_rejects_report_manifest_identity_mismatch(tmp_p
     output_dir = sessions_root / "study_analysis" / "job-1"
     output_dir.mkdir(parents=True)
     identity = {
-        "run_product_version": "16.6.2",
+        "run_product_version": "16.6.3",
         "analysis_plan_id": "RVT-STA-PLAN-16.5.8",
         "analysis_plan_sha256": "a" * 64,
         "study_protocol_id": "RVT-THESIS-16.5.9",
@@ -316,7 +316,7 @@ def test_completed_job_promotion_rejects_report_manifest_identity_mismatch(tmp_p
             "request": {"confirmatory": True},
         },
         sessions_root=str(sessions_root),
-        product_version="16.6.2",
+        product_version="16.6.3",
     )
 
     assert valid is False

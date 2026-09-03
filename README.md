@@ -6,7 +6,7 @@ The repository ships three coupled artefacts:
 
 | Component | File | Role |
 |---|---|---|
-| **Firmware** | [`radar_vital_v16_6_2.ino`](./radar_vital_v16_6_2.ino) | XIAO ESP32-C6 + MR60BHA2 driver. Emits the v15.2 222-column CSV at 115 200 baud over USB; the first 207 columns remain the frozen v15 contract, 208-219 preserve v15.1 diagnostics, and 220-222 retain the audit fields introduced in v16.4. `ENABLE_BLE` stays off by default; passive module-firmware readback after radar boot/recovery lets session truthfulness record the MR60BHA2 version. |
+| **Firmware** | [`radar_vital_v16_6_3.ino`](./radar_vital_v16_6_3.ino) | XIAO ESP32-C6 + MR60BHA2 driver. Emits the v15.2 222-column CSV at 115 200 baud over USB; the first 207 columns remain the frozen v15 contract, 208-219 preserve v15.1 diagnostics, and 220-222 retain the audit fields introduced in v16.4. `ENABLE_BLE` stays off by default; passive module-firmware readback after radar boot/recovery lets session truthfulness record the MR60BHA2 version. |
 | **Trainer** | [`radar_vital_trainer_v12_for_v16_0.py`](./radar_vital_trainer_v12_for_v16_0.py) + [`rvt_trainer/`](./rvt_trainer/) | Python 3.11+ `ThreadingHTTPServer`. The root script is a compatibility shim over the package entrypoint. It reads the firmware CSV, manages sessions, runs preflight/ML-readiness/audit, writes `live_dashboard.json`, serves REST/SSE APIs, handles COM7/COM10 serial capture, and captures AiLink BLE reference data through `bleak` when available. |
 | **Dashboard** | [`web/src/`](./web/src/) -> [`radar_vital_live_dashboard_v12_for_v16_0.html`](./radar_vital_live_dashboard_v12_for_v16_0.html) | Standalone Angular 21 + Material 3 application compiled to a committed single-file PWA artefact and `www/` packages. Polls or subscribes to `/api/events/subscribe`, renders live KPIs, bounded waveforms/Doppler plots, alerts, reports, pairing, preflight progress, and scoped offline state. |
 
@@ -40,7 +40,7 @@ assessment.
 ## Current PR72/PR71 state
 
 - **PR72 session-data audit fixes**: trainer truthfulness now measures the on-disk CSV contract width instead of loader-added columns, accepts both canonical and raw module firmware field names, runs adaptive-correction shadow metrics on suffixed 1 Hz features, runs v15 PQI shadow checks on raw radar rows, and computes BLE reference quality from time-based coverage instead of treating AiLink protocol gaps as decode failures. The BLE logger snapshots `ref_ble_summary.json` during capture so Windows child-process termination does not lose summary metrics.
-- **Firmware readback**: `radar_vital_v16_6_2.ino` passively polls the MR60BHA2 module firmware version immediately after `mmWave.begin()` and after radar recovery, so captures can populate `module_fw_*` / `module_fw_valid`.
+- **Firmware readback**: `radar_vital_v16_6_3.ino` passively polls the MR60BHA2 module firmware version immediately after `mmWave.begin()` and after radar recovery, so captures can populate `module_fw_*` / `module_fw_valid`.
 - **PR71 live-session recovery**: the trainer creates startup/standby `live_dashboard.json` payloads, waits longer for session start, avoids nested dashboard port conflicts, and keeps radar-only sessions when BLE is absent instead of dropping the manifest.
 - **PR71 Home/Live UX recovery**: preflight rows persist across refresh/navigation and show progress, advisory hardware/package checks no longer block Start, history infers missing timestamps/durations/subjects from session files, standby `0 bpm` values no longer spam alerts, and Live chart/Doppler containers are bounded to stop vertical scroll growth.
 
@@ -206,12 +206,12 @@ npx cap open android                  # opens Android Studio for signing/release
 
 LAN HTTP traffic in the APK routes through the Capacitor native HTTP stack (via `CapacitorHttp` configuration in `capacitor.config.ts`) so the WebView's mixed-content rules never apply. Telemetry-derived offline records are segregated by `demo` versus `live` IndexedDB scope. Where local Bluetooth is available, Home exposes a **Native BLE acceptance probe** that validates one allowlisted AiLink notification; it is a hardware qualification check and does not replace trainer-side reference capture for a recorded session. Preflight BLE/device warnings are advisory for Start; collection can proceed as radar-only and the trainer records that status if the oximeter is unavailable.
 
-CI: [`.github/workflows/build-apk.yml`](./.github/workflows/build-apk.yml) produces an unsigned debug APK for validation. After each accepted push to `main`, [`.github/workflows/release-artifacts.yml`](./.github/workflows/release-artifacts.yml) publishes a versioned GitHub prerelease with an APK asset and generated changelog; every release stamps its semantic version and increasing Android version code into the APK, using signing secrets when configured.
+CI: [`.github/workflows/build-apk.yml`](./.github/workflows/build-apk.yml) produces an unsigned debug APK for validation. An intentional semantic-version tag or manual release request runs [`.github/workflows/release-artifacts.yml`](./.github/workflows/release-artifacts.yml), which publishes a versioned GitHub Release with an APK asset and generated changelog after the protected source checks pass; every release stamps its semantic version and increasing Android version code into the APK, using signing secrets when configured.
 
 ### Windows EXE — Tauri v2
 
 ```bash
-cargo install tauri-cli --version '^2.0'
+cargo install tauri-cli --version '2.11.4' --locked
 npm install
 npm run build:web
 cargo tauri build                     # produces src-tauri/target/release/*.exe
@@ -219,7 +219,7 @@ cargo tauri build                     # produces src-tauri/target/release/*.exe
 
 Tauri uses Microsoft Edge WebView2 and keeps WebView network policy at `connect-src 'self'`. Paired LAN API/download calls run through native Rust commands pinned to the explicitly paired origin. Native BLE reference commands allowlist the configured AiLink oximeter notify profile (`FFE0` service / `FFE2` characteristic); Home's bounded Native BLE acceptance probe consumes that command path and reports whether a notification was received without claiming it supplied session telemetry. The EXE does not rely on Chromium Web Bluetooth prompts for local-device discovery; BLE capture is handled by the bundled Python/WinRT sidecar path. The separate radar-firmware GATT path remains disabled by default pending physical acceptance. Windows 11 ships WebView2 preinstalled; the installer uses `downloadBootstrapper` for other systems.
 
-CI: [`.github/workflows/build-exe.yml`](./.github/workflows/build-exe.yml) builds the EXE on `windows-latest`. After each accepted push to `main`, [`.github/workflows/release-artifacts.yml`](./.github/workflows/release-artifacts.yml) attaches the NSIS installer to the versioned GitHub prerelease and generated changelog; every release stamps the same semantic version into the EXE and signs it when certificate secrets are configured.
+CI: [`.github/workflows/build-exe.yml`](./.github/workflows/build-exe.yml) builds the EXE on `windows-latest`. An intentional semantic-version tag or manual release request runs [`.github/workflows/release-artifacts.yml`](./.github/workflows/release-artifacts.yml), which attaches the NSIS installer to the versioned GitHub Release after the protected source checks pass; every release stamps the same semantic version into the EXE and signs it when certificate secrets are configured.
 
 ---
 
@@ -299,7 +299,7 @@ Pre-mobile baseline tag: `v15.0.0-pre-mobile` — rollback point for the redesig
 
 ```
 .
-├── radar_vital_v16_6_2.ino                         # firmware (v16.6.2; v15.2 222-column USB contract, BLE gated off)
+├── radar_vital_v16_6_3.ino                         # firmware (v16.6.3; v15.2 222-column USB contract, BLE gated off)
 ├── radar_vital_trainer_v12_for_v16_0.py             # trainer compatibility shim
 ├── rvt_trainer/                                     # trainer package facade + legacy monolith
 ├── radar_vital_live_dashboard_v12_for_v16_0.html    # PWA dashboard (single file)

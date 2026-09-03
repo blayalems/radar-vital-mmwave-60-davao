@@ -15,6 +15,12 @@ const DOCUMENT_REGISTER_SCHEMA_PATH = path.join(
   'document-register.schema.json'
 );
 const RELEASE_SCHEMA_PATH = path.join(ROOT_DIR, 'quality', 'schemas', 'release-record.schema.json');
+const REQUIRED_CHECK_EVIDENCE_SCHEMA_PATH = path.join(
+  ROOT_DIR,
+  'quality',
+  'schemas',
+  'required-check-evidence.schema.json'
+);
 const RELEASE_FILES = [
   'radar-vital-release.apk',
   'radar-vital-debug.apk',
@@ -23,6 +29,7 @@ const RELEASE_FILES = [
   'radar-vital-windows-installer.exe.sig',
   'rvt-latest.json',
   'rvt-latest-tauri.json',
+  'required-check-evidence.json',
   'controlled-document-revisions.json'
 ];
 
@@ -72,17 +79,19 @@ function artifactKind(fileName) {
   if (fileName.endsWith('.exe')) return 'windows_installer';
   if (fileName.endsWith('.sig')) return 'tauri_updater_signature';
   if (fileName === 'controlled-document-revisions.json') return 'controlled_document_revision_snapshot';
+  if (fileName === 'required-check-evidence.json') return 'required_check_evidence';
   return 'release_metadata';
 }
 
 function buildOptions() {
   const version = productVersion();
   const releaseTag = readArg('--release-tag') || process.env.RELEASE_TAG || `v${version}`;
+  const distDir = path.resolve(readArg('--dist') || path.join(ROOT_DIR, 'dist'));
   return {
     version,
     releaseTag,
     releaseVersion: readArg('--release-version') || process.env.RELEASE_VERSION || releaseTag.replace(/^v/, ''),
-    distDir: path.resolve(readArg('--dist') || path.join(ROOT_DIR, 'dist')),
+    distDir,
     repository: readArg('--repo') || process.env.GITHUB_REPOSITORY || DEFAULT_REPOSITORY,
     releasedAt: readArg('--released-at') || process.env.RELEASED_AT || new Date().toISOString(),
     sourceCommit: readArg('--source-commit') || process.env.GITHUB_SHA || '',
@@ -96,12 +105,85 @@ function buildOptions() {
     authorizedBy: process.env.QMS_AUTHORIZED_BY || null,
     authorizedAt: process.env.QMS_AUTHORIZED_AT || null,
     previousRelease: process.env.PREVIOUS_RELEASE_TAG || null,
+    requiredCheckEvidencePath: path.resolve(
+      readArg('--required-check-evidence') ||
+      process.env.REQUIRED_CHECK_EVIDENCE_PATH ||
+      path.join(distDir, 'required-check-evidence.json')
+    ),
+    requiredCheckEvidenceSchemaPath: path.resolve(
+      readArg('--required-check-evidence-schema') || REQUIRED_CHECK_EVIDENCE_SCHEMA_PATH
+    ),
+    allowMissingRequiredCheckEvidenceForNonpublicationFixture: process.argv.includes(
+      '--allow-missing-required-check-evidence-for-nonpublication-fixture'
+    ),
     documentRegisterPath: path.resolve(readArg('--document-register') || REGISTER_PATH),
     documentRegisterSchemaPath: path.resolve(
       readArg('--document-register-schema') || DOCUMENT_REGISTER_SCHEMA_PATH
     ),
     releaseSchemaPath: RELEASE_SCHEMA_PATH
   };
+}
+
+function requiredCheckVerification(options) {
+  const evidencePath = path.resolve(
+    options.requiredCheckEvidencePath || path.join(options.distDir, 'required-check-evidence.json')
+  );
+  if (!fs.existsSync(evidencePath)) {
+    if (options.allowMissingRequiredCheckEvidenceForNonpublicationFixture) {
+      if (options.authorizationState !== 'pending') {
+        throw new Error('The nonpublication fixture escape is only valid for pending release records');
+      }
+      return [];
+    }
+    throw new Error(`Required-check evidence is required: ${evidencePath}`);
+  }
+  const evidence = JSON.parse(fs.readFileSync(evidencePath, 'utf8'));
+  const schemaPath = path.resolve(
+    options.requiredCheckEvidenceSchemaPath || REQUIRED_CHECK_EVIDENCE_SCHEMA_PATH
+  );
+  const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+  const errors = [];
+  validateAgainstSchema(evidence, schema, schema, 'required-check-evidence.json', errors);
+  if (errors.length) {
+    throw new Error(`Required-check evidence failed schema validation: ${errors.join('; ')}`);
+  }
+  if (evidence.source_sha !== options.sourceCommit || evidence.release_tag !== options.releaseTag) {
+    throw new Error('Required-check evidence does not match the release source and tag');
+  }
+  const expected = new Map([
+    ['Playwright tests', '.github/workflows/playwright.yml'],
+    ['Security Audit', '.github/workflows/security-audit.yml'],
+    ['Build Android APK (Capacitor)', '.github/workflows/build-apk.yml'],
+    ['Build Windows EXE (Tauri)', '.github/workflows/build-exe.yml']
+  ]);
+  const checks = Array.isArray(evidence.checks) ? evidence.checks : [];
+  if (checks.length !== expected.size) throw new Error('Required-check evidence is incomplete');
+  const verification = checks.map(item => {
+    const expectedPath = expected.get(item.workflow_name);
+    const validRunIdentity =
+      /^\d+$/.test(String(item.workflow_id || '')) &&
+      /^\d+$/.test(String(item.run_id || '')) &&
+      Number.isInteger(item.run_attempt) &&
+      item.run_attempt >= 1;
+    if (
+      !expectedPath ||
+      item.path !== expectedPath ||
+      !['push', 'pull_request'].includes(item.event) ||
+      item.conclusion !== 'success' ||
+      !validRunIdentity ||
+      !item.run_url
+    ) {
+      throw new Error(`Required-check evidence entry is invalid: ${item.workflow_name || '<missing>'}`);
+    }
+    expected.delete(item.workflow_name);
+    return {
+      check_id: `protected-workflow-${item.workflow_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
+      conclusion: 'passed',
+      evidence_url: item.run_url
+    };
+  });
+  if (expected.size) throw new Error(`Required-check evidence is missing: ${[...expected.keys()].join(', ')}`);
+  return verification;
 }
 
 function localRef(schema, reference) {
@@ -173,6 +255,7 @@ function validateAgainstSchema(value, node, rootSchema, location, errors) {
   }
   if (Array.isArray(value)) {
     if (node.minItems !== undefined && value.length < node.minItems) errors.push(`${location}: too few items`);
+    if (node.maxItems !== undefined && value.length > node.maxItems) errors.push(`${location}: too many items`);
     if (node.uniqueItems) {
       const keys = value.map(item => JSON.stringify(item));
       if (new Set(keys).size !== keys.length) errors.push(`${location}: items must be unique`);
@@ -277,6 +360,7 @@ export function generateQmsReleaseRecord(options = buildOptions()) {
   if (!artifacts.some(item => item.name.endsWith('.apk'))) throw new Error('QMS record requires an APK artifact');
   if (!artifacts.some(item => item.name.endsWith('.exe'))) throw new Error('QMS record requires a Windows EXE artifact');
   const documentSnapshot = controlledDocumentSnapshot(options);
+  const protectedWorkflowVerification = requiredCheckVerification(options);
   const record = {
     schema_version: 'rvt-qms-release-record-v1',
     release_id: `RVT-REL-${options.releaseVersion}`,
@@ -309,7 +393,8 @@ export function generateQmsReleaseRecord(options = buildOptions()) {
     verification: [
       { check_id: 'release-artifact-integrity', conclusion: 'passed', evidence_url: `${releaseUrl}/SHA256SUMS` },
       { check_id: 'controlled-document-revision-snapshot', conclusion: 'passed', evidence_url: `${releaseUrl}/controlled-document-revisions.json` },
-      { check_id: 'github-build-provenance-attestation', conclusion: 'external_gate', evidence_url: runUrl }
+      { check_id: 'github-build-provenance-attestation', conclusion: 'external_gate', evidence_url: runUrl },
+      ...protectedWorkflowVerification
     ],
     artifacts,
     authorization: {
@@ -413,6 +498,8 @@ function runSelfTest() {
       workflowRunAttempt: '2',
       androidSignatureState: 'signed_release',
       windowsSignatureState: 'authenticode_verified',
+      requiredCheckEvidencePath: path.join(tempDir, 'required-check-evidence.json'),
+      allowMissingRequiredCheckEvidenceForNonpublicationFixture: true,
       documentRegisterPath: registerPath
     });
     if (!result.record.controlled_documents.sha256) throw new Error('register hash missing');

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import os
 import re
 import subprocess
 import tomllib
@@ -61,6 +62,17 @@ def test_console_script_declared() -> None:
     )
 
 
+def test_wheel_declares_operational_runtime_resources() -> None:
+    data_files = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["tool"]["setuptools"]["data-files"]
+    root_files = data_files["share/rvt-trainer"]
+    assert "radar_vital_live_dashboard_v12_for_v16_0.html" in root_files
+    assert "radar_vital_v16_6_3.ino" in root_files
+    assert data_files["share/rvt-trainer/assets/fonts"] == ["assets/fonts/*"]
+    assert "assets/icons/icon-192.png" in data_files["share/rvt-trainer/assets/icons"]
+    assert data_files["share/rvt-trainer/assets/lib"] == ["assets/lib/*"]
+    assert data_files["share/rvt-trainer/quality"] == ["quality/statistical-analysis-plan.json"]
+
+
 def test_declared_version_is_semantic() -> None:
     version = _project().get("version", "")
     assert version and version[0].isdigit(), f"Unexpected version: {version!r}"
@@ -77,6 +89,8 @@ def test_installed_entry_point_matches_declaration() -> None:
     try:
         importlib.metadata.version("rvt-trainer")
     except importlib.metadata.PackageNotFoundError:
+        if os.environ.get("RVT_REQUIRE_INSTALLED_PACKAGE") == "1":
+            pytest.fail("rvt-trainer must be installed from the built wheel in CI")
         pytest.skip("rvt-trainer is not pip-installed in this environment")
     eps = importlib.metadata.entry_points(group="console_scripts")
     ep = next((e for e in eps if e.name == "rvt-trainer"), None)
@@ -131,7 +145,7 @@ def test_release_workflow_builds_signed_aab_and_keeps_windows_fallbacks() -> Non
     pfx_sign = workflow.index("Sign EXE with PFX fallback")
     updater_resign = workflow.index("Re-sign Tauri updater artifact after final EXE bytes")
     assert azure_sign < pfx_sign < updater_resign
-    assert "azure/artifact-signing-action@v2" in workflow
+    assert "azure/artifact-signing-action@" in workflow
     assert "AZURE_TRUSTED_SIGNING_ENDPOINT" in workflow
     assert "Azure Trusted Signing is partially configured" in workflow
     assert "WINDOWS_CERTIFICATE_BASE64 not configured; leaving EXE unsigned." in workflow

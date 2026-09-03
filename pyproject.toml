@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rvt-trainer"
-version = "16.6.2"
+version = "16.6.3"
 description = "Radar Vital mmWave 60 GHz trainer — ThreadingHTTPServer, session management, ML-readiness audit, and REST/SSE API"
 requires-python = ">=3.11"
 dependencies = [
@@ -31,3 +31,26 @@ include = ["rvt_trainer*"]
 
 [tool.setuptools.package-data]
 "rvt_trainer.assets" = ["*"]
+
+[tool.setuptools.data-files]
+"share/rvt-trainer" = [
+    "radar_vital_live_dashboard_v12_for_v16_0.html",
+    "radar_vital_v16_6_3.ino",
+]
+"share/rvt-trainer/assets" = [
+    "assets/manifest.webmanifest",
+    "assets/pair.html",
+    "assets/rvt-sw.js",
+    "assets/sw.js",
+]
+"share/rvt-trainer/assets/fonts" = ["assets/fonts/*"]
+"share/rvt-trainer/assets/icons" = [
+    "assets/icons/apple-touch-icon-180.png",
+    "assets/icons/icon-192.png",
+    "assets/icons/icon-512.png",
+    "assets/icons/icon-maskable-512.png",
+    "assets/icons/icon.svg",
+]
+"share/rvt-trainer/assets/icons/android" = ["assets/icons/android/*"]
+"share/rvt-trainer/assets/lib" = ["assets/lib/*"]
+"share/rvt-trainer/quality" = ["quality/statistical-analysis-plan.json"]

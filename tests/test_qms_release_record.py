@@ -45,6 +45,51 @@ def _release_env(**overrides: str) -> dict[str, str]:
     return env
 
 
+REQUIRED_WORKFLOWS = (
+    ("Playwright tests", ".github/workflows/playwright.yml"),
+    ("Security Audit", ".github/workflows/security-audit.yml"),
+    ("Build Android APK (Capacitor)", ".github/workflows/build-apk.yml"),
+    ("Build Windows EXE (Tauri)", ".github/workflows/build-exe.yml"),
+)
+
+
+def _write_required_check_evidence(
+    dist: Path,
+    *,
+    source_sha: str = "0123456789abcdef0123456789abcdef01234567",
+) -> Path:
+    evidence_path = dist / "required-check-evidence.json"
+    evidence_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "rvt-required-check-evidence-v1",
+                "release_tag": f"v{_version()}",
+                "source_sha": source_sha,
+                "generated_at": "2026-08-19T00:00:00Z",
+                "tag_state": "new_tag_identity",
+                "checks": [
+                    {
+                        "workflow_name": name,
+                        "workflow_id": str(index + 100),
+                        "path": workflow_path,
+                        "event": "push",
+                        "conclusion": "success",
+                        "run_id": str(index),
+                        "run_attempt": 1,
+                        "run_url": f"https://example.invalid/runs/{index}",
+                        "completed_at": "2026-08-19T00:00:00Z",
+                    }
+                    for index, (name, workflow_path) in enumerate(
+                        REQUIRED_WORKFLOWS, start=1
+                    )
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return evidence_path
+
+
 def test_qms_generator_self_test_and_tag_gate():
     result = subprocess.run(
         ["node", str(QMS_GENERATOR), "--self-test"],
@@ -110,6 +155,7 @@ def test_qms_generator_does_not_mark_not_verified_windows_as_signed(
 ):
     (tmp_path / "radar-vital-release.apk").write_bytes(b"apk-fixture")
     (tmp_path / "radar-vital-windows-installer.exe").write_bytes(b"exe-fixture")
+    _write_required_check_evidence(tmp_path)
     result = subprocess.run(
         ["node", str(QMS_GENERATOR), "--dist", str(tmp_path)],
         cwd=ROOT,
@@ -150,11 +196,44 @@ def test_release_record_schema_couples_authorization_state_and_identity():
     }
 
 
+def test_required_check_evidence_schema_is_strict_and_controlled():
+    schema_path = (
+        ROOT / "quality" / "schemas" / "required-check-evidence.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    checks = schema["properties"]["checks"]
+    assert schema["additionalProperties"] is False
+    assert checks["minItems"] == checks["maxItems"] == 4
+    assert checks["items"]["additionalProperties"] is False
+    assert {
+        "workflow_id",
+        "path",
+        "event",
+        "run_attempt",
+    }.issubset(checks["items"]["required"])
+    assert set(checks["items"]["properties"]["workflow_name"]["enum"]) == set(
+        name for name, _ in REQUIRED_WORKFLOWS
+    )
+
+    register = json.loads(
+        (ROOT / "quality" / "document-register.json").read_text(encoding="utf-8")
+    )
+    entry = next(
+        document
+        for document in register["documents"]
+        if document["path"]
+        == "quality/schemas/required-check-evidence.schema.json"
+    )
+    assert entry["document_id"] == "RVT-QMS-SCH-007"
+    assert entry["effective_product_version"] == _version()
+
+
 def test_qms_record_captures_source_docs_artifacts_and_checksums(tmp_path: Path):
     (tmp_path / "radar-vital-release.apk").write_bytes(b"signed-apk-fixture")
     (tmp_path / "radar-vital-windows-installer.exe").write_bytes(
         b"windows-exe-fixture"
     )
+    _write_required_check_evidence(tmp_path)
     env = _release_env(QMS_ATTESTATION_CONFIGURED="true")
     result = subprocess.run(
         ["node", str(QMS_GENERATOR), "--dist", str(tmp_path)],
@@ -218,6 +297,154 @@ def test_qms_record_captures_source_docs_artifacts_and_checksums(tmp_path: Path)
     assert verified.returncode == 0, verified.stderr
 
 
+def test_qms_record_captures_exact_source_required_check_evidence(tmp_path: Path):
+    (tmp_path / "radar-vital-release.apk").write_bytes(b"apk-fixture")
+    (tmp_path / "radar-vital-windows-installer.exe").write_bytes(b"exe-fixture")
+    evidence_path = _write_required_check_evidence(tmp_path)
+    result = subprocess.run(
+        ["node", str(QMS_GENERATOR), "--dist", str(tmp_path)],
+        cwd=ROOT,
+        env=_release_env(REQUIRED_CHECK_EVIDENCE_PATH=str(evidence_path)),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    record = json.loads(
+        (tmp_path / "qms-release-record.json").read_text(encoding="utf-8")
+    )
+    protected = [
+        item for item in record["verification"]
+        if item["check_id"].startswith("protected-workflow-")
+    ]
+    assert len(protected) == 4
+    assert all(item["conclusion"] == "passed" for item in protected)
+    assert "required-check-evidence.json" in {
+        item["name"] for item in record["artifacts"]
+    }
+
+
+def test_qms_record_rejects_required_check_evidence_for_other_source(tmp_path: Path):
+    (tmp_path / "radar-vital-release.apk").write_bytes(b"apk-fixture")
+    (tmp_path / "radar-vital-windows-installer.exe").write_bytes(b"exe-fixture")
+    evidence_path = _write_required_check_evidence(tmp_path, source_sha="f" * 40)
+    result = subprocess.run(
+        ["node", str(QMS_GENERATOR), "--dist", str(tmp_path)],
+        cwd=ROOT,
+        env=_release_env(REQUIRED_CHECK_EVIDENCE_PATH=str(evidence_path)),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "does not match" in result.stderr
+
+
+def test_qms_record_rejects_schema_invalid_required_check_evidence(tmp_path: Path):
+    (tmp_path / "radar-vital-release.apk").write_bytes(b"apk-fixture")
+    (tmp_path / "radar-vital-windows-installer.exe").write_bytes(b"exe-fixture")
+    evidence_path = _write_required_check_evidence(tmp_path)
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["checks"][0]["uncontrolled_field"] = True
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+
+    result = subprocess.run(
+        ["node", str(QMS_GENERATOR), "--dist", str(tmp_path)],
+        cwd=ROOT,
+        env=_release_env(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "Required-check evidence failed schema validation" in result.stderr
+    assert "unexpected uncontrolled_field" in result.stderr
+
+
+def test_qms_record_rejects_duplicate_protected_workflow_evidence(tmp_path: Path):
+    (tmp_path / "radar-vital-release.apk").write_bytes(b"apk-fixture")
+    (tmp_path / "radar-vital-windows-installer.exe").write_bytes(b"exe-fixture")
+    evidence_path = _write_required_check_evidence(tmp_path)
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["checks"][-1]["workflow_name"] = evidence["checks"][0][
+        "workflow_name"
+    ]
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+
+    result = subprocess.run(
+        ["node", str(QMS_GENERATOR), "--dist", str(tmp_path)],
+        cwd=ROOT,
+        env=_release_env(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "Required-check evidence entry is invalid" in result.stderr
+
+
+def test_qms_generator_requires_evidence_unless_fixture_escape_is_explicit(
+    tmp_path: Path,
+):
+    (tmp_path / "radar-vital-release.apk").write_bytes(b"apk-fixture")
+    (tmp_path / "radar-vital-windows-installer.exe").write_bytes(b"exe-fixture")
+    missing = subprocess.run(
+        ["node", str(QMS_GENERATOR), "--dist", str(tmp_path)],
+        cwd=ROOT,
+        env=_release_env(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert missing.returncode != 0
+    assert "Required-check evidence is required" in missing.stderr
+
+    fixture = subprocess.run(
+        [
+            "node",
+            str(QMS_GENERATOR),
+            "--dist",
+            str(tmp_path),
+            "--allow-missing-required-check-evidence-for-nonpublication-fixture",
+        ],
+        cwd=ROOT,
+        env=_release_env(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert fixture.returncode == 0, fixture.stderr
+    record = json.loads(
+        (tmp_path / "qms-release-record.json").read_text(encoding="utf-8")
+    )
+    assert record["authorization"]["state"] == "pending"
+    assert not any(
+        check["check_id"].startswith("protected-workflow-")
+        for check in record["verification"]
+    )
+
+    publication = subprocess.run(
+        [
+            "node",
+            str(QMS_GENERATOR),
+            "--dist",
+            str(tmp_path),
+            "--allow-missing-required-check-evidence-for-nonpublication-fixture",
+        ],
+        cwd=ROOT,
+        env=_release_env(
+            QMS_AUTHORIZATION_STATE="authorized",
+            QMS_AUTHORIZED_BY="release-manager",
+            QMS_AUTHORIZED_AT="2026-08-19T00:00:00Z",
+        ),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert publication.returncode != 0
+    assert "only valid for pending release records" in publication.stderr
+
+
 def test_release_workflow_attests_and_publishes_qms_evidence():
     workflow = WORKFLOW.read_text(encoding="utf-8")
     latest = LATEST_GENERATOR.read_text(encoding="utf-8")
@@ -225,7 +452,7 @@ def test_release_workflow_attests_and_publishes_qms_evidence():
 
     assert "attestations: write" in workflow
     assert "actions: read" in workflow
-    assert "actions/attest-build-provenance@v3" in workflow
+    assert "actions/attest-build-provenance@" in workflow
     assert "node scripts/generate-qms-release-record.mjs" in workflow
     assert "dist/qms-release-record.json" in workflow
     assert "dist/SHA256SUMS" in workflow
@@ -234,11 +461,14 @@ def test_release_workflow_attests_and_publishes_qms_evidence():
     assert "does not claim regulatory certification" in workflow
     assert "ref: ${{ github.sha }}" in workflow
     assert 'actual_sha="$(git rev-parse HEAD)"' in workflow
-    assert "npm run test:source-integrity" in workflow
-    assert "npm run test:qms-contract" in workflow
-    assert "python -m pytest tests -q" in workflow
-    assert "npm run test:unit:web" in workflow
-    assert "npx playwright test tests/smoke" in workflow
+    assert workflow.count("node scripts/check-release-source.mjs") == 2
+    assert "node scripts/check-release-source.mjs --verify-only" in workflow
+    assert 'gh release create "${release_args[@]}"' in workflow
+    assert "softprops/action-gh-release" not in workflow
+    assert "dist/required-check-evidence.json" in workflow
+    assert "REQUIRED_CHECK_EVIDENCE_PATH" in workflow
+    assert "python -m pytest tests -q" not in workflow
+    assert "npx playwright test tests/smoke" not in workflow
     assert "npm run build:check" in workflow
     assert "QMS_PRODUCTION_RELEASE_APPROVAL" in workflow
     assert 'git merge-base --is-ancestor "$GITHUB_SHA" origin/main' in workflow
@@ -246,7 +476,7 @@ def test_release_workflow_attests_and_publishes_qms_evidence():
     assert '.name == "release-production"' in workflow
     assert "authorized_by=${authorizer}" in workflow
     assert "Diagnostic publication remains pending" in workflow
-    assert "prerelease: ${{ steps.authorization.outputs.prerelease }}" in workflow
+    assert "release_args+=(--prerelease)" in workflow
     assert "if: steps.authorization.outputs.state == 'authorized'" in workflow
 
     assert "qms_release_record" in latest
@@ -362,6 +592,7 @@ def _generate_qms_evidence(dist: Path) -> dict:
     (dist / "radar-vital-windows-installer.exe").write_bytes(
         b"windows-exe-fixture"
     )
+    _write_required_check_evidence(dist)
     result = subprocess.run(
         ["node", str(QMS_GENERATOR), "--dist", str(dist)],
         cwd=ROOT,

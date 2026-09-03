@@ -51,7 +51,7 @@ flowchart LR
     evidence["Hashed evidence bundle<br/>JSON, CSV, plots and LaTeX tables"]
     registry["Signed model artifact and manifest<br/>family, split, seed, hashes"]
     api["Trainer prediction and report API"]
-    ui["Angular dashboard v16.6.2<br/>provenance, status and comparison"]
+    ui["Angular dashboard v16.6.3<br/>provenance, status and comparison"]
     manuscript["LaTeX manuscript<br/>figures, methods and results"]
     protocol["Reviewed protocol decision<br/>acquisition, firmware and software changes"]
     operator["Operator action<br/>placement, capture quality, retraining"]

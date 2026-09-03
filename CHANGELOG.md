@@ -6,6 +6,22 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.6.3 single-pass CI and immutable release evidence (in progress)
+
+- Stopped ordinary main updates from creating permanent diagnostic releases;
+  releases now require an intentional tag or manual dispatch and reject an
+  existing Release or different-source tag before native builds start.
+- Replaced release-time reruns with exact-source evidence from the four
+  protected workflows and bound those run URLs into the QMS release record.
+- Built and round-trip-verified release web bytes once for Android, Windows,
+  and authorized Pages assembly, and removed the duplicate Tauri web build.
+- Added an installed-wheel operational server/resource probe and pinned
+  default/BLE XIAO ESP32-C6 firmware compilation behind the unchanged
+  aggregate `test` check; the BLE build pins NimBLE-Arduino 2.5.1 for ESP32
+  core 3.3.11 C5/C6 compatibility and uses its 2.x callback API.
+- Advanced coordinated product/QMS identity to v16.6.3 without changing the
+  frozen v15.2/222-column serial or v16.5.9 study-session contracts.
+
 ### v16.6.2 fail-closed pre-collection readiness (in progress)
 
 - Separated a configuration-locked study protocol from a dated, identity-bound

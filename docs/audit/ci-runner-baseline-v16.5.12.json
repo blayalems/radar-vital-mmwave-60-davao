@@ -1,0 +1,18 @@
+{
+  "schema_version": "rvt-ci-runner-baseline-v1",
+  "captured_at": "2026-08-19T00:00:00Z",
+  "repository": "blayalems/radar-vital-mmwave-60-davao",
+  "source_sha": "ae2c29867a3ee8a74ba9c88d7202ce0d0bd05c03",
+  "method": "For each listed Actions run, sum completed_at minus started_at for every non-skipped job returned by the GitHub Actions jobs API. Divide the aggregate seconds by 60. Overlapping jobs count independently because this measures billed runner occupancy, not wall-clock latency.",
+  "runs": [
+    { "workflow": "Release artifacts", "run_id": 31629452059, "job_elapsed_seconds": 2308 },
+    { "workflow": "Playwright tests", "run_id": 31629452075, "job_elapsed_seconds": 2064 },
+    { "workflow": "Build Android APK (Capacitor)", "run_id": 31629451981, "job_elapsed_seconds": 179 },
+    { "workflow": "Security Audit", "run_id": 31629452084, "job_elapsed_seconds": 31 },
+    { "workflow": "Deploy to GitHub Pages", "run_id": 31629452065, "job_elapsed_seconds": 46 },
+    { "workflow": "Build Windows EXE (Tauri)", "run_id": 31629451982, "job_elapsed_seconds": 859 },
+    { "workflow": "Dependency Graph", "run_id": 31629455277, "job_elapsed_seconds": 65 }
+  ],
+  "aggregate_job_elapsed_seconds": 5552,
+  "aggregate_runner_minutes": 92.5333
+}

@@ -12,8 +12,8 @@ gates; they are not silently dropped.
 |---:|---|---|---:|---|---|
 | 1 | Fail-closed credential persistence with live-session availability | security/backend maintainer | 3–5 days | Stop if existing authenticated sessions cannot safely stop a capture | Draft PR #113 |
 | 2 | Separate run, plan, study-protocol, and session-schema provenance | research software maintainer | 2–3 days | Do not approve the plan or relabel frozen study identities | Draft PR #114 |
-| 3 | Pre-collection calendar, authorization, withdrawal, and synchronization gates | research lead + quality manager | 2–4 days | No recruitment/collection while any gate is pending | In progress |
-| 4 | CI gate attestation, build-once promotion, release immutability, and reproducible runner baseline | release maintainer | 5–8 days | Preserve or improve time-to-green while adding missing gates; split if release verification guarantees weaken | Planned |
+| 3 | Pre-collection calendar, authorization, withdrawal, and synchronization gates | research lead + quality manager | 2–4 days | No recruitment/collection while any gate is pending | Draft PR #115 |
+| 4 | CI gate attestation, build-once promotion, release immutability, and reproducible runner baseline | release maintainer | 5–8 days | Preserve or improve time-to-green while adding missing gates; split if release verification guarantees weaken | In progress |
 | 5 | Packaging/dependency graph consolidation | packaging maintainer | 5–8 days | No destructive package-root removal until every requirement/workflow consumer is migrated and reviewed | Planned separately |
 | 6 | Lazy package boundary and monolith public-surface/route inventory | backend maintainer | 5–10 days | Defer extraction if public-symbol or route golden contracts cannot remain stable | Planned |
 | 7 | Parser, supervisor, and route-handler extraction | backend maintainer | 8–15 days | Freeze after two lifecycle/route conformance regressions and ship current behavior | Planned in reviewable slices |

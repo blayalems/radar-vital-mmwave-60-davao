@@ -5,6 +5,36 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-09-03 - Prepare Tauri target directory without redundant web build
+
+- **EXE gate contract**: Ensure `www/` directory exists before Tauri `cargo test` and `cargo build` in `.github/workflows/build-exe.yml` without introducing an explicit `npm run build:web` step; preserves the single-pass build contract in `tests/test_ci_supply_chain.py` while preventing `tauri::generate_context!()` panic.
+
+### 2026-09-03 - Remediate transitive dependencies in web and packaging lockfiles
+
+- **Security audit clean**: Update `browserslist`, `fast-uri`, `qs` in `web/package-lock.json` and `@xmldom/xmldom` in `packaging/capacitor/package-lock.json`; all three package trees report 0 vulnerabilities under `--audit-level=moderate`.
+
+### 2026-09-03 - Remediate xmldom advisory in root lockfile
+
+- **Security gate**: Update transitive `@xmldom/xmldom` to 0.9.12 in `package-lock.json` resolving GHSA-6gmq-8vp8-gcm6; unblocks the Security Audit gate with zero reported vulnerabilities.
+
+### 2026-09-03 - Restore www build prerequisite in Windows EXE gate
+
+- **EXE frontend prerequisite**: Restore `npm run build:web` before Tauri compilation in `.github/workflows/build-exe.yml`; `cargo test` compiles `src/main.rs` and requires `../www` to exist during `tauri::generate_context!()`.
+- **Packaging continuity**: Preserve the verified toolchain and single-pass release evidence while unblocking the Windows EXE CI gate.
+
+### 2026-08-19 - Make v16.6.3 CI and release evidence single-pass
+
+- **Intentional immutable release**: Remove automatic main-push publications; an early guard now requires a matching/new tag, no existing Release, and successful latest exact-source runs for all four protected workflows before packaging fans out.
+- **Build-once promotion**: Build and round-trip-verify release `www/` once, then provide the same bytes to Android, Windows, and authorized Pages assembly; Tauri's release job disables its second web build only after downloading that artifact.
+- **Meaningful missing gates**: Build and install the Python wheel outside the checkout, launch its server and probe health/dashboard/font/icon/service-worker/readiness resources, exercise both console scripts and module entrypoint, and compile default plus gated-BLE firmware with a pinned Arduino CLI/core/library/Seeed commit contract. The BLE gate pins NimBLE-Arduino 2.5.1 for ESP32 core 3.3.11 C5/C6 compatibility and compiles the 2.x callback signature.
+- **Protected-check continuity**: Preserve `Playwright tests / test`, `Security Audit / audit`, `Build Android APK (Capacitor) / apk`, and `Build Windows EXE (Tauri) / windows`; branch-only draft work now uses PR or manual-dispatch events instead of duplicate branch-push jobs.
+- **Measured baseline**: Record the exact v16.5.12 source SHA, seven Actions run IDs, per-run non-skipped job seconds, and 92.5333-runner-minute aggregate so the single-pass result can be compared with the same calculation.
+- **Durable job reads**: Serialize study-analysis status/list readers with the existing evidence writer lock so a Windows atomic-replacement interval cannot appear as an empty job ledger during the full CI suite.
+- **BLE compile diagnosis**: Hosted evidence showed both `build.extra_flags` and `compiler.cpp.extra_flags` replace required ESP32 recipe content: the first removed board identity and the second exposed NimBLE-Arduino 2.5.0's missing ESP32 core 3.3.11 C5/C6 mempool-symbol compatibility.
+- **BLE link contract**: Enable BLE only in the temporary CI sketch copy, compile with the unmodified pinned board recipe, and pin the upstream NimBLE-Arduino 2.5.1 compatibility fix; this retains the ESP32 core's board defines while leaving the checked-in default disabled.
+- **Compatibility**: Advance product carriers to v16.6.3 while preserving the v15.2/222-column serial and v16.5.9 study-session identities; no participant/session migration or release publication occurs in this change.
+- **Verification**: Focused workflow/release/package/static, full Python, Angular, QMS, version/source, dashboard round-trip, action syntax, and hosted unchanged-check-name evidence are pending for the final diff; hardware behavior, signing, protected authorization, and publication remain external gates.
+
 ### 2026-08-19 - Stabilize precollection visual evidence
 
 - **Readiness fixture**: Pin `/api/study/readiness` to the explicit unauthorized draft state before Angular boots and wait for the collection-lock banner before Home screenshots.

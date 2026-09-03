@@ -17,6 +17,7 @@ quote style) by normalising before matching.
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -25,6 +26,7 @@ PAGES = WORKFLOWS / "pages.yml"
 BUILD_APK = WORKFLOWS / "build-apk.yml"
 BUILD_EXE = WORKFLOWS / "build-exe.yml"
 RELEASE = WORKFLOWS / "release-artifacts.yml"
+DEPENDABOT = ROOT / ".github" / "dependabot.yml"
 
 
 def _text(path: Path) -> str:
@@ -35,6 +37,23 @@ def _text(path: Path) -> str:
 def _normalise(s: str) -> str:
     """Lowercase and collapse whitespace so matches survive reformatting."""
     return " ".join(s.lower().split())
+
+
+def test_third_party_actions_are_immutable_and_monitored():
+    mutable = []
+    for workflow in WORKFLOWS.glob("*.yml"):
+        for line_number, line in enumerate(_text(workflow).splitlines(), 1):
+            match = re.search(r"\buses:\s+([^\s#]+)", line)
+            if not match or match.group(1).startswith("./"):
+                continue
+            ref = match.group(1).rsplit("@", 1)[-1]
+            if not re.fullmatch(r"[0-9a-f]{40}", ref):
+                mutable.append(f"{workflow.name}:{line_number}:{match.group(1)}")
+    assert mutable == [], f"workflow actions must use commit SHAs: {mutable}"
+
+    dependabot = _text(DEPENDABOT)
+    assert "package-ecosystem: github-actions" in dependabot
+    assert "directory: /" in dependabot
 
 
 # --- D9: dependency-audit workflow -------------------------------------------
@@ -149,11 +168,12 @@ def test_playwright_contracts_run_once_and_publish_stable_test_check():
     assert "CONTRACTS_RESULT: ${{ needs.contracts.result }}" in text
     assert "SMOKE_RESULT: ${{ needs.smoke.result }}" in text
     assert "VISUAL_RESULT: ${{ needs.visual.result }}" in text
+    assert "FIRMWARE_RESULT: ${{ needs.firmware.result }}" in text
 
     # Browser jobs run on isolated runners, so the verified build must be
     # transferred rather than assumed to exist after the contracts job.
     assert text.count("name: verified-web-bundle") == 3
-    assert text.count("actions/download-artifact@v4") == 2
+    assert text.count("actions/download-artifact@") == 2
     assert "Upload verified web bundle for browser shards" in text
     assert "retention-days: 1" in text
 
@@ -174,10 +194,12 @@ def test_workflow_tokens_and_intermediate_artifacts_are_scoped():
     for workflow in (playwright, pages, apk, exe, release):
         assert "permissions:\n  contents: read" in workflow
 
-    assert "pages: write\n      id-token: write" in pages
+    assert "pages: write" not in pages
+    assert "actions/deploy-pages" not in pages
+    assert "Production deployment has one owner" in pages
     assert "actions: read\n      attestations: write\n      contents: write" in release
-    assert playwright.count("persist-credentials: false") == 3
-    assert release.count("persist-credentials: false") == 4
+    assert playwright.count("persist-credentials: false") == 4
+    assert release.count("persist-credentials: false") == 5
 
     # Generated platforms should suppress only the known already-present case;
     # a real `cap add` failure must stop packaging.
@@ -187,18 +209,72 @@ def test_workflow_tokens_and_intermediate_artifacts_are_scoped():
 
     assert "retention-days: 7" in apk
     assert "retention-days: 7" in exe
-    assert release.count("retention-days: 1") == 2
+    assert release.count("retention-days: 1") == 4
 
 
-def test_manual_release_dispatch_honors_the_requested_tag_on_main():
+def test_manual_release_dispatch_honors_the_requested_tag_without_main_publication():
     release = _text(RELEASE)
 
     dispatch_guard = 'if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then'
-    main_guard = 'elif [ "$GITHUB_REF" = "refs/heads/main" ]; then'
     assert dispatch_guard in release
-    assert main_guard in release
-    assert release.index(dispatch_guard) < release.index(main_guard)
     assert 'release_tag="$REQUESTED_TAG"' in release
+    assert 'release_tag="v${base_version}-main.' not in release
+    assert "branches:\n      - main" not in release
+
+
+def test_release_is_intentional_immutable_and_builds_web_once():
+    release = _text(RELEASE)
+    apk = _text(BUILD_APK)
+    exe = _text(BUILD_EXE)
+
+    assert "tags:\n      - 'v*'" in release
+    assert "scripts/check-release-source.mjs" in release
+    assert release.index("scripts/check-release-source.mjs") < release.index("\n  android:\n")
+    assert "cancel-in-progress: false" in release
+    assert "required-check-evidence.json" in release
+    assert release.count("npm run build:check") == 1
+    assert "python -m pytest tests -q" not in release
+    assert "npm run test:unit:web" not in release
+    assert "npx playwright test tests/smoke" not in release
+    assert release.count("name: verified-release-web") == 4
+    assert '$config.build.beforeBuildCommand = ""' in release
+
+    for workflow in (apk, exe):
+        assert "'codex/**'" not in workflow
+        assert "'gpt55/**'" not in workflow
+        assert "pull_request:" in workflow
+    assert "npm run build:web" not in exe
+
+
+def test_firmware_compile_uses_the_pinned_toolchain_contract():
+    import json
+
+    workflow = _text(PLAYWRIGHT)
+    lock = json.loads((ROOT / "packaging" / "firmware" / "arduino-toolchain.json").read_text(encoding="utf-8"))
+    assert lock["arduino_cli"] == "1.5.1"
+    assert lock["fqbn"] == "esp32:esp32:XIAO_ESP32C6"
+    assert lock["core"] == "esp32:esp32@3.3.11"
+    assert lock["sketch"] == "radar_vital_v16_6_3.ino"
+    assert lock["libraries"]["NimBLE-Arduino"] == "2.5.1"
+    assert len(lock["seeed_mmwave_commit"]) == 40
+    assert all("main" not in str(value) and "latest" not in str(value) for value in lock.values())
+    assert f"arduino/setup-arduino-cli@{lock['setup_action_commit']}" in workflow
+    assert "arduino-cli core install \"${{ steps.toolchain.outputs.core }}\"" in workflow
+    assert "sed -i 's/^#define ENABLE_BLE false$/#define ENABLE_BLE true/'" in workflow
+    assert "grep -qx '#define ENABLE_BLE true'" in workflow
+    assert "extra_flags=-DENABLE_BLE=1" not in workflow
+    assert "- firmware" in workflow
+
+
+def test_contracts_install_and_exercise_wheel_outside_checkout():
+    workflow = _text(PLAYWRIGHT)
+    assert "python -m pip wheel --no-deps" in workflow
+    assert "cd \"$RUNNER_TEMP\"" in workflow
+    assert "env -u PYTHONPATH" in workflow
+    assert 'RVT_REQUIRE_INSTALLED_PACKAGE: \'1\'' in workflow
+    assert '"$venv/bin/rvt-trainer" --help' in workflow
+    assert '"$venv/bin/rvt-statistics" --help' in workflow
+    assert 'tests/installed_wheel_probe.py' in workflow
 
 
 def test_production_release_pages_artifact_keeps_site_and_metadata_parity():

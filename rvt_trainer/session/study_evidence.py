@@ -449,7 +449,7 @@ def _validate_completed_job_artifacts(
     """Validate the immutable identity and hashes before objective promotion."""
 
     root = _root(sessions_root)
-    expected_version = _text(product_version, limit=32) or "16.6.2"
+    expected_version = _text(product_version, limit=32) or "16.6.3"
     job_id = _text(job.get("job_id"), limit=100)
     expected_output_root = (root / "study_analysis" / job_id).resolve()
     output_value = _text(job.get("output_dir"), limit=1000)
@@ -567,17 +567,22 @@ def cancel_analysis_job(sessions_root: str, job_id: object, *, reason: object = 
 
 
 def load_analysis_job(sessions_root: str, job_id: object) -> Optional[Dict[str, Any]]:
-    jobs = _load_map(_root(sessions_root) / ANALYSIS_PATH)
-    value = jobs.get(_text(job_id, limit=100))
-    return dict(value) if isinstance(value, dict) else None
+    with _EVIDENCE_LOCK:
+        jobs = _load_map(_root(sessions_root) / ANALYSIS_PATH)
+        value = jobs.get(_text(job_id, limit=100))
+        return dict(value) if isinstance(value, dict) else None
 
 
 def list_analysis_jobs(sessions_root: str, *, limit: int = 20) -> list[Dict[str, Any]]:
     """Return the newest durable study-analysis jobs for dashboard recovery."""
 
     bounded_limit = max(1, min(100, int(limit)))
-    jobs = _load_map(_root(sessions_root) / ANALYSIS_PATH)
-    rows = [dict(value) for value in jobs.values() if isinstance(value, dict)]
+    # Serialize readers with worker updates. Windows can briefly deny a read
+    # while the atomic replacement is in flight; treating that transient as an
+    # empty map makes a just-created durable job disappear from the API list.
+    with _EVIDENCE_LOCK:
+        jobs = _load_map(_root(sessions_root) / ANALYSIS_PATH)
+        rows = [dict(value) for value in jobs.values() if isinstance(value, dict)]
     rows.sort(key=lambda row: str(row.get("updated_at") or row.get("created_at") or ""), reverse=True)
     return rows[:bounded_limit]
 
@@ -587,7 +592,7 @@ def objective_report(
     *,
     objectives: Mapping[str, Any],
     sessions_root: str,
-    product_version: object = "16.6.2",
+    product_version: object = "16.6.3",
 ) -> Dict[str, Any]:
     wanted = _text(objective_id, limit=80)
     known = [item for item in objectives.get("objectives", []) if isinstance(item, dict) and str(item.get("id")) == wanted]
@@ -609,7 +614,7 @@ def objective_report(
         expected = int(known[0].get("trial_count") or matrix.get("no_subject_expected") or 72)
         threshold = float(known[0].get("threshold") or 0.05)
         common_provenance = {
-            "product_version": _text(product_version, limit=32) or "16.6.2",
+            "product_version": _text(product_version, limit=32) or "16.6.3",
             "objective": known[0],
             "sessions_root": str(Path(sessions_root).resolve()),
             "no_subject_attempt_count": int(matrix.get("no_subject_attempt_count") or 0),
@@ -833,7 +838,7 @@ def objective_report(
         "report": report,
         "exclusions": exclusions,
         "provenance": {
-            "product_version": _text(product_version, limit=32) or "16.6.2",
+            "product_version": _text(product_version, limit=32) or "16.6.3",
             "objective": known[0],
             "latest_job_id": latest.get("job_id") if latest else None,
             "sessions_root": str(Path(sessions_root).resolve()),

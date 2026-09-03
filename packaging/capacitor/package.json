@@ -9,7 +9,7 @@
     "build:android": "npm run prepare:www && npx cap sync android && cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
-    "@capacitor/android": "^8.3.4",
+    "@capacitor/android": "^8.5.0",
     "@capacitor/app": "^8.1.0",
     "@capacitor/cli": "^8.3.4",
     "@capacitor/core": "^8.3.4",

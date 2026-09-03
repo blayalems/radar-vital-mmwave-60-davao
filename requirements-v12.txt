@@ -6,4 +6,4 @@ scipy>=1.10.0,<2.0.0
 pyserial>=3.5,<4.0
 bleak>=0.21,<4.0
 cryptography>=50.0.0,<51.0.0
-pytest>=9.0.3,<10.0.0
+pytest>=9.1.1,<10.0.0

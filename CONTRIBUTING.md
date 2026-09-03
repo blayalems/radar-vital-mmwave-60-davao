@@ -11,7 +11,7 @@ project. Contributions are welcome for review and discussion; note the
 |---|---|---|
 | Dashboard (source of truth) | `web/src/` | `npm --prefix web ci && npm run build:web` (regenerates the committed monolith + `www/`) |
 | Trainer | `rvt_trainer/` (+ root shim) | `pip install -r requirements-v12.txt` or `pip install -e .` |
-| Firmware | `radar_vital_v16_5_12.ino` | Arduino CLI, `esp32:esp32:XIAO_ESP32C6` |
+| Firmware | `radar_vital_v16_6_0.ino` | Arduino CLI, `esp32:esp32:XIAO_ESP32C6` |
 | Windows EXE | `src-tauri/` | `npm run tauri:build` |
 | Android APK | Capacitor (generated `android/`) | `npm run cap:sync` |
 

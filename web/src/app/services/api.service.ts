@@ -71,7 +71,7 @@ interface TauriBridge {
 }
 
 export class ApiRequestError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
     this.name = 'ApiRequestError';
   }
@@ -246,7 +246,8 @@ export class ApiService {
         const status = Number(resp.status || 0);
         const data = resp.data;
         if (status < 200 || status >= 300) {
-          throw new ApiRequestError(this.errorMessage(data, `HTTP ${status}`), status);
+          const details = this.errorDetails(data, `HTTP ${status}`);
+          throw new ApiRequestError(details.message, status, details.code);
         }
         return (typeof data === 'string' ? JSON.parse(data || '{}') : data) as T;
       } catch (err) {
@@ -273,7 +274,8 @@ export class ApiService {
       return await this.withTimeout(firstValueFrom(response), timeoutMs, 'Request timeout');
     } catch (err: any) {
       if (err && typeof err === 'object' && 'status' in err) {
-        throw new ApiRequestError(this.errorMessage(err.error, `HTTP ${err.status}`), Number(err.status || 0));
+        const details = this.errorDetails(err.error, `HTTP ${err.status}`);
+        throw new ApiRequestError(details.message, Number(err.status || 0), details.code);
       }
       throw new Error(err.message || 'HTTP Request failed');
     }
@@ -381,13 +383,15 @@ export class ApiService {
     return true;
   }
 
-  private errorMessage(body: unknown, fallback: string): string {
+  private errorDetails(body: unknown, fallback: string): { message: string; code?: string } {
     if (typeof body === 'object' && body !== null) {
-      const payload = body as { error?: string | { message?: string } };
-      if (typeof payload.error === 'string') return payload.error;
-      if (payload.error?.message) return payload.error.message;
+      const payload = body as { error?: string | { code?: string; message?: string } };
+      if (typeof payload.error === 'string') return { message: payload.error };
+      if (payload.error?.message) {
+        return { message: payload.error.message, code: payload.error.code };
+      }
     }
-    return fallback;
+    return { message: fallback };
   }
 
   async loadSessions(): Promise<SessionRecord[]> {

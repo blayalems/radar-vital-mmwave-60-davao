@@ -248,13 +248,17 @@ describe('ApiService', () => {
     const pending = service.request('/api/session/start', { method: 'POST' });
     const request = httpMock.expectOne('/api/session/start');
     request.flush(
-      { error: { message: 'Study assignment rejected' } },
+      { error: { code: 'STUDY_ASSIGNMENT_REJECTED', message: 'Study assignment rejected' } },
       { status: 409, statusText: 'Conflict' }
     );
 
     const error = await pending.catch(candidate => candidate);
     expect(error).toBeInstanceOf(ApiRequestError);
-    expect(error).toMatchObject({ status: 409, message: 'Study assignment rejected' });
+    expect(error).toMatchObject({
+      status: 409,
+      code: 'STUDY_ASSIGNMENT_REJECTED',
+      message: 'Study assignment rejected',
+    });
   });
 
   it('should manage API base and store it in localStorage', () => {

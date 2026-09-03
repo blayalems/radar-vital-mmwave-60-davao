@@ -6,6 +6,7 @@ import tempfile
 import shutil
 import json
 from pathlib import Path
+from unittest import mock
 from rvt_trainer.api.auth import (
     hash_pin,
     verify_pin,
@@ -231,6 +232,35 @@ def test_operator_profiles_migration_and_save_failures(temp_sessions_root):
         save_operator_profiles(str(blocked_root), dummy_data)
 
 
+def test_operator_store_keeps_validated_backup_and_primary_on_replace_failure(temp_sessions_root, monkeypatch):
+    first = {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {"op_first": {}}}
+    second = {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {"op_second": {}}}
+    save_operator_profiles(temp_sessions_root, first)
+    save_operator_profiles(temp_sessions_root, second)
+
+    primary = Path(temp_sessions_root) / "operator_profiles.json"
+    backup = Path(temp_sessions_root) / "operator_profiles.json.bak"
+    assert json.loads(primary.read_text(encoding="utf-8")) == second
+    assert json.loads(backup.read_text(encoding="utf-8")) == first
+
+    original_replace = __import__("os").replace
+
+    def fail_primary_replace(source, destination):
+        if Path(destination) == primary:
+            raise OSError("simulated replace failure")
+        return original_replace(source, destination)
+
+    monkeypatch.setattr("rvt_trainer.api.auth.os.replace", fail_primary_replace)
+    with pytest.raises(IOError):
+        save_operator_profiles(
+            temp_sessions_root,
+            {"schema_version": "rvt-operator-profiles-v12.0", "profiles": {"op_third": {}}},
+        )
+
+    assert json.loads(primary.read_text(encoding="utf-8")) == second
+    assert not list(Path(temp_sessions_root).glob(".operator_profiles.*.tmp"))
+
+
 def test_create_operator_profile_display_name_validation(temp_sessions_root):
     server = MockServer(temp_sessions_root)
     # Long display name (e.g. 65 chars)
@@ -239,6 +269,18 @@ def test_create_operator_profile_display_name_validation(temp_sessions_root):
     status, payload = create_operator_profile(server, body)
     assert status == 400
     assert payload["error"]["code"] == "VALIDATION_FAILED"
+
+
+def test_profile_creation_reports_store_unavailable_on_write_failure(temp_sessions_root):
+    server = MockServer(temp_sessions_root)
+    with mock.patch("rvt_trainer.api.auth.save_operator_profiles", side_effect=IOError("disk full")):
+        status, payload = create_operator_profile(
+            server,
+            {"display_name": "Test Operator", "initials": "TO", "pin": "123456"},
+        )
+    assert status == 503
+    assert payload["error"]["code"] == "OPERATOR_STORE_UNAVAILABLE"
+    assert not (Path(temp_sessions_root) / "operator_profiles.json").exists()
 
 
 def test_lockout_enforced_even_when_save_fails(temp_sessions_root):
@@ -263,6 +305,74 @@ def test_lockout_enforced_even_when_save_fails(temp_sessions_root):
         s, b = login_operator(server, op_id, "0000")
         assert s == 429, f"Expected 429 lockout but got {s}"
         assert b["error"]["code"] == "LOCKOUT_ACTIVE"
+
+
+def test_lockout_accumulates_when_every_failure_write_fails(temp_sessions_root):
+    server = MockServer(temp_sessions_root)
+    status, payload = create_operator_profile(
+        server,
+        {"display_name": "Test Operator", "initials": "TO", "pin": "123456"},
+    )
+    assert status == 200
+    op_id = payload["operator"]["operator_id"]
+
+    with mock.patch("rvt_trainer.api.auth.save_operator_profiles", side_effect=IOError("disk full")):
+        for _ in range(4):
+            status, body = login_operator(server, op_id, "000000")
+            assert status == 401
+            assert body["error"]["code"] == "UNAUTHORIZED"
+        status, body = login_operator(server, op_id, "000000")
+        assert status == 429
+        assert body["error"]["code"] == "LOCKOUT_ACTIVE"
+        status, body = login_operator(server, op_id, "123456")
+        assert status == 429
+
+    persisted = load_operator_profiles(temp_sessions_root)["profiles"][op_id]
+    assert persisted["failed_attempts"] == 0
+    assert server.operator_security_state[op_id]["failed_attempts"] == 5
+
+
+def test_verified_login_survives_store_write_failure_without_weakening_state(temp_sessions_root):
+    server = MockServer(temp_sessions_root)
+    _, payload = create_operator_profile(
+        server,
+        {"display_name": "Test Operator", "initials": "TO", "pin": "123456"},
+    )
+    op_id = payload["operator"]["operator_id"]
+
+    with mock.patch("rvt_trainer.api.auth.save_operator_profiles", side_effect=IOError("read-only")):
+        status, _ = login_operator(server, op_id, "000000")
+        assert status == 401
+        status, body = login_operator(server, op_id, "123456")
+        assert status == 200
+        assert body["token"] in server.operator_sessions
+        assert server.operator_security_state[op_id]["failed_attempts"] == 1
+
+    status, _ = login_operator(server, op_id, "000000")
+    assert status == 401
+    persisted = load_operator_profiles(temp_sessions_root)["profiles"][op_id]
+    assert persisted["failed_attempts"] == 2
+
+
+def test_existing_session_remains_authorized_when_store_becomes_unreadable(temp_sessions_root):
+    server = MockServer(temp_sessions_root, bind_mode="lan")
+    _, payload = create_operator_profile(
+        server,
+        {"display_name": "Test Operator", "initials": "TO", "pin": "123456"},
+    )
+    op_id = payload["operator"]["operator_id"]
+    status, login = login_operator(server, op_id, "123456")
+    assert status == 200
+    token = login["token"]
+
+    (Path(temp_sessions_root) / "operator_profiles.json").write_text("{broken", encoding="utf-8")
+    handler = MockHandler(server, "/api/session/stop", "POST", {"X-RVT-Auth": token})
+    assert handler._require_control_auth() is True
+    assert token in server.operator_sessions
+
+    status, body = login_operator(server, op_id, "123456")
+    assert status == 503
+    assert body["error"]["code"] == "OPERATOR_STORE_UNAVAILABLE"
 
 
 def test_help_schema_is_public(temp_sessions_root):

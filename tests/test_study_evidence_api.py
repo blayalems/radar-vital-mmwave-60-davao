@@ -196,7 +196,7 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["objective_id"] == "objective_1_rr"
     assert response["status"] == "inconclusive"
-    assert response["provenance"]["product_version"] == "16.5.12"
+    assert response["provenance"]["product_version"] == "16.6.0"
 
 
 def test_study_evidence_routes_are_operator_protected(study_server: _ControlServer):

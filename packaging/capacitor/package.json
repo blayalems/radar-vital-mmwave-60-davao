@@ -12,7 +12,7 @@
     "@capacitor/android": "^8.3.4",
     "@capacitor/app": "^8.1.0",
     "@capacitor/cli": "^8.3.4",
-    "@capacitor/core": "^8.3.4",
+    "@capacitor/core": "^8.5.0",
     "@capacitor-community/http": "^1.4.1",
     "@capacitor-community/bluetooth-le": "^8.1.3"
   },

@@ -9,7 +9,7 @@ description = "Radar Vital mmWave 60 GHz trainer — ThreadingHTTPServer, sessio
 requires-python = ">=3.11"
 dependencies = [
     "numpy>=2.0.0,<3.0.0",
-    "pandas>=2.0.0,<3.0.0",
+    "pandas>=2.0.0,<4.0.0",
     "matplotlib>=3.5.0,<4.0.0",
     "scikit-learn>=1.2.0,<2.0.0",
     "scipy>=1.10.0,<2.0.0",

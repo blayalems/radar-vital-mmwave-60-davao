@@ -3,6 +3,8 @@
   "schema_version": "rvt-analysis-plan-v1",
   "plan_id": "RVT-STA-PLAN-16.5.8",
   "effective_product_version": "16.5.8",
+  "study_protocol_id": "RVT-THESIS-16.5.9",
+  "study_session_schema_version": "rvt-study-session-v16.5.9",
   "status": "draft",
   "owner_role": "research_lead",
   "approval_required": ["research_lead", "quality_manager"],
@@ -55,7 +57,17 @@
     "coverage_denominator": "every_eligible_protocol_attempted_trial_including_non_output",
     "false_alarm_test": "exact_binomial_vs_0.05_with_separate_two_sided_95_percent_clopper_pearson_interval",
     "exports": ["json", "csv", "latex"],
-    "provenance": ["source_commit", "model_family", "split_ledger_sha256", "prediction_file_sha256"]
+    "provenance": [
+      "source_commit",
+      "model_family",
+      "split_ledger_sha256",
+      "prediction_file_sha256",
+      "run_product_version",
+      "analysis_plan_id",
+      "analysis_plan_sha256",
+      "study_protocol_id",
+      "study_session_schema_version"
+    ]
   },
   "exclusions": [
     "legacy_unassigned",

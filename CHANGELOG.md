@@ -6,6 +6,21 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.6.1 explicit research provenance identities (in progress)
+
+- Separated run product, analysis-plan ID and canonical digest, study-protocol
+  ID, and study-session schema identity across outer-OOF rows, confirmatory-run
+  manifests, statistics provenance, and confirmatory reports.
+- Removed the invalid requirement that a later software run claim the
+  statistical plan's historical effective product version.
+- Bound confirmatory validation to the exact parsed plan content and rejected
+  swapped plan, protocol, or session-schema identities.
+- Kept the statistical plan and `RVT-STA-001` in draft status; this release
+  prepares fail-closed evidence plumbing but does not authorize recruitment,
+  confirmatory collection, exclusions, or manuscript claims.
+- Advanced coordinated product/QMS identity to v16.6.1 without changing the
+  frozen v15.2 / 222-column serial or v16.5.9 study-session contracts.
+
 ### v16.6.0 fail-closed operator credential persistence (in progress)
 
 - Replaced direct operator-profile writes with validated, flushed temporary

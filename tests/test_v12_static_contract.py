@@ -20,7 +20,7 @@ STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
 TRAINER_ROUTE_REGISTRY = ROOT / "rvt_trainer" / "api" / "route_registry"
-FW = ROOT / "radar_vital_v16_6_0.ino"
+FW = ROOT / "radar_vital_v16_6_1.ino"
 SW = ROOT / "assets" / "sw.js"
 STYLES = ROOT / "web" / "src" / "styles.scss"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
@@ -104,33 +104,33 @@ def test_service_worker_contract():
     assert "/fonts/material-symbols-rounded.woff2" in sw
 
 
-def test_v16_6_product_identity_bump_preserves_v12_lineage():
+def test_v16_6_1_product_identity_bump_preserves_v12_lineage():
     trainer = text(TRAINER_MONOLITH)
     firmware = text(FW)
     app_meta = text(APP_META)
     sandbox_api = text(SANDBOX_API)
     sw = text(SW)
 
-    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.6.0"
-    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.6.0"
-    assert json.loads(text(TAURI_CONF))["version"] == "16.6.0"
-    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.6.0"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.6.0"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.6.0"
-    assert re.search(r'^version = "16\.6\.0"$', text(TAURI_CARGO), re.MULTILINE)
+    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.6.1"
+    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.6.1"
+    assert json.loads(text(TAURI_CONF))["version"] == "16.6.1"
+    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.6.1"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.6.1"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.6.1"
+    assert re.search(r'^version = "16\.6\.1"$', text(TAURI_CARGO), re.MULTILINE)
 
-    assert 'VERSION = "16.6.0"' in trainer
-    assert 'DASHBOARD_VERSION = "16.6.0"' in trainer
-    assert 'FIRMWARE_VERSION_EXPECTED = "v16.6.0"' in trainer
-    assert "PRODUCT_VERSION = '16.6.0';" in app_meta
+    assert 'VERSION = "16.6.1"' in trainer
+    assert 'DASHBOARD_VERSION = "16.6.1"' in trainer
+    assert 'FIRMWARE_VERSION_EXPECTED = "v16.6.1"' in trainer
+    assert "PRODUCT_VERSION = '16.6.1';" in app_meta
     assert "PRODUCT_VERSION_SHORT = 'v16.6';" in app_meta
     assert "PRODUCT_VERSION_LABEL = 'App v16.6';" in app_meta
     assert "import { PRODUCT_VERSION } from './app-meta';" in sandbox_api
     assert "product_version: PRODUCT_VERSION" in sandbox_api
-    assert '#define FW_VERSION "v16.6.0"' in firmware
+    assert '#define FW_VERSION "v16.6.1"' in firmware
     assert "#define SKETCH_VERSION_MAJOR 16" in firmware
     assert "#define SKETCH_VERSION_SUB 6" in firmware
-    assert "#define SKETCH_VERSION_MOD 0" in firmware
+    assert "#define SKETCH_VERSION_MOD 1" in firmware
 
     for schema_id in [
         "rvt-control-api-v12.0",
@@ -281,7 +281,7 @@ def test_manifest_payload_is_plain_manifest():
 
 def test_firmware_ble_contract():
     ino = text(FW)
-    assert '#define FW_VERSION "v16.6.0"' in ino
+    assert '#define FW_VERSION "v16.6.1"' in ino
     assert "#define ENABLE_BLE false" in ino
     assert "NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN" in ino
     assert "bleSuppressUntilMs = millis() + 500UL" in ino

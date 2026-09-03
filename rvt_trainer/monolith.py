@@ -138,6 +138,7 @@ from rvt_trainer.session.protocol_ledger import (
 )
 from rvt_trainer.session.study_objectives import study_objectives_payload as _study_objectives_payload
 from rvt_trainer.session.study_evidence import (
+    STUDY_PROTOCOL_ID,
     adjudicate_rr as _adjudicate_rr,
     append_reference as _append_reference,
     cancel_analysis_job as _cancel_analysis_job,
@@ -153,6 +154,7 @@ from rvt_trainer.session.study_evidence import (
     request_analysis_cancel as _request_analysis_cancel,
     update_analysis_job as _update_analysis_job,
 )
+from rvt_trainer.statistics import DEFAULT_ANALYSIS_PLAN, analysis_plan_sha256
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -161,9 +163,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.6.0"
-DASHBOARD_VERSION = "16.6.0"
-FIRMWARE_VERSION_EXPECTED = "v16.6.0"
+VERSION = "16.6.1"
+DASHBOARD_VERSION = "16.6.1"
+FIRMWARE_VERSION_EXPECTED = "v16.6.1"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -4733,7 +4735,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_6_0.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_6_1.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -5962,8 +5964,11 @@ def _run_study_statistics_job(sessions_root: str, output_dir: Path, job: Mapping
     provenance_path = output_dir / "statistics_provenance.json"
     provenance = {
         "source_commit": manifest.get("source_commit"),
-        "product_version": manifest.get("product_version"),
-        "protocol_id": "rvt-study-session-v16.5.9",
+        "run_product_version": manifest.get("run_product_version"),
+        "analysis_plan_id": manifest.get("analysis_plan_id"),
+        "analysis_plan_sha256": manifest.get("analysis_plan_sha256"),
+        "study_protocol_id": manifest.get("study_protocol_id"),
+        "study_session_schema_version": manifest.get("study_session_schema_version"),
         "model_family": manifest.get("model_family"),
         "split_ledger_sha256": manifest.get("split_ledger_sha256"),
         "prediction_file_sha256": (oof or {}).get("sha256") if isinstance(oof, dict) else None,
@@ -8850,7 +8855,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_6_0.ino"),
+        Path("radar_vital_v16_6_1.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
@@ -14411,6 +14416,7 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
         }
     folds = []
     outer_oof_frames = []
+    research_identity = _controlled_research_identity()
     completed_groups = []
     skipped_groups = []
     for i, holdout in enumerate(group_ids):
@@ -14508,7 +14514,8 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
         oof["model_family"] = str(getattr(args, "model_family", MODEL_FAMILY_GRADIENT_BOOSTING))
         oof["participant_disjoint"] = bool(participant_aware)
         oof["source_commit"] = _source_commit()
-        oof["product_version"] = VERSION
+        for identity_field, identity_value in research_identity.items():
+            oof[identity_field] = identity_value
         outer_oof_frames.append(oof)
         fold = {
             f"holdout_{group_column}": holdout,
@@ -14544,7 +14551,8 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
             "barrier_type", "timestamp_s", "ref_hr", "pred_hr_raw", "pred_hr",
             "hr_valid_for_eval", "ref_rr", "pred_rr_raw", "pred_rr", "rr_valid_for_eval",
             "confirmatory_eligible", "logical_trial_id", "attempt_id", "source_commit",
-            "product_version",
+            "run_product_version", "analysis_plan_id", "analysis_plan_sha256",
+            "study_protocol_id", "study_session_schema_version",
         ]
         oof = pd.concat(outer_oof_frames, ignore_index=True)
         for column in oof_columns:
@@ -14652,6 +14660,40 @@ CONFIRMATORY_RUN_MANIFEST_SCHEMA_VERSION = "rvt-confirmatory-run-manifest-v1"
 CONFIRMATORY_ANALYSIS_PLAN_ID = "RVT-STA-PLAN-16.5.8"
 
 
+def _controlled_analysis_plan() -> Dict[str, object]:
+    """Load the controlled plan when present, preserving wheel compatibility."""
+
+    plan_path = _REPO_ROOT / "quality" / "statistical-analysis-plan.json"
+    if plan_path.is_file():
+        loaded = json.loads(plan_path.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict):
+            raise ValueError("controlled statistical analysis plan must be a JSON object")
+        return loaded
+    return json.loads(json.dumps(DEFAULT_ANALYSIS_PLAN))
+
+
+def _controlled_research_identity() -> Dict[str, str]:
+    plan = _controlled_analysis_plan()
+    identity = {
+        "run_product_version": VERSION,
+        "analysis_plan_id": str(plan.get("plan_id") or ""),
+        "analysis_plan_sha256": analysis_plan_sha256(plan),
+        "study_protocol_id": str(plan.get("study_protocol_id") or ""),
+        "study_session_schema_version": str(plan.get("study_session_schema_version") or ""),
+    }
+    expected = {
+        "analysis_plan_id": CONFIRMATORY_ANALYSIS_PLAN_ID,
+        "study_protocol_id": STUDY_PROTOCOL_ID,
+        "study_session_schema_version": STUDY_SESSION_SCHEMA_VERSION,
+    }
+    mismatched = [key for key, value in expected.items() if identity[key] != value]
+    if mismatched:
+        raise ValueError(
+            "controlled research identity mismatch: " + ", ".join(mismatched)
+        )
+    return identity
+
+
 def _write_confirmatory_run_manifest(
     args,
     *,
@@ -14669,19 +14711,17 @@ def _write_confirmatory_run_manifest(
     }
     outer_oof = loo_eval.get("outer_oof_predictions")
     outer_oof = outer_oof if isinstance(outer_oof, Mapping) else {}
+    research_identity = _controlled_research_identity()
     manifest: Dict[str, object] = {
         "schema_version": CONFIRMATORY_RUN_MANIFEST_SCHEMA_VERSION,
         "status": "ready",
-        "product_version": VERSION,
+        **research_identity,
         "source_commit": _source_commit(),
         "analysis_job_id": str(os.environ.get("RVT_STUDY_ANALYSIS_JOB_ID") or "") or None,
         "model_family": str(getattr(args, "model_family", MODEL_FAMILY_GRADIENT_BOOSTING)),
         "targets": [str(target) for target in available_targets],
         # This is intentionally the predeclared, controlled analysis-plan
         # identity.  It is not changed merely because the product patch moved.
-        "analysis_plan_id": CONFIRMATORY_ANALYSIS_PLAN_ID,
-        "protocol_id": STUDY_SESSION_SCHEMA_VERSION,
-        "collection_protocol_ids": [STUDY_SESSION_SCHEMA_VERSION],
         "split_ledger_sha256": split_info.get("sha256"),
         "outer_oof_predictions": {
             "path": outer_oof.get("path"),

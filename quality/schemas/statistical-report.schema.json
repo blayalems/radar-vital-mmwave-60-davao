@@ -11,6 +11,22 @@
     "metrics": { "type": "object" },
     "coverage": { "type": "object" },
     "analysis_plan": { "type": "object" },
+    "provenance": {
+      "type": "object",
+      "required": ["source_commit", "model_family", "split_ledger_sha256", "prediction_file_sha256", "run_product_version", "analysis_plan_id", "analysis_plan_sha256", "study_protocol_id", "study_session_schema_version"],
+      "properties": {
+        "source_commit": { "type": "string", "pattern": "^[0-9a-fA-F]{7,64}$" },
+        "model_family": { "enum": ["gradient_boosting", "cnn_1d"] },
+        "split_ledger_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "prediction_file_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "run_product_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "analysis_plan_id": { "type": "string", "pattern": "^RVT-STA-PLAN-[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "analysis_plan_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "study_protocol_id": { "type": "string", "pattern": "^RVT-THESIS-[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "study_session_schema_version": { "type": "string", "pattern": "^rvt-study-session-v[0-9]+\\.[0-9]+\\.[0-9]+$" }
+      },
+      "additionalProperties": false
+    },
     "analysis_policy": { "type": "object" },
     "report_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
   },

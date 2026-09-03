@@ -51,7 +51,7 @@ flowchart LR
     evidence["Hashed evidence bundle<br/>JSON, CSV, plots and LaTeX tables"]
     registry["Signed model artifact and manifest<br/>family, split, seed, hashes"]
     api["Trainer prediction and report API"]
-    ui["Angular dashboard v16.5.12<br/>provenance, status and comparison"]
+    ui["Angular dashboard v16.6.1<br/>provenance, status and comparison"]
     manuscript["LaTeX manuscript<br/>figures, methods and results"]
     protocol["Reviewed protocol decision<br/>acquisition, firmware and software changes"]
     operator["Operator action<br/>placement, capture quality, retraining"]
@@ -127,13 +127,13 @@ manuscript-ready.
 
 | Area | Required fields |
 |---|---|
-| Product and acquisition | trainer, dashboard and firmware versions; protocol version; observed column width; capture-quality summary |
+| Product and acquisition | `run_product_version`; trainer, dashboard and firmware versions; study protocol ID; study-session schema version; observed column width; capture-quality summary |
 | Dataset provenance | dataset/run ID; source file hashes; consent-safe participant ID; session ID; timestamp range; target availability |
 | Split provenance | outer and inner group assignments; grouping key; random seed; excluded rows/windows with reasons |
 | Transform provenance | ordered feature names; feature-schema hash; imputation/scaling parameters fitted on training data only; causal window length and gap policy |
 | Model provenance | family (`gradient_boosting` or `cnn_1d`); target; library versions; complete hyperparameters; training seed; early-stopping evidence |
 | Prediction provenance | row/window identity; raw prediction; post-processed prediction; abstention/OOD status; reference value |
-| Statistical analysis plan | analysis unit; error orientation (`estimate - reference`); condition hierarchy; eligibility/aggregation rules; alpha; equivalence bounds; bootstrap seed/replicates; power assumptions |
+| Statistical analysis plan | `analysis_plan_id`; canonical `analysis_plan_sha256`; analysis unit; error orientation (`estimate - reference`); condition hierarchy; eligibility/aggregation rules; alpha; equivalence bounds; bootstrap seed/replicates; power assumptions |
 | Statistical outputs | sample/participant/trial/session counts; RMSE; MAE; bias; Pearson/Spearman; repeated-measures limits of agreement; coverage and confidence intervals; exact false-alarm result; equivalence margins; both TOST statistics/p-values and decision |
 | Artifact integrity | model/config/report hashes; creation time; source commit; promotion/rollback state |
 
@@ -180,6 +180,17 @@ comparison. Sessions marked `legacy_unassigned`, participant-reassigned,
 outside the frozen condition set, or lacking release/protocol provenance remain
 exploratory and cannot enter confirmatory statistics.
 
+Research artifacts must not overload release, plan, protocol, and schema
+identity. Every outer-OOF row, confirmatory-run manifest, statistics-provenance
+record, and confirmatory report carries these distinct fields:
+`run_product_version`, `analysis_plan_id`, `analysis_plan_sha256`,
+`study_protocol_id`, and `study_session_schema_version`. The plan's
+`effective_product_version` records the controlled plan lineage; it is not a
+requirement that later software runs pretend to use that older product
+version. The canonical plan digest binds the exact parsed plan content, so a
+plan edit requires new provenance even when its identifier is accidentally
+left unchanged.
+
 The operator-facing objective contract is served by
 `GET /api/study/objectives` and is rendered in the Angular participant setup.
 The locked protocol is read or written through `/api/study/protocol`, while
@@ -202,6 +213,13 @@ participant/condition/repetition concurrently. The static
 from being added without a corresponding dashboard binding.
 
 ## Statistical interpretation rule
+
+The registered statistical plan and `RVT-STA-001` remain `draft`. Draft
+requirements may drive implementation and test preparation, but they cannot
+authorize confirmatory evaluation, recruitment, collection, exclusion, or a
+manuscript claim. Confirmatory execution remains blocked until the named
+research lead and quality manager record approval and all applicable
+advisor/ethics/REC conditions are satisfied.
 
 - Define TOST equivalence margins before training and justify them in the
   protocol or manuscript; never derive them from the observed test results.

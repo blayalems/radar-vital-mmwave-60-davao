@@ -12,7 +12,11 @@ import pytest
 import rvt_trainer.monolith as monolith
 from rvt_trainer.monolith import _ControlServer
 from rvt_trainer.session.study_contract import create_participant_profile
-from rvt_trainer.session.study_evidence import create_analysis_job, load_analysis_job
+from rvt_trainer.session.study_evidence import (
+    _validate_completed_job_artifacts,
+    create_analysis_job,
+    load_analysis_job,
+)
 
 
 def _request(
@@ -196,7 +200,7 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["objective_id"] == "objective_1_rr"
     assert response["status"] == "inconclusive"
-    assert response["provenance"]["product_version"] == "16.6.0"
+    assert response["provenance"]["product_version"] == "16.6.1"
 
 
 def test_study_evidence_routes_are_operator_protected(study_server: _ControlServer):
@@ -253,3 +257,56 @@ def test_analysis_worker_exception_becomes_durable_failed_job(
     assert "failed before terminal state" in persisted["last_line"]
     assert semaphore.acquire(blocking=False) is True
     semaphore.release()
+
+
+def test_completed_job_promotion_rejects_report_manifest_identity_mismatch(tmp_path: Path):
+    sessions_root = tmp_path / "sessions"
+    output_dir = sessions_root / "study_analysis" / "job-1"
+    output_dir.mkdir(parents=True)
+    identity = {
+        "run_product_version": "16.6.1",
+        "analysis_plan_id": "RVT-STA-PLAN-16.5.8",
+        "analysis_plan_sha256": "a" * 64,
+        "study_protocol_id": "RVT-THESIS-16.5.9",
+        "study_session_schema_version": "rvt-study-session-v16.5.9",
+    }
+    (output_dir / "confirmatory_run_manifest.json").write_text(
+        json.dumps(
+            {
+                **identity,
+                "analysis_job_id": "job-1",
+                "model_family": "gradient_boosting",
+                "targets": ["rr"],
+                "source_commit": "c" * 40,
+                "folds": {"complete": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (output_dir / "statistical_report.json").write_text(
+        json.dumps(
+            {
+                "confirmatory": True,
+                "provenance": {**identity, "analysis_plan_sha256": "b" * 64},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    valid, reasons, *_ = _validate_completed_job_artifacts(
+        {
+            "job_id": "job-1",
+            "output_dir": str(output_dir),
+            "model_family": "gradient_boosting",
+            "statistics_status": "completed",
+            "objective_id": "objective_1_rr",
+            "request": {"confirmatory": True},
+        },
+        sessions_root=str(sessions_root),
+        product_version="16.6.1",
+    )
+
+    assert valid is False
+    assert "statistical_report_identity_mismatch" in {
+        reason["reason"] for reason in reasons
+    }

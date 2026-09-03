@@ -7,6 +7,7 @@ import pytest
 from rvt_trainer.statistics import (
     StatisticalInputError,
     DEFAULT_ANALYSIS_PLAN,
+    analysis_plan_sha256,
     aggregate_confirmatory_frame,
     analyze_frame,
     coverage_report,
@@ -18,6 +19,20 @@ from rvt_trainer.statistics import (
     write_statistical_outputs,
     _condition_tost,
 )
+
+
+def _confirmatory_provenance(plan, *, run_product_version="16.6.1"):
+    return {
+        "source_commit": "c" * 40,
+        "model_family": "gradient_boosting",
+        "split_ledger_sha256": "a" * 64,
+        "prediction_file_sha256": "b" * 64,
+        "run_product_version": run_product_version,
+        "analysis_plan_id": plan["plan_id"],
+        "analysis_plan_sha256": analysis_plan_sha256(plan),
+        "study_protocol_id": plan["study_protocol_id"],
+        "study_session_schema_version": plan["study_session_schema_version"],
+    }
 
 
 def test_paired_metrics_are_oriented_estimate_minus_reference():
@@ -174,14 +189,7 @@ def test_confirmatory_aggregation_enforces_windows_and_trials_and_holm_condition
         participant_column="participant_id",
         bootstrap_reps=200,
         analysis_plan=plan,
-        provenance={
-            "source_commit": "c" * 40,
-            "model_family": "gradient_boosting",
-            "split_ledger_sha256": "a" * 64,
-            "prediction_file_sha256": "b" * 64,
-            "product_version": "16.5.8",
-            "protocol_id": "RVT-STA-PLAN-16.5.8",
-        },
+        provenance=_confirmatory_provenance(plan),
         attempt_ledger=ledger,
         confirmatory=True,
     )
@@ -301,14 +309,7 @@ def _small_confirmatory_inputs():
             for index in range(72)
         ]
     )
-    provenance = {
-        "source_commit": "c" * 40,
-        "model_family": "gradient_boosting",
-        "split_ledger_sha256": "a" * 64,
-        "prediction_file_sha256": "b" * 64,
-        "product_version": "16.5.8",
-        "protocol_id": "RVT-STA-PLAN-16.5.8",
-    }
+    provenance = _confirmatory_provenance(plan)
     return frame, ledger, plan, provenance
 
 
@@ -354,14 +355,7 @@ def _primary_vs_secondary_confirmatory_inputs(participant_count=19):
     } for index in range(72))
     plan = json.loads(json.dumps(DEFAULT_ANALYSIS_PLAN))
     plan["status"] = "approved"
-    provenance = {
-        "source_commit": "c" * 40,
-        "model_family": "gradient_boosting",
-        "split_ledger_sha256": "a" * 64,
-        "prediction_file_sha256": "b" * 64,
-        "product_version": "16.5.8",
-        "protocol_id": "RVT-STA-PLAN-16.5.8",
-    }
+    provenance = _confirmatory_provenance(plan)
     return pd.DataFrame(rows), pd.DataFrame(ledger_rows), plan, provenance
 
 
@@ -506,9 +500,59 @@ def test_confirmatory_accepts_canonical_raw_rr_but_rejects_lookalike_columns():
 def test_confirmatory_rejects_uncontrolled_plan_identity():
     frame, ledger, plan, provenance = _small_confirmatory_inputs()
     plan["plan_id"] = "RVT-STA-PLAN-HACK"
-    provenance["protocol_id"] = plan["plan_id"]
+    provenance["analysis_plan_id"] = plan["plan_id"]
 
     with pytest.raises(StatisticalInputError, match="plan_id"):
+        analyze_frame(
+            frame,
+            reference_column="ref_rr",
+            estimate_column="pred_rr",
+            analysis_plan=plan,
+            provenance=provenance,
+            attempt_ledger=ledger,
+            confirmatory=True,
+        )
+
+
+def test_confirmatory_provenance_separates_plan_study_and_run_identities():
+    frame, ledger, plan, provenance = _small_confirmatory_inputs()
+    report = analyze_frame(
+        frame,
+        reference_column="ref_rr",
+        estimate_column="pred_rr",
+        analysis_plan=plan,
+        provenance=provenance,
+        attempt_ledger=ledger,
+        confirmatory=True,
+    )
+
+    assert plan["effective_product_version"] == "16.5.8"
+    assert report["provenance"]["run_product_version"] == "16.6.1"
+    assert report["provenance"]["analysis_plan_id"] == "RVT-STA-PLAN-16.5.8"
+    assert len(report["provenance"]["analysis_plan_sha256"]) == 64
+    assert report["provenance"]["study_protocol_id"] == "RVT-THESIS-16.5.9"
+    assert report["provenance"]["study_session_schema_version"] == "rvt-study-session-v16.5.9"
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement", "message"),
+    [
+        ("analysis_plan_sha256", "0" * 64, "analysis_plan_sha256"),
+        ("study_protocol_id", "RVT-THESIS-16.5.8", "study_protocol_id"),
+        (
+            "study_session_schema_version",
+            "rvt-study-session-v16.5.8",
+            "study_session_schema_version",
+        ),
+    ],
+)
+def test_confirmatory_rejects_mismatched_explicit_research_identity(
+    field, replacement, message
+):
+    frame, ledger, plan, provenance = _small_confirmatory_inputs()
+    provenance[field] = replacement
+
+    with pytest.raises(StatisticalInputError, match=message):
         analyze_frame(
             frame,
             reference_column="ref_rr",

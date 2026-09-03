@@ -13,12 +13,15 @@ from rvt_trainer.modeling import (
     build_causal_windows,
 )
 from rvt_trainer.monolith import (
+    _controlled_analysis_plan,
+    _controlled_research_identity,
     _run_loso_evaluation,
     _validate_confirmatory_loso,
     apply_causal_slew_limit,
     build_parser,
     fit_cnn_target_model,
 )
+from rvt_trainer.statistics import DEFAULT_ANALYSIS_PLAN, analysis_plan_sha256
 
 
 def test_causal_windows_are_left_padded_and_session_bounded():
@@ -125,6 +128,19 @@ def test_train_cli_exposes_fail_closed_confirmatory_evaluation():
     assert args.model_family == MODEL_FAMILY_GRADIENT_BOOSTING
     assert args.three_way_split is True
     assert args.confirmatory_evaluation is True
+
+
+def test_controlled_research_identity_keeps_plan_and_run_versions_independent():
+    plan = _controlled_analysis_plan()
+    identity = _controlled_research_identity()
+
+    assert plan == DEFAULT_ANALYSIS_PLAN
+    assert plan["effective_product_version"] == "16.5.8"
+    assert identity["run_product_version"] == "16.6.1"
+    assert identity["analysis_plan_id"] == plan["plan_id"]
+    assert identity["analysis_plan_sha256"] == analysis_plan_sha256(plan)
+    assert identity["study_protocol_id"] == plan["study_protocol_id"]
+    assert identity["study_session_schema_version"] == plan["study_session_schema_version"]
 
 
 def test_confirmatory_loso_validator_rejects_incomplete_or_non_participant_runs(tmp_path):

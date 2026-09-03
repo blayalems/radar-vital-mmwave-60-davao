@@ -13,6 +13,7 @@
 - **Temperature Protocol**: Explicitly restricted temperature evaluation to 0.6 m unobstructed trials (`d060_none`) matching MLX90614 line-of-sight constraints.
 - **QMS Controlled Trace**: Added RVT-THESIS-001 through RVT-THESIS-004 to requirements register (R14) and RVT-QMS-MAN-001 to document register (R17); advanced coordinated product version to v16.6.4 across all carriers.
 - **QMS Change Record**: Added full ISO 9001:2015 change control record to PR #118.
+- **Smoke Tests Synchronization**: Aligned OTA and session smoke test mocks with v16.6.4 product version.
 
 ### 2026-09-03 - Prepare Tauri target directory without redundant web build
 

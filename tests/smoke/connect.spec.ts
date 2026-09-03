@@ -50,8 +50,8 @@ test.describe('Connect Wizard first-run onboarding', () => {
         body: JSON.stringify({
           ok: true,
           mode: 'sandbox',
-          trainer_version: '16.6.3',
-          dashboard_version: '16.6.3',
+          trainer_version: '16.6.4',
+          dashboard_version: '16.6.4',
           active_session: null,
           preview_session: {
             session_id: 'mock',

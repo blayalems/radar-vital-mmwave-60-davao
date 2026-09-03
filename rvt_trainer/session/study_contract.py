@@ -17,6 +17,14 @@ PARTICIPANT_REGISTRY_SCHEMA_VERSION = "rvt-participant-profiles-v16.5.9"
 STUDY_SESSION_SCHEMA_VERSION = "rvt-study-session-v16.5.9"
 PARTICIPANT_ID_PATTERN = re.compile(r"^P-[0-9]{3}$")
 PARTICIPANT_STATUSES = frozenset({"active", "completed", "withdrawn"})
+WITHDRAWAL_DISPOSITIONS = frozenset(
+    {
+        "pending_rec_legal_review",
+        "retained_authorized",
+        "deletion_authorized",
+        "crypto_shred_authorized",
+    }
+)
 STUDY_CLASSIFICATIONS = frozenset({"confirmatory", "exploratory"})
 CONFIRMATORY_DISTANCES_M = (0.6, 0.8, 1.0)
 STUDY_DISTANCE_RANGE_M = (0.5, 1.0)
@@ -175,6 +183,9 @@ def update_participant_status(
     actor: object = None,
     reason: object = None,
     consent_revision: object = None,
+    withdrawal_disposition: object = None,
+    authority_reference: object = None,
+    evidence_ref: object = None,
 ) -> Dict[str, object]:
     participant_id = str(participant_id).strip().upper()
     next_status = str(status or "").strip().lower()
@@ -194,6 +205,17 @@ def update_participant_status(
             )
         profile = dict(existing)
         old_status = profile.get("status")
+        actor_text = _audit_text(actor, 80)
+        reason_text = _audit_text(reason, 240)
+        consent_text = _audit_text(consent_revision, 64)
+        authority_text = _audit_text(authority_reference, 160)
+        evidence_text = _audit_text(evidence_ref, 240)
+        if old_status == "withdrawn" and next_status != "withdrawn":
+            if not all((actor_text, reason_text, consent_text, authority_text, evidence_text)):
+                raise StudyContractError(
+                    "WITHDRAWAL_REVERSAL_EVIDENCE_REQUIRED",
+                    "withdrawal reversal requires actor, reason, new consent revision, authority reference, and evidence reference",
+                )
         profile["status"] = next_status
         now = _iso_now()
         profile["updated_at"] = now
@@ -205,12 +227,42 @@ def update_participant_status(
                 "from_status": old_status,
                 "to_status": next_status,
                 "changed_at": now,
-                "actor": _audit_text(actor, 80),
-                "reason": _audit_text(reason, 240),
-                "consent_revision": _audit_text(consent_revision, 64),
+                "actor": actor_text,
+                "reason": reason_text,
+                "consent_revision": consent_text,
             }
         )
         profile["status_history"] = history
+        if next_status == "withdrawn" or old_status == "withdrawn":
+            disposition = str(withdrawal_disposition or "pending_rec_legal_review").strip().lower()
+            if disposition not in WITHDRAWAL_DISPOSITIONS:
+                raise StudyContractError(
+                    "INVALID_WITHDRAWAL_DISPOSITION",
+                    "withdrawal disposition is not recognized",
+                )
+            if disposition != "pending_rec_legal_review" and not all((authority_text, evidence_text)):
+                raise StudyContractError(
+                    "WITHDRAWAL_AUTHORITY_EVIDENCE_REQUIRED",
+                    "a non-pending withdrawal disposition requires authority and evidence references",
+                )
+            withdrawal_history = profile.get("withdrawal_history")
+            if not isinstance(withdrawal_history, list):
+                withdrawal_history = []
+            reconciliation = {
+                "event": "withdrawal" if next_status == "withdrawn" else "reversal",
+                "recorded_at": now,
+                "actor": actor_text,
+                "reason": reason_text,
+                "consent_revision": consent_text,
+                "disposition": disposition,
+                "authority_reference": authority_text,
+                "evidence_ref": evidence_text,
+                "participant_data_deleted": False,
+                "crypto_shred_completed": False,
+            }
+            withdrawal_history.append(reconciliation)
+            profile["withdrawal_history"] = withdrawal_history
+            profile["withdrawal_reconciliation"] = reconciliation
         profiles[participant_id] = profile
         registry["profiles"] = profiles
         atomic_write_json(registry, str(participant_registry_path(sessions_root)))
@@ -510,6 +562,7 @@ __all__ = [
     "CONFIRMATORY_DISTANCES_M",
     "IMMUTABLE_STUDY_FIELDS",
     "PARTICIPANT_REGISTRY_SCHEMA_VERSION",
+    "WITHDRAWAL_DISPOSITIONS",
     "STUDY_SESSION_SCHEMA_VERSION",
     "StudyContractError",
     "canonical_condition_id",

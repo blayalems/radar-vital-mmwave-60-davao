@@ -97,11 +97,25 @@ export interface CompletionMatrix {
   trials: number[];
   participants: Record<string, CompletionParticipant>;
   participant_count: number;
+  target_recruited_participant_count?: number;
+  minimum_protocol_complete_participant_count?: number;
+  minimum_primary_independent_estimate_count?: number;
+  recruited_participant_count?: number;
+  recruitment_target_gap?: number;
+  active_participant_count?: number;
+  completed_roster_participant_count?: number;
+  withdrawn_participant_count?: number;
+  unresolved_withdrawal_count?: number;
   protocol_complete_participant_count: number;
+  eligible_protocol_complete_participant_count?: number;
+  protocol_complete_target_gap?: number;
+  primary_independent_estimate_count?: number | null;
+  primary_independent_estimate_status?: string;
   no_subject_attempt_count: number;
   no_subject_qualified_count?: number;
   no_subject_unqualified_count?: number;
   no_subject_expected: number;
+  no_subject_remaining?: number;
   attempt_count: number;
 }
 
@@ -169,6 +183,7 @@ export interface StudyObjective {
 
 export interface StudyObjectivesResponse {
   schema_version: string;
+  control_status?: string;
   product_version: string;
   confirmatory_conditions: string[];
   trials_per_condition: number;
@@ -176,6 +191,17 @@ export interface StudyObjectivesResponse {
   target_recruited_participants: number;
   minimum_protocol_complete_participants: number;
   objectives: StudyObjective[];
+}
+
+export interface StudyReadinessResponse {
+  ok: boolean;
+  schema_version: string;
+  authorized: boolean;
+  protocol_state: string;
+  plan_status: string;
+  authorization_record_present: boolean;
+  blockers: string[];
+  unresolved_withdrawal_count: number;
 }
 
 export type StudyProtocolState = 'draft' | 'locked' | 'superseded' | string;

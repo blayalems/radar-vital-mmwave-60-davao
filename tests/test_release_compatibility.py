@@ -193,7 +193,11 @@ def test_legacy_confirmatory_request_is_downgraded_in_durable_manifest(
     mock_popen.side_effect = spawn
     supervisor = _SessionSupervisor(str(sessions_root))
     try:
-        supervisor.start(timeout_s=0.2, **_confirmatory())
+        with patch(
+            "rvt_trainer.session.supervisor.require_collection_authorization",
+            return_value={"authorized": True},
+        ):
+            supervisor.start(timeout_s=0.2, **_confirmatory())
         manifest = json.loads(
             (sessions_root / "s01" / "session_manifest.json").read_text(
                 encoding="utf-8"
@@ -299,11 +303,15 @@ def test_process_launch_failure_preserves_full_study_release_and_failure_evidenc
     supervisor = _SessionSupervisor(str(sessions_root))
 
     with pytest.raises(RuntimeError, match="capture executable denied"):
-        supervisor.start(
-            timeout_s=0.1,
-            client_compatibility=compatibility,
-            **_confirmatory(),
-        )
+        with patch(
+            "rvt_trainer.session.supervisor.require_collection_authorization",
+            return_value={"authorized": True},
+        ):
+            supervisor.start(
+                timeout_s=0.1,
+                client_compatibility=compatibility,
+                **_confirmatory(),
+            )
 
     manifest = json.loads(
         (sessions_root / "s01" / "session_manifest.json").read_text(

@@ -115,6 +115,18 @@ export class SandboxApiService {
     if (url.pathname === '/api/study/completion-matrix') return this.completionMatrix();
     if (url.pathname === '/api/study/objectives') return this.studyObjectives();
     if (url.pathname === '/api/study/protocol' && method === 'GET') return { ok: true, protocol: this.studyProtocol() };
+    if (url.pathname === '/api/study/readiness' && method === 'GET') {
+      return {
+        ok: true,
+        schema_version: 'rvt-collection-readiness-v1',
+        authorized: false,
+        protocol_state: this.studyProtocol().state,
+        plan_status: 'draft',
+        authorization_record_present: false,
+        blockers: ['authorization_record_missing_or_invalid', 'statistical_analysis_plan_not_approved'],
+        unresolved_withdrawal_count: 0
+      };
+    }
     if (url.pathname === '/api/study/protocol' && method === 'PUT') {
       const current = this.studyProtocol();
       if (current.state === 'locked') throw new Error('study protocol is locked and cannot be edited');

@@ -28,6 +28,7 @@ from rvt_trainer.session.study_contract import (
     release_provenance,
     validate_study_assignment,
 )
+from rvt_trainer.session.collection_authorization import require_collection_authorization
 from rvt_trainer.session.protocol_ledger import (
     allocate_attempt_id,
     append_session_attempt_event,
@@ -491,11 +492,13 @@ class SessionSupervisor:
     ) -> Dict[str, object]:
         """Allocate a session directory and persist immutable start provenance."""
 
+        study_payload = dict(kwargs)
+        study_payload["duration_s"] = duration_s
+        if str(study_payload.get("study_classification") or "") == "confirmatory":
+            require_collection_authorization(self.sessions_root)
         legacy = _legacy()
         self.session_dir = str(Path(legacy._next_session_dir(self.sessions_root)))
         Path(self.session_dir).mkdir(parents=True, exist_ok=True)
-        study_payload = dict(kwargs)
-        study_payload["duration_s"] = duration_s
         if str(study_payload.get("study_classification") or "") in {
             "confirmatory",
             "exploratory",

@@ -137,6 +137,11 @@ from rvt_trainer.session.protocol_ledger import (
     register_protocol_attempt as _register_protocol_attempt,
 )
 from rvt_trainer.session.study_objectives import study_objectives_payload as _study_objectives_payload
+from rvt_trainer.session.collection_authorization import (
+    CollectionAuthorizationError,
+    collection_authorization_status as _collection_authorization_status,
+    require_collection_authorization as _require_collection_authorization,
+)
 from rvt_trainer.session.study_evidence import (
     STUDY_PROTOCOL_ID,
     adjudicate_rr as _adjudicate_rr,
@@ -163,9 +168,9 @@ _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = _PACKAGE_ROOT.parent
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.6.1"
-DASHBOARD_VERSION = "16.6.1"
-FIRMWARE_VERSION_EXPECTED = "v16.6.1"
+VERSION = "16.6.2"
+DASHBOARD_VERSION = "16.6.2"
+FIRMWARE_VERSION_EXPECTED = "v16.6.2"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -4735,7 +4740,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_6_1.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_6_2.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -7583,6 +7588,13 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if route_name == "study_objectives":
             self._send_json(200, _study_objectives_payload())
             return
+        if route_name == "study_readiness":
+            self._send_json(
+                200,
+                _collection_authorization_status(self.server.sessions_root),
+                cache_control="no-store",
+            )
+            return
         if route_name == "study_protocol":
             self._send_json(
                 200,
@@ -8048,6 +8060,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         if route_name == "participants_create":
             try:
+                _require_collection_authorization(self.server.sessions_root)
                 profile = _create_participant_profile(self.server.sessions_root, body)
                 self._send_json(201, {
                     "ok": True,
@@ -8058,12 +8071,16 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             except StudyContractError as exc:
                 status = 409 if exc.code == "PARTICIPANT_EXISTS" else 400
                 self._send_json(status, _api_error(exc.code, str(exc)))
+            except CollectionAuthorizationError as exc:
+                self._send_json(412, _api_error(exc.code, str(exc)))
             return
         if route_name == "study_attempt_create":
             payload = dict(body)
             payload.setdefault("product_version", VERSION)
             payload.setdefault("protocol_id", STUDY_SESSION_SCHEMA_VERSION)
             try:
+                if str(payload.get("attempt_type") or "") == "no_subject":
+                    _require_collection_authorization(self.server.sessions_root)
                 record = _register_protocol_attempt(
                     self.server.sessions_root,
                     payload,
@@ -8073,6 +8090,8 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     "schema_version": record.get("schema_version"),
                     "attempt": record,
                 })
+            except CollectionAuthorizationError as exc:
+                self._send_json(412, _api_error(exc.code, str(exc)))
             except (TypeError, ValueError) as exc:
                 self._send_json(400, _api_error("INVALID_PROTOCOL_ATTEMPT", str(exc)))
             return
@@ -8112,7 +8131,15 @@ class _ControlHandler(SimpleHTTPRequestHandler):
             return
         if route_name == "study_analysis_start":
             try:
+                if str(body.get("objective_id") or "") in {
+                    "objective_1_rr",
+                    "objective_3_false_alarm",
+                }:
+                    _require_collection_authorization(self.server.sessions_root)
                 job = _create_analysis_job(self.server.sessions_root, body)
+            except CollectionAuthorizationError as exc:
+                self._send_json(412, _api_error(exc.code, str(exc)))
+                return
             except (TypeError, ValueError) as exc:
                 self._send_json(
                     400,
@@ -8239,6 +8266,12 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     ),
                 )
                 return
+            if str(body.get("study_classification") or body.get("study_mode") or "").lower() == "confirmatory":
+                try:
+                    _require_collection_authorization(self.server.sessions_root)
+                except CollectionAuthorizationError as exc:
+                    self._send_json(412, _api_error(exc.code, str(exc)))
+                    return
             try:
                 study_assignment = _validate_study_assignment(
                     {
@@ -8492,6 +8525,9 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                     actor=body.get("actor"),
                     reason=body.get("reason"),
                     consent_revision=body.get("consent_revision"),
+                    withdrawal_disposition=body.get("withdrawal_disposition"),
+                    authority_reference=body.get("authority_reference"),
+                    evidence_ref=body.get("evidence_ref"),
                 )
                 self._send_json(200, {
                     "ok": True,
@@ -8855,7 +8891,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_6_1.ino"),
+        Path("radar_vital_v16_6_2.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
@@ -15287,6 +15323,40 @@ def cmd_train(args):
 # SECTION 7B: ALIGN - standalone sync step
 # -----------------------------------------------------------------------------
 
+ALIGNMENT_REPORT_SCHEMA_VERSION = "rvt-alignment-report-v1"
+SYNC_ANCHORS_SCHEMA_VERSION = "rvt-sync-anchors-v1"
+
+
+def _alignment_provenance(args, offsets) -> Dict[str, object]:
+    """Describe the applied sync method without overstating clock precision."""
+
+    normalized_offsets = [float(value) for value in offsets]
+    if bool(args.auto_align_start):
+        method = "first_sample_exploratory"
+    elif any(abs(value) > 0 for value in normalized_offsets):
+        method = "operator_manual_offset"
+    else:
+        method = "nearest_receive_time_uncharacterized"
+    return {
+        "method": method,
+        "source_clocks": ["radar_csv_time", "reference_csv_time"],
+        "anchor_clock": "host_monotonic_receive_not_recorded_in_legacy_input",
+        "applied_ref_offset_s": normalized_offsets,
+        "uncertainty_s": float(args.tolerance_s),
+        "uncertainty_basis": "merge_tolerance_upper_bound_not_physical_latency_uncertainty",
+        "physical_latency_characterization": {
+            "status": "missing",
+            "evidence_ref": None,
+            "sha256": None,
+        },
+        "confirmatory_timing_eligible": False,
+        "limitations": [
+            "ref_dt_s is a merge residual, not USB or reference-device latency uncertainty",
+            "Objective 4 HR timing precision requires physical latency and jitter characterization",
+        ],
+    }
+
+
 def cmd_align(args):
     """
     Sync a radar CSV to a reference CSV and write the merged output.
@@ -15304,6 +15374,7 @@ def cmd_align(args):
         sys.exit("[ALIGN] --radar and --ref must have the same number of files.")
 
     offsets = normalize_offsets(len(args.radar), args.ref_offset_s)
+    alignment_provenance = _alignment_provenance(args, offsets)
     frames  = []
     for idx, (rp, refp, off) in enumerate(zip(args.radar, args.ref, offsets), start=1):
         sid    = f"session_{idx:02d}"
@@ -15329,10 +15400,12 @@ def cmd_align(args):
     combined.to_csv(out_csv, index=False)
 
     report = {
+        "schema_version": ALIGNMENT_REPORT_SCHEMA_VERSION,
         "version": VERSION, "n_sessions": len(args.radar),
         "total_paired_rows": int(len(combined)),
         "tolerance_s": args.tolerance_s, "merge_direction": args.merge_direction,
         "ref_offset_s": offsets, "auto_align_start": bool(args.auto_align_start),
+        **alignment_provenance,
         "sessions": [],
     }
     for frame in frames:
@@ -15345,6 +15418,23 @@ def cmd_align(args):
         })
 
     save_json(report, os.path.join(args.out, "alignment_report.json"))
+    save_json(
+        {
+            "schema_version": SYNC_ANCHORS_SCHEMA_VERSION,
+            "status": "insufficient_for_confirmatory_timing",
+            "method": alignment_provenance["method"],
+            "clock": alignment_provenance["anchor_clock"],
+            "anchors": [],
+            "applied_ref_offset_s": alignment_provenance["applied_ref_offset_s"],
+            "uncertainty_model": {
+                "uncertainty_s": alignment_provenance["uncertainty_s"],
+                "basis": alignment_provenance["uncertainty_basis"],
+            },
+            "source_commit": _source_commit(),
+            "limitations": alignment_provenance["limitations"],
+        },
+        os.path.join(args.out, "sync_anchors.json"),
+    )
     write_text_report(os.path.join(args.out, "alignment_report.txt"), report)
     print(f"\n[OUT] Merged CSV: {out_csv}")
     print(f"[OUT] Report:     {os.path.join(args.out, 'alignment_report.txt')}")

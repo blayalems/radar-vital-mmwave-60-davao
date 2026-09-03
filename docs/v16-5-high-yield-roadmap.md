@@ -1,5 +1,9 @@
 # Radar Vital v16.5 High-Yield Engineering Roadmap
 
+> **Superseded 2026-08-19:** This file is retained as historical evidence. The
+> active ordering, ownership, deferral, and abort decisions are in
+> [`v16-6-thesis-readiness-roadmap.md`](./v16-6-thesis-readiness-roadmap.md).
+
 Date: 2026-08-03
 Audit base: integrated `main` at `a35da6e`
 Release identity: firmware, trainer, dashboard, APK, and EXE `16.5.10` work in progress

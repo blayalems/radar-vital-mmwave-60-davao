@@ -11,13 +11,20 @@
   </div>
 
   @if (objectives().length) {
-    <div class="objective-strip" aria-label="Approved manuscript objective controls">
+    <div class="objective-strip" aria-label="Draft manuscript objective controls">
       @for (objective of objectives(); track objective.id) {
         <div class="objective-chip" [attr.data-role]="objective.role">
           <strong>O{{ objective.number }} · {{ objective.outcome | uppercase }}</strong>
           <span>{{ objective.role }} · {{ objective.label }}</span>
         </div>
       }
+    </div>
+  }
+
+  @if (!collectionAuthorized()) {
+    <div class="participant-state participant-error" role="status">
+      <mat-icon aria-hidden="true">lock</mat-icon>
+      <span>Participant recruitment and confirmatory collection are not authorized. Protocol lock freezes configuration only; research, quality, REC/ethics, privacy, withdrawal, and timing gates remain external.</span>
     </div>
   }
 
@@ -35,11 +42,11 @@
   } @else {
     <div class="participant-toolbar">
       <span id="participantPickerLabel">
-        {{ realParticipantCount() }} of 40 recruited profiles
-        @if (realParticipantCount() < 38) { · target at least 38 complete participants }
+        {{ realParticipantCount() }} recruited profiles · target 40
+        @if (realParticipantCount() < 38) { · target at least 38 protocol-complete participants }
       </span>
       <button mat-flat-button type="button" class="mat-tonal-button" (click)="createParticipant()"
-              [disabled]="creating() || realParticipantCount() >= 40">
+              [disabled]="creating() || !collectionAuthorized()">
         @if (creating()) {
           <mat-spinner diameter="18"></mat-spinner>
           Creating...
@@ -51,7 +58,7 @@
         }
       </button>
       <button mat-button type="button" (click)="recordNoSubjectAttempt()"
-              [disabled]="attemptCreating() || state.setup().study_mode !== 'confirmatory'"
+              [disabled]="attemptCreating() || state.setup().study_mode !== 'confirmatory' || !collectionAuthorized()"
               aria-label="Record a no-subject false-alarm attempt">
         <mat-icon aria-hidden="true">visibility_off</mat-icon>
         {{ attemptCreating() ? 'Recording...' : 'Record no-subject attempt' }}
@@ -102,7 +109,11 @@
       <div class="completion-summary" role="status" aria-label="Protocol completion summary">
         <div>
           <strong>Protocol evidence</strong>
-          <span>{{ matrix.protocol_complete_participant_count }} complete participants · {{ matrix.attempt_count }} attempts</span>
+          <span>{{ matrix.eligible_protocol_complete_participant_count ?? matrix.protocol_complete_participant_count }} / {{ matrix.minimum_protocol_complete_participant_count ?? 38 }} eligible complete · {{ matrix.unresolved_withdrawal_count ?? 0 }} unresolved withdrawals · {{ matrix.attempt_count }} attempts</span>
+        </div>
+        <div>
+          <strong>Primary independent estimates</strong>
+          <span>{{ matrix.primary_independent_estimate_count ?? 0 }} / {{ matrix.minimum_primary_independent_estimate_count ?? 19 }} · {{ matrix.primary_independent_estimate_status ?? 'analysis required' }}</span>
         </div>
         <div>
           <strong>No-subject denominator</strong>
@@ -127,6 +138,7 @@
         <button type="button" class="choice-button" role="radio"
                 [attr.aria-checked]="state.setup().study_mode === 'confirmatory'"
                 [class.selected]="state.setup().study_mode === 'confirmatory'"
+                [disabled]="!collectionAuthorized()"
                 (click)="setStudyMode('confirmatory')">
           <mat-icon aria-hidden="true">verified</mat-icon>
           Confirmatory protocol

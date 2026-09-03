@@ -43,6 +43,25 @@ test.describe('v12 dashboard visual baseline', () => {
         body: JSON.stringify({ ok: true, sessions: [], items: [] })
       });
     });
+    await page.route('**/api/study/readiness', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          schema_version: 'rvt-collection-readiness-v1',
+          authorized: false,
+          protocol_state: 'draft',
+          plan_status: 'draft',
+          authorization_record_present: false,
+          blockers: [
+            'authorization_record_missing_or_invalid',
+            'statistical_analysis_plan_not_approved'
+          ],
+          unresolved_withdrawal_count: 0
+        })
+      });
+    });
     // Visual tests validate layout and theme rendering, not the trainer's
     // continuously changing sandbox telemetry. Pin both the initial payload
     // and the SSE transport before Angular starts so screenshots cannot race
@@ -293,6 +312,10 @@ test.describe('v12 dashboard visual baseline', () => {
             await expect(page.locator('.home-empty-card')).toHaveCount(1);
           }
           await expect(page.locator('input[aria-labelledby="bleAddressLabel"]')).toHaveValue('10:22:33:9E:8F:63');
+          await expect(page.getByText(
+            'Participant recruitment and confirmatory collection are not authorized.',
+            { exact: false }
+          )).toBeVisible();
           // Home owns continuously redrawn preview canvases. Live-route
           // baselines still cover rendered plots; hide only these moving
           // pixels so home comparisons validate layout and theme surfaces.

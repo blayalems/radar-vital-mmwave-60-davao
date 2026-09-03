@@ -97,6 +97,16 @@ describe('ParticipantStudySetupComponent', () => {
       ]
     });
     component = TestBed.runInInjectionContext(() => new ParticipantStudySetupComponent());
+    component.readiness.set({
+      ok: true,
+      schema_version: 'rvt-collection-readiness-v1',
+      authorized: true,
+      protocol_state: 'locked',
+      plan_status: 'approved',
+      authorization_record_present: true,
+      blockers: [],
+      unresolved_withdrawal_count: 0
+    });
   });
 
   afterEach(() => {
@@ -160,6 +170,26 @@ describe('ParticipantStudySetupComponent', () => {
       'Dismiss',
       { duration: 3500 }
     );
+  });
+
+  it('blocks recruitment and confirmatory mode when readiness is not authorized', async () => {
+    component.readiness.set({
+      ok: true,
+      schema_version: 'rvt-collection-readiness-v1',
+      authorized: false,
+      protocol_state: 'locked',
+      plan_status: 'draft',
+      authorization_record_present: false,
+      blockers: ['statistical_analysis_plan_not_approved'],
+      unresolved_withdrawal_count: 0
+    });
+    setup.update(value => ({ ...value, study_mode: 'exploratory' }));
+
+    await component.createParticipant();
+    component.setStudyMode('confirmatory');
+
+    expect(request).not.toHaveBeenCalled();
+    expect(setup().study_mode).toBe('exploratory');
   });
 
   it('locks confirmatory duration and recomputes the canonical condition', () => {

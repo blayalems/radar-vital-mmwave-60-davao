@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R11",
-  "effective_product_version": "16.6.1",
+  "register_revision": "R12",
+  "effective_product_version": "16.6.2",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -78,7 +78,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_6_1.ino",
+        "radar_vital_v16_6_2.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [
@@ -270,6 +270,7 @@
       "status": "active",
       "implementation_paths": [
         "rvt_trainer/session/study_contract.py",
+        "rvt_trainer/session/collection_authorization.py",
         "rvt_trainer/session/supervisor.py",
         "web/src/app/components/participant-study-setup/participant-study-setup.component.ts"
       ],
@@ -397,6 +398,16 @@
           "path": "tests/test_protocol_attempt_ledger.py",
           "selector": "test_manifest_reanalysis_keeps_capture_identity_and_appends_analysis_run",
           "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_protocol_attempt_ledger.py",
+          "selector": "test_completion_matrix_keeps_recruitment_completion_primary_and_withdrawal_gates_distinct",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_protocol_attempt_ledger.py",
+          "selector": "test_withdrawal_reversal_requires_new_consent_and_authority_evidence",
+          "kind": "automated_test"
         }
       ],
       "artifact_types": ["protocol_attempt_ledger", "session_manifest", "participant_registry", "completion_matrix"],
@@ -404,7 +415,8 @@
         "Re-analysis cannot mutate capture release, participant, logical trial, or attempt identity.",
         "Failed, stopped, invalid, no-output, and no-subject attempts remain visible in denominators.",
         "Qualified no-subject evidence requires a locked 72 x 150-second protocol, frozen firmware/rules/threshold identity, matching capture provenance, and non-overlapping intervals.",
-        "Participant withdrawal and reversal retain actor, reason, consent revision, and timestamp history."
+        "Recruitment, protocol completion, primary independent estimates, withdrawals, and no-subject evidence remain separate denominators with explicit targets and gaps.",
+        "Participant withdrawal appends a non-deletion reconciliation tombstone; reversal requires new consent plus authority and evidence references."
       ],
       "change_record_required": true
     },
@@ -524,6 +536,60 @@
         "Confirmatory folds are participant-grouped and leak no preprocessing state from held-out participants.",
         "Every model bundle records family, data, split, feature, hyperparameter, seed, dependency, and source provenance.",
         "LOSO evaluation retains a canonical outer-OOF file with raw and declared post-processed predictions."
+      ],
+      "change_record_required": true
+    },
+    {
+      "requirement_id": "RVT-RES-001",
+      "title": "Fail-closed pre-collection authorization",
+      "statement": "Recruitment, confirmatory capture, confirmatory no-subject evidence, and confirmatory analysis shall remain blocked until a separate dated authorization matches the approved plan, locked protocol, study schema, approvals, withdrawal policy, and physical timing evidence.",
+      "source_refs": ["docs/precollection-readiness.md", "quality/precollection-readiness.json"],
+      "category": "session",
+      "risk_class": "critical",
+      "owner_role": "research_lead",
+      "status": "active",
+      "implementation_paths": [
+        "quality/precollection-readiness.json",
+        "quality/schemas/precollection-readiness.schema.json",
+        "rvt_trainer/session/collection_authorization.py",
+        "rvt_trainer/session/supervisor.py",
+        "rvt_trainer/monolith.py",
+        "web/src/app/components/participant-study-setup"
+      ],
+      "verification_refs": [
+        {
+          "path": "tests/test_precollection_readiness.py",
+          "selector": "test_precollection_manifest_is_fail_closed_and_dates_every_workstream",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_collection_authorization.py",
+          "selector": "test_protocol_lock_alone_never_authorizes_collection",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_session_start_idempotency.py",
+          "selector": "test_unauthorized_confirmatory_start_is_non_mutating",
+          "kind": "automated_test"
+        },
+        {
+          "path": "tests/test_alignment_provenance.py",
+          "selector": "test_alignment_provenance_records_method_numeric_uncertainty_and_limitations",
+          "kind": "automated_test"
+        },
+        {
+          "path": "web/src/app/components/participant-study-setup/participant-study-setup.component.spec.ts",
+          "selector": "blocks recruitment and confirmatory mode when readiness is not authorized",
+          "kind": "automated_test"
+        }
+      ],
+      "artifact_types": ["readiness_manifest", "collection_authorization", "sync_anchors", "alignment_report", "dashboard"],
+      "acceptance_criteria": [
+        "Protocol locked means configuration-frozen and never implies collection authorization.",
+        "The default and checked-in state returns 412 STUDY_COLLECTION_NOT_AUTHORIZED before participant, attempt, idempotency, reservation, session, or analysis mutation.",
+        "The calendar records 40 recruited, 38 protocol-complete, at least 19 primary independent estimates, and 72 x 150-second no-subject captures with owners, proposed dates, and abort criteria.",
+        "Withdrawal treatment remains pending REC/privacy review and the plaintext system never claims cryptographic erasure.",
+        "Alignment outputs state method, numeric uncertainty, limitations, and missing physical latency evidence without changing the serial contract."
       ],
       "change_record_required": true
     },

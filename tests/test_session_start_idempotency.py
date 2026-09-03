@@ -10,6 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import rvt_trainer.monolith as monolith
+import rvt_trainer.session.supervisor as supervisor_module
 from rvt_trainer.monolith import _ControlServer
 from rvt_trainer.session.start_idempotency import (
     StartIdempotencyError,
@@ -88,10 +90,12 @@ def _spawn_that_becomes_ready(
 
 
 @pytest.fixture
-def control(tmp_path: Path):
+def control(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     sessions_root = tmp_path / "sessions"
     sessions_root.mkdir()
     create_participant_profile(str(sessions_root), {})
+    monkeypatch.setattr(monolith, "_require_collection_authorization", lambda _root: {"authorized": True})
+    monkeypatch.setattr(supervisor_module, "require_collection_authorization", lambda _root: {"authorized": True})
     server = _ControlServer("127.0.0.1", 0, str(sessions_root), mock=True)
     server.start()
     try:
@@ -99,6 +103,26 @@ def control(tmp_path: Path):
     finally:
         server.supervisor._reset_runtime_state()
         server.stop()
+
+
+def test_unauthorized_confirmatory_start_is_non_mutating(tmp_path: Path):
+    sessions_root = tmp_path / "sessions"
+    sessions_root.mkdir()
+    create_participant_profile(str(sessions_root), {})
+    server = _ControlServer("127.0.0.1", 0, str(sessions_root), mock=True)
+    server.start()
+    try:
+        status, response = _request_json(
+            server, _confirmatory_payload("blocked-confirmatory-P001-t1")
+        )
+    finally:
+        server.stop()
+
+    assert status == 412
+    assert response["error"]["code"] == "STUDY_COLLECTION_NOT_AUTHORIZED"
+    assert not list(sessions_root.glob("s*"))
+    assert not (sessions_root / ".session_start_idempotency.json").exists()
+    assert not (sessions_root / ".logical_trial_reservations.json").exists()
 
 
 @patch("rvt_trainer.monolith._run_preflight_all", return_value={"checks": []})

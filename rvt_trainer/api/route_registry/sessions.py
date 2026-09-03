@@ -8,6 +8,7 @@ ROUTES = (
     route("participant_status", "PUT", "/api/participants/*", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),
     route("study_completion_matrix", "GET", "/api/study/completion-matrix", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),
     route("study_objectives", "GET", "/api/study/objectives", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),
+    route("study_readiness", "GET", "/api/study/readiness", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),
     route("study_protocol", "GET|PUT", "/api/study/protocol", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),
     route("study_schedule", "GET", "/api/study/schedule", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),
     route("study_attempt_create", "POST", "/api/study/attempts", RouteGroup.SESSIONS, AuthPolicy.OPERATOR),

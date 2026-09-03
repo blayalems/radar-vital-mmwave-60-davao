@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blayalems.github.io/radar-vital-mmwave-60-davao/schemas/precollection-readiness.schema.json",
+  "title": "Radar Vital pre-collection readiness manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "manifest_id", "status", "schedule_status", "as_of_date", "timezone", "authorization_boundary", "study_scale", "workstreams", "withdrawal_reconciliation", "synchronization"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schema_version": {"const": "rvt-precollection-readiness-v1"},
+    "manifest_id": {"pattern": "^RVT-PRECOLLECT-[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "status": {"enum": ["blocked", "ready", "superseded"]},
+    "schedule_status": {"enum": ["proposed_not_authorized", "approved"]},
+    "as_of_date": {"type": "string", "format": "date"},
+    "timezone": {"const": "Asia/Manila"},
+    "authorization_boundary": {
+      "type": "object",
+      "required": ["software_merge_authorizes_collection", "draft_plan_authorizes_collection", "draft_requirement_gates_software_only", "collection_may_start_when", "required_approvals"],
+      "properties": {
+        "software_merge_authorizes_collection": {"const": false},
+        "draft_plan_authorizes_collection": {"const": false},
+        "draft_requirement_gates_software_only": {"const": true},
+        "collection_may_start_when": {"type": "string", "minLength": 20},
+        "required_approvals": {"type": "array", "minItems": 4, "items": {"$ref": "#/$defs/gate"}}
+      },
+      "additionalProperties": false
+    },
+    "study_scale": {"type": "object", "additionalProperties": {"type": "number"}},
+    "workstreams": {"type": "array", "minItems": 6, "items": {"$ref": "#/$defs/workstream"}},
+    "withdrawal_reconciliation": {"type": "object"},
+    "synchronization": {"type": "object"}
+  },
+  "$defs": {
+    "gate": {
+      "type": "object",
+      "required": ["role", "status", "target_date", "evidence_ref"],
+      "properties": {"role": {"type": "string"}, "status": {"enum": ["pending", "approved", "rejected"]}, "target_date": {"type": "string", "format": "date"}, "evidence_ref": {"type": ["string", "null"]}},
+      "additionalProperties": false
+    },
+    "workstream": {
+      "type": "object",
+      "required": ["id", "owner_role", "earliest_start_date", "target_date", "status", "abort_or_replan"],
+      "properties": {"id": {"type": "string"}, "owner_role": {"type": "string"}, "earliest_start_date": {"type": "string", "format": "date"}, "target_date": {"type": "string", "format": "date"}, "status": {"enum": ["blocked", "ready", "complete", "deferred"]}, "abort_or_replan": {"type": "string", "minLength": 20}},
+      "additionalProperties": false
+    }
+  }
+}

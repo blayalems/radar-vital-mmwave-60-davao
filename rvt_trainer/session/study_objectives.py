@@ -1,4 +1,4 @@
-"""Machine-readable study objectives from the approved manuscript protocol."""
+"""Machine-readable study objectives from the draft manuscript protocol."""
 
 from __future__ import annotations
 
@@ -80,7 +80,8 @@ def study_objectives_payload() -> Dict[str, object]:
 
     return {
         "schema_version": STUDY_OBJECTIVES_SCHEMA_VERSION,
-        "product_version": "16.6.1",
+        "control_status": "draft_not_authorized",
+        "product_version": "16.6.2",
         "confirmatory_conditions": [
             "d060_none",
             "d080_none",

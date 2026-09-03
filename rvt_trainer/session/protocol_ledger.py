@@ -658,19 +658,54 @@ def completion_matrix(sessions_root: str) -> Dict[str, object]:
     qualified_no_subject = [
         row for row in no_subject if _qualified_no_subject(row, sessions_root)
     ]
+    roster_profiles = [value for value in profiles.values() if isinstance(value, dict)]
+    recruited_count = len(roster_profiles)
+    active_count = sum(1 for profile in roster_profiles if profile.get("status") == "active")
+    completed_roster_count = sum(1 for profile in roster_profiles if profile.get("status") == "completed")
+    withdrawn_count = sum(1 for profile in roster_profiles if profile.get("status") == "withdrawn")
+    unresolved_withdrawal_count = sum(
+        1
+        for profile in roster_profiles
+        if profile.get("status") == "withdrawn"
+        and (
+            not isinstance(profile.get("withdrawal_reconciliation"), dict)
+            or profile["withdrawal_reconciliation"].get("disposition")
+            == "pending_rec_legal_review"
+        )
+    )
+    protocol_complete_count = sum(
+        1 for row in matrix.values() if row.get("protocol_complete")
+    )
+    eligible_complete_count = sum(
+        1
+        for row in matrix.values()
+        if row.get("protocol_complete") and row.get("status") != "withdrawn"
+    )
     return {
         "schema_version": PROTOCOL_ATTEMPTS_SCHEMA_VERSION,
         "conditions": list(CONFIRMATORY_CONDITION_IDS),
         "trials": list(TRIAL_NUMBERS),
         "participants": matrix,
         "participant_count": len(matrix),
-        "protocol_complete_participant_count": sum(
-            1 for row in matrix.values() if row.get("protocol_complete")
-        ),
+        "target_recruited_participant_count": 40,
+        "minimum_protocol_complete_participant_count": 38,
+        "minimum_primary_independent_estimate_count": 19,
+        "recruited_participant_count": recruited_count,
+        "recruitment_target_gap": max(0, 40 - recruited_count),
+        "active_participant_count": active_count,
+        "completed_roster_participant_count": completed_roster_count,
+        "withdrawn_participant_count": withdrawn_count,
+        "unresolved_withdrawal_count": unresolved_withdrawal_count,
+        "protocol_complete_participant_count": protocol_complete_count,
+        "eligible_protocol_complete_participant_count": eligible_complete_count,
+        "protocol_complete_target_gap": max(0, 38 - eligible_complete_count),
+        "primary_independent_estimate_count": None,
+        "primary_independent_estimate_status": "analysis_required",
         "no_subject_attempt_count": len(no_subject),
         "no_subject_qualified_count": len(qualified_no_subject),
         "no_subject_unqualified_count": len(no_subject) - len(qualified_no_subject),
         "no_subject_expected": NO_SUBJECT_TRIAL_COUNT,
+        "no_subject_remaining": max(0, NO_SUBJECT_TRIAL_COUNT - len(qualified_no_subject)),
         "attempt_count": len(rows),
     }
 

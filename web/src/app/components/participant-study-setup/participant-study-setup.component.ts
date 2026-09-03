@@ -16,7 +16,8 @@ import {
   ParticipantProfilesResponse,
   SetupState,
   StudyMode,
-  StudyObjective
+  StudyObjective,
+  StudyReadinessResponse
 } from '../../models/rvt.models';
 import { ApiService } from '../../services/api.service';
 import { StateService } from '../../services/state.service';
@@ -81,6 +82,7 @@ export class ParticipantStudySetupComponent implements OnInit {
   readonly participants = signal<ParticipantProfile[]>([]);
   readonly completionMatrix = signal<CompletionMatrix | null>(null);
   readonly objectives = signal<StudyObjective[]>([]);
+  readonly readiness = signal<StudyReadinessResponse | null>(null);
   readonly loading = signal(false);
   readonly creating = signal(false);
   readonly statusUpdating = signal(false);
@@ -94,6 +96,29 @@ export class ParticipantStudySetupComponent implements OnInit {
     if (this.state.setup().study_mode === 'confirmatory') this.applyConfirmatoryDuration();
     void this.loadParticipants();
     void this.loadObjectives();
+    void this.loadReadiness();
+  }
+
+  async loadReadiness(): Promise<void> {
+    try {
+      if (typeof (this.api as Partial<ApiService>).loadStudyReadiness !== 'function') return;
+      this.readiness.set(await this.api.loadStudyReadiness());
+    } catch (_) {
+      this.readiness.set({
+        ok: false,
+        schema_version: 'rvt-collection-readiness-v1',
+        authorized: false,
+        protocol_state: 'unknown',
+        plan_status: 'unknown',
+        authorization_record_present: false,
+        blockers: ['readiness_unavailable'],
+        unresolved_withdrawal_count: 0
+      });
+    }
+  }
+
+  collectionAuthorized(): boolean {
+    return this.readiness()?.authorized === true;
   }
 
   async loadObjectives(): Promise<void> {
@@ -115,8 +140,7 @@ export class ParticipantStudySetupComponent implements OnInit {
         ? await this.api.loadParticipants()
         : await this.api.request<ParticipantProfilesResponse>('/api/participants');
       const participants = (response.participants ?? response.items ?? [])
-        .filter(item => item && item.participant_id && item.display_code)
-        .slice(0, 41);
+        .filter(item => item && item.participant_id && item.display_code);
       this.participants.set(participants);
       if (response.completion_matrix) {
         this.completionMatrix.set(response.completion_matrix);
@@ -150,7 +174,7 @@ export class ParticipantStudySetupComponent implements OnInit {
   }
 
   async createParticipant(): Promise<void> {
-    if (this.creating() || this.realParticipantCount() >= 40) return;
+    if (this.creating() || !this.collectionAuthorized()) return;
     this.creating.set(true);
     try {
       const response = typeof (this.api as Partial<ApiService>).createParticipant === 'function'
@@ -198,7 +222,7 @@ export class ParticipantStudySetupComponent implements OnInit {
   }
 
   async recordNoSubjectAttempt(): Promise<void> {
-    if (this.attemptCreating()) return;
+    if (this.attemptCreating() || !this.collectionAuthorized()) return;
     const setup = this.state.setup();
     this.attemptCreating.set(true);
     try {
@@ -231,6 +255,7 @@ export class ParticipantStudySetupComponent implements OnInit {
   }
 
   setStudyMode(mode: StudyMode): void {
+    if (mode === 'confirmatory' && !this.collectionAuthorized()) return;
     const distance = mode === 'confirmatory'
       ? (CONFIRMATORY_DISTANCES_M.includes(this.state.setup().distance_m as 0.6 | 0.8 | 1.0)
           ? this.state.setup().distance_m

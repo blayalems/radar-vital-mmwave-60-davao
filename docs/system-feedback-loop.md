@@ -51,7 +51,7 @@ flowchart LR
     evidence["Hashed evidence bundle<br/>JSON, CSV, plots and LaTeX tables"]
     registry["Signed model artifact and manifest<br/>family, split, seed, hashes"]
     api["Trainer prediction and report API"]
-    ui["Angular dashboard v16.6.1<br/>provenance, status and comparison"]
+    ui["Angular dashboard v16.6.2<br/>provenance, status and comparison"]
     manuscript["LaTeX manuscript<br/>figures, methods and results"]
     protocol["Reviewed protocol decision<br/>acquisition, firmware and software changes"]
     operator["Operator action<br/>placement, capture quality, retraining"]
@@ -195,7 +195,7 @@ The operator-facing objective contract is served by
 `GET /api/study/objectives` and is rendered in the Angular participant setup.
 The locked protocol is read or written through `/api/study/protocol`, while
 `/api/study/schedule?participant_id=P-NNN` returns the persisted deterministic
-randomization for that participant. This binds the four approved manuscript
+randomization for that participant. This binds the four predeclared draft manuscript
 objectives to their evidence paths: primary RR TOST at `d100_none`, exploratory
 unobstructed temperature agreement, the 72-trial no-subject false-alarm
 denominator, and exploratory HR agreement across the six configurations.
@@ -220,6 +220,24 @@ authorize confirmatory evaluation, recruitment, collection, exclusion, or a
 manuscript claim. Confirmatory execution remains blocked until the named
 research lead and quality manager record approval and all applicable
 advisor/ethics/REC conditions are satisfied.
+
+Pre-collection readiness is separately fail closed in
+`quality/precollection-readiness.json` and
+`docs/precollection-readiness.md`. Its proposed calendar makes the 40 recruited,
+38 protocol-complete, at least 19 independent-primary-estimate, and 72 ×
+150-second no-subject workload explicit. Protocol `locked` freezes configuration
+only; a distinct identity-bound authorization record is required for recruitment,
+confirmatory capture, no-subject evidence, and confirmatory analysis.
+
+Append-only evidence applies to audit and control metadata, not an unconditional
+promise to retain participant payloads after withdrawal. The REC/privacy-approved
+disposition may require processing restriction, verified deletion, or verified
+key destruction if the implemented encryption architecture supports it; the
+current system must not claim crypto-shredding. Host-monotonic receive anchors
+remain outside the frozen serial contract, while `sync_anchors.json` and
+`alignment_report.json` must record method and numeric uncertainty. Objective 4
+HR alignment claims remain blocked on physical USB buffering/latency
+characterization.
 
 - Define TOST equivalence margins before training and justify them in the
   protocol or manuscript; never derive them from the observed test results.

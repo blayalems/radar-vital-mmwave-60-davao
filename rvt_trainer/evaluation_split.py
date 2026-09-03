@@ -14,7 +14,7 @@ import numpy as np
 
 
 PARTICIPANT_PATTERN = re.compile(r"^P-\d{3}$")
-CONFIRMATORY_DISTANCES_M = (0.6, 0.8, 1.0)
+CONFIRMATORY_DISTANCES_M = (0.6, 0.8, 1.0, 2.0, 3.0)
 CONFIRMATORY_BARRIERS = ("none", "cardboard")
 CONFIRMATORY_CONDITIONS = frozenset(
     f"d{int(distance * 100):03d}_{barrier}"
@@ -315,7 +315,7 @@ def participant_split(
         missing_cells = required_cells - observed_cells
         if require_confirmatory and missing_cells:
             reasons.append(
-                f"{participant} lacks {len(missing_cells)} of 18 confirmatory "
+                f"{participant} lacks {len(missing_cells)} of {len(required_cells)} confirmatory "
                 "condition/trial cells"
             )
     for name, block in (
@@ -360,7 +360,7 @@ def participant_split(
             "eligible": bool(require_confirmatory and not reasons),
             "required_conditions": sorted(CONFIRMATORY_CONDITIONS),
             "required_trials_per_condition": [1, 2, 3],
-            "required_sessions_per_participant": 18,
+            "required_sessions_per_participant": len(required_cells),
             "reasons": reasons,
         },
     }

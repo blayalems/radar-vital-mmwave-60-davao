@@ -15,9 +15,9 @@ gate software preparation only.
 
 The current proposal targets 40 recruited participants, at least 38
 protocol-complete participants, and at least 19 independent estimates for the
-primary RR TOST. A complete participant has six conditions with three
-150-second trials each: 18 captures, for 684 minimum protocol-complete captures
-and 720 captures of capacity at 40 recruits. Objective 3 separately requires
+primary RR TOST. A complete participant has ten conditions with three
+150-second trials each: 30 captures, for 1,140 minimum protocol-complete captures
+and 1,200 captures of capacity at 40 recruits. Objective 3 separately requires
 72 unique 150-second no-subject captures, or 10,800 seconds (three hours) of
 capture time before setup, review, reruns, and evidence reconciliation.
 

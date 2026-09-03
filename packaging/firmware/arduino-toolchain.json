@@ -2,7 +2,7 @@
   "schema_version": "rvt-arduino-toolchain-v1",
   "arduino_cli": "1.5.1",
   "setup_action_commit": "7ef629dcdf0f458ab7ae83149d629443deac6eac",
-  "sketch": "radar_vital_v16_6_3.ino",
+  "sketch": "radar_vital_v16_6_4.ino",
   "fqbn": "esp32:esp32:XIAO_ESP32C6",
   "core": "esp32:esp32@3.3.11",
   "libraries": {

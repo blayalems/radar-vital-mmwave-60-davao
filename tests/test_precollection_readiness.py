@@ -34,9 +34,10 @@ def test_precollection_manifest_records_recruitment_and_capture_arithmetic():
     assert scale["target_recruited_participants"] == 40
     assert scale["minimum_protocol_complete_participants"] == 38
     assert scale["minimum_independent_primary_estimates"] == 19
-    assert scale["trials_per_protocol_complete_participant"] == 6 * 3 == 18
-    assert scale["minimum_protocol_complete_trial_captures"] == 38 * 18 == 684
-    assert scale["target_recruited_trial_capacity"] == 40 * 18 == 720
+    assert scale["confirmatory_conditions_per_participant"] == 10
+    assert scale["trials_per_protocol_complete_participant"] == 10 * 3 == 30
+    assert scale["minimum_protocol_complete_trial_captures"] == 38 * 30 == 1140
+    assert scale["target_recruited_trial_capacity"] == 40 * 30 == 1200
     assert scale["no_subject_minimum_capture_s"] == 72 * 150 == 10800
     assert scale["no_subject_minimum_capture_hours"] == 3
 

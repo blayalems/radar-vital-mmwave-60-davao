@@ -49,7 +49,7 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
 
     // Verify product version is rendered dynamically for the current release.
     const productVersion = card.locator('.settings-copy', { hasText: 'Product Version' }).locator('.row-description');
-    await expect(productVersion).toContainText('16.6.3');
+    await expect(productVersion).toContainText('16.6.4');
 
     // Verify accessibility attributes on the button
     const checkBtn = card.getByRole('button', { name: 'Check for Updates' });
@@ -64,21 +64,21 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          product_version: '16.6.4',
-          release_tag: 'v16.6.4',
-          release_version: '16.6.4',
+          product_version: '16.6.5',
+          release_tag: 'v16.6.5',
+          release_version: '16.6.5',
           build_number: 12,
           minimum_supported: '16.0.0',
           released_at: '2026-06-06T12:00:00Z',
           artifacts: {
             apk: {
-              url: 'https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v16.6.4/radar-vital-release.apk',
+              url: 'https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v16.6.5/radar-vital-release.apk',
               size_bytes: 15728640,
               sha256: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
               compatibility: 'Android 8.0+'
             },
             exe: {
-              url: 'https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v16.6.4/radar-vital-windows-installer.exe',
+              url: 'https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v16.6.5/radar-vital-windows-installer.exe',
               size_bytes: 26214400,
               sha256: 'f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5',
               compatibility: 'Windows 10+'
@@ -103,7 +103,7 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
 
     // Title should show Update Available
     const titleText = resultRegion.locator('.update-title-text');
-    await expect(titleText).toContainText('Update Available: v16.6.4');
+    await expect(titleText).toContainText('Update Available: v16.6.5');
 
     // Verify download links are shown
     const downloadApk = resultRegion.getByRole('link', { name: 'Download' }).first();
@@ -112,7 +112,7 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
     await expect(downloadExe).toHaveAttribute('href', /.*radar-vital-windows-installer.exe/);
 
     // Verify snackbar alert
-    await expect(page.locator('simple-snack-bar').last()).toContainText('New update 16.6.4 is available.');
+    await expect(page.locator('simple-snack-bar').last()).toContainText('New update 16.6.5 is available.');
   });
 
   test('checks for updates successfully when a newer build of the same version is available', async ({ page }) => {
@@ -122,15 +122,15 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          product_version: '16.6.3',
-          release_tag: 'v16.6.3-build2',
-          release_version: '16.6.3',
+          product_version: '16.6.4',
+          release_tag: 'v16.6.4-build2',
+          release_version: '16.6.4',
           build_number: 15,
           minimum_supported: '16.0.0',
           released_at: '2026-06-06T13:00:00Z',
           artifacts: {
             apk: {
-              url: 'https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v16.6.3-build2/radar-vital-release.apk',
+              url: 'https://github.com/blayalems/radar-vital-mmwave-60-davao/releases/download/v16.6.4-build2/radar-vital-release.apk',
               size_bytes: 15728640,
               sha256: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
               compatibility: 'Android 8.0+'
@@ -151,10 +151,10 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
 
     // Title should show New Build Available
     const titleText = resultRegion.locator('.update-title-text');
-    await expect(titleText).toContainText('New Build Available: v16.6.3-build2');
+    await expect(titleText).toContainText('New Build Available: v16.6.4-build2');
 
     // Verify snackbar alert
-    await expect(page.locator('simple-snack-bar').last()).toContainText('New build of 16.6.3 is available.');
+    await expect(page.locator('simple-snack-bar').last()).toContainText('New build of 16.6.4 is available.');
   });
 
   test('checks for updates and shows up-to-date state when no updates are available', async ({ page }) => {
@@ -164,9 +164,9 @@ test.describe('OTA Update and Version Info Smoke Tests', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          product_version: '16.6.3',
-          release_tag: 'v16.6.3',
-          release_version: '16.6.3',
+          product_version: '16.6.4',
+          release_tag: 'v16.6.4',
+          release_version: '16.6.4',
           build_number: 10,
           minimum_supported: '16.0.0',
           released_at: '2026-06-06T10:00:00Z',

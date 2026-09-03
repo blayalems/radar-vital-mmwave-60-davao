@@ -5,6 +5,16 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-09-03 - Align study protocol and QMS with IEEE thesis manuscript (v16.6.4)
+
+- **Thesis Manuscript Source**: Added authentic IEEE conference paper source at `docs/manuscript/manuscript.tex` tracing design, build, integrate, and test objectives for the University of Mindanao thesis.
+- **Protocol Configuration**: Aligned confirmatory conditions across trainer, statistical analysis plan, precollection readiness, and frontend UI to 10 configurations (0.6, 0.8, 1.0, 2.0, 3.0 m with/without cardboard).
+- **Scale Arithmetic**: Updated scale parameters to 10 conditions, 30 trials per complete participant, 1,140 minimum protocol-complete captures, 1,200 capacity captures, and 72 no-subject trials.
+- **Temperature Protocol**: Explicitly restricted temperature evaluation to 0.6 m unobstructed trials (`d060_none`) matching MLX90614 line-of-sight constraints.
+- **QMS Controlled Trace**: Added RVT-THESIS-001 through RVT-THESIS-004 to requirements register (R14) and RVT-QMS-MAN-001 to document register (R17); advanced coordinated product version to v16.6.4 across all carriers.
+- **QMS Change Record**: Added full ISO 9001:2015 change control record to PR #118.
+- **Smoke Tests Synchronization**: Aligned OTA and session smoke test mocks with v16.6.4 product version.
+
 ### 2026-09-03 - Prepare Tauri target directory without redundant web build
 
 - **EXE gate contract**: Ensure `www/` directory exists before Tauri `cargo test` and `cargo build` in `.github/workflows/build-exe.yml` without introducing an explicit `npm run build:web` step; preserves the single-pass build contract in `tests/test_ci_supply_chain.py` while preventing `tauri::generate_context!()` panic.

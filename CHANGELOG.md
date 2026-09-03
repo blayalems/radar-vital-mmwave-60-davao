@@ -6,6 +6,21 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.6.4 manuscript protocol alignment and QMS trace (in progress)
+
+- Committed authentic IEEE conference paper source (`docs/manuscript/manuscript.tex`)
+  for the University of Mindanao thesis, covering design, build, integrate, and test objectives.
+- Aligned study protocol conditions across trainer, statistical analysis plan,
+  precollection readiness manifest, and frontend UI to 10 configurations
+  (0.6, 0.8, 1.0, 2.0, 3.0 m with/without single-wall corrugated kraft-fiberboard).
+- Explicitly restricted temperature evaluation to 0.6 m unobstructed trials (`d060_none`)
+  matching MLX90614 line-of-sight constraints.
+- Updated protocol arithmetic to 10 conditions, 30 trials per complete participant,
+  1,140 minimum protocol-complete captures, and 1,200 recruited capacity.
+- Updated requirements register (R14) and document register (R17) adding RVT-THESIS-001
+  through RVT-THESIS-004 tracing the 4 specific thesis objectives.
+- Advanced coordinated product/QMS version to v16.6.4 across all version carriers.
+
 ### v16.6.3 single-pass CI and immutable release evidence (in progress)
 
 - Stopped ordinary main updates from creating permanent diagnostic releases;

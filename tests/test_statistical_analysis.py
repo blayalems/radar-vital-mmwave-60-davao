@@ -21,7 +21,7 @@ from rvt_trainer.statistics import (
 )
 
 
-def _confirmatory_provenance(plan, *, run_product_version="16.6.3"):
+def _confirmatory_provenance(plan, *, run_product_version="16.6.4"):
     return {
         "source_commit": "c" * 40,
         "model_family": "gradient_boosting",
@@ -122,7 +122,18 @@ def test_analyze_frame_emits_tost_and_agreement_policy():
 
 def test_confirmatory_aggregation_enforces_windows_and_trials_and_holm_conditions(tmp_path):
     rows = []
-    conditions = ["d100_none", "d060_none", "d080_none", "d060_cardboard", "d080_cardboard", "d100_cardboard"]
+    conditions = [
+        "d100_none",
+        "d060_none",
+        "d080_none",
+        "d200_none",
+        "d300_none",
+        "d060_cardboard",
+        "d080_cardboard",
+        "d100_cardboard",
+        "d200_cardboard",
+        "d300_cardboard",
+    ]
     for participant_index in range(3):
         participant = f"P-{participant_index + 1:03d}"
         for condition in conditions:
@@ -155,9 +166,9 @@ def test_confirmatory_aggregation_enforces_windows_and_trials_and_holm_condition
         estimate_column="pred_rr",
         participant_column="participant_id",
     )
-    assert diagnostics["eligible_trial_count"] == 36
-    assert diagnostics["eligible_participant_condition_count"] == 18
-    assert len(summary) == 18
+    assert diagnostics["eligible_trial_count"] == 60
+    assert diagnostics["eligible_participant_condition_count"] == 30
+    assert len(summary) == 30
     plan = json.loads(json.dumps(DEFAULT_ANALYSIS_PLAN))
     plan["status"] = "approved"
     ledger = pd.DataFrame([
@@ -195,10 +206,10 @@ def test_confirmatory_aggregation_enforces_windows_and_trials_and_holm_condition
     )
     assert report["aggregation"]["minimum_valid_windows_per_trial"] == 15
     assert report["coverage"]["denominator_unit"] == "trial"
-    assert report["coverage"]["n_attempted"] == 108
-    assert report["coverage"]["n_with_output"] == 36
+    assert report["coverage"]["n_attempted"] == 132
+    assert report["coverage"]["n_with_output"] == 60
     assert report["condition_tost"]["primary"]["status"].startswith("inconclusive")
-    assert len(report["condition_tost"]["secondary"]) == 5
+    assert len(report["condition_tost"]["secondary"]) == 9
     assert report["condition_effects"]["status"] in {"unavailable_optional_dependency", "tested", "fit_failed"}
     outputs = write_statistical_outputs(
         report,
@@ -527,7 +538,7 @@ def test_confirmatory_provenance_separates_plan_study_and_run_identities():
     )
 
     assert plan["effective_product_version"] == "16.5.8"
-    assert report["provenance"]["run_product_version"] == "16.6.3"
+    assert report["provenance"]["run_product_version"] == "16.6.4"
     assert report["provenance"]["analysis_plan_id"] == "RVT-STA-PLAN-16.5.8"
     assert len(report["provenance"]["analysis_plan_sha256"]) == 64
     assert report["provenance"]["study_protocol_id"] == "RVT-THESIS-16.5.9"

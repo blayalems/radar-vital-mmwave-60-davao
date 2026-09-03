@@ -2,7 +2,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 import { seedFirstRunComplete } from './helpers/first-run';
 
 const HOME = '/home';
-const PRODUCT_VERSION = '16.6.3';
+const PRODUCT_VERSION = '16.6.4';
 
 type StartPayload = {
   idempotency_key?: unknown;

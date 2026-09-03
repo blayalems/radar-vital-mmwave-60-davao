@@ -79,7 +79,7 @@ def test_participant_split_is_disjoint_deterministic_and_condition_stratified():
 
 
 def test_confirmatory_split_fails_closed_without_all_three_trials():
-    with pytest.raises(ValueError, match="lacks 12 of 18"):
+    with pytest.raises(ValueError, match="lacks 20 of 30"):
         participant_split(
             _study_frame(complete=False),
             test_ratio=0.2,

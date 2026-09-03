@@ -34,7 +34,7 @@ DEFAULT_ANALYSIS_PLAN = {
     "owner_role": "research_lead",
     "approval_required": ["research_lead", "quality_manager"],
     "protocol": {
-        "confirmatory_distances_m": [0.6, 0.8, 1.0],
+        "confirmatory_distances_m": [0.6, 0.8, 1.0, 2.0, 3.0],
         "barriers": ["none", "cardboard"],
         "trials_per_condition": 3,
         "planned_duration_s": 150,
@@ -58,9 +58,13 @@ DEFAULT_ANALYSIS_PLAN = {
         "condition_ids": [
             "d060_none",
             "d080_none",
+            "d200_none",
+            "d300_none",
             "d060_cardboard",
             "d080_cardboard",
             "d100_cardboard",
+            "d200_cardboard",
+            "d300_cardboard",
         ],
         "multiplicity_adjustment": "holm",
     },
@@ -187,7 +191,7 @@ def _validate_analysis_plan(
     if not all(isinstance(value, Mapping) for value in (protocol, primary, secondary, aggregation, reports, interpretation)):
         raise StatisticalInputError("analysis_plan is missing a required section")
     expected_protocol = {
-        "confirmatory_distances_m": [0.6, 0.8, 1.0],
+        "confirmatory_distances_m": [0.6, 0.8, 1.0, 2.0, 3.0],
         "barriers": ["none", "cardboard"],
         "trials_per_condition": 3,
         "planned_duration_s": 150,
@@ -211,7 +215,15 @@ def _validate_analysis_plan(
     if primary.get("confidence_level") != 0.90 or primary.get("minimum_independent_estimates") != 19:
         raise StatisticalInputError("analysis_plan primary sample-size contract is not frozen")
     expected_secondary = [
-        "d060_none", "d080_none", "d060_cardboard", "d080_cardboard", "d100_cardboard"
+        "d060_none",
+        "d080_none",
+        "d200_none",
+        "d300_none",
+        "d060_cardboard",
+        "d080_cardboard",
+        "d100_cardboard",
+        "d200_cardboard",
+        "d300_cardboard",
     ]
     if secondary.get("condition_ids") != expected_secondary or secondary.get("multiplicity_adjustment") != "holm":
         raise StatisticalInputError("analysis_plan secondary Holm family is not frozen")

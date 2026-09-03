@@ -20,7 +20,7 @@
       "additionalProperties": false,
       "required": ["confirmatory_distances_m", "barriers", "trials_per_condition", "planned_duration_s", "window_duration_s", "window_stride_s", "minimum_valid_windows_per_trial", "minimum_valid_trials_per_participant_condition", "target_recruited_participants", "minimum_protocol_complete_participants", "no_subject_trial_count"],
       "properties": {
-        "confirmatory_distances_m": { "type": "array", "const": [0.6, 0.8, 1.0] },
+        "confirmatory_distances_m": { "type": "array", "const": [0.6, 0.8, 1.0, 2.0, 3.0] },
         "barriers": { "type": "array", "const": ["none", "cardboard"] },
         "trials_per_condition": { "const": 3 },
         "planned_duration_s": { "const": 150 },
@@ -34,7 +34,7 @@
       }
     },
     "primary": { "type": "object", "required": ["condition_id", "target", "margin_bpm", "alpha", "confidence_level", "minimum_independent_estimates"], "properties": { "condition_id": { "const": "d100_none" }, "target": { "const": "rr" }, "margin_bpm": { "const": 2.0 }, "alpha": { "const": 0.05 }, "confidence_level": { "const": 0.9 }, "minimum_independent_estimates": { "const": 19 } }, "additionalProperties": false },
-    "secondary": { "type": "object", "required": ["condition_ids", "multiplicity_adjustment"], "properties": { "condition_ids": { "const": ["d060_none", "d080_none", "d060_cardboard", "d080_cardboard", "d100_cardboard"] }, "multiplicity_adjustment": { "const": "holm" } }, "additionalProperties": false },
+    "secondary": { "type": "object", "required": ["condition_ids", "multiplicity_adjustment"], "properties": { "condition_ids": { "const": ["d060_none", "d080_none", "d200_none", "d300_none", "d060_cardboard", "d080_cardboard", "d100_cardboard", "d200_cardboard", "d300_cardboard"] }, "multiplicity_adjustment": { "const": "holm" } }, "additionalProperties": false },
     "aggregation": { "type": "object", "required": ["input", "unit", "sequence", "participant_balanced"], "properties": { "input": { "const": "outer_oof_predictions.csv" }, "unit": { "const": "participant_condition" }, "sequence": { "type": "array", "minItems": 3, "items": { "type": "string" } }, "participant_balanced": { "const": true } }, "additionalProperties": false },
     "reports": { "type": "object", "required": ["retain_raw_predictions", "retain_raw_and_postprocessed_columns", "metrics", "agreement", "coverage_denominator", "false_alarm_test", "exports", "provenance"], "properties": { "retain_raw_predictions": { "const": true }, "retain_raw_and_postprocessed_columns": { "const": true }, "metrics": { "type": "array", "minItems": 1 }, "agreement": { "type": "string" }, "coverage_denominator": { "type": "string" }, "false_alarm_test": { "type": "string" }, "exports": { "const": ["json", "csv", "latex"] }, "provenance": { "type": "array", "minItems": 1 } }, "additionalProperties": false },
     "exclusions": { "type": "array", "minItems": 1, "items": { "type": "string" } },

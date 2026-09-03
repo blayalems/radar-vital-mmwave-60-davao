@@ -9,7 +9,7 @@
   "owner_role": "research_lead",
   "approval_required": ["research_lead", "quality_manager"],
   "protocol": {
-    "confirmatory_distances_m": [0.6, 0.8, 1.0],
+    "confirmatory_distances_m": [0.6, 0.8, 1.0, 2.0, 3.0],
     "barriers": ["none", "cardboard"],
     "trials_per_condition": 3,
     "planned_duration_s": 150,
@@ -33,9 +33,13 @@
     "condition_ids": [
       "d060_none",
       "d080_none",
+      "d200_none",
+      "d300_none",
       "d060_cardboard",
       "d080_cardboard",
-      "d100_cardboard"
+      "d100_cardboard",
+      "d200_cardboard",
+      "d300_cardboard"
     ],
     "multiplicity_adjustment": "holm"
   },

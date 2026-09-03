@@ -66,7 +66,7 @@ def test_wheel_declares_operational_runtime_resources() -> None:
     data_files = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["tool"]["setuptools"]["data-files"]
     root_files = data_files["share/rvt-trainer"]
     assert "radar_vital_live_dashboard_v12_for_v16_0.html" in root_files
-    assert "radar_vital_v16_6_3.ino" in root_files
+    assert "radar_vital_v16_6_4.ino" in root_files
     assert data_files["share/rvt-trainer/assets/fonts"] == ["assets/fonts/*"]
     assert "assets/icons/icon-192.png" in data_files["share/rvt-trainer/assets/icons"]
     assert data_files["share/rvt-trainer/assets/lib"] == ["assets/lib/*"]

@@ -22,7 +22,7 @@ import {
 import { ApiService } from '../../services/api.service';
 import { StateService } from '../../services/state.service';
 
-export const CONFIRMATORY_DISTANCES_M = [0.6, 0.8, 1.0] as const;
+export const CONFIRMATORY_DISTANCES_M = [0.6, 0.8, 1.0, 2.0, 3.0] as const;
 export const STUDY_TRIAL_NUMBERS = [1, 2, 3] as const;
 export const CONFIRMATORY_DURATION_S = 150;
 
@@ -42,15 +42,15 @@ export function studySetupError(
   if (!['none', 'cardboard'].includes(setup.barrier_type)) return 'Select a barrier condition.';
   if (!STUDY_TRIAL_NUMBERS.includes(setup.trial_number as 1 | 2 | 3)) return 'Select trial 1, 2, or 3.';
   if (setup.study_mode === 'confirmatory') {
-    if (!CONFIRMATORY_DISTANCES_M.includes(setup.distance_m as 0.6 | 0.8 | 1.0)) {
-      return 'Confirmatory distance must be 0.6, 0.8, or 1.0 m.';
+    if (!CONFIRMATORY_DISTANCES_M.includes(setup.distance_m as 0.6 | 0.8 | 1.0 | 2.0 | 3.0)) {
+      return 'Confirmatory distance must be 0.6, 0.8, 1.0, 2.0, or 3.0 m.';
     }
     if (setup.duration_s !== CONFIRMATORY_DURATION_S) return 'Confirmatory trials must run for 150 seconds.';
     return '';
   }
   if (setup.study_mode !== 'exploratory') return 'Select a study mode.';
-  if (!Number.isFinite(setup.distance_m) || setup.distance_m < 0.5 || setup.distance_m > 1.0) {
-    return 'Exploratory distance must be from 0.5 to 1.0 m.';
+  if (!Number.isFinite(setup.distance_m) || setup.distance_m < 0.5 || setup.distance_m > 3.0) {
+    return 'Exploratory distance must be from 0.5 to 3.0 m.';
   }
   if (!Number.isFinite(setup.duration_s) || setup.duration_s < 1) return 'Choose a recording duration.';
   return '';

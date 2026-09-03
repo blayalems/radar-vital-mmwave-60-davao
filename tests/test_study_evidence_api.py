@@ -109,7 +109,7 @@ def test_protocol_schedule_and_no_subject_attempt_contract(study_server: _Contro
     )
     assert status == 200
     assert response["participant_id"] == "P-001"
-    assert len(response["entries"]) == 6
+    assert len(response["entries"]) == 10
     assert {tuple(entry["trial_numbers"]) for entry in response["entries"]} == {
         (1, 2, 3)
     }
@@ -212,7 +212,7 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["objective_id"] == "objective_1_rr"
     assert response["status"] == "inconclusive"
-    assert response["provenance"]["product_version"] == "16.6.3"
+    assert response["provenance"]["product_version"] == "16.6.4"
 
 
 def test_study_evidence_routes_are_operator_protected(study_server: _ControlServer):

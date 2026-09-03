@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R13",
-  "effective_product_version": "16.6.3",
+  "register_revision": "R14",
+  "effective_product_version": "16.6.4",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -11,7 +11,9 @@
       "requirement_id": "RVT-QMS-001",
       "title": "Coordinated product identity",
       "statement": "Every shipped product carrier shall expose one authoritative semantic product version.",
-      "source_refs": ["AGENTS.md#one-release-increment-per-pr"],
+      "source_refs": [
+        "AGENTS.md#one-release-increment-per-pr"
+      ],
       "category": "quality",
       "risk_class": "high",
       "owner_role": "release_manager",
@@ -33,7 +35,14 @@
           "kind": "ci_check"
         }
       ],
-      "artifact_types": ["firmware_source", "trainer", "dashboard", "apk", "exe", "pwa"],
+      "artifact_types": [
+        "firmware_source",
+        "trainer",
+        "dashboard",
+        "apk",
+        "exe",
+        "pwa"
+      ],
       "acceptance_criteria": [
         "All product carriers equal the authoritative X.Y.Z value.",
         "A product-affecting pull request advances exactly one patch or one minor."
@@ -44,7 +53,10 @@
       "requirement_id": "RVT-QMS-002",
       "title": "Controlled change record",
       "statement": "Every implementation commit shall update the engineering handoff, and every pull request shall identify requirements, risk, verification, migration, and rollback.",
-      "source_refs": ["AGENTS.md#verification-protocol-every-commit", "quality/qms-policy.md#requirement-and-design-change-control"],
+      "source_refs": [
+        "AGENTS.md#verification-protocol-every-commit",
+        "quality/qms-policy.md#requirement-and-design-change-control"
+      ],
       "category": "quality",
       "risk_class": "high",
       "owner_role": "quality_manager",
@@ -61,7 +73,11 @@
           "kind": "ci_check"
         }
       ],
-      "artifact_types": ["change_record", "controlled_document", "release_record"],
+      "artifact_types": [
+        "change_record",
+        "controlled_document",
+        "release_record"
+      ],
       "acceptance_criteria": [
         "Each non-merge commit in the pull request changes HANDOFF.md.",
         "The pull request contains the required change-control sections and evidence."
@@ -72,13 +88,15 @@
       "requirement_id": "RVT-FW-001",
       "title": "Frozen serial acquisition contract",
       "statement": "Firmware and trainer shall preserve the 222-column v15.2 wire contract, the original 207-column prefix, and 219-column v15.1 replay compatibility.",
-      "source_refs": ["AGENTS.md#serial-protocol-is-frozen"],
+      "source_refs": [
+        "AGENTS.md#serial-protocol-is-frozen"
+      ],
       "category": "firmware",
       "risk_class": "critical",
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_6_3.ino",
+        "radar_vital_v16_6_4.ino",
         "packaging/firmware/arduino-toolchain.json",
         "rvt_trainer/monolith.py"
       ],
@@ -99,7 +117,11 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["firmware_source", "trainer", "session_csv"],
+      "artifact_types": [
+        "firmware_source",
+        "trainer",
+        "session_csv"
+      ],
       "acceptance_criteria": [
         "The current firmware emits exactly 222 ordered columns.",
         "Legacy 207- and 219-column inputs remain readable without shifting contractual fields."
@@ -110,7 +132,9 @@
       "requirement_id": "RVT-SEC-001",
       "title": "Private material is not web-served",
       "statement": "TLS keys and other private material shall remain outside public assets and all traversal attempts into private storage shall be denied.",
-      "source_refs": ["AGENTS.md#secrets-stay-out-of-assets"],
+      "source_refs": [
+        "AGENTS.md#secrets-stay-out-of-assets"
+      ],
       "category": "security",
       "risk_class": "critical",
       "owner_role": "security_owner",
@@ -143,7 +167,11 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["trainer", "dashboard", "pwa"],
+      "artifact_types": [
+        "trainer",
+        "dashboard",
+        "pwa"
+      ],
       "acceptance_criteria": [
         "No private-key path resolves through the static asset router.",
         "Private TLS material is ignored by Git and absent from packaged web assets.",
@@ -155,7 +183,9 @@
       "requirement_id": "RVT-SEC-002",
       "title": "Blocking dependency vulnerability gate",
       "statement": "Every supported Python, npm, and Rust dependency tree shall be reproducibly audited, and unresolved policy-level vulnerabilities shall fail CI unless a bounded approved exception is recorded.",
-      "source_refs": ["docs/release-and-protection.md#required-branch-protection-for-main"],
+      "source_refs": [
+        "docs/release-and-protection.md#required-branch-protection-for-main"
+      ],
       "category": "security",
       "risk_class": "high",
       "owner_role": "security_owner",
@@ -175,7 +205,14 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["trainer", "dashboard", "pwa", "apk", "exe", "ci_evidence"],
+      "artifact_types": [
+        "trainer",
+        "dashboard",
+        "pwa",
+        "apk",
+        "exe",
+        "ci_evidence"
+      ],
       "acceptance_criteria": [
         "The canonical Python requirements, all three npm lockfiles, and the Tauri Rust lockfile have no unresolved audit finding at the configured blocking level outside documented bounded exceptions.",
         "Audit failures produce a failing workflow conclusion instead of a successful advisory-only result.",
@@ -187,7 +224,9 @@
       "requirement_id": "RVT-SEC-003",
       "title": "Fail-closed operator credential persistence",
       "statement": "Operator credential mutations shall be atomic and fail closed, authentication lockout state shall not weaken after a persistence failure, and already-issued sessions shall remain usable during an operator-store outage.",
-      "source_refs": ["quality/qms-policy.md#requirement-and-design-change-control"],
+      "source_refs": [
+        "quality/qms-policy.md#requirement-and-design-change-control"
+      ],
       "category": "security",
       "risk_class": "critical",
       "owner_role": "security_owner",
@@ -224,7 +263,12 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["trainer", "dashboard", "operator_profile_store", "security_evidence"],
+      "artifact_types": [
+        "trainer",
+        "dashboard",
+        "operator_profile_store",
+        "security_evidence"
+      ],
       "acceptance_criteria": [
         "Credential-store writes use a validated, flushed temporary file and atomic replacement without a direct-write fallback.",
         "Profile creation and PIN or recovery-code mutation return OPERATOR_STORE_UNAVAILABLE without reporting success when durable persistence fails.",
@@ -237,7 +281,9 @@
       "requirement_id": "RVT-SSE-001",
       "title": "Bounded SSE lifetime and warning",
       "statement": "The trainer shall warn exactly 60 seconds before the 12-hour SSE deadline and the dashboard shall reconnect without clobbering session state.",
-      "source_refs": ["AGENTS.md#sse-telemetry-reconnect-contract"],
+      "source_refs": [
+        "AGENTS.md#sse-telemetry-reconnect-contract"
+      ],
       "category": "trainer",
       "risk_class": "high",
       "owner_role": "trainer_owner",
@@ -258,7 +304,11 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["trainer", "dashboard", "session_record"],
+      "artifact_types": [
+        "trainer",
+        "dashboard",
+        "session_record"
+      ],
       "acceptance_criteria": [
         "The warning event reason and seconds_remaining payload are exact.",
         "Reconnect retains active participant and session identity."
@@ -269,7 +319,9 @@
       "requirement_id": "RVT-SES-001",
       "title": "Participant and trial provenance",
       "statement": "Each study capture shall be immutably bound to one pseudonymous participant, trial condition, release identity, protocol identity, and model identity.",
-      "source_refs": ["docs/system-feedback-loop.md#participant-and-thesis-condition-session-contract"],
+      "source_refs": [
+        "docs/system-feedback-loop.md#participant-and-thesis-condition-session-contract"
+      ],
       "category": "session",
       "risk_class": "critical",
       "owner_role": "research_lead",
@@ -297,7 +349,12 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["session_manifest", "trainer", "dashboard", "statistical_report"],
+      "artifact_types": [
+        "session_manifest",
+        "trainer",
+        "dashboard",
+        "statistical_report"
+      ],
       "acceptance_criteria": [
         "A started session cannot be reassigned to another participant or condition.",
         "Confirmatory eligibility requires the frozen protocol and complete provenance.",
@@ -309,7 +366,9 @@
       "requirement_id": "RVT-COMP-001",
       "title": "Cross-release compatibility gate",
       "statement": "Known dashboard, trainer, firmware, protocol-width, or schema mismatches shall block real capture while incomplete legacy evidence remains explicitly unverified.",
-      "source_refs": ["HANDOFF.md#2026-07-29---gate-v1653-release-compatibility-and-preserve-failed-starts"],
+      "source_refs": [
+        "HANDOFF.md#2026-07-29---gate-v1653-release-compatibility-and-preserve-failed-starts"
+      ],
       "category": "session",
       "risk_class": "critical",
       "owner_role": "technical_lead",
@@ -330,7 +389,12 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["firmware_source", "trainer", "dashboard", "session_manifest"],
+      "artifact_types": [
+        "firmware_source",
+        "trainer",
+        "dashboard",
+        "session_manifest"
+      ],
       "acceptance_criteria": [
         "Every known incompatibility produces a stable blocking decision before capture.",
         "Missing legacy evidence cannot be reported as verified or confirmatory-eligible."
@@ -341,7 +405,9 @@
       "requirement_id": "RVT-SES-002",
       "title": "Idempotent session start",
       "statement": "Retries of one Start intent shall allocate and launch at most one session, while reuse with a different request shall be rejected.",
-      "source_refs": ["HANDOFF.md#2026-07-29---make-v1654-session-start-idempotent"],
+      "source_refs": [
+        "HANDOFF.md#2026-07-29---make-v1654-session-start-idempotent"
+      ],
       "category": "session",
       "risk_class": "critical",
       "owner_role": "trainer_owner",
@@ -362,7 +428,11 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["trainer", "dashboard", "session_manifest"],
+      "artifact_types": [
+        "trainer",
+        "dashboard",
+        "session_manifest"
+      ],
       "acceptance_criteria": [
         "Same-key same-request retries return one durable session result.",
         "Same-key different-request reuse cannot allocate or alter a session."
@@ -373,7 +443,9 @@
       "requirement_id": "RVT-SES-003",
       "title": "Protocol-attempt and completion evidence",
       "statement": "Every planned study attempt shall have an immutable logical-trial identity, a unique attempt record, append-only terminal state, and an auditable participant/no-subject denominator.",
-      "source_refs": ["docs/system-feedback-loop.md#participant-and-thesis-condition-session-contract"],
+      "source_refs": [
+        "docs/system-feedback-loop.md#participant-and-thesis-condition-session-contract"
+      ],
       "category": "session",
       "risk_class": "critical",
       "owner_role": "research_lead",
@@ -416,7 +488,12 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["protocol_attempt_ledger", "session_manifest", "participant_registry", "completion_matrix"],
+      "artifact_types": [
+        "protocol_attempt_ledger",
+        "session_manifest",
+        "participant_registry",
+        "completion_matrix"
+      ],
       "acceptance_criteria": [
         "Re-analysis cannot mutate capture release, participant, logical trial, or attempt identity.",
         "Failed, stopped, invalid, no-output, and no-subject attempts remain visible in denominators.",
@@ -430,7 +507,9 @@
       "requirement_id": "RVT-UI-001",
       "title": "Generated dashboard integrity",
       "statement": "The Angular source shall remain authoritative and the committed monolith and native web bundle shall be reproducible from it.",
-      "source_refs": ["AGENTS.md#file-touching-rules"],
+      "source_refs": [
+        "AGENTS.md#file-touching-rules"
+      ],
       "category": "frontend",
       "risk_class": "high",
       "owner_role": "frontend_owner",
@@ -457,7 +536,12 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["dashboard", "pwa", "apk", "exe"],
+      "artifact_types": [
+        "dashboard",
+        "pwa",
+        "apk",
+        "exe"
+      ],
       "acceptance_criteria": [
         "A clean Angular build reproduces the committed dashboard artifact.",
         "No user-facing behavior is added only to the generated monolith."
@@ -468,7 +552,10 @@
       "requirement_id": "RVT-ML-001",
       "title": "GBR and experimental 1-D CNN reproducibility",
       "statement": "Gradient boosting shall remain the default model family, 1-D CNN shall be an explicit experimental option, and participant-grouped validation shall fit preprocessing only on training folds.",
-      "source_refs": ["docs/model-family-guide.md", "docs/system-feedback-loop.md#statistical-interpretation-rule"],
+      "source_refs": [
+        "docs/model-family-guide.md",
+        "docs/system-feedback-loop.md#statistical-interpretation-rule"
+      ],
       "category": "ml",
       "risk_class": "critical",
       "owner_role": "research_lead",
@@ -535,7 +622,12 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["trainer", "model_bundle", "dataset_manifest", "statistical_report"],
+      "artifact_types": [
+        "trainer",
+        "model_bundle",
+        "dataset_manifest",
+        "statistical_report"
+      ],
       "acceptance_criteria": [
         "GBR remains available without the optional CNN dependency.",
         "Participant capture remains model-agnostic unless a verified runtime bundle is active; family selection is recorded by the analysis job.",
@@ -549,7 +641,10 @@
       "requirement_id": "RVT-RES-001",
       "title": "Fail-closed pre-collection authorization",
       "statement": "Recruitment, confirmatory capture, confirmatory no-subject evidence, and confirmatory analysis shall remain blocked until a separate dated authorization matches the approved plan, locked protocol, study schema, approvals, withdrawal policy, and physical timing evidence.",
-      "source_refs": ["docs/precollection-readiness.md", "quality/precollection-readiness.json"],
+      "source_refs": [
+        "docs/precollection-readiness.md",
+        "quality/precollection-readiness.json"
+      ],
       "category": "session",
       "risk_class": "critical",
       "owner_role": "research_lead",
@@ -589,7 +684,13 @@
           "kind": "automated_test"
         }
       ],
-      "artifact_types": ["readiness_manifest", "collection_authorization", "sync_anchors", "alignment_report", "dashboard"],
+      "artifact_types": [
+        "readiness_manifest",
+        "collection_authorization",
+        "sync_anchors",
+        "alignment_report",
+        "dashboard"
+      ],
       "acceptance_criteria": [
         "Protocol locked means configuration-frozen and never implies collection authorization.",
         "The default and checked-in state returns 412 STUDY_COLLECTION_NOT_AUTHORIZED before participant, attempt, idempotency, reservation, session, or analysis mutation.",
@@ -603,7 +704,9 @@
       "requirement_id": "RVT-STA-001",
       "title": "Predeclared statistical analysis",
       "statement": "Confirmatory RMSE, TOST, repeated-measures agreement, coverage, and exact false-alarm analyses shall use versioned predeclared inputs and participant-balanced outputs.",
-      "source_refs": ["docs/system-feedback-loop.md#statistical-interpretation-rule"],
+      "source_refs": [
+        "docs/system-feedback-loop.md#statistical-interpretation-rule"
+      ],
       "category": "statistics",
       "risk_class": "critical",
       "owner_role": "research_lead",
@@ -659,7 +762,11 @@
           "kind": "manual_acceptance"
         }
       ],
-      "artifact_types": ["analysis_plan", "statistical_report", "manuscript_table"],
+      "artifact_types": [
+        "analysis_plan",
+        "statistical_report",
+        "manuscript_table"
+      ],
       "acceptance_criteria": [
         "Equivalence margins, alpha, hierarchy, aggregation, and exclusions are fixed before confirmatory evaluation.",
         "Outputs retain participant, trial, session, prediction, coverage, and uncertainty denominators.",
@@ -674,7 +781,10 @@
       "requirement_id": "RVT-REL-001",
       "title": "Reproducible authorized release",
       "statement": "Every published release shall bind the approved source commit, controlled-document revision, verification evidence, final artifact hashes, signing state, authorization, and rollback strategy.",
-      "source_refs": ["quality/qms-policy.md#release-authorization-and-rollback", "docs/release-and-protection.md"],
+      "source_refs": [
+        "quality/qms-policy.md#release-authorization-and-rollback",
+        "docs/release-and-protection.md"
+      ],
       "category": "release",
       "risk_class": "critical",
       "owner_role": "release_manager",
@@ -738,7 +848,15 @@
           "kind": "ci_check"
         }
       ],
-      "artifact_types": ["apk", "aab", "exe", "release_manifest", "release_record", "checksums", "attestation"],
+      "artifact_types": [
+        "apk",
+        "aab",
+        "exe",
+        "release_manifest",
+        "release_record",
+        "checksums",
+        "attestation"
+      ],
       "acceptance_criteria": [
         "The release tag product version matches the authoritative source version.",
         "Hashes describe the final published bytes after signing.",
@@ -757,7 +875,9 @@
       "requirement_id": "RVT-DOC-001",
       "title": "Reproducibility and manuscript feedback loop",
       "statement": "Hardware, firmware, trainer, dashboard, GBR, experimental 1-D CNN, statistics, and manuscript outputs shall remain connected by one controlled reproducibility process.",
-      "source_refs": ["docs/system-feedback-loop.md"],
+      "source_refs": [
+        "docs/system-feedback-loop.md"
+      ],
       "category": "documentation",
       "risk_class": "high",
       "owner_role": "research_lead",
@@ -778,10 +898,171 @@
           "kind": "manual_acceptance"
         }
       ],
-      "artifact_types": ["controlled_document", "diagram", "model_bundle", "statistical_report", "manuscript"],
+      "artifact_types": [
+        "controlled_document",
+        "diagram",
+        "model_bundle",
+        "statistical_report",
+        "manuscript"
+      ],
       "acceptance_criteria": [
         "The diagram names the current product and protocol identity without implying firmware CNN inference.",
         "Every model and statistical output has a defined manuscript destination and reproducibility record."
+      ],
+      "change_record_required": true
+    },
+    {
+      "requirement_id": "RVT-THESIS-001",
+      "title": "Hardware and subsystem design",
+      "statement": "Radar-sensing, temperature-sensing, embedded-inference, and alert subsystems shall be designed with a KiCad PCB layout providing single-carrier power and signal interconnect.",
+      "source_refs": [
+        "docs/manuscript/manuscript.tex#sec:intro",
+        "docs/manuscript/manuscript.tex#sec:hw-design"
+      ],
+      "category": "quality",
+      "risk_class": "high",
+      "owner_role": "technical_lead",
+      "status": "active",
+      "implementation_paths": [
+        "docs/manuscript/manuscript.tex",
+        "docs/system-feedback-loop.md",
+        "docs/physical-acceptance-checklist.md"
+      ],
+      "verification_refs": [
+        {
+          "path": "tests/test_v12_static_contract.py",
+          "selector": "test_packaging_scaffolds_exist",
+          "kind": "automated_test"
+        },
+        {
+          "path": "docs/physical-acceptance-checklist.md",
+          "selector": "Hardware and sensor integration checklist",
+          "kind": "manual_acceptance"
+        }
+      ],
+      "artifact_types": [
+        "schematic",
+        "pcb_layout",
+        "controlled_document"
+      ],
+      "acceptance_criteria": [
+        "KiCad PCB layout defines power-supply net and headers for MR60BHA2, MLX90614, and ESP32-C6.",
+        "Design verified via ERC and breadboard bring-up before fabrication commitment."
+      ],
+      "change_record_required": true
+    },
+    {
+      "requirement_id": "RVT-THESIS-002",
+      "title": "Enclosure build and form-factor trade-off analysis",
+      "statement": "Enclosure shall be fabricated via FDM 3D printing in PETG/ABS with a documented trade-off analysis between handheld-scanner and tripod-mounted form factors selecting tripod mounting for validation.",
+      "source_refs": [
+        "docs/manuscript/manuscript.tex#sec:tradeoff",
+        "docs/manuscript/manuscript.tex#sec:build"
+      ],
+      "category": "quality",
+      "risk_class": "medium",
+      "owner_role": "technical_lead",
+      "status": "active",
+      "implementation_paths": [
+        "docs/manuscript/manuscript.tex",
+        "docs/physical-acceptance-checklist.md"
+      ],
+      "verification_refs": [
+        {
+          "path": "docs/physical-acceptance-checklist.md",
+          "selector": "Physical acceptance inspection",
+          "kind": "manual_acceptance"
+        }
+      ],
+      "artifact_types": [
+        "cad_model",
+        "enclosure",
+        "controlled_document"
+      ],
+      "acceptance_criteria": [
+        "Trade-off analysis compares handheld vs tripod across 6 operational criteria.",
+        "Tripod mount selected for bench accuracy validation; 1/4-20 mount insert integrated."
+      ],
+      "change_record_required": true
+    },
+    {
+      "requirement_id": "RVT-THESIS-003",
+      "title": "Subsystem integration and staged firmware chain",
+      "statement": "MR60BHA2 radar, XIAO ESP32-C6, MLX90614, LCD/buzzer, and GBR C branch-comparison inference shall integrate into a single firmware unit with staged module bring-up.",
+      "source_refs": [
+        "docs/manuscript/manuscript.tex#sec:integrate"
+      ],
+      "category": "firmware",
+      "risk_class": "critical",
+      "owner_role": "firmware_owner",
+      "status": "active",
+      "implementation_paths": [
+        "radar_vital_v16_6_4.ino",
+        "rvt_trainer/monolith.py"
+      ],
+      "verification_refs": [
+        {
+          "path": "scripts/check-version-contract.mjs",
+          "selector": "Version contract valid",
+          "kind": "ci_check"
+        },
+        {
+          "path": ".github/workflows/playwright.yml",
+          "selector": "Compile default and gated BLE firmware",
+          "kind": "ci_check"
+        }
+      ],
+      "artifact_types": [
+        "firmware_source",
+        "trainer",
+        "controlled_document"
+      ],
+      "acceptance_criteria": [
+        "Firmware compiles cleanly for XIAO ESP32-C6 without external ML runtime.",
+        "Staged bring-up validates raw UART, I2C temperature, FIR/FFT features, GBR inference, and UI."
+      ],
+      "change_record_required": true
+    },
+    {
+      "requirement_id": "RVT-THESIS-004",
+      "title": "Controlled 10-configuration validation protocol",
+      "statement": "Prototype RR and HR accuracy, agreement, and valid-output rate shall be tested against human references across 10 randomized configurations (0.6, 0.8, 1.0, 2.0, 3.0 m with and without cardboard).",
+      "source_refs": [
+        "docs/manuscript/manuscript.tex#sec:test-obj4",
+        "quality/precollection-readiness.json"
+      ],
+      "category": "session",
+      "risk_class": "critical",
+      "owner_role": "research_lead",
+      "status": "active",
+      "implementation_paths": [
+        "rvt_trainer/session/study_objectives.py",
+        "rvt_trainer/session/protocol_ledger.py",
+        "rvt_trainer/session/study_evidence.py",
+        "rvt_trainer/evaluation_split.py",
+        "rvt_trainer/statistics.py",
+        "quality/precollection-readiness.json"
+      ],
+      "verification_refs": [
+        {
+          "path": "scripts/check-qms-contract.mjs",
+          "selector": "QMS contract OK",
+          "kind": "ci_check"
+        },
+        {
+          "path": "tests/test_precollection_readiness.py",
+          "selector": "test_precollection_manifest_records_recruitment_and_capture_arithmetic",
+          "kind": "automated_test"
+        }
+      ],
+      "artifact_types": [
+        "controlled_document",
+        "statistical_plan",
+        "readiness_manifest"
+      ],
+      "acceptance_criteria": [
+        "Protocol defines 10 confirmatory conditions, 30 trials per complete participant, 1,140 minimum captures.",
+        "Temperature evaluation restricted to 0.6 m unobstructed; false alarms evaluated over 72 no-subject trials."
       ],
       "change_record_required": true
     }

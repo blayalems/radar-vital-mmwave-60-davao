@@ -254,7 +254,7 @@ def test_firmware_compile_uses_the_pinned_toolchain_contract():
     assert lock["arduino_cli"] == "1.5.1"
     assert lock["fqbn"] == "esp32:esp32:XIAO_ESP32C6"
     assert lock["core"] == "esp32:esp32@3.3.11"
-    assert lock["sketch"] == "radar_vital_v16_6_3.ino"
+    assert lock["sketch"] == "radar_vital_v16_6_4.ino"
     assert lock["libraries"]["NimBLE-Arduino"] == "2.5.1"
     assert len(lock["seeed_mmwave_commit"]) == 40
     assert all("main" not in str(value) and "latest" not in str(value) for value in lock.values())

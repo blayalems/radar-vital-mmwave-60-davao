@@ -45,9 +45,13 @@ CONFIRMATORY_CONDITION_IDS = (
     "d060_none",
     "d080_none",
     "d100_none",
+    "d200_none",
+    "d300_none",
     "d060_cardboard",
     "d080_cardboard",
     "d100_cardboard",
+    "d200_cardboard",
+    "d300_cardboard",
 )
 TRIAL_NUMBERS = (1, 2, 3)
 NO_SUBJECT_MIN_DURATION_S = 150.0

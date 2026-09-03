@@ -2,8 +2,8 @@
   "$schema": "./schemas/document-register.schema.json",
   "schema_version": "rvt-qms-document-register-v1",
   "register_id": "RVT-QMS-REG-001",
-  "register_revision": "R16",
-  "effective_product_version": "16.6.3",
+  "register_revision": "R17",
+  "effective_product_version": "16.6.4",
   "status": "active",
   "owner_role": "quality_manager",
   "approval_method": "protected_pull_request",
@@ -16,7 +16,10 @@
       "revision": "R05",
       "status": "active",
       "owner_role": "quality_manager",
-      "approver_roles": ["quality_manager", "technical_lead"],
+      "approver_roles": [
+        "quality_manager",
+        "technical_lead"
+      ],
       "effective_product_version": "16.5.10",
       "supersedes": null,
       "retention": {
@@ -31,11 +34,14 @@
       "title": "Controlled Document Register",
       "path": "quality/document-register.json",
       "record_type": "register",
-      "revision": "R16",
+      "revision": "R17",
       "status": "active",
       "owner_role": "quality_manager",
-      "approver_roles": ["quality_manager", "technical_lead"],
-      "effective_product_version": "16.6.3",
+      "approver_roles": [
+        "quality_manager",
+        "technical_lead"
+      ],
+      "effective_product_version": "16.6.4",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -49,11 +55,15 @@
       "title": "Requirements Traceability Register",
       "path": "quality/requirements.json",
       "record_type": "register",
-      "revision": "R13",
+      "revision": "R14",
       "status": "active",
       "owner_role": "quality_manager",
-      "approver_roles": ["quality_manager", "technical_lead", "research_lead"],
-      "effective_product_version": "16.6.3",
+      "approver_roles": [
+        "quality_manager",
+        "technical_lead",
+        "research_lead"
+      ],
+      "effective_product_version": "16.6.4",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -70,7 +80,10 @@
       "revision": "R01",
       "status": "active",
       "owner_role": "quality_manager",
-      "approver_roles": ["quality_manager", "technical_lead"],
+      "approver_roles": [
+        "quality_manager",
+        "technical_lead"
+      ],
       "effective_product_version": "16.5.5",
       "supersedes": null,
       "retention": {
@@ -88,7 +101,10 @@
       "revision": "R01",
       "status": "active",
       "owner_role": "quality_manager",
-      "approver_roles": ["quality_manager", "technical_lead"],
+      "approver_roles": [
+        "quality_manager",
+        "technical_lead"
+      ],
       "effective_product_version": "16.5.5",
       "supersedes": null,
       "retention": {
@@ -106,7 +122,11 @@
       "revision": "R01",
       "status": "active",
       "owner_role": "release_manager",
-      "approver_roles": ["quality_manager", "release_manager", "technical_lead"],
+      "approver_roles": [
+        "quality_manager",
+        "release_manager",
+        "technical_lead"
+      ],
       "effective_product_version": "16.5.5",
       "supersedes": null,
       "retention": {
@@ -124,7 +144,10 @@
       "revision": "R01",
       "status": "active",
       "owner_role": "quality_manager",
-      "approver_roles": ["quality_manager", "technical_lead"],
+      "approver_roles": [
+        "quality_manager",
+        "technical_lead"
+      ],
       "effective_product_version": "16.5.5",
       "supersedes": null,
       "retention": {
@@ -142,7 +165,10 @@
       "revision": "R01",
       "status": "active",
       "owner_role": "technical_lead",
-      "approver_roles": ["quality_manager", "technical_lead"],
+      "approver_roles": [
+        "quality_manager",
+        "technical_lead"
+      ],
       "effective_product_version": "16.5.5",
       "supersedes": null,
       "retention": {
@@ -157,11 +183,14 @@
       "title": "Repository Agent Contract",
       "path": "AGENTS.md",
       "record_type": "procedure",
-      "revision": "R12",
+      "revision": "R13",
       "status": "active",
       "owner_role": "technical_lead",
-      "approver_roles": ["technical_lead", "quality_manager"],
-      "effective_product_version": "16.6.3",
+      "approver_roles": [
+        "technical_lead",
+        "quality_manager"
+      ],
+      "effective_product_version": "16.6.4",
       "supersedes": null,
       "retention": {
         "class": "project_lifetime_plus_5_years",
@@ -175,11 +204,13 @@
       "title": "Engineering Handoff Record",
       "path": "HANDOFF.md",
       "record_type": "record",
-      "revision": "R16",
+      "revision": "R17",
       "status": "active",
       "owner_role": "technical_lead",
-      "approver_roles": ["technical_lead"],
-      "effective_product_version": "16.6.3",
+      "approver_roles": [
+        "technical_lead"
+      ],
+      "effective_product_version": "16.6.4",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -193,11 +224,14 @@
       "title": "Product Changelog",
       "path": "CHANGELOG.md",
       "record_type": "record",
-      "revision": "R13",
+      "revision": "R14",
       "status": "active",
       "owner_role": "release_manager",
-      "approver_roles": ["release_manager", "quality_manager"],
-      "effective_product_version": "16.6.3",
+      "approver_roles": [
+        "release_manager",
+        "quality_manager"
+      ],
+      "effective_product_version": "16.6.4",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -211,11 +245,14 @@
       "title": "Project README",
       "path": "README.md",
       "record_type": "guide",
-      "revision": "R12",
+      "revision": "R13",
       "status": "active",
       "owner_role": "technical_lead",
-      "approver_roles": ["technical_lead", "quality_manager"],
-      "effective_product_version": "16.6.3",
+      "approver_roles": [
+        "technical_lead",
+        "quality_manager"
+      ],
+      "effective_product_version": "16.6.4",
       "supersedes": null,
       "retention": {
         "class": "project_lifetime_plus_5_years",
@@ -232,7 +269,10 @@
       "revision": "R12",
       "status": "active",
       "owner_role": "technical_lead",
-      "approver_roles": ["technical_lead", "quality_manager"],
+      "approver_roles": [
+        "technical_lead",
+        "quality_manager"
+      ],
       "effective_product_version": "16.6.3",
       "supersedes": null,
       "retention": {
@@ -250,7 +290,11 @@
       "revision": "R10",
       "status": "active",
       "owner_role": "release_manager",
-      "approver_roles": ["release_manager", "quality_manager", "security_owner"],
+      "approver_roles": [
+        "release_manager",
+        "quality_manager",
+        "security_owner"
+      ],
       "effective_product_version": "16.6.3",
       "supersedes": null,
       "retention": {
@@ -268,7 +312,11 @@
       "revision": "R11",
       "status": "active",
       "owner_role": "research_lead",
-      "approver_roles": ["research_lead", "technical_lead", "quality_manager"],
+      "approver_roles": [
+        "research_lead",
+        "technical_lead",
+        "quality_manager"
+      ],
       "effective_product_version": "16.6.3",
       "supersedes": null,
       "retention": {
@@ -286,7 +334,11 @@
       "revision": "R05",
       "status": "active",
       "owner_role": "research_lead",
-      "approver_roles": ["research_lead", "trainer_owner", "quality_manager"],
+      "approver_roles": [
+        "research_lead",
+        "trainer_owner",
+        "quality_manager"
+      ],
       "effective_product_version": "16.5.10",
       "supersedes": null,
       "retention": {
@@ -304,7 +356,11 @@
       "revision": "R10",
       "status": "active",
       "owner_role": "research_lead",
-      "approver_roles": ["research_lead", "firmware_owner", "quality_manager"],
+      "approver_roles": [
+        "research_lead",
+        "firmware_owner",
+        "quality_manager"
+      ],
       "effective_product_version": "16.6.3",
       "supersedes": null,
       "retention": {
@@ -319,11 +375,14 @@
       "title": "Statistical Analysis Plan",
       "path": "quality/statistical-analysis-plan.json",
       "record_type": "plan",
-      "revision": "R02",
+      "revision": "R03",
       "status": "draft",
       "owner_role": "research_lead",
-      "approver_roles": ["research_lead", "quality_manager"],
-      "effective_product_version": "16.6.1",
+      "approver_roles": [
+        "research_lead",
+        "quality_manager"
+      ],
+      "effective_product_version": "16.6.4",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -337,11 +396,14 @@
       "title": "Statistical Analysis Plan Schema",
       "path": "quality/schemas/statistical-analysis-plan.schema.json",
       "record_type": "schema",
-      "revision": "R02",
+      "revision": "R03",
       "status": "active",
       "owner_role": "quality_manager",
-      "approver_roles": ["quality_manager", "research_lead"],
-      "effective_product_version": "16.6.1",
+      "approver_roles": [
+        "quality_manager",
+        "research_lead"
+      ],
+      "effective_product_version": "16.6.4",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -358,7 +420,10 @@
       "revision": "R02",
       "status": "active",
       "owner_role": "quality_manager",
-      "approver_roles": ["quality_manager", "research_lead"],
+      "approver_roles": [
+        "quality_manager",
+        "research_lead"
+      ],
       "effective_product_version": "16.6.1",
       "supersedes": null,
       "retention": {
@@ -373,13 +438,20 @@
       "title": "Pre-collection Readiness Manifest",
       "path": "quality/precollection-readiness.json",
       "record_type": "plan",
-      "revision": "R01",
+      "revision": "R02",
       "status": "active",
       "owner_role": "research_lead",
-      "approver_roles": ["research_lead", "quality_manager", "security_owner"],
-      "effective_product_version": "16.6.2",
+      "approver_roles": [
+        "research_lead",
+        "quality_manager",
+        "security_owner"
+      ],
+      "effective_product_version": "16.6.4",
       "supersedes": null,
-      "retention": {"class": "permanent", "disposition": "retain"},
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
       "confidentiality": "public",
       "review_interval_months": 3
     },
@@ -391,10 +463,16 @@
       "revision": "R01",
       "status": "active",
       "owner_role": "quality_manager",
-      "approver_roles": ["quality_manager", "research_lead"],
+      "approver_roles": [
+        "quality_manager",
+        "research_lead"
+      ],
       "effective_product_version": "16.6.2",
       "supersedes": null,
-      "retention": {"class": "permanent", "disposition": "retain"},
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
       "confidentiality": "public",
       "review_interval_months": 12
     },
@@ -406,10 +484,17 @@
       "revision": "R01",
       "status": "active",
       "owner_role": "quality_manager",
-      "approver_roles": ["quality_manager", "release_manager", "technical_lead"],
-      "effective_product_version": "16.6.3",
+      "approver_roles": [
+        "quality_manager",
+        "release_manager",
+        "technical_lead"
+      ],
+      "effective_product_version": "16.6.4",
       "supersedes": null,
-      "retention": {"class": "permanent", "disposition": "retain"},
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
       "confidentiality": "public",
       "review_interval_months": 12
     },
@@ -418,13 +503,20 @@
       "title": "Pre-collection Readiness and External Gates",
       "path": "docs/precollection-readiness.md",
       "record_type": "procedure",
-      "revision": "R01",
+      "revision": "R02",
       "status": "active",
       "owner_role": "research_lead",
-      "approver_roles": ["research_lead", "quality_manager", "security_owner"],
-      "effective_product_version": "16.6.2",
+      "approver_roles": [
+        "research_lead",
+        "quality_manager",
+        "security_owner"
+      ],
+      "effective_product_version": "16.6.4",
       "supersedes": null,
-      "retention": {"class": "permanent", "disposition": "retain"},
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
       "confidentiality": "public",
       "review_interval_months": 3
     },
@@ -436,10 +528,16 @@
       "revision": "R01",
       "status": "superseded",
       "owner_role": "technical_lead",
-      "approver_roles": ["technical_lead", "quality_manager"],
+      "approver_roles": [
+        "technical_lead",
+        "quality_manager"
+      ],
       "effective_product_version": "16.6.2",
       "supersedes": null,
-      "retention": {"class": "permanent", "disposition": "retain"},
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
       "confidentiality": "public",
       "review_interval_months": 12
     },
@@ -451,12 +549,40 @@
       "revision": "R02",
       "status": "active",
       "owner_role": "technical_lead",
-      "approver_roles": ["technical_lead", "research_lead", "quality_manager"],
+      "approver_roles": [
+        "technical_lead",
+        "research_lead",
+        "quality_manager"
+      ],
       "effective_product_version": "16.6.3",
       "supersedes": "RVT-QMS-PLN-000",
-      "retention": {"class": "permanent", "disposition": "retain"},
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
       "confidentiality": "public",
       "review_interval_months": 3
+    },
+    {
+      "document_id": "RVT-QMS-MAN-001",
+      "title": "IEEE Conference Thesis Manuscript",
+      "path": "docs/manuscript/manuscript.tex",
+      "record_type": "record",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "research_lead",
+      "approver_roles": [
+        "research_lead",
+        "quality_manager"
+      ],
+      "effective_product_version": "16.6.4",
+      "supersedes": null,
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 12
     }
   ]
 }

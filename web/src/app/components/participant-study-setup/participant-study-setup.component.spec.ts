@@ -54,12 +54,12 @@ describe('participant study contract', () => {
     };
     expect(studySetupError(valid)).toBe('');
     expect(studySetupError({ ...valid, participant_id: '' })).toContain('participant');
-    expect(studySetupError({ ...valid, distance_m: 0.7 })).toContain('0.6, 0.8, or 1.0');
+    expect(studySetupError({ ...valid, distance_m: 0.7 })).toContain('0.6, 0.8, 1.0, 2.0, or 3.0');
     expect(studySetupError({ ...valid, duration_s: 120 })).toContain('150 seconds');
     expect(studySetupError({ ...valid, trial_number: 4 })).toContain('trial 1, 2, or 3');
   });
 
-  it('allows exploratory captures only inside the 0.5 to 1.0 m development range', () => {
+  it('allows exploratory captures only inside the 0.5 to 3.0 m development range', () => {
     const valid = {
       ...initialSetup(),
       participant_id: 'P-002',
@@ -67,8 +67,8 @@ describe('participant study contract', () => {
       distance_m: 0.55
     };
     expect(studySetupError(valid)).toBe('');
-    expect(studySetupError({ ...valid, distance_m: 0.49 })).toContain('0.5 to 1.0');
-    expect(studySetupError({ ...valid, distance_m: 1.01 })).toContain('0.5 to 1.0');
+    expect(studySetupError({ ...valid, distance_m: 0.49 })).toContain('0.5 to 3.0');
+    expect(studySetupError({ ...valid, distance_m: 3.01 })).toContain('0.5 to 3.0');
   });
 });
 

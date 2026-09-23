@@ -133,7 +133,7 @@ jobs:
           echo "seeed_repository=$(jq -r .seeed_mmwave_repository "$lock")" >> "$GITHUB_OUTPUT"
           echo "seeed_commit=$(jq -r .seeed_mmwave_commit "$lock")" >> "$GITHUB_OUTPUT"
 
-      - uses: arduino/setup-arduino-cli@7ef629dcdf0f458ab7ae83149d629443deac6eac
+      - uses: arduino/setup-arduino-cli@81d310742121c928ea9c8bbd407b4217b432ae02
         with:
           version: '1.5.1'
 

@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-11-18 - Fix PR #165 CI checks: npm security audit, Gradle Maven mirror, Playwright Ubuntu 24.04, and Home snapshots
+
+- **Security Audit Remediation**: Updated root `package-lock.json` (`@capacitor/android` 7.6.10, `brace-expansion`, `glob`, `minimatch`), `packaging/capacitor/package-lock.json` (`@capacitor/android` 8.6.2, `brace-expansion`, `glob`, `minimatch`), and `web/package.json`/`web/package-lock.json` (`@angular/*` 21.2.26/21.2.30, `@modelcontextprotocol/sdk` 1.32.2, `undici` 7.30.2, `piscina` 5.3.2, `glob` 14.0.6, `minimatch` 11.0.9); root, Capacitor, and `web --omit=dev` all report 0 vulnerabilities, and `.github/workflows/security-audit.yml` scopes a temporary dev-only exception for unpatched `GHSA-fc5q-39xc-vjpf` (`picomatch <=4.0.7`, expiry `2027-02-18`).
+- **Capacitor APK CI Resilience**: Added a Gradle `init.d` Google Maven Central mirror (`https://maven-central.storage-download.googleapis.com/maven2`) and `--max-workers=2` in `.github/workflows/build-apk.yml` to prevent `repo.maven.apache.org` HTTP 429 rate-limit failures.
+- **Playwright Runner & Visual Baselines**: Pinned `.github/workflows/playwright.yml` Linux jobs to `ubuntu-24.04` (Playwright 1.55.1 rejects `ubuntu26.04-x64`), rebuilt `www/` and `radar_vital_live_dashboard_v12_for_v16_0.html`, and refreshed the 4 desktop Home visual baseline PNGs (`O4 · E1`..`E4` chip labels).
+
 ### 2026-11-18 - Align manuscript, objectives contract, and QMS with September 2026 approved thesis (v16.6.5)
 
 - **Approved Manuscript Source**: Updated `docs/manuscript/manuscript.tex` to the approved September 2026 IEEE manuscript (updated Section I objectives including body temperature, Section II-C..II-F layout, two-layer KiCad PCB with IF ground-plane shielding, 1/4-20 tripod/handheld FDM enclosures, staged subsystem integration with >=30-min isolated soaks, uninterrupted 8-hour burn-in, and Functionality testing).

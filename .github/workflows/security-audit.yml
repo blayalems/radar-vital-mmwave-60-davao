@@ -47,8 +47,48 @@ jobs:
       - name: npm audit (root)
         run: npm audit --audit-level=moderate
 
-      - name: npm audit (web)
-        run: npm --prefix web audit --audit-level=moderate
+      - name: npm audit (web production)
+        run: npm --prefix web audit --omit=dev --audit-level=moderate
+
+      # GHSA-fc5q-39xc-vjpf affects picomatch <=4.0.7 (latest published version;
+      # no upstream fix yet) via build/test devDependencies (@angular/build,
+      # vitest, tinyglobby, @parcel/watcher) and is not shipped in www/ or the
+      # monolith dashboard. Owner: frontend_owner. Compensating control:
+      # production dependency tree (--omit=dev) must have zero moderate+ findings
+      # and devDependencies are audited against an explicit allowlist below.
+      # Expiry: 2027-02-18 or when picomatch >4.0.7 is released.
+      - name: npm audit (web devDependencies with scoped exception)
+        shell: bash
+        run: |
+          set -euo pipefail
+          audit_json="$(mktemp)"
+          trap 'rm -f "$audit_json"' EXIT
+          npm --prefix web audit --audit-level=moderate --json > "$audit_json" || true
+          node -e '
+            const fs = require("node:fs");
+            const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            if (!data || typeof data.vulnerabilities !== "object" || data.error) {
+              console.error("Invalid npm audit report:", data?.error || "missing vulnerabilities");
+              process.exit(1);
+            }
+            const allowed = new Set(["GHSA-fc5q-39xc-vjpf"]);
+            const blocked = new Set(["moderate", "high", "critical"]);
+            const unexpected = [];
+            for (const [pkg, info] of Object.entries(data.vulnerabilities)) {
+              if (!blocked.has(info.severity)) continue;
+              for (const via of info.via || []) {
+                if (typeof via === "object" && via.url) {
+                  const id = String(via.url).split("/").pop();
+                  if (!allowed.has(id)) unexpected.push(`${pkg}:${id}:${via.severity}`);
+                }
+              }
+            }
+            if (unexpected.length) {
+              console.error("Unexpected web npm advisories:", unexpected.join(", "));
+              process.exit(1);
+            }
+            console.log("Web devDependency audit clean apart from scoped GHSA-fc5q-39xc-vjpf.");
+          ' "$audit_json"
 
       - name: npm audit (Capacitor packaging)
         run: npm --prefix packaging/capacitor audit --audit-level=moderate

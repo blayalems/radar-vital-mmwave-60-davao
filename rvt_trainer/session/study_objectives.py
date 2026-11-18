@@ -1,15 +1,84 @@
-"""Machine-readable study objectives from the draft manuscript protocol."""
+"""Machine-readable study objectives from the approved manuscript protocol.
+
+The approved September 2026 manuscript (``docs/manuscript/manuscript.tex``)
+states four specific thesis objectives: design, build, integrate, and test.
+The analysis endpoints below keep their stable historical identifiers
+(``objective_1_rr`` ... ``objective_4_hr``) because routes, analysis jobs, and
+reports are keyed by them; each endpoint is explicitly mapped to thesis
+Objective 4 (test) and manuscript Section II-F (Functionality testing) so the
+endpoint ``number`` is never confused with the thesis objective number.
+"""
 
 from __future__ import annotations
 
 from typing import Dict, List
 
-STUDY_OBJECTIVES_SCHEMA_VERSION = "rvt-study-objectives-v16.5.9"
+STUDY_OBJECTIVES_SCHEMA_VERSION = "rvt-study-objectives-v16.6.5"
+
+MANUSCRIPT_IDENTITY: Dict[str, object] = {
+    "path": "docs/manuscript/manuscript.tex",
+    "document_id": "RVT-QMS-MAN-001",
+    "approval_state": "approved_manuscript_2026_09",
+    "testing_section": "II-F",
+    "testing_heading": "Functionality testing",
+}
+
+_THESIS_OBJECTIVES: List[Dict[str, object]] = [
+    {
+        "number": 1,
+        "phase": "design",
+        "statement": (
+            "Design a non-contact vital signs monitoring system that uses 60-GHz millimeter-wave "
+            "sensing and an ESP32 microcontroller to detect respiratory rate, heart rate, and body temperature."
+        ),
+        "requirement_id": "RVT-THESIS-001",
+        "manuscript_sections": ["I", "II-C", "II-D"],
+    },
+    {
+        "number": 2,
+        "phase": "build",
+        "statement": (
+            "Build the individual hardware components of the system, including the millimeter-wave "
+            "sensing module, ESP32-based processing unit, and user-interface module."
+        ),
+        "requirement_id": "RVT-THESIS-002",
+        "manuscript_sections": ["I", "II-D", "II-E", "II-F"],
+    },
+    {
+        "number": 3,
+        "phase": "integrate",
+        "statement": (
+            "Integrate the built components into a single functional prototype capable of continuous "
+            "non-contact vital signs monitoring."
+        ),
+        "requirement_id": "RVT-THESIS-003",
+        "manuscript_sections": ["I", "II-F"],
+    },
+    {
+        "number": 4,
+        "phase": "test",
+        "statement": (
+            "Test the performance of the integrated prototype in detecting respiratory rate, heart rate, "
+            "and body temperature by comparing its readings against a reference measurement device under "
+            "controlled test conditions."
+        ),
+        "requirement_id": "RVT-THESIS-004",
+        "manuscript_sections": ["I", "II-F"],
+        "analysis_endpoint_ids": [
+            "objective_1_rr",
+            "objective_2_temperature",
+            "objective_3_false_alarm",
+            "objective_4_hr",
+        ],
+    },
+]
 
 _OBJECTIVES: List[Dict[str, object]] = [
     {
         "id": "objective_1_rr",
         "number": 1,
+        "thesis_objective": 4,
+        "manuscript_section": "II-F",
         "outcome": "rr",
         "label": "GBR-assisted respiration-rate equivalence",
         "role": "confirmatory",
@@ -29,6 +98,8 @@ _OBJECTIVES: List[Dict[str, object]] = [
     {
         "id": "objective_2_temperature",
         "number": 2,
+        "thesis_objective": 4,
+        "manuscript_section": "II-F",
         "outcome": "temperature",
         "label": "Unobstructed skin-surface-temperature agreement",
         "role": "exploratory",
@@ -40,6 +111,8 @@ _OBJECTIVES: List[Dict[str, object]] = [
     {
         "id": "objective_3_false_alarm",
         "number": 3,
+        "thesis_objective": 4,
+        "manuscript_section": "II-F",
         "outcome": "false_alarm",
         "label": "No-subject false-alarm rate",
         "role": "confirmatory",
@@ -52,6 +125,8 @@ _OBJECTIVES: List[Dict[str, object]] = [
     {
         "id": "objective_4_hr",
         "number": 4,
+        "thesis_objective": 4,
+        "manuscript_section": "II-F",
         "outcome": "hr",
         "label": "GBR-assisted heart-rate accuracy and agreement",
         "role": "exploratory",
@@ -79,13 +154,28 @@ _OBJECTIVES: List[Dict[str, object]] = [
 ]
 
 
+def _copy_thesis_objective(item: Dict[str, object]) -> Dict[str, object]:
+    copied = dict(item)
+    for key in ("manuscript_sections", "analysis_endpoint_ids"):
+        if key in copied:
+            copied[key] = list(copied[key])  # type: ignore[call-overload]
+    return copied
+
+
 def study_objectives_payload() -> Dict[str, object]:
-    """Return a copy so callers cannot mutate the controlled contract."""
+    """Return a copy so callers cannot mutate the controlled contract.
+
+    ``control_status`` remains ``draft_not_authorized``: manuscript approval
+    does not authorize recruitment or confirmatory collection, which stay gated
+    on UMERC certification and the pre-collection readiness record.
+    """
 
     return {
         "schema_version": STUDY_OBJECTIVES_SCHEMA_VERSION,
         "control_status": "draft_not_authorized",
-        "product_version": "16.6.4",
+        "product_version": "16.6.5",
+        "manuscript": dict(MANUSCRIPT_IDENTITY),
+        "thesis_objectives": [_copy_thesis_objective(item) for item in _THESIS_OBJECTIVES],
         "confirmatory_conditions": [
             "d060_none",
             "d080_none",
@@ -106,4 +196,4 @@ def study_objectives_payload() -> Dict[str, object]:
     }
 
 
-__all__ = ["STUDY_OBJECTIVES_SCHEMA_VERSION", "study_objectives_payload"]
+__all__ = ["MANUSCRIPT_IDENTITY", "STUDY_OBJECTIVES_SCHEMA_VERSION", "study_objectives_payload"]

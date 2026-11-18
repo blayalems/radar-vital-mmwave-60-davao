@@ -17,7 +17,8 @@ The current proposal targets 40 recruited participants, at least 38
 protocol-complete participants, and at least 19 independent estimates for the
 primary RR TOST. A complete participant has ten conditions with three
 150-second trials each: 30 captures, for 1,140 minimum protocol-complete captures
-and 1,200 captures of capacity at 40 recruits. Objective 3 separately requires
+and 1,200 captures of capacity at 40 recruits. The no-subject false-alarm endpoint
+(`objective_3_false_alarm` under thesis Objective 4, Section II-F) separately requires
 72 unique 150-second no-subject captures, or 10,800 seconds (three hours) of
 capture time before setup, review, reruns, and evidence reconciliation.
 
@@ -57,8 +58,9 @@ provenance.
 
 USB scheduling and buffering jitter are expected to matter less for the
 30-second-window RR analysis than for HR agreement, but this is a sensitivity
-assessment rather than measured evidence. Objective 4 timing precision and
-alignment claims remain blocked until a physical bench characterizes latency
+assessment rather than measured evidence. Thesis Objective 4 HR endpoint
+(`objective_4_hr`) timing precision and alignment claims remain blocked until a
+physical bench characterizes latency
 and uncertainty. The uncertainty must be propagated into the limitations and
 manuscript wording; the report must not imply clock accuracy beyond the bench
 evidence.

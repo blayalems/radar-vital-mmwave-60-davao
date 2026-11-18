@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/precollection-readiness.schema.json",
   "schema_version": "rvt-precollection-readiness-v1",
-  "manifest_id": "RVT-PRECOLLECT-16.6.4",
+  "manifest_id": "RVT-PRECOLLECT-16.6.5",
   "status": "blocked",
   "schedule_status": "proposed_not_authorized",
   "as_of_date": "2026-09-03",

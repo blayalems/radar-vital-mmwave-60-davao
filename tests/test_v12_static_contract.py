@@ -20,7 +20,7 @@ STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
 TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
 TRAINER_ROUTE_REGISTRY = ROOT / "rvt_trainer" / "api" / "route_registry"
-FW = ROOT / "radar_vital_v16_6_4.ino"
+FW = ROOT / "radar_vital_v16_6_5.ino"
 SW = ROOT / "assets" / "sw.js"
 STYLES = ROOT / "web" / "src" / "styles.scss"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
@@ -104,33 +104,33 @@ def test_service_worker_contract():
     assert "/fonts/material-symbols-rounded.woff2" in sw
 
 
-def test_v16_6_4_product_identity_bump_preserves_v12_lineage():
+def test_v16_6_5_product_identity_bump_preserves_v12_lineage():
     trainer = text(TRAINER_MONOLITH)
     firmware = text(FW)
     app_meta = text(APP_META)
     sandbox_api = text(SANDBOX_API)
     sw = text(SW)
 
-    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.6.4"
-    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.6.4"
-    assert json.loads(text(TAURI_CONF))["version"] == "16.6.4"
-    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.6.4"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.6.4"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.6.4"
-    assert re.search(r'^version = "16\.6\.4"$', text(TAURI_CARGO), re.MULTILINE)
+    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.6.5"
+    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.6.5"
+    assert json.loads(text(TAURI_CONF))["version"] == "16.6.5"
+    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.6.5"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.6.5"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.6.5"
+    assert re.search(r'^version = "16\.6\.5"$', text(TAURI_CARGO), re.MULTILINE)
 
-    assert 'VERSION = "16.6.4"' in trainer
-    assert 'DASHBOARD_VERSION = "16.6.4"' in trainer
-    assert 'FIRMWARE_VERSION_EXPECTED = "v16.6.4"' in trainer
-    assert "PRODUCT_VERSION = '16.6.4';" in app_meta
+    assert 'VERSION = "16.6.5"' in trainer
+    assert 'DASHBOARD_VERSION = "16.6.5"' in trainer
+    assert 'FIRMWARE_VERSION_EXPECTED = "v16.6.5"' in trainer
+    assert "PRODUCT_VERSION = '16.6.5';" in app_meta
     assert "PRODUCT_VERSION_SHORT = 'v16.6';" in app_meta
     assert "PRODUCT_VERSION_LABEL = 'App v16.6';" in app_meta
     assert "import { PRODUCT_VERSION } from './app-meta';" in sandbox_api
     assert "product_version: PRODUCT_VERSION" in sandbox_api
-    assert '#define FW_VERSION "v16.6.4"' in firmware
+    assert '#define FW_VERSION "v16.6.5"' in firmware
     assert "#define SKETCH_VERSION_MAJOR 16" in firmware
     assert "#define SKETCH_VERSION_SUB 6" in firmware
-    assert "#define SKETCH_VERSION_MOD 4" in firmware
+    assert "#define SKETCH_VERSION_MOD 5" in firmware
 
     for schema_id in [
         "rvt-control-api-v12.0",
@@ -281,7 +281,7 @@ def test_manifest_payload_is_plain_manifest():
 
 def test_firmware_ble_contract():
     ino = text(FW)
-    assert '#define FW_VERSION "v16.6.4"' in ino
+    assert '#define FW_VERSION "v16.6.5"' in ino
     assert "#define ENABLE_BLE false" in ino
     assert "NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN" in ino
     assert "void onWrite(NimBLECharacteristic* chr, NimBLEConnInfo& connInfo) override" in ino
@@ -491,3 +491,20 @@ def test_207_column_row_parses_without_warning():
     # Verify that the added columns (indices 207 to 221) are padded with empty strings
     for i in range(207, 222):
         assert row[i] == ""
+
+
+def test_approved_manuscript_sections_and_objectives():
+    manuscript = text(ROOT / "docs" / "manuscript" / "manuscript.tex")
+    for expected in (
+        "1. to design a non-contact vital signs monitoring system",
+        "2. to build the individual hardware components of the system",
+        "3. to integrate the built components into a single functional prototype",
+        "4. to test the performance of the integrated prototype",
+        "\\subsection{Materials and Resources}",
+        "\\subsection{Hardware Design and Development}",
+        "\\subsection{Hardware Form-Factor Trade-off Analysis}",
+        "\\subsection{Methods and Procedures}",
+        "\\textit{Functionality testing:}",
+        "uninterrupted 8-hour communication burn-in",
+    ):
+        assert expected in manuscript

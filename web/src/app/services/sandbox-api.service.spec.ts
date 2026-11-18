@@ -115,12 +115,25 @@ describe('SandboxApiService', () => {
   });
 
   it('mirrors locked protocol, persisted participant randomization, and reference gates', () => {
+    const objectives = service.request('/api/study/objectives') as {
+      schema_version: string;
+      thesis_objectives: Array<{ number: number; phase: string }>;
+      objectives: Array<{ id: string; thesis_objective: number; manuscript_section: string }>;
+      confirmatory_conditions: string[];
+    };
+    expect(objectives.schema_version).toBe('rvt-study-objectives-v16.6.5');
+    expect(objectives.confirmatory_conditions).toHaveLength(10);
+    expect(objectives.thesis_objectives.map(item => item.phase)).toEqual(['design', 'build', 'integrate', 'test']);
+    expect(objectives.objectives).toHaveLength(4);
+    expect(objectives.objectives.every(item => item.thesis_objective === 4 && item.manuscript_section === 'II-F')).toBe(true);
+
     const first = service.request('/api/study/schedule?participant_id=P-001') as {
       participant_id: string;
       entries: Array<{ condition_id: string }>;
     };
     const second = service.request('/api/study/schedule?participant_id=P-001') as typeof first;
     expect(first.participant_id).toBe('P-001');
+    expect(first.entries).toHaveLength(10);
     expect(first.entries.map(item => item.condition_id)).toEqual(second.entries.map(item => item.condition_id));
 
     service.request('/api/study/protocol', {

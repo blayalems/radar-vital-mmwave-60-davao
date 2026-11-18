@@ -5,6 +5,13 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-11-18 - Align manuscript, objectives contract, and QMS with September 2026 approved thesis (v16.6.5)
+
+- **Approved Manuscript Source**: Updated `docs/manuscript/manuscript.tex` to the approved September 2026 IEEE manuscript (updated Section I objectives including body temperature, Section II-C..II-F layout, two-layer KiCad PCB with IF ground-plane shielding, 1/4-20 tripod/handheld FDM enclosures, staged subsystem integration with >=30-min isolated soaks, uninterrupted 8-hour burn-in, and Functionality testing).
+- **Objectives Contract & UI**: Bumped `/api/study/objectives` to `rvt-study-objectives-v16.6.5` with `manuscript` metadata and `thesis_objectives[]` (design/build/integrate/test), kept stable analysis endpoint IDs mapped to `thesis_objective: 4` (`manuscript_section: "II-F"`), relabeled dashboard chips (`O4 · E1`..`E4`), and updated `SandboxApiService` to the 10 confirmatory conditions.
+- **Controlled Docs & Physical Checklist**: Refreshed `docs/system-feedback-loop.md` (v16.6.5 labels, 10 conditions / 30 repetitions / 9 secondary Holm conditions) and `docs/precollection-readiness.md`; added Phase J (KiCad two-layer PCB/ERC, continuity & dual housings, >=30-min isolated soaks, 8-hour burn-in) to `docs/physical-acceptance-checklist.md`.
+- **QMS & Coordinated Release Bump**: Restated `RVT-THESIS-001`..`004` in `quality/requirements.json` (R15), updated `quality/precollection-readiness.json` (`RVT-PRECOLLECT-16.6.5`), incremented controlled-document revisions in `quality/document-register.json` (R18), renamed firmware to `radar_vital_v16_6_5.ino`, bumped all version carriers to `16.6.5`, and rebuilt `www/` and `radar_vital_live_dashboard_v12_for_v16_0.html`.
+
 ### 2026-09-03 - Align study protocol and QMS with IEEE thesis manuscript (v16.6.4)
 
 - **Thesis Manuscript Source**: Added authentic IEEE conference paper source at `docs/manuscript/manuscript.tex` tracing design, build, integrate, and test objectives for the University of Mindanao thesis.

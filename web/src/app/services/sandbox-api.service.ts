@@ -31,6 +31,18 @@ const SANDBOX_PROTOCOL_ATTEMPTS_KEY = 'demo:rvt-protocol-attempts-v16.5.9';
 const SANDBOX_STUDY_PROTOCOL_KEY = 'demo:rvt-study-protocol-v16.5.9';
 const SANDBOX_STUDY_ANALYSIS_KEY = 'demo:rvt-study-analysis-v16.5.9';
 const SANDBOX_STUDY_SCHEDULE_PREFIX = 'demo:rvt-study-schedule-v16.5.9:';
+const SANDBOX_CONFIRMATORY_CONDITIONS = [
+  'd060_none',
+  'd080_none',
+  'd100_none',
+  'd200_none',
+  'd300_none',
+  'd060_cardboard',
+  'd080_cardboard',
+  'd100_cardboard',
+  'd200_cardboard',
+  'd300_cardboard'
+];
 
 @Injectable({
   providedIn: 'root'
@@ -133,9 +145,9 @@ export class SandboxApiService {
       const body = this.parseJsonBody<Partial<StudyProtocol>>(init?.body);
       const conditions = Array.isArray(body.conditions) ? body.conditions : current.conditions;
       const conditionIds = conditions.map(item => String(item?.condition_id || ''));
-      const expected = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
+      const expected = [...SANDBOX_CONFIRMATORY_CONDITIONS];
       if (conditionIds.length !== expected.length || expected.some(id => !conditionIds.includes(id))) {
-        throw new Error('protocol conditions must contain the six canonical condition IDs');
+        throw new Error('protocol conditions must contain the ten canonical condition IDs');
       }
       const state = body.state || current.state;
       if (state !== 'draft' && state !== 'locked') throw new Error('protocol state must be draft or locked');
@@ -420,7 +432,7 @@ export class SandboxApiService {
   }
 
   private completionMatrix(): CompletionMatrix {
-    const conditions = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
+    const conditions = [...SANDBOX_CONFIRMATORY_CONDITIONS];
     const trials = [1, 2, 3];
     const attempts = this.readProtocolAttempts();
     const participants: CompletionMatrix['participants'] = {};
@@ -464,20 +476,59 @@ export class SandboxApiService {
   }
 
   private studyObjectives(): Record<string, unknown> {
-    const conditions = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
+    const conditions = [...SANDBOX_CONFIRMATORY_CONDITIONS];
     return {
-      schema_version: 'rvt-study-objectives-v16.5.9',
+      schema_version: 'rvt-study-objectives-v16.6.5',
+      control_status: 'draft_not_authorized',
       product_version: PRODUCT_VERSION,
+      manuscript: {
+        path: 'docs/manuscript/manuscript.tex',
+        document_id: 'RVT-QMS-MAN-001',
+        approval_state: 'approved_manuscript_2026_09',
+        testing_section: 'II-F',
+        testing_heading: 'Functionality testing'
+      },
+      thesis_objectives: [
+        {
+          number: 1,
+          phase: 'design',
+          statement: 'Design a non-contact vital signs monitoring system that uses 60-GHz millimeter-wave sensing and an ESP32 microcontroller to detect respiratory rate, heart rate, and body temperature.',
+          requirement_id: 'RVT-THESIS-001',
+          manuscript_sections: ['I', 'II-C', 'II-D']
+        },
+        {
+          number: 2,
+          phase: 'build',
+          statement: 'Build the individual hardware components of the system, including the millimeter-wave sensing module, ESP32-based processing unit, and user-interface module.',
+          requirement_id: 'RVT-THESIS-002',
+          manuscript_sections: ['I', 'II-D', 'II-E', 'II-F']
+        },
+        {
+          number: 3,
+          phase: 'integrate',
+          statement: 'Integrate the built components into a single functional prototype capable of continuous non-contact vital signs monitoring.',
+          requirement_id: 'RVT-THESIS-003',
+          manuscript_sections: ['I', 'II-F']
+        },
+        {
+          number: 4,
+          phase: 'test',
+          statement: 'Test the performance of the integrated prototype in detecting respiratory rate, heart rate, and body temperature by comparing its readings against a reference measurement device under controlled test conditions.',
+          requirement_id: 'RVT-THESIS-004',
+          manuscript_sections: ['I', 'II-F'],
+          analysis_endpoint_ids: ['objective_1_rr', 'objective_2_temperature', 'objective_3_false_alarm', 'objective_4_hr']
+        }
+      ],
       confirmatory_conditions: conditions,
       trials_per_condition: 3,
       planned_duration_s: 150,
       target_recruited_participants: 40,
       minimum_protocol_complete_participants: 38,
       objectives: [
-        { id: 'objective_1_rr', number: 1, outcome: 'rr', label: 'GBR-assisted respiration-rate equivalence', role: 'confirmatory', primary_condition_id: 'd100_none', equivalence_margin_bpm: 2, confidence_level: 0.9, minimum_independent_estimates: 19 },
-        { id: 'objective_2_temperature', number: 2, outcome: 'temperature', label: 'Unobstructed skin-surface-temperature agreement', role: 'exploratory' },
-        { id: 'objective_3_false_alarm', number: 3, outcome: 'false_alarm', label: 'No-subject false-alarm rate', role: 'confirmatory', threshold: 0.05, trial_count: 72, trial_duration_s: 150 },
-        { id: 'objective_4_hr', number: 4, outcome: 'hr', label: 'GBR-assisted heart-rate accuracy and agreement', role: 'exploratory', conditions }
+        { id: 'objective_1_rr', number: 1, thesis_objective: 4, manuscript_section: 'II-F', outcome: 'rr', label: 'GBR-assisted respiration-rate equivalence', role: 'confirmatory', primary_condition_id: 'd100_none', secondary_condition_count: 9, equivalence_margin_bpm: 2, confidence_level: 0.9, minimum_independent_estimates: 19 },
+        { id: 'objective_2_temperature', number: 2, thesis_objective: 4, manuscript_section: 'II-F', outcome: 'temperature', label: 'Unobstructed skin-surface-temperature agreement', role: 'exploratory', conditions: ['d060_none'] },
+        { id: 'objective_3_false_alarm', number: 3, thesis_objective: 4, manuscript_section: 'II-F', outcome: 'false_alarm', label: 'No-subject false-alarm rate', role: 'confirmatory', threshold: 0.05, trial_count: 72, trial_duration_s: 150 },
+        { id: 'objective_4_hr', number: 4, thesis_objective: 4, manuscript_section: 'II-F', outcome: 'hr', label: 'GBR-assisted heart-rate accuracy and agreement', role: 'exploratory', conditions }
       ]
     };
   }
@@ -489,7 +540,7 @@ export class SandboxApiService {
       protocol_version: '2',
       state: 'draft',
       randomization_seed: 'sandbox-seed-v16.5.9',
-      conditions: ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'].map(condition_id => {
+      conditions: [...SANDBOX_CONFIRMATORY_CONDITIONS].map(condition_id => {
         const distance_m = Number(condition_id.slice(1, 4)) / 100;
         return { condition_id, distance_m, barrier_type: condition_id.endsWith('cardboard') ? 'cardboard' : 'none', trial_count: 3, planned_duration_s: 150, confirmatory: true };
       }),

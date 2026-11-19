@@ -5,6 +5,10 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-11-19 - Remediate Tauri Cargo.lock security advisories (PR #165)
+
+- **Rust/Tauri Lockfile Remediation**: Updated `src-tauri/Cargo.lock` (`tauri` 2.12.7, `tauri-plugin-updater` 2.14.1, `zip` 9.7.3, `quinn-proto` 0.11.19, `quinn-udp` 0.5.16, `rustls` 0.23.46, `rustls-webpki` 0.103.17, `webpki-root-certs` 1.0.12, `webpki-roots` 1.0.12) while keeping `radar-vital` at `16.6.5`; `cargo-audit 0.22.2` passes with 0 vulnerabilities (`--ignore RUSTSEC-2024-0429`).
+
 ### 2026-11-18 - Fix PR #165 CI checks: npm security audit, Gradle Maven mirror, Playwright Ubuntu 24.04, and Home snapshots
 
 - **Security Audit Remediation**: Updated root `package-lock.json` (`@capacitor/android` 7.6.10, `brace-expansion`, `glob`, `minimatch`), `packaging/capacitor/package-lock.json` (`@capacitor/android` 8.6.2, `brace-expansion`, `glob`, `minimatch`), and `web/package.json`/`web/package-lock.json` (`@angular/*` 21.2.26/21.2.30, `@modelcontextprotocol/sdk` 1.32.2, `undici` 7.30.2, `piscina` 5.3.2, `glob` 14.0.6, `minimatch` 11.0.9); root, Capacitor, and `web --omit=dev` all report 0 vulnerabilities, and `.github/workflows/security-audit.yml` scopes a temporary dev-only exception for unpatched `GHSA-fc5q-39xc-vjpf` (`picomatch <=4.0.7`, expiry `2027-02-18`).

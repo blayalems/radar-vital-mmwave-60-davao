@@ -133,12 +133,28 @@ def default_protocol() -> Dict[str, Any]:
     }
 
 
+def _has_canonical_conditions(conditions: object) -> bool:
+    return (
+        isinstance(conditions, list)
+        and len(conditions) == len(CONDITIONS)
+        and {
+            str(item.get("condition_id"))
+            for item in conditions
+            if isinstance(item, dict)
+        } == set(CONDITIONS)
+    )
+
+
 def load_protocol(sessions_root: str) -> Dict[str, Any]:
     stored = read_json_if_exists(str(_root(sessions_root) / PROTOCOL_PATH))
     if not isinstance(stored, dict):
         return default_protocol()
     payload = default_protocol()
     payload.update(stored)
+    if str(payload.get("state") or "draft") == "draft" and not _has_canonical_conditions(
+        payload.get("conditions")
+    ):
+        payload["conditions"] = default_protocol()["conditions"]
     payload["schema_version"] = STUDY_PROTOCOL_SCHEMA_VERSION
     return payload
 
@@ -152,8 +168,8 @@ def save_protocol(sessions_root: str, payload: Mapping[str, Any], *, actor: obje
         if key in payload:
             merged[key] = payload[key]
     conditions = merged.get("conditions")
-    if not isinstance(conditions, list) or {str(item.get("condition_id")) for item in conditions if isinstance(item, dict)} != set(CONDITIONS):
-        raise ValueError("protocol conditions must contain the six canonical condition IDs")
+    if not _has_canonical_conditions(conditions):
+        raise ValueError("protocol conditions must contain the ten canonical condition IDs")
     requested_state = str(payload.get("state") or current.get("state") or "draft")
     if requested_state not in {"draft", "locked"}:
         raise ValueError("protocol state must be draft or locked")
@@ -206,7 +222,17 @@ def schedule_for_participant(sessions_root: str, participant_id: object) -> Dict
     seed_text = f"{protocol.get('randomization_seed')}:{participant}"
     seed = hashlib.sha256(seed_text.encode("utf-8")).hexdigest()[:16]
     existing = schedules.get(participant)
-    if isinstance(existing, dict) and isinstance(existing.get("entries"), list):
+    if (
+        isinstance(existing, dict)
+        and isinstance(existing.get("entries"), list)
+        and len(existing["entries"]) == len(CONDITIONS)
+        and {
+            str(entry.get("condition_id"))
+            for entry in existing["entries"]
+            if isinstance(entry, dict)
+        } == set(CONDITIONS)
+        and existing.get("seed") == seed
+    ):
         return dict(existing)
     order = list(CONDITIONS)
     random.Random(seed).shuffle(order)
@@ -453,7 +479,7 @@ def _validate_completed_job_artifacts(
     """Validate the immutable identity and hashes before objective promotion."""
 
     root = _root(sessions_root)
-    expected_version = _text(product_version, limit=32) or "16.6.3"
+    expected_version = _text(product_version, limit=32) or "16.6.5"
     job_id = _text(job.get("job_id"), limit=100)
     expected_output_root = (root / "study_analysis" / job_id).resolve()
     output_value = _text(job.get("output_dir"), limit=1000)
@@ -596,7 +622,7 @@ def objective_report(
     *,
     objectives: Mapping[str, Any],
     sessions_root: str,
-    product_version: object = "16.6.3",
+    product_version: object = "16.6.5",
 ) -> Dict[str, Any]:
     wanted = _text(objective_id, limit=80)
     known = [item for item in objectives.get("objectives", []) if isinstance(item, dict) and str(item.get("id")) == wanted]
@@ -618,7 +644,7 @@ def objective_report(
         expected = int(known[0].get("trial_count") or matrix.get("no_subject_expected") or 72)
         threshold = float(known[0].get("threshold") or 0.05)
         common_provenance = {
-            "product_version": _text(product_version, limit=32) or "16.6.3",
+            "product_version": _text(product_version, limit=32) or "16.6.5",
             "objective": known[0],
             "sessions_root": str(Path(sessions_root).resolve()),
             "no_subject_attempt_count": int(matrix.get("no_subject_attempt_count") or 0),
@@ -842,7 +868,7 @@ def objective_report(
         "report": report,
         "exclusions": exclusions,
         "provenance": {
-            "product_version": _text(product_version, limit=32) or "16.6.3",
+            "product_version": _text(product_version, limit=32) or "16.6.5",
             "objective": known[0],
             "latest_job_id": latest.get("job_id") if latest else None,
             "sessions_root": str(Path(sessions_root).resolve()),

@@ -222,6 +222,38 @@ jobs:
             exit 1
           fi
 
+      - name: Configure Gradle Maven Central mirror
+        run: |
+          mkdir -p "$HOME/.gradle/init.d"
+          cat <<'EOF' > "$HOME/.gradle/init.d/maven-mirror.gradle"
+          gradle.settingsEvaluated { settings ->
+              settings.pluginManagement.repositories.all { repo ->
+                  if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith('https://repo.maven.apache.org/maven2')) {
+                      repo.url = uri('https://maven-central.storage-download.googleapis.com/maven2')
+                  }
+              }
+              settings.dependencyResolutionManagement.repositories.all { repo ->
+                  if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith('https://repo.maven.apache.org/maven2')) {
+                      repo.url = uri('https://maven-central.storage-download.googleapis.com/maven2')
+                  }
+              }
+          }
+          allprojects {
+              buildscript {
+                  repositories.all { repo ->
+                      if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith('https://repo.maven.apache.org/maven2')) {
+                          repo.url = uri('https://maven-central.storage-download.googleapis.com/maven2')
+                      }
+                  }
+              }
+              repositories.all { repo ->
+                  if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith('https://repo.maven.apache.org/maven2')) {
+                      repo.url = uri('https://maven-central.storage-download.googleapis.com/maven2')
+                  }
+              }
+          }
+          EOF
+
       - name: Build signed release APK and AAB
         if: steps.android_signing.outputs.enabled == 'true'
         working-directory: android
@@ -231,7 +263,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace \
+          ./gradlew assembleRelease bundleRelease --no-daemon --max-workers=2 --stacktrace \
             -Pandroid.injected.signing.store.file="$PWD/release.keystore" \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
@@ -245,7 +277,7 @@ jobs:
         working-directory: android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --max-workers=2 --stacktrace
           mkdir -p ../dist
           cp app/build/outputs/apk/debug/*.apk ../dist/radar-vital-debug.apk
 

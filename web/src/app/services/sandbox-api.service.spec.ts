@@ -161,4 +161,117 @@ describe('SandboxApiService', () => {
     }) as { rr_adjudication: { final_value: number } };
     expect(adjudicated.rr_adjudication.final_value).toBe(15);
   });
+
+  it('migrates legacy 6-condition draft storage to the 10-condition protocol and schedule', () => {
+    const legacyConditions = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
+    localStorage.setItem('demo:rvt-study-protocol-v16.5.9', JSON.stringify({
+      schema_version: 'rvt-study-protocol-v2',
+      protocol_id: 'RVT-THESIS-16.5.9',
+      protocol_version: '2',
+      state: 'draft',
+      randomization_seed: 'sandbox-seed-v16.5.9',
+      conditions: legacyConditions.map(condition_id => ({ condition_id }))
+    }));
+    localStorage.setItem('demo:rvt-study-schedule-v16.5.9:P-001', JSON.stringify({
+      ok: true,
+      participant_id: 'P-001',
+      entries: legacyConditions.map((condition_id, index) => ({ participant_id: 'P-001', order: index + 1, condition_id }))
+    }));
+
+    const protocolResponse = service.request('/api/study/protocol') as {
+      ok: boolean;
+      protocol: { state: string; conditions: Array<{ condition_id: string }> };
+    };
+    const matrix = service.request('/api/study/completion-matrix') as { conditions: string[] };
+    const schedule = service.request('/api/study/schedule?participant_id=P-001') as {
+      entries: Array<{ condition_id: string }>;
+    };
+
+    expect(protocolResponse.ok).toBe(true);
+    expect(protocolResponse.protocol.state).toBe('draft');
+    expect(protocolResponse.protocol.conditions).toHaveLength(10);
+    expect(protocolResponse.protocol.conditions.map(item => item.condition_id)).toEqual(matrix.conditions);
+    expect(schedule.entries).toHaveLength(10);
+    expect(new Set(schedule.entries.map(item => item.condition_id))).toEqual(new Set(matrix.conditions));
+    expect(localStorage.getItem('demo:rvt-study-protocol-v16.5.9')).toBeNull();
+    expect(localStorage.getItem('demo:rvt-study-schedule-v16.5.9:P-001')).toBeNull();
+    expect(localStorage.getItem('demo:rvt-study-protocol-v16.6.5')).not.toBeNull();
+    expect(localStorage.getItem('demo:rvt-study-schedule-v16.6.5:P-001')).not.toBeNull();
+
+    const updated = service.request('/api/study/protocol', {
+      method: 'PUT',
+      body: JSON.stringify({ randomization_seed: 'custom-seed-2', state: 'draft' })
+    }) as { ok: boolean; protocol: { randomization_seed: string; conditions: Array<{ condition_id: string }> } };
+    expect(updated.ok).toBe(true);
+    expect(updated.protocol.randomization_seed).toBe('custom-seed-2');
+    expect(updated.protocol.conditions).toHaveLength(10);
+  });
+
+  it('unlocks and migrates legacy 6-condition locked storage so demo records can be repaired', () => {
+    const legacyConditions = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
+    localStorage.setItem('demo:rvt-study-protocol-v16.5.9', JSON.stringify({
+      schema_version: 'rvt-study-protocol-v2',
+      protocol_id: 'RVT-THESIS-16.5.9',
+      protocol_version: '2',
+      state: 'locked',
+      locked_at: '2026-09-01T00:00:00Z',
+      locked_by: 'OP-LEGACY',
+      randomization_seed: 'sandbox-seed-v16.5.9',
+      conditions: legacyConditions.map(condition_id => ({ condition_id }))
+    }));
+    localStorage.setItem('demo:rvt-study-schedule-v16.5.9:P-002', JSON.stringify({
+      ok: true,
+      participant_id: 'P-002',
+      entries: legacyConditions.map((condition_id, index) => ({ participant_id: 'P-002', order: index + 1, condition_id }))
+    }));
+
+    const protocolResponse = service.request('/api/study/protocol') as {
+      protocol: { state: string; locked_at: string | null; locked_by: string | null; conditions: Array<{ condition_id: string }> };
+    };
+    expect(protocolResponse.protocol.state).toBe('draft');
+    expect(protocolResponse.protocol.locked_at).toBeNull();
+    expect(protocolResponse.protocol.locked_by).toBeNull();
+    expect(protocolResponse.protocol.conditions).toHaveLength(10);
+
+    const schedule = service.request('/api/study/schedule?participant_id=P-002') as {
+      entries: Array<{ condition_id: string }>;
+    };
+    expect(schedule.entries).toHaveLength(10);
+
+    const relocked = service.request('/api/study/protocol', {
+      method: 'PUT',
+      body: JSON.stringify({ state: 'locked', actor: 'OP-002' })
+    }) as { ok: boolean; protocol: { state: string } };
+    expect(relocked.ok).toBe(true);
+    expect(relocked.protocol.state).toBe('locked');
+  });
+
+  it('preserves locked state when migrating a legacy 10-condition protocol', () => {
+    const tenConditions = [
+      'd060_none', 'd080_none', 'd100_none', 'd200_none', 'd300_none',
+      'd060_cardboard', 'd080_cardboard', 'd100_cardboard', 'd200_cardboard', 'd300_cardboard'
+    ];
+    localStorage.setItem('demo:rvt-study-protocol-v16.5.9', JSON.stringify({
+      schema_version: 'rvt-study-protocol-v2',
+      protocol_id: 'RVT-THESIS-16.5.9',
+      protocol_version: '2',
+      state: 'locked',
+      locked_at: '2026-09-02T00:00:00Z',
+      locked_by: 'OP-10',
+      randomization_seed: 'sandbox-seed-v16.5.9',
+      conditions: tenConditions.map(condition_id => ({ condition_id }))
+    }));
+
+    const protocolResponse = service.request('/api/study/protocol') as {
+      protocol: { state: string; locked_at: string | null; locked_by: string | null; conditions: Array<{ condition_id: string }> };
+    };
+    expect(protocolResponse.protocol.state).toBe('locked');
+    expect(protocolResponse.protocol.locked_at).toBe('2026-09-02T00:00:00Z');
+    expect(protocolResponse.protocol.locked_by).toBe('OP-10');
+    expect(protocolResponse.protocol.conditions).toHaveLength(10);
+    expect(() => service.request('/api/study/protocol', {
+      method: 'PUT',
+      body: JSON.stringify({ state: 'draft' })
+    })).toThrow('locked');
+  });
 });

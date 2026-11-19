@@ -351,7 +351,7 @@ def validate_study_assignment(
     if not STUDY_DISTANCE_RANGE_M[0] <= distance_m <= STUDY_DISTANCE_RANGE_M[1]:
         raise StudyContractError(
             "DISTANCE_OUT_OF_RANGE",
-            "distance_m must be between 0.5 and 1.0 metres",
+            "distance_m must be between 0.5 and 3.0 metres",
         )
     if trial_number < 1:
         raise StudyContractError(
@@ -389,7 +389,7 @@ def validate_study_assignment(
         if not any(abs(distance_m - allowed) < 1e-9 for allowed in CONFIRMATORY_DISTANCES_M):
             raise StudyContractError(
                 "INVALID_CONFIRMATORY_DISTANCE",
-                "confirmatory distance_m must be 0.6, 0.8, or 1.0 metres",
+                "confirmatory distance_m must be 0.6, 0.8, 1.0, 2.0, or 3.0 metres",
             )
         if trial_number not in {1, 2, 3}:
             raise StudyContractError(

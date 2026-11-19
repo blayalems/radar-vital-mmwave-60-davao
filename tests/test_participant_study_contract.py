@@ -125,26 +125,29 @@ def test_confirmatory_contract_accepts_frozen_proposal_conditions(
 
 
 @pytest.mark.parametrize(
-    ("patch", "code"),
+    ("patch", "code", "message_part"),
     [
-        ({"participant_id": ""}, "PARTICIPANT_REQUIRED"),
-        ({"distance_m": 0.7, "condition_id": "d070_none"}, "INVALID_CONFIRMATORY_DISTANCE"),
-        ({"trial_number": 4}, "INVALID_CONFIRMATORY_TRIAL"),
-        ({"planned_duration_s": 149, "duration_s": 149}, "INVALID_CONFIRMATORY_DURATION"),
-        ({"duration_s": 30}, "CAPTURE_DURATION_MISMATCH"),
-        ({"condition_id": "wrong"}, "CONDITION_MISMATCH"),
+        ({"participant_id": ""}, "PARTICIPANT_REQUIRED", "participant_id"),
+        ({"distance_m": 0.7, "condition_id": "d070_none"}, "INVALID_CONFIRMATORY_DISTANCE", "0.6, 0.8, 1.0, 2.0, or 3.0"),
+        ({"trial_number": 4}, "INVALID_CONFIRMATORY_TRIAL", "1, 2, or 3"),
+        ({"planned_duration_s": 149, "duration_s": 149}, "INVALID_CONFIRMATORY_DURATION", "150 seconds"),
+        ({"duration_s": 30}, "CAPTURE_DURATION_MISMATCH", "planned_duration_s"),
+        ({"condition_id": "wrong"}, "CONDITION_MISMATCH", "must be"),
+        ({"study_classification": "exploratory", "distance_m": 3.5, "condition_id": "d350_none"}, "DISTANCE_OUT_OF_RANGE", "0.5 and 3.0"),
     ],
 )
 def test_confirmatory_contract_rejects_protocol_drift(
     sessions_root: Path,
     patch: dict,
     code: str,
+    message_part: str,
 ):
     create_participant_profile(str(sessions_root), {})
     payload = {**_confirmatory(), **patch}
     with pytest.raises(StudyContractError) as exc:
         validate_study_assignment(payload, sessions_root=str(sessions_root))
     assert exc.value.code == code
+    assert message_part in str(exc.value)
 
 
 def test_exploratory_contract_supports_half_metre_capture(

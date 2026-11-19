@@ -309,3 +309,12 @@ def test_production_release_pages_artifact_keeps_site_and_metadata_parity():
     assert "cmp -s www/index.html www/404.html" in release
     assert "grep -q 'Radar Vital Privacy Notice' www/privacy.html" in release
     assert "grep -q 'Radar Vital Terms and Conditions' www/terms.html" in release
+
+
+def test_android_gradle_workflows_configure_maven_mirror_and_worker_limit():
+    for workflow_path in (BUILD_APK, RELEASE):
+        text = _text(workflow_path)
+        mirror = "https://maven-central.storage-download.googleapis.com/maven2"
+        assert mirror in text
+        assert "--max-workers=2" in text
+        assert text.index(mirror) < text.index("./gradlew")

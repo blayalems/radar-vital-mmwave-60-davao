@@ -16303,7 +16303,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_ss.add_argument("--condition-id", default=None,
                       help="condition identifier derived from distance/barrier, for example d060_none")
     p_ss.add_argument("--distance-m", type=float, default=None,
-                      help="study distance in metres (0.5 through 1.0)")
+                      help="study distance in metres (0.5 through 3.0)")
     p_ss.add_argument("--barrier-type", choices=["none", "cardboard"], default=None,
                       help="study barrier condition")
     p_ss.add_argument("--trial-number", type=int, default=None,

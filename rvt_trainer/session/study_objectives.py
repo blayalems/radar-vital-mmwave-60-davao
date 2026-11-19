@@ -11,6 +11,7 @@ endpoint ``number`` is never confused with the thesis objective number.
 
 from __future__ import annotations
 
+import copy
 from typing import Dict, List
 
 STUDY_OBJECTIVES_SCHEMA_VERSION = "rvt-study-objectives-v16.6.5"
@@ -154,16 +155,8 @@ _OBJECTIVES: List[Dict[str, object]] = [
 ]
 
 
-def _copy_thesis_objective(item: Dict[str, object]) -> Dict[str, object]:
-    copied = dict(item)
-    for key in ("manuscript_sections", "analysis_endpoint_ids"):
-        if key in copied:
-            copied[key] = list(copied[key])  # type: ignore[call-overload]
-    return copied
-
-
 def study_objectives_payload() -> Dict[str, object]:
-    """Return a copy so callers cannot mutate the controlled contract.
+    """Return a deep copy so callers cannot mutate the controlled contract.
 
     ``control_status`` remains ``draft_not_authorized``: manuscript approval
     does not authorize recruitment or confirmatory collection, which stay gated
@@ -174,8 +167,8 @@ def study_objectives_payload() -> Dict[str, object]:
         "schema_version": STUDY_OBJECTIVES_SCHEMA_VERSION,
         "control_status": "draft_not_authorized",
         "product_version": "16.6.5",
-        "manuscript": dict(MANUSCRIPT_IDENTITY),
-        "thesis_objectives": [_copy_thesis_objective(item) for item in _THESIS_OBJECTIVES],
+        "manuscript": copy.deepcopy(MANUSCRIPT_IDENTITY),
+        "thesis_objectives": copy.deepcopy(_THESIS_OBJECTIVES),
         "confirmatory_conditions": [
             "d060_none",
             "d080_none",
@@ -192,7 +185,7 @@ def study_objectives_payload() -> Dict[str, object]:
         "planned_duration_s": 150,
         "target_recruited_participants": 40,
         "minimum_protocol_complete_participants": 38,
-        "objectives": [dict(objective) for objective in _OBJECTIVES],
+        "objectives": copy.deepcopy(_OBJECTIVES),
     }
 
 

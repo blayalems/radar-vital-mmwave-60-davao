@@ -5,6 +5,12 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-11-19 - Address PR #165 review findings, upgrade migrations, and security/CI cleanup
+
+- **Sandbox 6-to-10 Condition Upgrade Migration**: Versioned `SandboxApiService` protocol/schedule keys to `v16.6.5` (`demo:rvt-study-protocol-v16.6.5`, `demo:rvt-study-schedule-v16.6.5:`), migrated legacy `v16.5.9` 6-condition records (resetting locked 6-condition demo state to `draft` while preserving valid 10-condition locked protocols), invalidated mismatched seeds/schedules, updated preflight label to `XIAO ESP32-C6`, and added Vitest migration tests.
+- **Distance & Objective Label Alignment**: Fixed `ParticipantStudySetupComponent` exploratory distance clamp from `1.0 m` to `3.0 m`, aligned `report.component.html` objective-evidence subtitle to Objective 4 (`Section II-F`), updated `study_contract.py` / `monolith.py` error and help strings to `3.0 m`, updated `study_evidence.py` (`load_protocol`, `save_protocol`, `schedule_for_participant`, fallback `16.6.5`), deep-copied `study_objectives_payload()`, and checked `study_objectives.py` in `scripts/check-version-contract.mjs`.
+- **Security Audit & Release Gradle Resilience**: Restored `.github/workflows/security-audit.yml` `npm --prefix web audit --audit-level=moderate` gate (removing the now-unneeded `GHSA-fc5q-39xc-vjpf` exception as all npm trees pass with 0 findings), and added the Google Maven Central mirror and `--max-workers=2` to `.github/workflows/release-artifacts.yml` with supply-chain contract coverage.
+
 ### 2026-11-19 - Remediate Tauri Cargo.lock security advisories (PR #165)
 
 - **Rust/Tauri Lockfile Remediation**: Updated `src-tauri/Cargo.lock` (`tauri` 2.12.7, `tauri-plugin-updater` 2.14.1, `zip` 9.7.3, `quinn-proto` 0.11.19, `quinn-udp` 0.5.16, `rustls` 0.23.46, `rustls-webpki` 0.103.17, `webpki-root-certs` 1.0.12, `webpki-roots` 1.0.12) while keeping `radar-vital` at `16.6.5`; `cargo-audit 0.22.2` passes with 0 vulnerabilities (`--ignore RUSTSEC-2024-0429`).

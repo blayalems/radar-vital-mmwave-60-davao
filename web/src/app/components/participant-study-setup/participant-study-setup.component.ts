@@ -257,10 +257,10 @@ export class ParticipantStudySetupComponent implements OnInit {
   setStudyMode(mode: StudyMode): void {
     if (mode === 'confirmatory' && !this.collectionAuthorized()) return;
     const distance = mode === 'confirmatory'
-      ? (CONFIRMATORY_DISTANCES_M.includes(this.state.setup().distance_m as 0.6 | 0.8 | 1.0)
+      ? (CONFIRMATORY_DISTANCES_M.includes(this.state.setup().distance_m as 0.6 | 0.8 | 1.0 | 2.0 | 3.0)
           ? this.state.setup().distance_m
           : 0.6)
-      : Math.max(0.5, Math.min(1, this.state.setup().distance_m || 0.6));
+      : Math.max(0.5, Math.min(3.0, this.state.setup().distance_m || 0.6));
     this.updateCondition({ study_mode: mode, distance_m: distance });
     if (mode === 'confirmatory') this.applyConfirmatoryDuration();
     this.state.triggerHaptic('tap');
@@ -270,7 +270,7 @@ export class ParticipantStudySetupComponent implements OnInit {
     const raw = Number(value);
     const distance = this.state.setup().study_mode === 'confirmatory'
       ? raw
-      : Math.round(Math.max(0.5, Math.min(1, raw || 0.5)) * 100) / 100;
+      : Math.round(Math.max(0.5, Math.min(3.0, raw || 0.5)) * 100) / 100;
     this.updateCondition({ distance_m: distance });
   }
 

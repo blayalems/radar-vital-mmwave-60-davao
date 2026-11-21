@@ -206,4 +206,23 @@ describe('ParticipantStudySetupComponent', () => {
       trial_number: 3
     }));
   });
+
+  it('supports exploratory distances up to 3.0 m without clamping at 1.0 m', () => {
+    component.setStudyMode('confirmatory');
+    component.setDistance(2.0);
+    component.setStudyMode('exploratory');
+    expect(setup().distance_m).toBe(2.0);
+
+    component.setDistance(2.5);
+    expect(setup()).toEqual(expect.objectContaining({
+      distance_m: 2.5,
+      condition_id: 'd250_none'
+    }));
+
+    component.setDistance(3.5);
+    expect(setup()).toEqual(expect.objectContaining({
+      distance_m: 3.0,
+      condition_id: 'd300_none'
+    }));
+  });
 });

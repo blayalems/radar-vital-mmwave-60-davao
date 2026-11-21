@@ -139,8 +139,8 @@ describe('ApiService', () => {
     await expect(matrix).resolves.toMatchObject({ participant_count: 0 });
 
     const objectives = service.loadStudyObjectives();
-    httpMock.expectOne('/api/study/objectives').flush({ schema_version: 'rvt-study-objectives-v16.5.9', objectives: [] });
-    await expect(objectives).resolves.toMatchObject({ schema_version: 'rvt-study-objectives-v16.5.9' });
+    httpMock.expectOne('/api/study/objectives').flush({ schema_version: 'rvt-study-objectives-v16.6.5', objectives: [] });
+    await expect(objectives).resolves.toMatchObject({ schema_version: 'rvt-study-objectives-v16.6.5' });
 
     const attempt = service.createProtocolAttempt({ attempt_type: 'no_subject', condition_id: 'd100_none', status: 'no_output' });
     const attemptRequest = httpMock.expectOne('/api/study/attempts');

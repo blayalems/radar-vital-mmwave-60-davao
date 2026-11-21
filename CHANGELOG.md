@@ -6,6 +6,25 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.6.5 approved September 2026 manuscript alignment (in progress)
+
+- Updated `docs/manuscript/manuscript.tex` to the approved September 2026
+  University of Mindanao IEEE conference manuscript source (reordered Section II-C
+  Materials and Resources through II-F Methods and Procedures, three-stage
+  build/integration procedure with >=30-minute isolated subsystem soaks and
+  uninterrupted 8-hour burn-in, and Functionality testing framing).
+- Updated `/api/study/objectives` (`rvt-study-objectives-v16.6.5`) to publish
+  `manuscript` and `thesis_objectives` (1 design, 2 build, 3 integrate, 4 test)
+  while preserving stable endpoint IDs mapped to `thesis_objective: 4` and
+  `manuscript_section: "II-F"`, and relabeled dashboard chips (`O4 · E1`..`E4`).
+- Updated `SandboxApiService` to enforce the 10 confirmatory conditions across
+  `/api/study/protocol`, `/api/study/completion-matrix`, and `/api/study/objectives`.
+- Refreshed `docs/system-feedback-loop.md`, `docs/precollection-readiness.md`, and
+  `docs/physical-acceptance-checklist.md` (adding Phase J hardware/integration burn-in
+  gates), updated `RVT-THESIS-001`..`004` in `quality/requirements.json` (R15),
+  advanced `quality/document-register.json` to R18, and bumped coordinated
+  product/QMS version to v16.6.5 across all carriers.
+
 ### v16.6.4 manuscript protocol alignment and QMS trace (in progress)
 
 - Committed authentic IEEE conference paper source (`docs/manuscript/manuscript.tex`)

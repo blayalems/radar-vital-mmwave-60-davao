@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R14",
-  "effective_product_version": "16.6.4",
+  "register_revision": "R15",
+  "effective_product_version": "16.6.5",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -96,7 +96,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_6_4.ino",
+        "radar_vital_v16_6_5.ino",
         "packaging/firmware/arduino-toolchain.json",
         "rvt_trainer/monolith.py"
       ],
@@ -913,11 +913,13 @@
     },
     {
       "requirement_id": "RVT-THESIS-001",
-      "title": "Hardware and subsystem design",
-      "statement": "Radar-sensing, temperature-sensing, embedded-inference, and alert subsystems shall be designed with a KiCad PCB layout providing single-carrier power and signal interconnect.",
+      "title": "Non-contact vital signs system design (RR, HR, and body temperature)",
+      "statement": "The system shall be designed to use 60-GHz millimeter-wave sensing (MR60BHA2), an ESP32-C6 microcontroller, and an MLX90614 infrared sensor on a two-layer KiCad carrier PCB with ground-plane shielding over the radar IF path to detect respiratory rate, heart rate, and body temperature.",
       "source_refs": [
-        "docs/manuscript/manuscript.tex#sec:intro",
-        "docs/manuscript/manuscript.tex#sec:hw-design"
+        "docs/manuscript/manuscript.tex#sec:intro-obj1",
+        "docs/manuscript/manuscript.tex#sec:ii-c-materials",
+        "docs/manuscript/manuscript.tex#sec:ii-d-hw-design",
+        "docs/manuscript/manuscript.tex#sec:ii-f-methods"
       ],
       "category": "quality",
       "risk_class": "high",
@@ -946,18 +948,20 @@
         "controlled_document"
       ],
       "acceptance_criteria": [
-        "KiCad PCB layout defines power-supply net and headers for MR60BHA2, MLX90614, and ESP32-C6.",
-        "Design verified via ERC and breadboard bring-up before fabrication commitment."
+        "KiCad two-layer carrier PCB layout defines the power-supply net, ground-plane shielding over the radar IF path, and fixed headers for MR60BHA2, MLX90614, and XIAO ESP32-C6.",
+        "Design is validated through KiCad ERC checks and breadboard wiring bring-up prior to two-layer PCB fabrication."
       ],
       "change_record_required": true
     },
     {
       "requirement_id": "RVT-THESIS-002",
-      "title": "Enclosure build and form-factor trade-off analysis",
-      "statement": "Enclosure shall be fabricated via FDM 3D printing in PETG/ABS with a documented trade-off analysis between handheld-scanner and tripod-mounted form factors selecting tripod mounting for validation.",
+      "title": "Hardware component build and enclosure form-factor trade-off",
+      "statement": "The individual hardware components (millimeter-wave sensing module, ESP32-C6 processing unit on hand-soldered carrier PCB, and LCD/buzzer/web-GUI user-interface module) and FDM 3D-printed PETG/ABS housings (handheld grip-and-trigger format and tripod-mounted 1/4-20 threaded-insert format) shall be built and evaluated through a six-criterion form-factor trade-off analysis selecting tripod mounting for bench validation.",
       "source_refs": [
-        "docs/manuscript/manuscript.tex#sec:tradeoff",
-        "docs/manuscript/manuscript.tex#sec:build"
+        "docs/manuscript/manuscript.tex#sec:intro-obj2",
+        "docs/manuscript/manuscript.tex#sec:ii-d-hw-design",
+        "docs/manuscript/manuscript.tex#sec:ii-e-tradeoff",
+        "docs/manuscript/manuscript.tex#sec:ii-f-methods"
       ],
       "category": "quality",
       "risk_class": "medium",
@@ -980,24 +984,25 @@
         "controlled_document"
       ],
       "acceptance_criteria": [
-        "Trade-off analysis compares handheld vs tripod across 6 operational criteria.",
-        "Tripod mount selected for bench accuracy validation; 1/4-20 mount insert integrated."
+        "Populated carrier PCB is hand-soldered and passes multimeter continuity testing before power application.",
+        "Trade-off analysis compares handheld grip-and-trigger vs tripod 1/4-20 threaded-insert housings across 6 operational criteria, selecting tripod mounting for controlled validation trials."
       ],
       "change_record_required": true
     },
     {
       "requirement_id": "RVT-THESIS-003",
-      "title": "Subsystem integration and staged firmware chain",
-      "statement": "MR60BHA2 radar, XIAO ESP32-C6, MLX90614, LCD/buzzer, and GBR C branch-comparison inference shall integrate into a single firmware unit with staged module bring-up.",
+      "title": "Sequential subsystem integration, 30-minute isolated soaks, and 8-hour burn-in",
+      "statement": "The built components shall be sequentially integrated into a single functional prototype capable of continuous non-contact vital signs monitoring (UART radar driver, I2C temperature driver, FIR/FFT pipeline, frozen GBR branch-comparison inference, and LCD/buzzer/web-GUI interface), with each subsystem operating for at least 30 minutes in isolation and the integrated firmware passing an uninterrupted 8-hour communication burn-in prior to human-subject trials.",
       "source_refs": [
-        "docs/manuscript/manuscript.tex#sec:integrate"
+        "docs/manuscript/manuscript.tex#sec:intro-obj3",
+        "docs/manuscript/manuscript.tex#sec:ii-f-methods"
       ],
       "category": "firmware",
       "risk_class": "critical",
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_6_4.ino",
+        "radar_vital_v16_6_5.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [
@@ -1018,17 +1023,18 @@
         "controlled_document"
       ],
       "acceptance_criteria": [
-        "Firmware compiles cleanly for XIAO ESP32-C6 without external ML runtime.",
-        "Staged bring-up validates raw UART, I2C temperature, FIR/FFT features, GBR inference, and UI."
+        "Firmware compiles cleanly for XIAO ESP32-C6 without an external floating-point ML runtime dependency.",
+        "Sequential bring-up validates UART radar driver, I2C temperature driver, FIR/FFT pipeline, frozen GBR inference, and GUI/LCD/buzzer alerting with >=30-minute isolated operation per stage and an uninterrupted 8-hour integrated communication burn-in."
       ],
       "change_record_required": true
     },
     {
       "requirement_id": "RVT-THESIS-004",
-      "title": "Controlled 10-configuration validation protocol",
-      "statement": "Prototype RR and HR accuracy, agreement, and valid-output rate shall be tested against human references across 10 randomized configurations (0.6, 0.8, 1.0, 2.0, 3.0 m with and without cardboard).",
+      "title": "Controlled 10-configuration functionality testing against reference devices",
+      "statement": "The integrated prototype's performance in detecting respiratory rate, heart rate, and body temperature shall be tested by comparing its readings against reference measurement devices (adjudicated dual-observer respiration count, pulse oximeter, and calibrated infrared thermometer) across 10 randomized configurations (0.6, 0.8, 1.0, 2.0, 3.0 m with and without cardboard), 0.6 m unobstructed temperature trials, and 72 no-subject false-alarm trials.",
       "source_refs": [
-        "docs/manuscript/manuscript.tex#sec:test-obj4",
+        "docs/manuscript/manuscript.tex#sec:intro-obj4",
+        "docs/manuscript/manuscript.tex#sec:ii-f-functionality-testing",
         "quality/precollection-readiness.json"
       ],
       "category": "session",
@@ -1061,8 +1067,8 @@
         "readiness_manifest"
       ],
       "acceptance_criteria": [
-        "Protocol defines 10 confirmatory conditions, 30 trials per complete participant, 1,140 minimum captures.",
-        "Temperature evaluation restricted to 0.6 m unobstructed; false alarms evaluated over 72 no-subject trials."
+        "Protocol defines 10 confirmatory conditions, 30 trials per complete participant, 1,140 minimum captures, and maps all four analysis endpoints (objective_1_rr, objective_2_temperature, objective_3_false_alarm, objective_4_hr) to thesis Objective 4 (Section II-F Functionality testing).",
+        "Temperature evaluation is restricted to 0.6 m unobstructed trials (d060_none); false alarms are evaluated over 72 independent 150-s no-subject trials."
       ],
       "change_record_required": true
     }

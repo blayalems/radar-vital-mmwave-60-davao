@@ -1,8 +1,8 @@
-# Radar Vital v16.5.12 Hardware–Software Feedback Loop
+# Radar Vital v16.6.5 Hardware–Software Feedback Loop
 
 This document is the canonical source for the system-process figures used by
-the repository and manuscript. It describes the shipped v16.5.12 product while
-keeping the wire protocol identity explicit: firmware v16.5.12 emits the frozen
+the repository and manuscript. It describes the shipped v16.6.5 product while
+keeping the wire protocol identity explicit: firmware v16.6.5 emits the frozen
 v15.2 CSV contract (222 columns, including the three fields introduced in
 v16.4 at columns 220–222).
 
@@ -39,9 +39,9 @@ the predeclared statistical-plan ID) are not renamed for a release-only bump.
 flowchart LR
     subject["Participant and reference device"]
     radar["MR60BHA2 60 GHz radar"]
-    mcu["XIAO ESP32-C6<br/>firmware v16.5.12"]
+    mcu["XIAO ESP32-C6<br/>firmware v16.6.5"]
     serial["USB serial<br/>v15.2 CSV, 222 columns"]
-    capture["Python trainer v16.5.12<br/>capture and quality ledger"]
+    capture["Python trainer v16.6.5<br/>capture and quality ledger"]
     dataset["Immutable session artifacts<br/>participant, session, timestamps"]
     features["Causal feature pipeline<br/>train-only fit and schema hash"]
     split["Recorded group split manifest<br/>outer participant holdout"]
@@ -51,7 +51,7 @@ flowchart LR
     evidence["Hashed evidence bundle<br/>JSON, CSV, plots and LaTeX tables"]
     registry["Signed model artifact and manifest<br/>family, split, seed, hashes"]
     api["Trainer prediction and report API"]
-    ui["Angular dashboard v16.6.3<br/>provenance, status and comparison"]
+    ui["Angular dashboard v16.6.5<br/>provenance, status and comparison"]
     manuscript["LaTeX manuscript<br/>figures, methods and results"]
     protocol["Reviewed protocol decision<br/>acquisition, firmware and software changes"]
     operator["Operator action<br/>placement, capture quality, retraining"]
@@ -69,7 +69,7 @@ flowchart LR
 ```
 
 Manuscript caption (`hardware-software-feedback-loop`):
-“Radar Vital v16.5.12 hardware–software feedback loop. The ESP32-C6 firmware
+“Radar Vital v16.6.5 hardware–software feedback loop. The ESP32-C6 firmware
 streams the frozen v15.2/222-column serial contract to the Python trainer.
 Immutable, participant-grouped session artifacts feed one causal preprocessing
 and holdout manifest shared by gradient boosting and the experimental 1-D CNN.
@@ -95,7 +95,7 @@ flowchart TD
     metric["Engineering accuracy<br/>RMSE, MAE, bias, Pearson/Spearman"]
     agreement["Repeated-measures agreement<br/>mixed-effects Bland–Altman and bootstrap CI"]
     coverage["Protocol-attempt coverage<br/>participant-cluster bootstrap CI"]
-    tost["Primary RR TOST d100_none<br/>+/-2 bpm, alpha=.05, 90% CI<br/>five secondary conditions + Holm"]
+    tost["Primary RR TOST d100_none<br/>+/-2 bpm, alpha=.05, 90% CI<br/>nine secondary conditions + Holm"]
     alarm["No-subject false alarm<br/>exact binomial vs .05 + separate 95% CP CI"]
     publish["Write outer_oof_predictions.csv,<br/>pooled/macro summary, JSON/CSV/LaTeX,<br/>provenance and artifact hashes"]
 
@@ -154,7 +154,7 @@ The session manifest must contain:
 `model_family`, `model_bundle_id`, `logical_trial_id`, `attempt_id`, and
 `attempt_type`.
 
-The v16.5.12 capture rule is that `capture_provenance` is written once at
+The v16.6.5 capture rule is that `capture_provenance` is written once at
 allocation and never rewritten by analysis. Re-analysis appends an
 `analysis_runs[]` record containing the current source commit, feature-schema
 hash, and input-file hashes. Each capture also owns an append-only
@@ -163,17 +163,18 @@ hash, and input-file hashes. Each capture also owns an append-only
 `aborted`, `invalid`, or `no_output`). A standalone `no_subject` attempt is
 recorded in `protocol_attempts.json`; it is never inferred from missing OOF
 rows. The operator-protected completion matrix uses these ledgers to report
-all 18 participant/configuration repetitions and the predeclared 72 no-subject
+all 30 participant/configuration repetitions and the predeclared 72 no-subject
 attempt denominator.
 
-The software accepts a validated distance domain of 0.5–1.0 m so bench and
-future protocol work can be represented without free-text labels. The attached
-2026-07-22 proposal remains the confirmatory authority: 0.6, 0.8, and 1.0 m,
-each without a barrier and with one nominal 3-mm cardboard panel, three 150-s
-trials per participant/configuration, 40 recruited participants, and at least
-38 protocol-complete participants targeted. Changing those confirmatory levels
-requires a protocol/manuscript revision and release increment; it must not be
-done by silently editing session metadata.
+The software accepts a validated distance domain of 0.5–3.0 m so bench and
+protocol work can be represented without free-text labels. The approved
+September 2026 manuscript (`docs/manuscript/manuscript.tex`) is the confirmatory
+authority: 0.6, 0.8, 1.0, 2.0, and 3.0 m, each without a barrier and with one
+nominal 3-mm cardboard panel (10 configurations), three 150-s trials per
+participant/configuration (30 trials per complete participant), 40 recruited
+participants, and at least 38 protocol-complete participants targeted. Changing
+those confirmatory levels requires a protocol/manuscript revision and release
+increment; it must not be done by silently editing session metadata.
 
 Participant-grouped outer folds are mandatory for confirmatory GBR/1-D CNN
 comparison. Sessions marked `legacy_unassigned`, participant-reassigned,
@@ -195,10 +196,15 @@ The operator-facing objective contract is served by
 `GET /api/study/objectives` and is rendered in the Angular participant setup.
 The locked protocol is read or written through `/api/study/protocol`, while
 `/api/study/schedule?participant_id=P-NNN` returns the persisted deterministic
-randomization for that participant. This binds the four predeclared draft manuscript
-objectives to their evidence paths: primary RR TOST at `d100_none`, exploratory
-unobstructed temperature agreement, the 72-trial no-subject false-alarm
-denominator, and exploratory HR agreement across the six configurations.
+randomization for that participant. The approved September 2026 manuscript
+defines four specific thesis objectives (1 design, 2 build, 3 integrate, 4 test),
+while `/api/study/objectives` maps the four functionality-testing analysis
+endpoints (`objective_1_rr`, `objective_2_temperature`, `objective_3_false_alarm`,
+`objective_4_hr`) to thesis Objective 4 (Section II-F, Functionality testing):
+primary RR TOST at `d100_none` with nine Holm-adjusted secondary conditions,
+exploratory unobstructed temperature agreement at `d060_none`, the 72-trial
+no-subject false-alarm denominator, and exploratory HR agreement across all ten
+configurations.
 Reference observations are append-only at
 `/api/sessions/<id>/references`; RR requires two locked observer readings before
 `/references/rr-adjudication` can create a final value. Analysis requests and
@@ -236,8 +242,8 @@ key destruction if the implemented encryption architecture supports it; the
 current system must not claim crypto-shredding. Host-monotonic receive anchors
 remain outside the frozen serial contract, while `sync_anchors.json` and
 `alignment_report.json` must record method and numeric uncertainty. Objective 4
-HR alignment claims remain blocked on physical USB buffering/latency
-characterization.
+HR endpoint (`objective_4_hr`) alignment claims remain blocked on physical USB
+buffering/latency characterization.
 
 - Define TOST equivalence margins before training and justify them in the
   protocol or manuscript; never derive them from the observed test results.
@@ -248,7 +254,7 @@ characterization.
   windows at 5-second stride, retain a trial only when at least 15 windows are
   valid, then retain a participant-condition only when at least two trials are
   valid. The primary RR TOST is 1.0 m/no-cardboard (+/-2 breaths/minute,
-  alpha=0.05, 90% CI); the other five protocol conditions are secondary and
+  alpha=0.05, 90% CI); the other nine protocol conditions are secondary and
   use Holm adjustment. Fewer than 19 independent primary participant estimates
   is inconclusive, never a pass.
 - Use repeated-measures Bland–Altman/mixed-effects agreement rather than
@@ -279,7 +285,7 @@ The durable analysis-job index is recoverable after a browser refresh, and the
 frontend exposes the job's progress, phase, cohort selection, statistics state,
 and error/last-line evidence. Confirmatory RR
 analysis discovers the complete manifest-backed participant cohort, requires
-at least 38 independent participants with the six conditions and three trials,
+at least 38 independent participants with the ten conditions and three trials,
 forces participant-disjoint LOSO outer folds, and writes a hashed run manifest.
 The durable job is bounded to one worker, survives refresh through its JSON
 record, supports cancellation, and exposes `queued`, `running`, `blocked`,
@@ -295,7 +301,7 @@ row requires a completed terminal event, a unique session-backed no-subject
 manifest, exactly 150 seconds of corroborated capture time, matching expected
 and observed firmware plus capture/release provenance, the frozen configuration
 hash, and an explicit trial-level any-alert value of zero or one. Exactly 72
-unique qualified trials with non-overlapping capture intervals produce the Objective 3 report
+unique qualified trials with non-overlapping capture intervals produce the `objective_3_false_alarm` report
 directly from the ledger: observed proportion, a separate two-sided 95%
 Clopper–Pearson interval, and the one-sided exact binomial test of
 `H0: p >= 0.05` against `H1: p < 0.05`. Missing SciPy evidence blocks the report

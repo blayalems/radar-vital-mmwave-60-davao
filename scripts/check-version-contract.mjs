@@ -74,6 +74,7 @@ if (version) {
   contains('dashboard version', 'rvt_trainer/monolith.py', `DASHBOARD_VERSION = "${version}"`);
   contains('expected firmware version', 'rvt_trainer/monolith.py', `FIRMWARE_VERSION_EXPECTED = "v${version}"`);
   contains('trainer firmware path', 'rvt_trainer/monolith.py', firmwareFile);
+  contains('study objectives product version', 'rvt_trainer/session/study_objectives.py', `"product_version": "${version}"`);
 
   contains('Angular product version', 'web/src/app/services/app-meta.ts', `PRODUCT_VERSION = '${version}'`);
   contains('Angular short version', 'web/src/app/services/app-meta.ts', `PRODUCT_VERSION_SHORT = 'v${short}'`);

@@ -21,7 +21,7 @@ from rvt_trainer.statistics import (
 )
 
 
-def _confirmatory_provenance(plan, *, run_product_version="16.6.4"):
+def _confirmatory_provenance(plan, *, run_product_version="16.6.5"):
     return {
         "source_commit": "c" * 40,
         "model_family": "gradient_boosting",
@@ -538,7 +538,7 @@ def test_confirmatory_provenance_separates_plan_study_and_run_identities():
     )
 
     assert plan["effective_product_version"] == "16.5.8"
-    assert report["provenance"]["run_product_version"] == "16.6.4"
+    assert report["provenance"]["run_product_version"] == "16.6.5"
     assert report["provenance"]["analysis_plan_id"] == "RVT-STA-PLAN-16.5.8"
     assert len(report["provenance"]["analysis_plan_sha256"]) == 64
     assert report["provenance"]["study_protocol_id"] == "RVT-THESIS-16.5.9"

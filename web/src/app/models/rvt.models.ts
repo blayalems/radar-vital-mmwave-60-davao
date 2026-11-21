@@ -164,6 +164,8 @@ export interface ProtocolAttemptResponse {
 export interface StudyObjective {
   id: string;
   number: number;
+  thesis_objective?: number;
+  manuscript_section?: string;
   outcome: string;
   label: string;
   role: 'confirmatory' | 'exploratory' | string;
@@ -181,10 +183,29 @@ export interface StudyObjective {
   required_routes?: string[];
 }
 
+export interface ThesisObjective {
+  number: number;
+  phase: 'design' | 'build' | 'integrate' | 'test' | string;
+  statement: string;
+  requirement_id: string;
+  manuscript_sections: string[];
+  analysis_endpoint_ids?: string[];
+}
+
+export interface ManuscriptIdentity {
+  path: string;
+  document_id: string;
+  approval_state: string;
+  testing_section: string;
+  testing_heading: string;
+}
+
 export interface StudyObjectivesResponse {
   schema_version: string;
   control_status?: string;
   product_version: string;
+  manuscript?: ManuscriptIdentity;
+  thesis_objectives?: ThesisObjective[];
   confirmatory_conditions: string[];
   trials_per_condition: number;
   planned_duration_s: number;

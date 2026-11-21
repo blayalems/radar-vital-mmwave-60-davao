@@ -13,7 +13,7 @@ permissions:
 jobs:
   contracts:
     name: Contracts, unit tests, and build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -115,7 +115,7 @@ jobs:
 
   firmware:
     name: Firmware compile (XIAO ESP32-C6)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -184,7 +184,7 @@ jobs:
             port: 8992
           - project: ipad
             port: 8993
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

@@ -11,10 +11,10 @@
   </div>
 
   @if (objectives().length) {
-    <div class="objective-strip" aria-label="Draft manuscript objective controls">
+    <div class="objective-strip" aria-label="Approved manuscript Objective 4 functionality-testing endpoints">
       @for (objective of objectives(); track objective.id) {
         <div class="objective-chip" [attr.data-role]="objective.role">
-          <strong>O{{ objective.number }} · {{ objective.outcome | uppercase }}</strong>
+          <strong>O{{ objective.thesis_objective || 4 }} · E{{ objective.number }} · {{ objective.outcome | uppercase }}</strong>
           <span>{{ objective.role }} · {{ objective.label }}</span>
         </div>
       }

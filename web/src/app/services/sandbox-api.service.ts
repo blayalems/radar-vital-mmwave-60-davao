@@ -28,9 +28,23 @@ const SANDBOX_OPERATOR_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const SANDBOX_PARTICIPANTS_KEY = 'demo:rvt-participants-v16.5.9';
 const SANDBOX_SUBJECT_PROFILES_KEY = 'demo:rvt-subject-profiles-v16.5.9';
 const SANDBOX_PROTOCOL_ATTEMPTS_KEY = 'demo:rvt-protocol-attempts-v16.5.9';
-const SANDBOX_STUDY_PROTOCOL_KEY = 'demo:rvt-study-protocol-v16.5.9';
+const LEGACY_SANDBOX_STUDY_PROTOCOL_KEY = 'demo:rvt-study-protocol-v16.5.9';
+const SANDBOX_STUDY_PROTOCOL_KEY = 'demo:rvt-study-protocol-v16.6.5';
 const SANDBOX_STUDY_ANALYSIS_KEY = 'demo:rvt-study-analysis-v16.5.9';
-const SANDBOX_STUDY_SCHEDULE_PREFIX = 'demo:rvt-study-schedule-v16.5.9:';
+const LEGACY_SANDBOX_STUDY_SCHEDULE_PREFIX = 'demo:rvt-study-schedule-v16.5.9:';
+const SANDBOX_STUDY_SCHEDULE_PREFIX = 'demo:rvt-study-schedule-v16.6.5:';
+const SANDBOX_CONFIRMATORY_CONDITIONS = [
+  'd060_none',
+  'd080_none',
+  'd100_none',
+  'd200_none',
+  'd300_none',
+  'd060_cardboard',
+  'd080_cardboard',
+  'd100_cardboard',
+  'd200_cardboard',
+  'd300_cardboard'
+];
 
 @Injectable({
   providedIn: 'root'
@@ -133,9 +147,8 @@ export class SandboxApiService {
       const body = this.parseJsonBody<Partial<StudyProtocol>>(init?.body);
       const conditions = Array.isArray(body.conditions) ? body.conditions : current.conditions;
       const conditionIds = conditions.map(item => String(item?.condition_id || ''));
-      const expected = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
-      if (conditionIds.length !== expected.length || expected.some(id => !conditionIds.includes(id))) {
-        throw new Error('protocol conditions must contain the six canonical condition IDs');
+      if (!this.hasCanonicalSandboxConditions(conditionIds)) {
+        throw new Error('protocol conditions must contain the ten canonical condition IDs');
       }
       const state = body.state || current.state;
       if (state !== 'draft' && state !== 'locked') throw new Error('protocol state must be draft or locked');
@@ -149,6 +162,9 @@ export class SandboxApiService {
         ...(state === 'locked' ? { locked_at: new Date().toISOString(), locked_by: String(body['actor'] || '') || null } : {})
       } as StudyProtocol;
       localStorage.setItem(SANDBOX_STUDY_PROTOCOL_KEY, JSON.stringify(protocol));
+      if (protocol.randomization_seed !== current.randomization_seed) {
+        this.clearStoredSchedulesByPrefix(SANDBOX_STUDY_SCHEDULE_PREFIX);
+      }
       return { ok: true, protocol };
     }
     if (url.pathname === '/api/study/schedule') {
@@ -368,7 +384,7 @@ export class SandboxApiService {
     if (url.pathname === '/api/defaults') return this.sandboxDefaults();
     if (url.pathname === '/api/preflight') return { ok: true, checks: [
       { id: 'trainer', label: 'Trainer link', status: 'good', description: 'Demo trainer reachable — simulated control plane.' },
-      { id: 'radar', label: 'Radar serial', status: 'good', description: 'COM4 — XIAO ESP32-S3 detected.' },
+      { id: 'radar', label: 'Radar serial', status: 'good', description: 'COM4 — XIAO ESP32-C6 detected.' },
       { id: 'firmware', label: 'Firmware contract', status: 'good', description: 'Simulated 222-column contract intact.' },
       { id: 'ble', label: 'BLE reference', status: 'good', description: 'AiLink oximeter paired (simulated).' },
       { id: 'placement', label: 'Subject placement', status: 'good', description: 'Subject within the radar sweet spot.' },
@@ -420,7 +436,7 @@ export class SandboxApiService {
   }
 
   private completionMatrix(): CompletionMatrix {
-    const conditions = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
+    const conditions = [...SANDBOX_CONFIRMATORY_CONDITIONS];
     const trials = [1, 2, 3];
     const attempts = this.readProtocolAttempts();
     const participants: CompletionMatrix['participants'] = {};
@@ -464,57 +480,179 @@ export class SandboxApiService {
   }
 
   private studyObjectives(): Record<string, unknown> {
-    const conditions = ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'];
+    const conditions = [...SANDBOX_CONFIRMATORY_CONDITIONS];
     return {
-      schema_version: 'rvt-study-objectives-v16.5.9',
+      schema_version: 'rvt-study-objectives-v16.6.5',
+      control_status: 'draft_not_authorized',
       product_version: PRODUCT_VERSION,
+      manuscript: {
+        path: 'docs/manuscript/manuscript.tex',
+        document_id: 'RVT-QMS-MAN-001',
+        approval_state: 'approved_manuscript_2026_09',
+        testing_section: 'II-F',
+        testing_heading: 'Functionality testing'
+      },
+      thesis_objectives: [
+        {
+          number: 1,
+          phase: 'design',
+          statement: 'Design a non-contact vital signs monitoring system that uses 60-GHz millimeter-wave sensing and an ESP32 microcontroller to detect respiratory rate, heart rate, and body temperature.',
+          requirement_id: 'RVT-THESIS-001',
+          manuscript_sections: ['I', 'II-C', 'II-D']
+        },
+        {
+          number: 2,
+          phase: 'build',
+          statement: 'Build the individual hardware components of the system, including the millimeter-wave sensing module, ESP32-based processing unit, and user-interface module.',
+          requirement_id: 'RVT-THESIS-002',
+          manuscript_sections: ['I', 'II-D', 'II-E', 'II-F']
+        },
+        {
+          number: 3,
+          phase: 'integrate',
+          statement: 'Integrate the built components into a single functional prototype capable of continuous non-contact vital signs monitoring.',
+          requirement_id: 'RVT-THESIS-003',
+          manuscript_sections: ['I', 'II-F']
+        },
+        {
+          number: 4,
+          phase: 'test',
+          statement: 'Test the performance of the integrated prototype in detecting respiratory rate, heart rate, and body temperature by comparing its readings against a reference measurement device under controlled test conditions.',
+          requirement_id: 'RVT-THESIS-004',
+          manuscript_sections: ['I', 'II-F'],
+          analysis_endpoint_ids: ['objective_1_rr', 'objective_2_temperature', 'objective_3_false_alarm', 'objective_4_hr']
+        }
+      ],
       confirmatory_conditions: conditions,
       trials_per_condition: 3,
       planned_duration_s: 150,
       target_recruited_participants: 40,
       minimum_protocol_complete_participants: 38,
       objectives: [
-        { id: 'objective_1_rr', number: 1, outcome: 'rr', label: 'GBR-assisted respiration-rate equivalence', role: 'confirmatory', primary_condition_id: 'd100_none', equivalence_margin_bpm: 2, confidence_level: 0.9, minimum_independent_estimates: 19 },
-        { id: 'objective_2_temperature', number: 2, outcome: 'temperature', label: 'Unobstructed skin-surface-temperature agreement', role: 'exploratory' },
-        { id: 'objective_3_false_alarm', number: 3, outcome: 'false_alarm', label: 'No-subject false-alarm rate', role: 'confirmatory', threshold: 0.05, trial_count: 72, trial_duration_s: 150 },
-        { id: 'objective_4_hr', number: 4, outcome: 'hr', label: 'GBR-assisted heart-rate accuracy and agreement', role: 'exploratory', conditions }
+        { id: 'objective_1_rr', number: 1, thesis_objective: 4, manuscript_section: 'II-F', outcome: 'rr', label: 'GBR-assisted respiration-rate equivalence', role: 'confirmatory', primary_condition_id: 'd100_none', secondary_condition_count: 9, equivalence_margin_bpm: 2, confidence_level: 0.9, minimum_independent_estimates: 19 },
+        { id: 'objective_2_temperature', number: 2, thesis_objective: 4, manuscript_section: 'II-F', outcome: 'temperature', label: 'Unobstructed skin-surface-temperature agreement', role: 'exploratory', conditions: ['d060_none'] },
+        { id: 'objective_3_false_alarm', number: 3, thesis_objective: 4, manuscript_section: 'II-F', outcome: 'false_alarm', label: 'No-subject false-alarm rate', role: 'confirmatory', threshold: 0.05, trial_count: 72, trial_duration_s: 150 },
+        { id: 'objective_4_hr', number: 4, thesis_objective: 4, manuscript_section: 'II-F', outcome: 'hr', label: 'GBR-assisted heart-rate accuracy and agreement', role: 'exploratory', conditions }
       ]
     };
   }
 
-  private studyProtocol(): StudyProtocol {
-    const fallback: StudyProtocol = {
+  private defaultSandboxProtocol(): StudyProtocol {
+    return {
       schema_version: 'rvt-study-protocol-v2',
       protocol_id: 'RVT-THESIS-16.5.9',
       protocol_version: '2',
       state: 'draft',
       randomization_seed: 'sandbox-seed-v16.5.9',
-      conditions: ['d060_none', 'd080_none', 'd100_none', 'd060_cardboard', 'd080_cardboard', 'd100_cardboard'].map(condition_id => {
+      conditions: [...SANDBOX_CONFIRMATORY_CONDITIONS].map(condition_id => {
         const distance_m = Number(condition_id.slice(1, 4)) / 100;
         return { condition_id, distance_m, barrier_type: condition_id.endsWith('cardboard') ? 'cardboard' : 'none', trial_count: 3, planned_duration_s: 150, confirmatory: true };
       }),
       no_subject: { trial_count: 72, planned_duration_s: 150, frozen_configuration: null }
     };
-    try {
-      const stored = JSON.parse(localStorage.getItem(SANDBOX_STUDY_PROTOCOL_KEY) || 'null');
-      return stored && typeof stored === 'object' ? { ...fallback, ...stored } as StudyProtocol : fallback;
-    } catch {
-      return fallback;
+  }
+
+  private hasCanonicalSandboxConditions(conditionIds: string[]): boolean {
+    return (
+      conditionIds.length === SANDBOX_CONFIRMATORY_CONDITIONS.length
+      && new Set(conditionIds).size === SANDBOX_CONFIRMATORY_CONDITIONS.length
+      && SANDBOX_CONFIRMATORY_CONDITIONS.every(id => conditionIds.includes(id))
+    );
+  }
+
+  private clearStoredSchedulesByPrefix(prefix: string): void {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(prefix)) keysToRemove.push(key);
     }
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
+  }
+
+  private studyProtocol(): StudyProtocol {
+    const fallback = this.defaultSandboxProtocol();
+    try {
+      const rawCurrent = localStorage.getItem(SANDBOX_STUDY_PROTOCOL_KEY);
+      if (rawCurrent !== null) {
+        const stored = JSON.parse(rawCurrent);
+        const ids = Array.isArray(stored?.conditions)
+          ? stored.conditions.map((item: { condition_id?: unknown }) => String(item?.condition_id || ''))
+          : [];
+        if (stored && typeof stored === 'object' && this.hasCanonicalSandboxConditions(ids)) {
+          return { ...fallback, ...stored } as StudyProtocol;
+        }
+        localStorage.removeItem(SANDBOX_STUDY_PROTOCOL_KEY);
+        this.clearStoredSchedulesByPrefix(SANDBOX_STUDY_SCHEDULE_PREFIX);
+      }
+    } catch {
+      localStorage.removeItem(SANDBOX_STUDY_PROTOCOL_KEY);
+      this.clearStoredSchedulesByPrefix(SANDBOX_STUDY_SCHEDULE_PREFIX);
+    }
+
+    try {
+      const rawLegacy = localStorage.getItem(LEGACY_SANDBOX_STUDY_PROTOCOL_KEY);
+      if (rawLegacy !== null) {
+        const legacy = JSON.parse(rawLegacy);
+        if (legacy && typeof legacy === 'object') {
+          const legacyIds = Array.isArray(legacy.conditions)
+            ? legacy.conditions.map((item: { condition_id?: unknown }) => String(item?.condition_id || ''))
+            : [];
+          if (this.hasCanonicalSandboxConditions(legacyIds)) {
+            const migrated = { ...fallback, ...legacy } as StudyProtocol;
+            localStorage.setItem(SANDBOX_STUDY_PROTOCOL_KEY, JSON.stringify(migrated));
+            localStorage.removeItem(LEGACY_SANDBOX_STUDY_PROTOCOL_KEY);
+            this.clearStoredSchedulesByPrefix(LEGACY_SANDBOX_STUDY_SCHEDULE_PREFIX);
+            return migrated;
+          }
+          // Legacy 6-condition demo protocols (even if locked) cannot satisfy the
+          // 10-condition matrix or allow PUT repairs, so reset to a 10-condition draft.
+          const migrated: StudyProtocol = {
+            ...fallback,
+            ...(typeof legacy.protocol_id === 'string' && legacy.protocol_id ? { protocol_id: legacy.protocol_id } : {}),
+            ...(typeof legacy.protocol_version === 'string' && legacy.protocol_version ? { protocol_version: legacy.protocol_version } : {}),
+            ...(typeof legacy.randomization_seed === 'string' ? { randomization_seed: legacy.randomization_seed } : {}),
+            ...(legacy.no_subject && typeof legacy.no_subject === 'object' ? { no_subject: legacy.no_subject } : {}),
+            conditions: fallback.conditions,
+            state: 'draft',
+            locked_at: null,
+            locked_by: null,
+            updated_at: new Date().toISOString()
+          };
+          localStorage.setItem(SANDBOX_STUDY_PROTOCOL_KEY, JSON.stringify(migrated));
+          localStorage.removeItem(LEGACY_SANDBOX_STUDY_PROTOCOL_KEY);
+          this.clearStoredSchedulesByPrefix(LEGACY_SANDBOX_STUDY_SCHEDULE_PREFIX);
+          this.clearStoredSchedulesByPrefix(SANDBOX_STUDY_SCHEDULE_PREFIX);
+          return migrated;
+        }
+        localStorage.removeItem(LEGACY_SANDBOX_STUDY_PROTOCOL_KEY);
+      }
+    } catch {
+      localStorage.removeItem(LEGACY_SANDBOX_STUDY_PROTOCOL_KEY);
+    }
+
+    this.clearStoredSchedulesByPrefix(LEGACY_SANDBOX_STUDY_SCHEDULE_PREFIX);
+    return fallback;
   }
 
   private studySchedule(participantId: string): Record<string, unknown> {
     const participant = participantId.trim().toUpperCase();
     if (!participant) throw new Error('participant_id is required');
+    const protocol = this.studyProtocol();
+    const seed = `${protocol.randomization_seed || ''}:${participant}`;
     const key = `${SANDBOX_STUDY_SCHEDULE_PREFIX}${participant}`;
     try {
       const stored = JSON.parse(localStorage.getItem(key) || 'null');
-      if (stored && typeof stored === 'object' && Array.isArray(stored.entries)) return stored as Record<string, unknown>;
+      const ids = Array.isArray(stored?.entries)
+        ? stored.entries.map((item: { condition_id?: unknown }) => String(item?.condition_id || ''))
+        : [];
+      if (stored && typeof stored === 'object' && stored.seed === seed && this.hasCanonicalSandboxConditions(ids)) {
+        return stored as Record<string, unknown>;
+      }
     } catch {
       // Recreate a deterministic schedule when local storage contains invalid data.
     }
-    const protocol = this.studyProtocol();
-    const seed = `${protocol.randomization_seed || ''}:${participant}`;
     const conditions = this.stableShuffle(protocol.conditions.map(item => item.condition_id), seed);
     const result = {
       ok: true,
@@ -524,6 +662,7 @@ export class SandboxApiService {
       entries: conditions.map((condition_id, index) => ({ participant_id: participant, order: index + 1, condition_id, trial_numbers: [1, 2, 3], status: 'missing', seed }))
     };
     localStorage.setItem(key, JSON.stringify(result));
+    localStorage.removeItem(`${LEGACY_SANDBOX_STUDY_SCHEDULE_PREFIX}${participant}`);
     return result;
   }
 

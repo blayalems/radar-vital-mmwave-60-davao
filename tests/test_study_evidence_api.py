@@ -13,10 +13,15 @@ import rvt_trainer.monolith as monolith
 from rvt_trainer.monolith import _ControlServer
 from rvt_trainer.session.study_contract import create_participant_profile
 from rvt_trainer.session.study_evidence import (
+    CONDITIONS,
     _validate_completed_job_artifacts,
     create_analysis_job,
     load_analysis_job,
+    load_protocol,
+    save_protocol,
+    schedule_for_participant,
 )
+from rvt_trainer.session.study_objectives import study_objectives_payload
 
 
 def _request(
@@ -61,6 +66,18 @@ def study_server(tmp_path: Path):
 
 
 def test_protocol_schedule_and_no_subject_attempt_contract(study_server: _ControlServer):
+    status, objectives_payload = _request(study_server, "GET", "/api/study/objectives")
+    assert status == 200
+    assert objectives_payload["schema_version"] == "rvt-study-objectives-v16.6.5"
+    assert objectives_payload["product_version"] == "16.6.5"
+    assert len(objectives_payload["thesis_objectives"]) == 4
+    assert [item["phase"] for item in objectives_payload["thesis_objectives"]] == ["design", "build", "integrate", "test"]
+    assert len(objectives_payload["objectives"]) == 4
+    assert all(
+        item["thesis_objective"] == 4 and item["manuscript_section"] == "II-F"
+        for item in objectives_payload["objectives"]
+    )
+
     status, response = _request(study_server, "GET", "/api/study/protocol")
     assert status == 200
     assert response["protocol"]["schema_version"] == "rvt-study-protocol-v2"
@@ -212,7 +229,7 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["objective_id"] == "objective_1_rr"
     assert response["status"] == "inconclusive"
-    assert response["provenance"]["product_version"] == "16.6.4"
+    assert response["provenance"]["product_version"] == "16.6.5"
 
 
 def test_study_evidence_routes_are_operator_protected(study_server: _ControlServer):
@@ -323,3 +340,84 @@ def test_completed_job_promotion_rejects_report_manifest_identity_mismatch(tmp_p
     assert "statistical_report_identity_mismatch" in {
         reason["reason"] for reason in reasons
     }
+
+
+def test_study_objectives_payload_deep_copies_nested_lists():
+    first = study_objectives_payload()
+    first["objectives"][0]["required_routes"].append("/api/mutated")
+    first["thesis_objectives"][0]["manuscript_sections"].append("IX")
+
+    second = study_objectives_payload()
+    assert "/api/mutated" not in second["objectives"][0]["required_routes"]
+    assert "IX" not in second["thesis_objectives"][0]["manuscript_sections"]
+
+
+def test_legacy_six_condition_protocol_and_schedule_normalize_to_ten(tmp_path: Path):
+    sessions_root = tmp_path / "sessions"
+    sessions_root.mkdir()
+    legacy_six = [
+        "d060_none",
+        "d080_none",
+        "d100_none",
+        "d060_cardboard",
+        "d080_cardboard",
+        "d100_cardboard",
+    ]
+
+    # Legacy draft protocol normalizes to the 10 canonical conditions on load.
+    (sessions_root / "study_protocol.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "rvt-study-protocol-v2",
+                "state": "draft",
+                "randomization_seed": "seed-v1",
+                "conditions": [{"condition_id": cid} for cid in legacy_six],
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded_draft = load_protocol(str(sessions_root))
+    assert [item["condition_id"] for item in loaded_draft["conditions"]] == list(CONDITIONS)
+
+    # Cached 6-entry or mismatched-seed schedule regenerates to 10 canonical conditions.
+    (sessions_root / "study_schedules.json").write_text(
+        json.dumps(
+            {
+                "P-001": {
+                    "ok": True,
+                    "participant_id": "P-001",
+                    "entries": [{"condition_id": cid} for cid in legacy_six],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    regenerated = schedule_for_participant(str(sessions_root), "P-001")
+    assert len(regenerated["entries"]) == 10
+    assert {entry["condition_id"] for entry in regenerated["entries"]} == set(CONDITIONS)
+
+    # Reject duplicate/incomplete condition sets on save_protocol.
+    with pytest.raises(ValueError, match="ten canonical condition IDs"):
+        save_protocol(
+            str(sessions_root),
+            {"conditions": [{"condition_id": cid} for cid in legacy_six]},
+        )
+    duplicate_ten = [{"condition_id": CONDITIONS[0]} for _ in range(10)]
+    with pytest.raises(ValueError, match="ten canonical condition IDs"):
+        save_protocol(str(sessions_root), {"conditions": duplicate_ten})
+
+    # Locked legacy protocol on disk is preserved unchanged.
+    locked_conditions = [{"condition_id": cid} for cid in legacy_six]
+    (sessions_root / "study_protocol.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "rvt-study-protocol-v2",
+                "state": "locked",
+                "conditions": locked_conditions,
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded_locked = load_protocol(str(sessions_root))
+    assert loaded_locked["state"] == "locked"
+    assert loaded_locked["conditions"] == locked_conditions

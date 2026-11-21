@@ -5,6 +5,29 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-11-19 - Address PR #165 review findings, upgrade migrations, and security/CI cleanup
+
+- **Sandbox 6-to-10 Condition Upgrade Migration**: Versioned `SandboxApiService` protocol/schedule keys to `v16.6.5` (`demo:rvt-study-protocol-v16.6.5`, `demo:rvt-study-schedule-v16.6.5:`), migrated legacy `v16.5.9` 6-condition records (resetting locked 6-condition demo state to `draft` while preserving valid 10-condition locked protocols), invalidated mismatched seeds/schedules, updated preflight label to `XIAO ESP32-C6`, and added Vitest migration tests.
+- **Distance & Objective Label Alignment**: Fixed `ParticipantStudySetupComponent` exploratory distance clamp from `1.0 m` to `3.0 m`, aligned `report.component.html` objective-evidence subtitle to Objective 4 (`Section II-F`), updated `study_contract.py` / `monolith.py` error and help strings to `3.0 m`, updated `study_evidence.py` (`load_protocol`, `save_protocol`, `schedule_for_participant`, fallback `16.6.5`), deep-copied `study_objectives_payload()`, and checked `study_objectives.py` in `scripts/check-version-contract.mjs`.
+- **Security Audit & Release Gradle Resilience**: Restored `.github/workflows/security-audit.yml` `npm --prefix web audit --audit-level=moderate` gate (removing the now-unneeded `GHSA-fc5q-39xc-vjpf` exception as all npm trees pass with 0 findings), and added the Google Maven Central mirror and `--max-workers=2` to `.github/workflows/release-artifacts.yml` with supply-chain contract coverage.
+
+### 2026-11-19 - Remediate Tauri Cargo.lock security advisories (PR #165)
+
+- **Rust/Tauri Lockfile Remediation**: Updated `src-tauri/Cargo.lock` (`tauri` 2.12.7, `tauri-plugin-updater` 2.14.1, `zip` 9.7.3, `quinn-proto` 0.11.19, `quinn-udp` 0.5.16, `rustls` 0.23.46, `rustls-webpki` 0.103.17, `webpki-root-certs` 1.0.12, `webpki-roots` 1.0.12) while keeping `radar-vital` at `16.6.5`; `cargo-audit 0.22.2` passes with 0 vulnerabilities (`--ignore RUSTSEC-2024-0429`).
+
+### 2026-11-18 - Fix PR #165 CI checks: npm security audit, Gradle Maven mirror, Playwright Ubuntu 24.04, and Home snapshots
+
+- **Security Audit Remediation**: Updated root `package-lock.json` (`@capacitor/android` 7.6.10, `brace-expansion`, `glob`, `minimatch`), `packaging/capacitor/package-lock.json` (`@capacitor/android` 8.6.2, `brace-expansion`, `glob`, `minimatch`), and `web/package.json`/`web/package-lock.json` (`@angular/*` 21.2.26/21.2.30, `@modelcontextprotocol/sdk` 1.32.2, `undici` 7.30.2, `piscina` 5.3.2, `glob` 14.0.6, `minimatch` 11.0.9); root, Capacitor, and `web --omit=dev` all report 0 vulnerabilities, and `.github/workflows/security-audit.yml` scopes a temporary dev-only exception for unpatched `GHSA-fc5q-39xc-vjpf` (`picomatch <=4.0.7`, expiry `2027-02-18`).
+- **Capacitor APK CI Resilience**: Added a Gradle `init.d` Google Maven Central mirror (`https://maven-central.storage-download.googleapis.com/maven2`) and `--max-workers=2` in `.github/workflows/build-apk.yml` to prevent `repo.maven.apache.org` HTTP 429 rate-limit failures.
+- **Playwright Runner & Visual Baselines**: Pinned `.github/workflows/playwright.yml` Linux jobs to `ubuntu-24.04` (Playwright 1.55.1 rejects `ubuntu26.04-x64`), rebuilt `www/` and `radar_vital_live_dashboard_v12_for_v16_0.html`, and refreshed the 4 desktop Home visual baseline PNGs (`O4 · E1`..`E4` chip labels).
+
+### 2026-11-18 - Align manuscript, objectives contract, and QMS with September 2026 approved thesis (v16.6.5)
+
+- **Approved Manuscript Source**: Updated `docs/manuscript/manuscript.tex` to the approved September 2026 IEEE manuscript (updated Section I objectives including body temperature, Section II-C..II-F layout, two-layer KiCad PCB with IF ground-plane shielding, 1/4-20 tripod/handheld FDM enclosures, staged subsystem integration with >=30-min isolated soaks, uninterrupted 8-hour burn-in, and Functionality testing).
+- **Objectives Contract & UI**: Bumped `/api/study/objectives` to `rvt-study-objectives-v16.6.5` with `manuscript` metadata and `thesis_objectives[]` (design/build/integrate/test), kept stable analysis endpoint IDs mapped to `thesis_objective: 4` (`manuscript_section: "II-F"`), relabeled dashboard chips (`O4 · E1`..`E4`), and updated `SandboxApiService` to the 10 confirmatory conditions.
+- **Controlled Docs & Physical Checklist**: Refreshed `docs/system-feedback-loop.md` (v16.6.5 labels, 10 conditions / 30 repetitions / 9 secondary Holm conditions) and `docs/precollection-readiness.md`; added Phase J (KiCad two-layer PCB/ERC, continuity & dual housings, >=30-min isolated soaks, 8-hour burn-in) to `docs/physical-acceptance-checklist.md`.
+- **QMS & Coordinated Release Bump**: Restated `RVT-THESIS-001`..`004` in `quality/requirements.json` (R15), updated `quality/precollection-readiness.json` (`RVT-PRECOLLECT-16.6.5`), incremented controlled-document revisions in `quality/document-register.json` (R18), renamed firmware to `radar_vital_v16_6_5.ino`, bumped all version carriers to `16.6.5`, and rebuilt `www/` and `radar_vital_live_dashboard_v12_for_v16_0.html`.
+
 ### 2026-09-03 - Align study protocol and QMS with IEEE thesis manuscript (v16.6.4)
 
 - **Thesis Manuscript Source**: Added authentic IEEE conference paper source at `docs/manuscript/manuscript.tex` tracing design, build, integrate, and test objectives for the University of Mindanao thesis.

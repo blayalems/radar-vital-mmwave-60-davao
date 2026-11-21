@@ -1,6 +1,6 @@
 # Physical Hardware Acceptance Checklist (v12 stable)
 
-## v16.6.3 acceptance disposition
+## v16.6.5 acceptance disposition
 
 The project team reports that the firmware bench tests are complete, including
 presence loss/recovery and peripheral recovery. This is a pending controlled
@@ -19,7 +19,7 @@ Ensure the following hardware components are available:
 1. **Target Mobile Device**: Android 10+ (tested against Pixel baseline).
 2. **Target Windows Machine**: Windows 10 or 11 with a working Bluetooth 4.2+ BLE USB adapter or integrated chip.
 3. **Reference BLE Device**: AiLink Pulse Oximeter or compatible GATT simulator.
-4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_6_3.ino`.
+4. **Target Firmware Controller**: XIAO ESP32-C6 loaded with `radar_vital_v16_6_5.ino`.
 5. **LAN Test Environment**: Both the trainer server (PC) and the mobile device must be connected to the exact same subnet (e.g., local Wi-Fi router).
 
 ---
@@ -103,8 +103,14 @@ Ensure the following hardware components are available:
 - [ ] Lock the study protocol and confirm that configuration lock alone does not change the not-authorized result.
 - [ ] Characterize the physical USB/radar-to-reference latency on the intended bench. Record the radar, reference-device, USB adapter, host, and firmware identifiers; synchronization method; sample count; tested load states; offset; jitter; uncertainty and its calculation basis; operator; timestamp; and immutable evidence ID plus SHA-256.
 - [ ] Verify each aligned session emits `sync_anchors.json` and `alignment_report.json` with the applied method, source clocks, offset, numeric uncertainty, uncertainty basis, physical-latency evidence identity/status, and explicit limitations. First-sample alignment and merge residuals must not be described as physical latency characterization.
-- [ ] Keep confirmatory timing-dependent and Objective 4 claims blocked until the physical-latency record and synchronization method receive the required research and quality approvals.
+- [ ] Keep confirmatory timing-dependent and Objective 4 (HR endpoint, `objective_4_hr`) claims blocked until the physical-latency record and synchronization method receive the required research and quality approvals.
 - [ ] Attach the approved withdrawal disposition SOP and REC/privacy evidence. Confirm unresolved withdrawals block authorization and analysis, and do not claim deletion or cryptographic shredding unless the deployed storage and recorded evidence actually support it.
+
+### Phase J: Approved Manuscript (September 2026) Design, Build, and Staged Integration Burn-In
+- [ ] **Two-layer KiCad PCB & ERC (`RVT-THESIS-001`)**: Verify two-layer KiCad PCB layout includes power-supply regulation/net, ground-plane shielding over the radar IF path, and fixed headers for MR60BHA2, MLX90614, and XIAO ESP32-C6; pass KiCad ERC and validate netlist on a breadboard before ordering fabrication.
+- [ ] **PCB continuity & dual FDM housings (`RVT-THESIS-002`)**: Hand-solder populated carrier PCB, confirm multimeter continuity on every net prior to power-up, and inspect FDM 3D-printed PETG/ABS enclosures in both the handheld grip-and-trigger format and the tripod-mounted `1/4-20` threaded-insert format sharing the identical internal board and harness.
+- [ ] **Sequential subsystem bring-up with ≥30-minute isolated soaks (`RVT-THESIS-003`)**: Verify staged bring-up in order — (1) MR60BHA2 UART driver, (2) MLX90614 I2C driver, (3) FIR/FFT signal-processing pipeline, (4) frozen GBR branch-comparison inference, (5) Web GUI, LCD, and buzzer alerting — running each subsystem in isolation for at least 30 minutes with zero watchdog trips, memory leaks, or thread desynchronization.
+- [ ] **Uninterrupted 8-hour integrated burn-in (`RVT-THESIS-003`)**: Run the fully integrated firmware continuously for an uninterrupted 8-hour communication burn-in without UART/I2C lockups or resets prior to human-subject validation trials.
 
 ---
 

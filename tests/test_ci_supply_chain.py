@@ -254,7 +254,7 @@ def test_firmware_compile_uses_the_pinned_toolchain_contract():
     assert lock["arduino_cli"] == "1.5.1"
     assert lock["fqbn"] == "esp32:esp32:XIAO_ESP32C6"
     assert lock["core"] == "esp32:esp32@3.3.11"
-    assert lock["sketch"] == "radar_vital_v16_6_4.ino"
+    assert lock["sketch"] == "radar_vital_v16_6_5.ino"
     assert lock["libraries"]["NimBLE-Arduino"] == "2.5.1"
     assert len(lock["seeed_mmwave_commit"]) == 40
     assert all("main" not in str(value) and "latest" not in str(value) for value in lock.values())
@@ -309,3 +309,12 @@ def test_production_release_pages_artifact_keeps_site_and_metadata_parity():
     assert "cmp -s www/index.html www/404.html" in release
     assert "grep -q 'Radar Vital Privacy Notice' www/privacy.html" in release
     assert "grep -q 'Radar Vital Terms and Conditions' www/terms.html" in release
+
+
+def test_android_gradle_workflows_configure_maven_mirror_and_worker_limit():
+    for workflow_path in (BUILD_APK, RELEASE):
+        text = _text(workflow_path)
+        mirror = "https://maven-central.storage-download.googleapis.com/maven2"
+        assert mirror in text
+        assert "--max-workers=2" in text
+        assert text.index(mirror) < text.index("./gradlew")

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rvt-trainer"
-version = "16.6.7"
+version = "16.7.0"
 description = "Radar Vital mmWave 60 GHz trainer — ThreadingHTTPServer, session management, ML-readiness audit, and REST/SSE API"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -63,30 +63,7 @@ rvt-statistics = "rvt_trainer.statistics:main"
 include = ["rvt_trainer*"]
 
 [tool.setuptools.package-data]
-"rvt_trainer.assets" = ["*"]
-
-[tool.setuptools.data-files]
-"share/rvt-trainer" = [
-    "radar_vital_live_dashboard_v12_for_v16_0.html",
-    "radar_vital_v16_6_7.ino",
-]
-"share/rvt-trainer/assets" = [
-    "assets/manifest.webmanifest",
-    "assets/pair.html",
-    "assets/rvt-sw.js",
-    "assets/sw.js",
-]
-"share/rvt-trainer/assets/fonts" = ["assets/fonts/*"]
-"share/rvt-trainer/assets/icons" = [
-    "assets/icons/apple-touch-icon-180.png",
-    "assets/icons/icon-192.png",
-    "assets/icons/icon-512.png",
-    "assets/icons/icon-maskable-512.png",
-    "assets/icons/icon.svg",
-]
-"share/rvt-trainer/assets/icons/android" = ["assets/icons/android/*"]
-"share/rvt-trainer/assets/lib" = ["assets/lib/*"]
-"share/rvt-trainer/quality" = ["quality/statistical-analysis-plan.json"]
+"rvt_trainer.assets" = ["*", "runtime/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -96,7 +73,6 @@ target-version = "py311"
 extend-exclude = [
     "node_modules",
     "web",
-    "web-legacy",
     "www",
     "src-tauri",
     "packaging",
@@ -110,7 +86,7 @@ select = ["E4", "E7", "E9", "F"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["rvt_trainer", "radar_vital_trainer_v12_for_v16_0.py"]
+files = ["rvt_trainer", "radar_vital_trainer.py"]
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]

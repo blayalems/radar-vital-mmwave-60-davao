@@ -1,6 +1,6 @@
 // Build pipeline for the dashboard:
 //   1. Resolve BUILD:INCLUDE markers in web/index.html
-//      → emit  radar_vital_live_dashboard_v12_for_v16_0.html  (repo root,
+//      → emit  radar_vital_live_dashboard.html  (repo root,
 //        still a build artifact so file:// and trainer-served flows keep
 //        working).
 //   2. Copy the assembled monolith and assets/ into www/ (consumed by
@@ -18,7 +18,7 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const WEB = path.join(ROOT, 'web');
 const SHELL = path.join(WEB, 'index.html');
-const DASHBOARD = path.join(ROOT, 'radar_vital_live_dashboard_v12_for_v16_0.html');
+const DASHBOARD = path.join(ROOT, 'radar_vital_live_dashboard.html');
 const SRC_ASSETS = path.join(ROOT, 'assets');
 const OUT = path.join(ROOT, 'www');
 

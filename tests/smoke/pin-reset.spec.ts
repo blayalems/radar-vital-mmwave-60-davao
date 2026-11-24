@@ -86,7 +86,7 @@ test.describe('PIN recovery code flow', () => {
     page.on('console', msg => console.log(`[BROWSER] ${msg.type()}: ${msg.text()}`));
     page.on('pageerror', err => console.error(`[BROWSER ERROR] ${err.message}`));
 
-    await page.goto('/radar_vital_live_dashboard_v12_for_v16_0.html', { waitUntil: 'domcontentloaded' });
+    await page.goto('/radar_vital_live_dashboard.html', { waitUntil: 'domcontentloaded' });
 
     // --- 1. Onboarding ---
     await expect(page.locator('section.idle-lock-overlay')).toBeVisible();

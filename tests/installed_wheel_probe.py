@@ -7,6 +7,7 @@ import json
 import tempfile
 from pathlib import Path
 
+from rvt_trainer.audit.runner import run_preflight_check
 from rvt_trainer.monolith import _ControlServer
 from rvt_trainer.runtime_paths import runtime_root
 
@@ -24,8 +25,8 @@ def request(port: int, path: str) -> tuple[int, dict[str, str], bytes]:
 def main() -> None:
     root = runtime_root()
     required_resources = (
-        root / "radar_vital_live_dashboard_v12_for_v16_0.html",
-        root / "radar_vital_v16_6_7.ino",
+        root / "radar_vital_live_dashboard.html",
+        root / "config" / "protocol_contract.json",
         root / "assets" / "fonts" / "rvt-fonts.css",
         root / "assets" / "icons" / "icon-192.png",
         root / "assets" / "sw.js",
@@ -33,6 +34,9 @@ def main() -> None:
     )
     missing = [str(path) for path in required_resources if not path.is_file()]
     assert not missing, f"installed wheel runtime resources are missing: {missing}"
+
+    contract_check = run_preflight_check("firmware_file_present")
+    assert contract_check["status"] == "ok", f"installed wheel contract check failed: {contract_check!r}"
 
     with tempfile.TemporaryDirectory(prefix="rvt-wheel-probe-") as temp_dir:
         sessions = Path(temp_dir) / "sessions"
@@ -51,9 +55,14 @@ def main() -> None:
             assert status == 200
             assert json.loads(body)["ok"] is True
 
-            status, _, body = request(port, "/")
-            assert status == 200
-            assert b"<!doctype html" in body[:256].lower()
+            for route in (
+                "/",
+                "/radar_vital_live_dashboard.html",
+                "/radar_vital_live_dashboard_v12_for_v16_0.html",
+            ):
+                status, _, body = request(port, route)
+                assert status == 200, f"{route} returned {status}"
+                assert b"<!doctype html" in body[:256].lower(), f"{route} not HTML"
 
             status, headers, body = request(port, "/fonts/rvt-fonts.css")
             assert status == 200

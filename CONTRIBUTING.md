@@ -22,7 +22,7 @@ project distributed under the **Radar Vital — Academic Evaluation License**
 |---|---|---|
 | Dashboard (source of truth) | `web/src/` | `npm --prefix web ci && npm run build:web` (regenerates the committed monolith + `www/`) |
 | Trainer | `rvt_trainer/` (+ root shim) | `pip install -r requirements.txt` or `pip install -e .` |
-| Firmware | `radar_vital_v16_6_7.ino` | Pinned toolchain in `packaging/firmware/arduino-toolchain.json`, `esp32:esp32:XIAO_ESP32C6` |
+| Firmware | `radar_vital.ino` | Pinned toolchain in `packaging/firmware/arduino-toolchain.json`, `esp32:esp32:XIAO_ESP32C6` |
 | Windows EXE | `src-tauri/` | `npm run tauri:build` |
 | Android APK | Capacitor (generated `android/`) | `npm run cap:sync` |
 
@@ -36,7 +36,7 @@ npm test                       # Playwright smoke, 4 viewports
 npm run lint && npm run typecheck && npm run lint:py && npm run typecheck:py
 npm run test:version-contract
 npm run test:qms-contract -- --base-ref <PR-base>
-python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer
+python -m compileall -q radar_vital_trainer.py rvt_trainer
 ```
 
 Visual baselines are Windows-generated; after intentional UI changes dispatch

@@ -8,7 +8,7 @@
 import { test, expect, type Locator } from '@playwright/test';
 import { seedFirstRunComplete } from './helpers/first-run';
 
-const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
+const DASHBOARD = '/radar_vital_live_dashboard.html';
 
 async function activateButton(scope: Locator, name: RegExp): Promise<void> {
   const button = scope.getByRole('button', { name });

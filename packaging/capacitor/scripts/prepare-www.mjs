@@ -8,8 +8,8 @@ const out = resolve(here, '..', 'www');
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
-copyFileSync(resolve(root, 'radar_vital_live_dashboard_v12_for_v16_0.html'), resolve(out, 'live_dashboard.html'));
-copyFileSync(resolve(root, 'radar_vital_live_dashboard_v12_for_v16_0.html'), resolve(out, 'index.html'));
+copyFileSync(resolve(root, 'radar_vital_live_dashboard.html'), resolve(out, 'live_dashboard.html'));
+copyFileSync(resolve(root, 'radar_vital_live_dashboard.html'), resolve(out, 'index.html'));
 cpSync(resolve(root, 'assets'), resolve(out, 'assets'), { recursive: true });
 cpSync(resolve(root, 'assets', 'icons'), resolve(out, 'icons'), { recursive: true });
 cpSync(resolve(root, 'assets', 'lib'), resolve(out, 'lib'), { recursive: true });

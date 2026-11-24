@@ -194,7 +194,7 @@
             <mat-form-field appearance="outline" class="form-field-full">
               <mat-label>Server address</mat-label>
               <input matInput [ngModel]="endpointInput()" (ngModelChange)="endpointInput.set($event)" placeholder="http://127.0.0.1:8765">
-              <mat-hint>Run `python radar_vital_trainer_v12_for_v16_0.py serve --bind lan`, then pair this device.</mat-hint>
+              <mat-hint>Run `python radar_vital_trainer.py serve --bind lan`, then pair this device.</mat-hint>
             </mat-form-field>
             <div class="settings-actions-row server-actions">
               <button mat-flat-button type="button" (click)="openPairPage()" [disabled]="connectionBusy()">

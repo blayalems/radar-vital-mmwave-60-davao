@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { seedFirstRunComplete } from './helpers/first-run';
 
-const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
+const DASHBOARD = '/radar_vital_live_dashboard.html';
 
 test.describe('Connect Wizard first-run onboarding', () => {
   test.use({ serviceWorkers: 'block' });
@@ -50,8 +50,8 @@ test.describe('Connect Wizard first-run onboarding', () => {
         body: JSON.stringify({
           ok: true,
           mode: 'sandbox',
-          trainer_version: '16.6.7',
-          dashboard_version: '16.6.7',
+          trainer_version: '16.7.0',
+          dashboard_version: '16.7.0',
           active_session: null,
           preview_session: {
             session_id: 'mock',

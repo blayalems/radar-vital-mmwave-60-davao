@@ -20,6 +20,18 @@ test.describe('Trainer API smoke', () => {
     expect(payload.firmware_expected).toBeTruthy();
   });
 
+  test('canonical and legacy dashboard filenames both serve HTML', async ({ request }) => {
+    for (const route of [
+      '/radar_vital_live_dashboard.html',
+      '/radar_vital_live_dashboard_v12_for_v16_0.html',
+    ]) {
+      const resp = await request.get(route);
+      expect(resp.status(), route).toBe(200);
+      expect(resp.headers()['content-type']).toMatch(/text\/html/);
+      expect((await resp.text()).toLowerCase()).toContain('<!doctype html');
+    }
+  });
+
   test('/api/status returns trainer + active_session shape', async ({ request }) => {
     const resp = await request.get('/api/status');
     expect(resp.status()).toBe(200);

@@ -113,15 +113,30 @@ def test_session_start_gate_blocks_required_runtime_failures():
     }]
 
 
-def test_radar_log_contract_prefers_current_firmware_source():
+def test_radar_log_contract_uses_shared_protocol_contract():
     path = monolith._assert_radar_log_contract()
-    assert path.name == "radar_vital_v16_6_7.ino"
+    assert path is not None
+    assert path.name == "protocol_contract.json"
+    assert path.parent.name == "config"
 
 
 def test_radar_log_contract_can_use_builtin_schema_when_source_missing(monkeypatch):
-    monkeypatch.setattr(monolith, "_firmware_contract_candidates", lambda: [])
+    monkeypatch.setattr(monolith, "_protocol_contract_candidates", lambda: [])
     monkeypatch.setattr(monolith, "_FIRMWARE_CONTRACT_CACHE", None)
     assert monolith._assert_radar_log_contract(allow_missing_source=True) is None
+
+
+def test_firmware_file_present_succeeds_from_protocol_contract_without_ino(monkeypatch):
+    monkeypatch.setattr(monolith, "_candidate_ino_paths", lambda *_args, **_kwargs: [])
+    res = runner.run_preflight_check("firmware_file_present")
+    assert res["status"] == "ok"
+    assert "protocol_contract.json" in res["detail"]
+
+
+def test_firmware_file_present_checks_explicit_ino_search_paths(tmp_path):
+    res = runner.run_preflight_check("firmware_file_present", ino_search_paths=[str(tmp_path)])
+    assert res["status"] == "fail"
+    assert "No parseable firmware DATA header found" in res["detail"]
 
 
 def test_monolith_reexports_point_at_extracted_runner():

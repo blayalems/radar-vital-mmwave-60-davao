@@ -2,13 +2,14 @@
 
 The unfrozen trainer starts child session captures with this argv shape:
 
-    python.exe radar_vital_trainer_v12_for_v16_0.py session ...
+    python.exe radar_vital_trainer.py session ...
 
 Inside a PyInstaller executable, ``sys.executable`` is the frozen sidecar itself.
 If the original code launches ``sys.executable`` plus the script path, the frozen
 process receives the script path as argv[1] and argparse would treat it as the
-subcommand. This wrapper makes that shape safe by stripping the legacy script
-argument before dispatching to the real trainer main.
+subcommand. This wrapper makes that shape safe by stripping both the canonical
+script name and the legacy version-stamped script name before dispatching to the
+real trainer main.
 """
 
 from __future__ import annotations
@@ -19,14 +20,16 @@ from pathlib import Path
 
 from rvt_trainer import monolith
 
+CANONICAL_ENTRYPOINT = "radar_vital_trainer.py"
 LEGACY_ENTRYPOINT = "radar_vital_trainer_v12_for_v16_0.py"
+TRAINER_ENTRYPOINTS = frozenset({CANONICAL_ENTRYPOINT, LEGACY_ENTRYPOINT})
 
 
 def _strip_legacy_script_arg() -> None:
     if len(sys.argv) < 2:
         return
     first = Path(str(sys.argv[1])).name.lower()
-    if first == LEGACY_ENTRYPOINT:
+    if first in TRAINER_ENTRYPOINTS:
         sys.argv.pop(1)
 
 

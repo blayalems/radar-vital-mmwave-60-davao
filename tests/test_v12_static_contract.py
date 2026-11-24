@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DASH = ROOT / "radar_vital_live_dashboard_v12_for_v16_0.html"
+DASH = ROOT / "radar_vital_live_dashboard.html"
 APP = ROOT / "web" / "src" / "app" / "app.ts"
 LAYOUT = ROOT / "web" / "src" / "app" / "components" / "layout" / "layout.component.html"
 LAYOUT_TS = ROOT / "web" / "src" / "app" / "components" / "layout" / "layout.component.ts"
@@ -17,10 +17,11 @@ SSE_DRIVER = ROOT / "web" / "src" / "app" / "services" / "sse-driver.service.ts"
 BLUETOOTH = ROOT / "web" / "src" / "app" / "services" / "bluetooth.service.ts"
 SW_UPDATE = ROOT / "web" / "src" / "app" / "services" / "sw-update.service.ts"
 STATE = ROOT / "web" / "src" / "app" / "services" / "state.service.ts"
-TRAINER = ROOT / "radar_vital_trainer_v12_for_v16_0.py"
+TRAINER = ROOT / "radar_vital_trainer.py"
 TRAINER_MONOLITH = ROOT / "rvt_trainer" / "monolith.py"
 TRAINER_ROUTE_REGISTRY = ROOT / "rvt_trainer" / "api" / "route_registry"
-FW = ROOT / "radar_vital_v16_6_7.ino"
+FW = ROOT / "radar_vital.ino"
+PROTOCOL_CONTRACT = ROOT / "config" / "protocol_contract.json"
 SW = ROOT / "assets" / "sw.js"
 STYLES = ROOT / "web" / "src" / "styles.scss"
 BUILD_ANGULAR = ROOT / "scripts" / "build-angular.mjs"
@@ -89,7 +90,7 @@ def test_service_worker_contract():
     sw = text(SW)
     # Cache version stays in the v12 lineage and is bumped whenever cached shell
     # semantics change so activate removes stale entries from older workers.
-    assert "rvt-shell-v12.0.7" in sw
+    assert "rvt-shell-v12.0.8" in sw
     assert "text/event-stream" in sw
     assert "SKIP_WAITING" in sw
     assert "SW_UPDATED" in sw
@@ -102,35 +103,38 @@ def test_service_worker_contract():
     assert "Pairing/support pages are network-only" in sw
     assert "/api/session/current/live_dashboard.json" in sw
     assert "/fonts/material-symbols-rounded.woff2" in sw
+    assert "'./radar_vital_live_dashboard.html'" in sw
+    assert "'radar_vital_live_dashboard.html'" in sw
+    assert "'radar_vital_live_dashboard_v12_for_v16_0.html'" in sw
 
 
-def test_v16_6_7_product_identity_bump_preserves_v12_lineage():
+def test_v16_7_0_product_identity_bump_preserves_v12_lineage():
     trainer = text(TRAINER_MONOLITH)
     firmware = text(FW)
     app_meta = text(APP_META)
     sandbox_api = text(SANDBOX_API)
     sw = text(SW)
 
-    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.6.7"
-    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.6.7"
-    assert json.loads(text(TAURI_CONF))["version"] == "16.6.7"
-    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.6.7"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.6.7"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.6.7"
-    assert re.search(r'^version = "16\.6\.7"$', text(TAURI_CARGO), re.MULTILINE)
+    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.7.0"
+    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.7.0"
+    assert json.loads(text(TAURI_CONF))["version"] == "16.7.0"
+    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.7.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.7.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.7.0"
+    assert re.search(r'^version = "16\.7\.0"$', text(TAURI_CARGO), re.MULTILINE)
 
-    assert 'VERSION = "16.6.7"' in trainer
-    assert 'DASHBOARD_VERSION = "16.6.7"' in trainer
-    assert 'FIRMWARE_VERSION_EXPECTED = "v16.6.7"' in trainer
-    assert "PRODUCT_VERSION = '16.6.7';" in app_meta
-    assert "PRODUCT_VERSION_SHORT = 'v16.6';" in app_meta
-    assert "PRODUCT_VERSION_LABEL = 'App v16.6';" in app_meta
+    assert 'VERSION = "16.7.0"' in trainer
+    assert 'DASHBOARD_VERSION = "16.7.0"' in trainer
+    assert 'FIRMWARE_VERSION_EXPECTED = "v16.7.0"' in trainer
+    assert "PRODUCT_VERSION = '16.7.0';" in app_meta
+    assert "PRODUCT_VERSION_SHORT = 'v16.7';" in app_meta
+    assert "PRODUCT_VERSION_LABEL = 'App v16.7';" in app_meta
     assert "import { PRODUCT_VERSION } from './app-meta';" in sandbox_api
     assert "product_version: PRODUCT_VERSION" in sandbox_api
-    assert '#define FW_VERSION "v16.6.7"' in firmware
+    assert '#define FW_VERSION "v16.7.0"' in firmware
     assert "#define SKETCH_VERSION_MAJOR 16" in firmware
-    assert "#define SKETCH_VERSION_SUB 6" in firmware
-    assert "#define SKETCH_VERSION_MOD 7" in firmware
+    assert "#define SKETCH_VERSION_SUB 7" in firmware
+    assert "#define SKETCH_VERSION_MOD 0" in firmware
 
     for schema_id in [
         "rvt-control-api-v12.0",
@@ -143,7 +147,7 @@ def test_v16_6_7_product_identity_bump_preserves_v12_lineage():
         "rvt-subject-profiles-v12.0",
     ]:
         assert schema_id in trainer
-    assert "rvt-shell-v12.0.7" in sw
+    assert "rvt-shell-v12.0.8" in sw
     assert "rvt-shell-v16" not in sw
 
 
@@ -281,7 +285,7 @@ def test_manifest_payload_is_plain_manifest():
 
 def test_firmware_ble_contract():
     ino = text(FW)
-    assert '#define FW_VERSION "v16.6.7"' in ino
+    assert '#define FW_VERSION "v16.7.0"' in ino
     assert "#define ENABLE_BLE false" in ino
     assert "NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN" in ino
     assert "void onWrite(NimBLECharacteristic* chr, NimBLEConnInfo& connInfo) override" in ino
@@ -341,17 +345,46 @@ def test_native_ble_commands_allowlist_reference_gatt_profile():
 
 
 def test_frozen_serial_protocol_contract():
+    from rvt_trainer import monolith as m
+    from rvt_trainer import protocol_contract as pc
+
     ino = text(FW)
-    trainer = text(TRAINER_MONOLITH)
-    module = ast.parse(trainer)
-    columns_assignment = next(
-        node for node in module.body
-        if isinstance(node, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id == "RADAR_LOG_COLUMNS" for target in node.targets)
-    )
-    columns = ast.literal_eval(columns_assignment.value)
+    ino_clean = re.sub(r"//.*", "", ino)
+    fw_cols = None
+    for match in re.finditer(r'Serial\.println\(\s*((?:"[^"]*"\s*)+)\);', ino_clean, flags=re.S):
+        literals = re.findall(r'"([^"]*)"', match.group(1))
+        header = "".join(literals)
+        if header.startswith("DATA,"):
+            fw_cols = header.split(",")[1:]
+            break
+    assert fw_cols is not None, "firmware DATA header not found"
+
+    contract = json.loads(text(PROTOCOL_CONTRACT))
+    columns = contract["columns"]
+    assert contract["wire_protocol_version"] == "v15.2"
+    assert contract["baud_rate"] == 115200
+    assert contract["expected_column_count"] == 222
+    assert contract["legacy_column_counts"] == {"v14.1": 199, "v15.0": 207, "v15.1": 219}
 
     assert len(columns) == 222
+    assert columns == fw_cols
+    assert list(pc.RADAR_LOG_COLUMNS) == columns
+    assert list(m.RADAR_LOG_COLUMNS) == columns
+    assert pc.EXPECTED_RADAR_LOG_COLUMN_COUNT == 222
+    assert pc.LEGACY_V15_1_COLUMN_COUNT == 219
+    assert pc.LEGACY_V15_COLUMN_COUNT == 207
+    assert pc.LEGACY_V14_COLUMN_COUNT == 199
+
+    trainer = text(TRAINER_MONOLITH)
+    module = ast.parse(trainer)
+    imported_contract_names = {
+        alias.name
+        for node in module.body
+        if isinstance(node, ast.ImportFrom) and node.module == "rvt_trainer.protocol_contract"
+        for alias in node.names
+    }
+    assert "RADAR_LOG_COLUMNS" in imported_contract_names
+
     assert columns[206] == "correction_params_hash"
     assert columns[-15:] == [
         "loop_dt_mean_ms",
@@ -370,9 +403,6 @@ def test_frozen_serial_protocol_contract():
         "rr_publish_tier",
         "fw_uptime_s",
     ]
-    assert "EXPECTED_RADAR_LOG_COLUMN_COUNT = 222" in trainer
-    assert "LEGACY_V15_1_COLUMN_COUNT = 219" in trainer
-    assert "LEGACY_V15_COLUMN_COUNT = 207" in trainer
     assert "#define CSV_COLUMN_COUNT 222" in ino
     assert re.search(r"\bSerial\.begin\(115200\)", ino)
 

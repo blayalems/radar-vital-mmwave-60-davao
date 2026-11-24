@@ -85,8 +85,8 @@ jobs:
 
       - name: Verify trainer package imports
         run: |
-          python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer
-          python radar_vital_trainer_v12_for_v16_0.py --help > /dev/null
+          python -m compileall -q radar_vital_trainer.py rvt_trainer
+          python radar_vital_trainer.py --help > /dev/null
           python -m rvt_trainer --help > /dev/null
 
       - name: Run Python contract and unit tests

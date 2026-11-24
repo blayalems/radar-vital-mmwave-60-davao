@@ -6,6 +6,12 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.7.0 shared contract, package-data, and root hygiene
+
+- **Shared Wire Contract**: Added `config/protocol_contract.json` and `rvt_trainer/protocol_contract.py` as the single machine-readable source of truth for the frozen v15.2 222-column serial contract, removing runtime `.ino` regex grepping in normal trainer/preflight paths while keeping explicit `ino_search_paths` checks and strict static parity tests intact.
+- **Wheel Packaging Migration**: Replaced deprecated `[tool.setuptools.data-files]` entries in `pyproject.toml` with a `setup.py` `build_py` staging hook targeting `rvt_trainer/assets/runtime/` via `[tool.setuptools.package-data]`, updated `runtime_paths.runtime_root()` and PyInstaller sidecar `ADD_DATA` to resolve `config/protocol_contract.json` without packaging `.ino` source in runtime wheels, and verified isolated wheel probes outside the checkout.
+- **Canonical Root Filenames & Hygiene**: Standardized version-stamped root artefacts to `radar_vital.ino`, `radar_vital_trainer.py`, and `radar_vital_live_dashboard.html` (preserving backward-compatible `/radar_vital_live_dashboard_v12_for_v16_0.html` HTTP/SW aliases and sidecar CLI stripping), retired superseded `web-legacy/` (historical v8–v11 baseline preserved on `archive/legacy-v8-to-v11`), relocated internal agent/design notes under `.github/agents/` and `docs/audit/`, and coordinated the v16.7.0 minor release across firmware, trainer, dashboard, desktop visual snapshots, and QMS registers.
+
 ### v16.6.7 packaging and documentation cleanup
 
 - Consolidated Python packaging metadata (`readme`, `license`, `authors`,

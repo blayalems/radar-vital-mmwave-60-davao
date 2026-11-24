@@ -67,14 +67,27 @@ def test_console_script_declared() -> None:
 
 
 def test_wheel_declares_operational_runtime_resources() -> None:
-    data_files = _pyproject()["tool"]["setuptools"]["data-files"]
-    root_files = data_files["share/rvt-trainer"]
-    assert "radar_vital_live_dashboard_v12_for_v16_0.html" in root_files
-    assert "radar_vital_v16_6_7.ino" in root_files
-    assert data_files["share/rvt-trainer/assets/fonts"] == ["assets/fonts/*"]
-    assert "assets/icons/icon-192.png" in data_files["share/rvt-trainer/assets/icons"]
-    assert data_files["share/rvt-trainer/assets/lib"] == ["assets/lib/*"]
-    assert data_files["share/rvt-trainer/quality"] == ["quality/statistical-analysis-plan.json"]
+    setuptools_cfg = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["tool"]["setuptools"]
+    assert "data-files" not in setuptools_cfg
+    package_data = setuptools_cfg["package-data"]
+    assets_globs = package_data["rvt_trainer.assets"]
+    assert "*" in assets_globs
+    assert "runtime/**" in assets_globs
+
+    setup_source = (ROOT / "setup.py").read_text(encoding="utf-8")
+    for expected in (
+        "radar_vital_live_dashboard.html",
+        "config/protocol_contract.json",
+        "quality/statistical-analysis-plan.json",
+        '"assets"',
+    ):
+        assert expected in setup_source
+    assert (ROOT / "radar_vital_live_dashboard.html").is_file()
+    assert (ROOT / "config" / "protocol_contract.json").is_file()
+    assert (ROOT / "quality" / "statistical-analysis-plan.json").is_file()
+    assert (ROOT / "assets" / "fonts" / "rvt-fonts.css").is_file()
+    assert (ROOT / "assets" / "icons" / "icon-192.png").is_file()
+    assert any((ROOT / "assets" / "lib").iterdir())
 
 
 def test_declared_version_is_semantic() -> None:
@@ -115,9 +128,11 @@ def test_pyproject_declares_pep621_metadata_and_tool_configs() -> None:
     ruff_cfg = tool.get("ruff", {})
     assert ruff_cfg.get("target-version") == "py311"
     assert "E4" in ruff_cfg.get("lint", {}).get("select", [])
+    assert "web-legacy" not in ruff_cfg.get("extend-exclude", [])
     mypy_cfg = tool.get("mypy", {})
     assert mypy_cfg.get("python_version") == "3.11"
     assert "rvt_trainer" in mypy_cfg.get("files", [])
+    assert "radar_vital_trainer.py" in mypy_cfg.get("files", [])
     assert mypy_cfg.get("overrides"), "mypy overrides must be configured in pyproject.toml"
 
 

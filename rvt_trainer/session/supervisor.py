@@ -13,7 +13,6 @@ import os
 import secrets
 import signal
 import subprocess
-import sys
 import threading
 import time
 from pathlib import Path
@@ -882,8 +881,7 @@ class SessionSupervisor:
         self._allocate_session_manifest(duration_s=duration_s, **kwargs)
         session_dir = cast(str, self.session_dir)
         argv = [
-            sys.executable,
-            str(legacy._TRAINER_ENTRYPOINT),
+            *legacy._trainer_command_prefix(),
             "session",
             "--session-dir",
             session_dir,

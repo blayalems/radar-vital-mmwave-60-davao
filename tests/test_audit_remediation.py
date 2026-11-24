@@ -13,8 +13,6 @@ from __future__ import annotations
 import http.client
 import json
 import re
-import shutil
-import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -160,7 +158,6 @@ def test_session_stop_error_envelope_keeps_http_failure_status(server, monkeypat
 
 
 def _quoted_ino_patterns(text: str):
-    import re
     return re.findall(r"['\"]([^'\"]*\.ino)['\"]", text)
 
 
@@ -369,60 +366,38 @@ def test_json_safe_response_sanitizes_nan_and_inf():
 
 
 # --------------------------------------------------------------------------- #
+# Wave 3 — retired web-legacy and Angular compare-view XSS guard
+# --------------------------------------------------------------------------- #
+def test_web_legacy_directory_is_retired():
+    assert not (ROOT / "web-legacy").exists(), "superseded web-legacy/ must be retired"
+
+
+def test_angular_compare_views_have_no_raw_innerhtml_bindings():
+    """Angular report/snapshot compare views must use template text bindings, never raw innerHTML."""
+    compare_files = (
+        ROOT / "web" / "src" / "app" / "components" / "report" / "report.component.html",
+        ROOT / "web" / "src" / "app" / "components" / "report" / "report.component.ts",
+        ROOT / "web" / "src" / "app" / "components" / "live" / "tabs" / "live-snaps-tab.component.html",
+        ROOT / "web" / "src" / "app" / "components" / "live" / "tabs" / "live-snaps-tab.component.ts",
+    )
+    for path in compare_files:
+        src = path.read_text(encoding="utf-8")
+        assert "innerhtml" not in src.lower(), f"raw innerHTML binding found in {path.name}"
+
+
+# --------------------------------------------------------------------------- #
 # Wave 4 — preflight firmware guidance is current
 # --------------------------------------------------------------------------- #
-# --------------------------------------------------------------------------- #
-# Wave 3 — legacy compare-modal XSS regression
-# --------------------------------------------------------------------------- #
-LEGACY_PATCHES = ROOT / "web-legacy" / "modules" / "patches" / "legacy-patches.js"
-
-
-def _legacy_src() -> str:
-    return LEGACY_PATCHES.read_text(encoding="utf-8")
-
-
-def test_compare_modal_sinks_are_escaped():
-    """The three compare-modal innerHTML sinks must route dynamic values through
-    the escape helper — guards against a regression that drops the escaping."""
-    src = _legacy_src()
-    assert "function escHtml(v)" in src, "compare-modal escape helper missing"
-    for expected in (
-        "escHtml(snap.label",
-        "escHtml(snap.ts",
-        "escHtml(key)",
-        "escHtml(val)",
-        "escHtml(delta)",
-    ):
-        assert expected in src, f"compare sink not escaped: {expected}"
-    # The pre-fix raw concatenations must be gone.
-    assert "'<tr><td>' + key + '</td><td>'" not in src
-    assert "'<p class=\"rvt-compare-side-label\">' + (snap.label" not in src
-
-
-@pytest.mark.skipif(shutil.which("node") is None, reason="node not available")
-def test_legacy_escHtml_neutralizes_xss_payload():
-    """Run the *actual* escHtml() from source through Node and prove a stored-XSS
-    payload becomes inert escaped text (not an executable element)."""
-    src = _legacy_src()
-    match = re.search(r"function escHtml\(v\) \{.*?\n  \}", src, re.DOTALL)
-    assert match, "could not extract escHtml() from legacy-patches.js"
-    fn = match.group(0)
-    payload = "<img src=x onerror=alert(1)>"
-    script = fn + "\nprocess.stdout.write(escHtml(process.argv[1]));"
-    out = subprocess.run(
-        ["node", "-e", script, payload],
-        capture_output=True, text=True, timeout=20, check=True,
-    ).stdout
-    assert "<img" not in out
-    assert "onerror=alert(1)" not in out or "&lt;img" in out
-    assert "&lt;img src=x onerror=alert(1)&gt;" == out
-
-
 def test_preflight_firmware_guidance_points_to_current_firmware():
     runner_src = (ROOT / "rvt_trainer" / "audit" / "runner.py").read_text(encoding="utf-8")
-    assert "radar_vital_v16_6_7.ino" in runner_src
-    # The stale v15.0.0 firmware-file guidance that contradicts the current
-    # v15.2 / 222-column contract must be gone.
-    assert "radar_vital_v16_3_0.ino" not in runner_src
-    assert "v15.0.0 firmware file" not in runner_src
-    assert "radar_vital_v15_0_0.ino" not in runner_src
+    assert "radar_vital.ino" in runner_src
+    assert "protocol_contract.json" in runner_src
+    # Stale version-stamped firmware-file guidance must be gone.
+    for stale in (
+        "radar_vital_v16_6_7.ino",
+        "radar_vital_v16_6_6.ino",
+        "radar_vital_v16_3_0.ino",
+        "v15.0.0 firmware file",
+        "radar_vital_v15_0_0.ino",
+    ):
+        assert stale not in runner_src

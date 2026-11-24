@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { seedFirstRunComplete } from './helpers/first-run';
 
-const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
+const DASHBOARD = '/radar_vital_live_dashboard.html';
 const TRAINER_ORIGIN = `http://127.0.0.1:${process.env.RVT_TEST_PORT || '8989'}`;
 
 async function leaveActiveSessionIfPrompted(page: Page): Promise<void> {

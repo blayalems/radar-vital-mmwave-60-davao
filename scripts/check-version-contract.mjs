@@ -35,9 +35,12 @@ check('authoritative version', Boolean(version), 'pyproject.toml [project].versi
 if (version) {
   const [major, minor, patch] = version.split('.');
   const short = `${major}.${minor}`;
-  const firmwareFile = `radar_vital_v${major}_${minor}_${patch}.ino`;
+  const firmwareFile = 'radar_vital.ino';
   const retiredFirmwareFiles = readdirSync(ROOT).filter(
-    name => /^radar_vital_v\d+_\d+_\d+\.ino$/.test(name) && name !== firmwareFile,
+    name => /^radar_vital_v.*\.ino$/.test(name),
+  );
+  const retiredV12Files = readdirSync(ROOT).filter(
+    name => /_v12_for_v16_0\./.test(name),
   );
 
   const jsonCarriers = [
@@ -81,7 +84,7 @@ if (version) {
   contains('Angular label version', 'web/src/app/services/app-meta.ts', `PRODUCT_VERSION_LABEL = 'App v${short}'`);
   contains(
     'built dashboard product version',
-    'radar_vital_live_dashboard_v12_for_v16_0.html',
+    'radar_vital_live_dashboard.html',
     `="${version}",`,
   );
   contains('demo firmware version', 'web/src/app/services/telemetry.service.ts', `version: 'v${version}-demo'`);
@@ -90,7 +93,17 @@ if (version) {
   check(
     'retired firmware sources',
     retiredFirmwareFiles.length === 0,
-    `${retiredFirmwareFiles.join(', ')} must not coexist with the current source`,
+    `${retiredFirmwareFiles.join(', ')} must not coexist with the canonical firmware source`,
+  );
+  check(
+    'retired v12_for_v16_0 root artifacts',
+    retiredV12Files.length === 0,
+    `${retiredV12Files.join(', ')} must not coexist with canonical root artifacts`,
+  );
+  check(
+    'shared protocol contract',
+    existsSync(path.join(ROOT, 'config', 'protocol_contract.json')),
+    'config/protocol_contract.json does not exist',
   );
   contains('firmware source self-name', firmwareFile, firmwareFile);
   contains('firmware version macro', firmwareFile, `#define FW_VERSION "v${version}"`);
@@ -106,13 +119,13 @@ if (version) {
 
   check(
     'trainer compatibility shim',
-    existsSync(path.join(ROOT, 'radar_vital_trainer_v12_for_v16_0.py')),
-    'the stable v12/v16 trainer shim was renamed or removed',
+    existsSync(path.join(ROOT, 'radar_vital_trainer.py')),
+    'the canonical radar_vital_trainer.py shim was renamed or removed',
   );
   check(
     'dashboard compatibility artifact',
-    existsSync(path.join(ROOT, 'radar_vital_live_dashboard_v12_for_v16_0.html')),
-    'the stable v12/v16 dashboard artifact was renamed or removed',
+    existsSync(path.join(ROOT, 'radar_vital_live_dashboard.html')),
+    'the canonical radar_vital_live_dashboard.html artifact was renamed or removed',
   );
 }
 

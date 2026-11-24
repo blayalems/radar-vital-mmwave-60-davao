@@ -68,9 +68,9 @@ def test_security_audit_workflow_exists_and_runs_audits():
     assert "npm audit" in norm, "security-audit.yml must run npm audit"
     assert "cargo audit" in norm, "security-audit.yml must run cargo-audit"
 
-    # requirements.txt includes the canonical file, so audit it once.
-    assert "requirements-v12.txt" in text
-    assert "python -m pip_audit -r requirements-v12.txt" in norm
+    # Audit the canonical requirements file directly.
+    assert "requirements.txt" in text
+    assert "python -m pip_audit -r requirements.txt" in norm
 
     # The web and standalone Capacitor package trees are audited too.
     assert "npm --prefix web audit" in norm
@@ -254,7 +254,7 @@ def test_firmware_compile_uses_the_pinned_toolchain_contract():
     assert lock["arduino_cli"] == "1.5.1"
     assert lock["fqbn"] == "esp32:esp32:XIAO_ESP32C6"
     assert lock["core"] == "esp32:esp32@3.3.11"
-    assert lock["sketch"] == "radar_vital_v16_6_6.ino"
+    assert lock["sketch"] == "radar_vital_v16_6_7.ino"
     assert lock["libraries"]["NimBLE-Arduino"] == "2.5.1"
     assert len(lock["seeed_mmwave_commit"]) == 40
     assert all("main" not in str(value) and "latest" not in str(value) for value in lock.values())

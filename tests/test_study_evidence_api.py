@@ -69,7 +69,7 @@ def test_protocol_schedule_and_no_subject_attempt_contract(study_server: _Contro
     status, objectives_payload = _request(study_server, "GET", "/api/study/objectives")
     assert status == 200
     assert objectives_payload["schema_version"] == "rvt-study-objectives-v16.6.5"
-    assert objectives_payload["product_version"] == "16.6.6"
+    assert objectives_payload["product_version"] == "16.6.7"
     assert len(objectives_payload["thesis_objectives"]) == 4
     assert [item["phase"] for item in objectives_payload["thesis_objectives"]] == ["design", "build", "integrate", "test"]
     assert len(objectives_payload["objectives"]) == 4
@@ -229,7 +229,7 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["objective_id"] == "objective_1_rr"
     assert response["status"] == "inconclusive"
-    assert response["provenance"]["product_version"] == "16.6.6"
+    assert response["provenance"]["product_version"] == "16.6.7"
 
 
 def test_study_evidence_routes_are_operator_protected(study_server: _ControlServer):

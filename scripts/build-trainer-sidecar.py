@@ -33,7 +33,7 @@ SPEC_DIR = ROOT / ".artifact-check" / "pyinstaller-spec"
 ADD_DATA: list[tuple[Path, str]] = [
     (ROOT / "rvt_trainer" / "assets", "rvt_trainer/assets"),
     (ROOT / "assets", "assets"),
-    (ROOT / "requirements-v12.txt", "requirements-v12.txt"),
+    (ROOT / "requirements.txt", "requirements.txt"),
 ]
 
 COLLECT_ALL = [
@@ -139,7 +139,7 @@ def main() -> int:
     SPEC_DIR.mkdir(parents=True, exist_ok=True)
 
     if not args.skip_install:
-        run([sys.executable, "-m", "pip", "install", "-r", "requirements-v12.txt", "pyinstaller>=6.0,<7.0"])
+        run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt", "pyinstaller>=6.0,<7.0"])
 
     triple = rust_target_triple()
     name = target_stem(triple)

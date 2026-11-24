@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-          cache-dependency-path: requirements-v12.txt
+          cache-dependency-path: requirements.txt
 
       - name: Install npm dependencies
         run: npm ci
@@ -44,7 +44,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-v12.txt
+          pip install -r requirements.txt
 
       - name: Build and exercise the installed trainer wheel
         shell: bash
@@ -207,7 +207,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-          cache-dependency-path: requirements-v12.txt
+          cache-dependency-path: requirements.txt
 
       - name: Install browser-test dependencies
         run: npm ci
@@ -215,7 +215,7 @@ jobs:
       - name: Install Python runtime dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-v12.txt
+          pip install -r requirements.txt
 
       - name: Warm matplotlib font cache
         run: python -c "import matplotlib.pyplot"
@@ -265,7 +265,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-          cache-dependency-path: requirements-v12.txt
+          cache-dependency-path: requirements.txt
 
       - name: Install browser-test dependencies
         run: npm ci
@@ -273,7 +273,7 @@ jobs:
       - name: Install Python runtime dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-v12.txt
+          pip install -r requirements.txt
 
       - name: Warm matplotlib font cache
         run: python -c "import matplotlib.pyplot"

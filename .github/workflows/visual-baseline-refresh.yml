@@ -44,7 +44,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-          cache-dependency-path: requirements-v12.txt
+          cache-dependency-path: requirements.txt
 
       - name: Install npm deps
         run: npm ci
@@ -55,7 +55,7 @@ jobs:
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-v12.txt
+          pip install -r requirements.txt
 
       - name: Build web bundle
         run: npm run build:web

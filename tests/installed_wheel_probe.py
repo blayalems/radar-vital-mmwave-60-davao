@@ -25,7 +25,7 @@ def main() -> None:
     root = runtime_root()
     required_resources = (
         root / "radar_vital_live_dashboard_v12_for_v16_0.html",
-        root / "radar_vital_v16_6_6.ino",
+        root / "radar_vital_v16_6_7.ino",
         root / "assets" / "fonts" / "rvt-fonts.css",
         root / "assets" / "icons" / "icon-192.png",
         root / "assets" / "sw.js",

@@ -38,7 +38,7 @@ jobs:
           cache: 'pip'
           cache-dependency-path: |
             requirements-dev.txt
-            requirements-v12.txt
+            requirements.txt
 
       - name: Install Node dependencies
         run: npm ci

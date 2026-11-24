@@ -1,17 +1,28 @@
 # Contributing to Radar Vital
 
 Radar Vital is a University of Mindanao BS Electronics Engineering thesis
-project. Contributions are welcome for review and discussion; note the
-[LICENSE](./LICENSE) terms and that agents/humans must follow
-[AGENTS.md](./AGENTS.md).
+project distributed under the **Radar Vital — Academic Evaluation License**
+([`LICENSE`](./LICENSE)).
+
+- **Permitted under `LICENSE`**: viewing, building, and running this software
+  for academic evaluation, thesis review, research demonstration, and personal
+  study.
+- **Requires prior written permission from the copyright holders**:
+  redistribution of the software or substantial portions of it, commercial use,
+  publication of derivative works, and use of the "Radar Vital" name or the
+  authors' names to endorse derived products.
+- **Contribution boundaries**: issue reports, defect reproductions, and review
+  discussions are welcome from evaluators; modifications to the repository,
+  shipped builds, or controlled documents require author authorization and must
+  follow [`AGENTS.md`](./AGENTS.md) and [`quality/qms-policy.md`](./quality/qms-policy.md).
 
 ## Repository shape
 
 | Part | Where | Build |
 |---|---|---|
 | Dashboard (source of truth) | `web/src/` | `npm --prefix web ci && npm run build:web` (regenerates the committed monolith + `www/`) |
-| Trainer | `rvt_trainer/` (+ root shim) | `pip install -r requirements-v12.txt` or `pip install -e .` |
-| Firmware | `radar_vital_v16_6_3.ino` | Pinned toolchain in `packaging/firmware/arduino-toolchain.json`, `esp32:esp32:XIAO_ESP32C6` |
+| Trainer | `rvt_trainer/` (+ root shim) | `pip install -r requirements.txt` or `pip install -e .` |
+| Firmware | `radar_vital_v16_6_7.ino` | Pinned toolchain in `packaging/firmware/arduino-toolchain.json`, `esp32:esp32:XIAO_ESP32C6` |
 | Windows EXE | `src-tauri/` | `npm run tauri:build` |
 | Android APK | Capacitor (generated `android/`) | `npm run cap:sync` |
 
@@ -22,6 +33,9 @@ python -m pytest -q tests
 npm --prefix web run test:ci
 npm run build:web && npm run build:check
 npm test                       # Playwright smoke, 4 viewports
+npm run lint && npm run typecheck && npm run lint:py && npm run typecheck:py
+npm run test:version-contract
+npm run test:qms-contract -- --base-ref <PR-base>
 python -m compileall -q radar_vital_trainer_v12_for_v16_0.py rvt_trainer
 ```
 

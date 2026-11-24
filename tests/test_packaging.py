@@ -33,9 +33,13 @@ EXPECTED_COPYRIGHT = (
 )
 
 
-def _project() -> dict:
+def _pyproject() -> dict:
     with PYPROJECT.open("rb") as handle:
-        return tomllib.load(handle)["project"]
+        return tomllib.load(handle)
+
+
+def _project() -> dict:
+    return _pyproject()["project"]
 
 
 def _tauri_conf() -> dict:
@@ -63,10 +67,10 @@ def test_console_script_declared() -> None:
 
 
 def test_wheel_declares_operational_runtime_resources() -> None:
-    data_files = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["tool"]["setuptools"]["data-files"]
+    data_files = _pyproject()["tool"]["setuptools"]["data-files"]
     root_files = data_files["share/rvt-trainer"]
     assert "radar_vital_live_dashboard_v12_for_v16_0.html" in root_files
-    assert "radar_vital_v16_6_6.ino" in root_files
+    assert "radar_vital_v16_6_7.ino" in root_files
     assert data_files["share/rvt-trainer/assets/fonts"] == ["assets/fonts/*"]
     assert "assets/icons/icon-192.png" in data_files["share/rvt-trainer/assets/icons"]
     assert data_files["share/rvt-trainer/assets/lib"] == ["assets/lib/*"]
@@ -79,10 +83,42 @@ def test_declared_version_is_semantic() -> None:
 
 
 def test_ble_extra_declares_bleak() -> None:
-    extras = _project().get("optional-dependencies", {})
-    assert any(dep.startswith("bleak") for dep in extras.get("ble", [])), (
-        "transport/ble.py uses bleak; the [ble] extra must declare it"
+    project = _project()
+    deps = project.get("dependencies", [])
+    extras = project.get("optional-dependencies", {})
+    assert any(dep.startswith("bleak") for dep in deps), (
+        "transport/ble.py uses bleak; [project].dependencies must declare it"
     )
+    assert "ble" not in extras, (
+        "bleak is already in [project].dependencies and must not be duplicated in optional-dependencies"
+    )
+
+
+def test_pyproject_declares_pep621_metadata_and_tool_configs() -> None:
+    data = _pyproject()
+    project = data["project"]
+    assert project.get("readme") == "README.md"
+    assert project.get("license") == {"file": "LICENSE"}
+    author_names = [author.get("name") for author in project.get("authors", [])]
+    assert author_names == ["Lemuel Blaya", "Angelo Diaz", "Blessie Mugat"]
+    assert project.get("keywords")
+    classifiers = project.get("classifiers", [])
+    assert "Private :: Do Not Upload" in classifiers
+    assert "License :: Other/Proprietary License" in classifiers
+    assert "Programming Language :: Python :: 3.11" in classifiers
+    urls = project.get("urls", {})
+    for key in ("Homepage", "Repository", "Issues", "Documentation"):
+        assert urls.get(key, "").startswith("https://github.com/blayalems/radar-vital-mmwave-60-davao")
+
+    tool = data.get("tool", {})
+    assert tool.get("pytest", {}).get("ini_options", {}).get("testpaths") == ["tests"]
+    ruff_cfg = tool.get("ruff", {})
+    assert ruff_cfg.get("target-version") == "py311"
+    assert "E4" in ruff_cfg.get("lint", {}).get("select", [])
+    mypy_cfg = tool.get("mypy", {})
+    assert mypy_cfg.get("python_version") == "3.11"
+    assert "rvt_trainer" in mypy_cfg.get("files", [])
+    assert mypy_cfg.get("overrides"), "mypy overrides must be configured in pyproject.toml"
 
 
 def test_installed_entry_point_matches_declaration() -> None:

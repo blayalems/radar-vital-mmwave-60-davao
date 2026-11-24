@@ -6,7 +6,7 @@ The repository ships three coupled artefacts:
 
 | Component | File | Role |
 |---|---|---|
-| **Firmware** | [`radar_vital_v16_6_6.ino`](./radar_vital_v16_6_6.ino) | XIAO ESP32-C6 + MR60BHA2 driver. Emits the v15.2 222-column CSV at 115 200 baud over USB; the first 207 columns remain the frozen v15 contract, 208-219 preserve v15.1 diagnostics, and 220-222 retain the audit fields introduced in v16.4. `ENABLE_BLE` stays off by default; passive module-firmware readback after radar boot/recovery lets session truthfulness record the MR60BHA2 version. **Frozen single-file sketch:** the `.ino` firmware source must never be refactored or split into separate modules. |
+| **Firmware** | [`radar_vital_v16_6_7.ino`](./radar_vital_v16_6_7.ino) | XIAO ESP32-C6 + MR60BHA2 driver. Emits the v15.2 222-column CSV at 115 200 baud over USB; the first 207 columns remain the frozen v15 contract, 208-219 preserve v15.1 diagnostics, and 220-222 retain the audit fields introduced in v16.4. `ENABLE_BLE` stays off by default; passive module-firmware readback after radar boot/recovery lets session truthfulness record the MR60BHA2 version. **Frozen single-file sketch:** the `.ino` firmware source must never be refactored or split into separate modules. |
 | **Trainer** | [`radar_vital_trainer_v12_for_v16_0.py`](./radar_vital_trainer_v12_for_v16_0.py) + [`rvt_trainer/`](./rvt_trainer/) | Python 3.11+ `ThreadingHTTPServer`. The root script is a compatibility shim over the package entrypoint. It reads the firmware CSV, manages sessions, runs preflight/ML-readiness/audit, writes `live_dashboard.json`, serves REST/SSE APIs, handles COM7/COM10 serial capture, and captures AiLink BLE reference data through `bleak` when available. |
 | **Dashboard** | [`web/src/`](./web/src/) -> [`radar_vital_live_dashboard_v12_for_v16_0.html`](./radar_vital_live_dashboard_v12_for_v16_0.html) | Standalone Angular 21 + Material 3 application compiled to a committed single-file PWA artefact and `www/` packages. Polls or subscribes to `/api/events/subscribe`, renders live KPIs, bounded waveforms/Doppler plots, alerts, reports, pairing, preflight progress, and scoped offline state. |
 
@@ -37,14 +37,9 @@ assessment.
 
 ---
 
-## Current PR72/PR71 state
+## Capture and data-quality guidance
 
-- **PR72 session-data audit fixes**: trainer truthfulness now measures the on-disk CSV contract width instead of loader-added columns, accepts both canonical and raw module firmware field names, runs adaptive-correction shadow metrics on suffixed 1 Hz features, runs v15 PQI shadow checks on raw radar rows, and computes BLE reference quality from time-based coverage instead of treating AiLink protocol gaps as decode failures. The BLE logger snapshots `ref_ble_summary.json` during capture so Windows child-process termination does not lose summary metrics.
-- **Firmware readback**: `radar_vital_v16_6_6.ino` passively polls the MR60BHA2 module firmware version immediately after `mmWave.begin()` and after radar recovery, so captures can populate `module_fw_*` / `module_fw_valid`.
-- **PR71 live-session recovery**: the trainer creates startup/standby `live_dashboard.json` payloads, waits longer for session start, avoids nested dashboard port conflicts, and keeps radar-only sessions when BLE is absent instead of dropping the manifest.
-- **PR71 Home/Live UX recovery**: preflight rows persist across refresh/navigation and show progress, advisory hardware/package checks no longer block Start, history infers missing timestamps/durations/subjects from session files, standby `0 bpm` values no longer spam alerts, and Live chart/Doppler containers are bounded to stop vertical scroll growth.
-
-Data-quality note: short captures and weak oximeter contact can still produce conditional/not-ready verdicts. For training/secondary gates, collect at least 10 minutes with stable placement and good finger contact; sessions with low HR coverage dominated by `NO_PHASE`/`PHASE_HOLDOFF` are a DSP/placement issue, not a trainer parsing failure.
+Short captures and weak oximeter contact can still produce conditional or not-ready ML-readiness verdicts. For model training and secondary evaluation gates, collect at least 10 minutes with stable subject placement and good finger-oximeter contact; sessions with low HR coverage dominated by `NO_PHASE`/`PHASE_HOLDOFF` indicate a DSP or placement issue rather than a trainer parsing failure.
 
 ---
 
@@ -78,19 +73,20 @@ the bound participant/session identity.
 The trainer is also pip-installable for environments where a development checkout is not convenient:
 
 ```bash
-# From PyPI (once published) or directly from the repo:
+# From a built wheel or directly from the repo:
 pip install rvt-trainer                   # runtime deps, including bleak for AiLink BLE reference capture
-pip install "rvt-trainer[ble]"            # accepted compatibility extra; also includes bleak
+pip install "rvt-trainer[stats]"          # optional statsmodels support for confirmatory exports
 
 # Editable install from a checkout:
 pip install -e .
+pip install -e ".[dev]"                   # optional pytest, ruff, and mypy tooling
 
 # The console script is then available:
 rvt-trainer serve --mock
 rvt-trainer --help
 ```
 
-Requires Python 3.11+. `bleak>=0.21` is part of the packaged trainer dependency set so the Windows sidecar can capture the configured AiLink oximeter without a manual BLE install.
+Requires Python 3.11+. `bleak>=0.21` is included in core `[project].dependencies` so the packaged trainer and Windows sidecar can capture the configured AiLink oximeter without a manual BLE install.
 
 ---
 
@@ -299,7 +295,7 @@ Pre-mobile baseline tag: `v15.0.0-pre-mobile` — rollback point for the redesig
 
 ```
 .
-├── radar_vital_v16_6_6.ino                         # firmware (v16.6.6; v15.2 222-column USB contract, BLE gated off)
+├── radar_vital_v16_6_7.ino                         # firmware (v16.6.7; v15.2 222-column USB contract, BLE gated off)
 ├── radar_vital_trainer_v12_for_v16_0.py             # trainer compatibility shim
 ├── rvt_trainer/                                     # trainer package facade + legacy monolith
 ├── radar_vital_live_dashboard_v12_for_v16_0.html    # PWA dashboard (single file)
@@ -325,4 +321,8 @@ Pre-mobile baseline tag: `v15.0.0-pre-mobile` — rollback point for the redesig
 
 ## License
 
-Same license as upstream — see repository settings.
+Radar Vital is distributed under the **Radar Vital — Academic Evaluation License** (see [`LICENSE`](./LICENSE)).
+
+- **Permitted uses**: viewing, building, and running the software for academic evaluation, thesis review, research demonstration, and personal study.
+- **Requires prior written permission from copyright holders**: redistribution of the software or substantial portions of it, commercial use, publication of derivative works, and use of the "Radar Vital" name or authors' names to endorse derived products.
+- **Disclaimer**: provided "AS IS" without warranty of any kind. **This software is not a medical device.**

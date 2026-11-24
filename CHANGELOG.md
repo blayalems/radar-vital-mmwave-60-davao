@@ -6,6 +6,29 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.6.7 packaging and documentation cleanup
+
+- Consolidated Python packaging metadata (`readme`, `license`, `authors`,
+  `keywords`, `classifiers`, `[project.urls]`), `dev` optional dependencies, and
+  tool configurations (`[tool.pytest.ini_options]`, `[tool.ruff]`,
+  `[tool.ruff.lint]`, `[tool.mypy]`, `[[tool.mypy.overrides]]`) into
+  `pyproject.toml`, removed the duplicate `[project.optional-dependencies].ble`
+  extra while keeping `bleak` in `[project].dependencies`, and retired
+  standalone `ruff.toml` and `mypy.ini`.
+- Consolidated `requirements-v12.txt` directly into `requirements.txt`, updated
+  `requirements-dev.txt`, CI workflows, sidecar packaging, `quality/requirements.json`,
+  and contract tests to reference `requirements.txt`, and removed
+  `requirements-v12.txt`.
+- Moved point-in-time PR72/PR71 notes from `README.md` into `CHANGELOG.md`
+  (`16.4.0`), preserved operational capture data-quality guidance in
+  `README.md`, removed the deleted `rvt-trainer[ble]` install snippet,
+  documented the Academic Evaluation License (`LICENSE`) in `README.md`, and
+  clarified contribution/license boundaries plus current `radar_vital_v16_6_7.ino`
+  and `requirements.txt` paths in `CONTRIBUTING.md`.
+- Coordinated the v16.6.7 patch release across `radar_vital_v16_6_7.ino`, the
+  trainer, Angular dashboard, Capacitor/Tauri manifests, tests, and QMS
+  controlled-document registers.
+
 ### v16.6.6 CI stabilization and static-analysis gate
 
 - Verified green `main` CI baseline (`4202492`), removed the stale PR #75 fallback
@@ -218,9 +241,9 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 - Passive MR60BHA2 module firmware version polling during firmware boot and radar recovery.
 
 ### Fixed
-- Trainer truthfulness now measures the on-disk CSV header width instead of loader-added feature columns, avoiding false firmware rejection on valid v16.4 sessions.
-- BLE reference quality now uses time-based coverage and preserves `ref_ble_summary.json` during Windows-side capture.
-- PR71 live-session start recovery creates standby/startup `live_dashboard.json`, preserves radar-only sessions when BLE is absent, persists Home preflight state, infers legacy session dates/durations/subjects, suppresses standby `0 bpm` alert spam, and bounds Live chart/Doppler growth.
+- PR72 session-data audit fixes: trainer truthfulness now measures the on-disk CSV header width instead of loader-added feature columns (avoiding false firmware rejection on valid v16.4 sessions), accepts both canonical and raw module firmware field names (`module_fw_*` / `module_fw_valid` from passive MR60BHA2 polling immediately after `mmWave.begin()` and radar recovery), runs adaptive-correction shadow metrics on suffixed 1 Hz features, and runs v15 PQI shadow checks on raw radar rows.
+- BLE reference quality now uses time-based coverage instead of treating AiLink protocol gaps as decode failures, and snapshots `ref_ble_summary.json` during capture so Windows child-process termination does not lose summary metrics.
+- PR71 live-session and Home/Live UX recovery: creates standby/startup `live_dashboard.json`, waits longer for session start, avoids nested dashboard port conflicts, keeps radar-only sessions when BLE is absent instead of dropping the manifest, persists Home preflight rows with progress across refresh/navigation, keeps advisory hardware/package checks non-blocking for Start, infers legacy session dates/durations/subjects from session files, suppresses standby `0 bpm` alert spam, and bounds Live chart/Doppler growth.
 
 ## [16.3.0] — 2026-06-12
 

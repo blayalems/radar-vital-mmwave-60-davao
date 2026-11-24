@@ -44,7 +44,7 @@ def test_bug_report_form_field_ids_are_stable():
     """The in-app issue reporter prefills these ids via URL params — renaming
     a field id silently breaks prefill, so the ids are contractual.
 
-    Asserted textually (no PyYAML in requirements-v12.txt): GitHub form ids
+    Asserted textually (no PyYAML in requirements.txt): GitHub form ids
     appear as `id: <name>` lines, which is stable enough for the contract.
     """
     form = text(".github/ISSUE_TEMPLATE/bug_report.yml")

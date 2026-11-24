@@ -32,13 +32,11 @@ jobs:
           node-version: '20'
 
       # --- Python dependency audit -------------------------------------
-      # requirements.txt includes requirements-v12.txt, so audit the canonical
-      # requirements file once rather than reporting every finding twice.
       - name: Install pip-audit
         run: python -m pip install --upgrade "pip-audit==2.10.1"
 
-      - name: pip-audit (requirements-v12.txt)
-        run: python -m pip_audit -r requirements-v12.txt
+      - name: pip-audit (requirements.txt)
+        run: python -m pip_audit -r requirements.txt
 
       # --- npm dependency audit ----------------------------------------
       # Fail on moderate, high, and critical findings in all three npm trees.

@@ -4,9 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rvt-trainer"
-version = "16.6.6"
+version = "16.6.7"
 description = "Radar Vital mmWave 60 GHz trainer — ThreadingHTTPServer, session management, ML-readiness audit, and REST/SSE API"
+readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
+authors = [
+    { name = "Lemuel Blaya" },
+    { name = "Angelo Diaz" },
+    { name = "Blessie Mugat" },
+]
+keywords = [
+    "mmwave",
+    "radar",
+    "vital-signs",
+    "respiration",
+    "heart-rate",
+    "esp32",
+    "mr60bha2",
+]
+classifiers = [
+    "Private :: Do Not Upload",
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "numpy>=2.0.0,<3.0.0",
     "pandas>=2.0.0,<3.0.0",
@@ -19,8 +42,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ble = ["bleak>=0.21,<4.0"]
 stats = ["statsmodels>=0.14,<1.0"]
+dev = [
+    "pytest>=9.0.3,<10.0.0",
+    "ruff==0.17.6",
+    "mypy==2.4.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/blayalems/radar-vital-mmwave-60-davao"
+Repository = "https://github.com/blayalems/radar-vital-mmwave-60-davao"
+Issues = "https://github.com/blayalems/radar-vital-mmwave-60-davao/issues"
+Documentation = "https://github.com/blayalems/radar-vital-mmwave-60-davao#readme"
 
 [project.scripts]
 rvt-trainer = "rvt_trainer.cli:main"
@@ -35,7 +68,7 @@ include = ["rvt_trainer*"]
 [tool.setuptools.data-files]
 "share/rvt-trainer" = [
     "radar_vital_live_dashboard_v12_for_v16_0.html",
-    "radar_vital_v16_6_6.ino",
+    "radar_vital_v16_6_7.ino",
 ]
 "share/rvt-trainer/assets" = [
     "assets/manifest.webmanifest",
@@ -54,3 +87,40 @@ include = ["rvt_trainer*"]
 "share/rvt-trainer/assets/icons/android" = ["assets/icons/android/*"]
 "share/rvt-trainer/assets/lib" = ["assets/lib/*"]
 "share/rvt-trainer/quality" = ["quality/statistical-analysis-plan.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+extend-exclude = [
+    "node_modules",
+    "web",
+    "web-legacy",
+    "www",
+    "src-tauri",
+    "packaging",
+    "android",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["rvt_trainer", "radar_vital_trainer_v12_for_v16_0.py"]
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pandas.*",
+    "psutil.*",
+    "scipy.*",
+    "serial.*",
+    "sklearn.*",
+    "statsmodels.*",
+    "tensorflow.*",
+]
+ignore_missing_imports = true

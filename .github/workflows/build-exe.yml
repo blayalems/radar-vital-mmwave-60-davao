@@ -49,9 +49,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-          cache-dependency-path: |
-            requirements.txt
-            requirements-v12.txt
+          cache-dependency-path: requirements.txt
 
       # Keep the EXE gate on the locally verified packaging toolchain. The
       # app Cargo.lock pins Tauri transitive deps so CI does not float to the

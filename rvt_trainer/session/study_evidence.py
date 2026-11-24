@@ -14,7 +14,7 @@ import secrets
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional, cast
 
 from rvt_trainer.api.common import atomic_write_json, read_json_if_exists
 
@@ -294,7 +294,8 @@ def append_reference(session_dir: str, payload: Mapping[str, Any], *, actor: obj
             "missing_reason": _text(payload.get("missing_reason"), limit=160) or None,
             "locked": True,
         }
-        references = result.get("references") if isinstance(result.get("references"), list) else []
+        raw_references = result.get("references")
+        references: list[Any] = raw_references if isinstance(raw_references, list) else []
         references.append(observation)
         result["references"] = references
         result["schema_version"] = REFERENCE_SCHEMA_VERSION
@@ -479,7 +480,7 @@ def _validate_completed_job_artifacts(
     """Validate the immutable identity and hashes before objective promotion."""
 
     root = _root(sessions_root)
-    expected_version = _text(product_version, limit=32) or "16.6.5"
+    expected_version = _text(product_version, limit=32) or "16.6.6"
     job_id = _text(job.get("job_id"), limit=100)
     expected_output_root = (root / "study_analysis" / job_id).resolve()
     output_value = _text(job.get("output_dir"), limit=1000)
@@ -494,7 +495,8 @@ def _validate_completed_job_artifacts(
     if not isinstance(manifest, dict):
         reasons.append({"reason": "confirmatory_run_manifest_missing"})
         return False, reasons, output_dir, None, summary if isinstance(summary, dict) else None
-    request = job.get("request") if isinstance(job.get("request"), dict) else {}
+    raw_request = job.get("request")
+    request = raw_request if isinstance(raw_request, dict) else {}
     if manifest.get("analysis_job_id") != job_id:
         reasons.append({"reason": "analysis_job_identity_mismatch"})
     if manifest.get("run_product_version") != expected_version:
@@ -512,7 +514,8 @@ def _validate_completed_job_artifacts(
         reasons.append({"reason": "study_session_schema_identity_mismatch"})
     if not _text(manifest.get("source_commit"), limit=100):
         reasons.append({"reason": "source_commit_missing"})
-    if not isinstance(manifest.get("folds"), dict) or manifest["folds"].get("complete") is not True:
+    folds = manifest.get("folds")
+    if not isinstance(folds, dict) or folds.get("complete") is not True:
         reasons.append({"reason": "fold_coverage_incomplete"})
     if request.get("confirmatory") is not True:
         reasons.append({"reason": "confirmatory_request_missing"})
@@ -521,7 +524,7 @@ def _validate_completed_job_artifacts(
 
     oof = manifest.get("outer_oof_predictions")
     oof_path = Path(str(oof.get("path") or "")).resolve() if isinstance(oof, dict) else None
-    if oof_path is None or not _contained(oof_path, output_dir) or not oof_path.is_file():
+    if not isinstance(oof, dict) or oof_path is None or not _contained(oof_path, output_dir) or not oof_path.is_file():
         reasons.append({"reason": "outer_oof_path_invalid"})
     else:
         try:
@@ -622,7 +625,7 @@ def objective_report(
     *,
     objectives: Mapping[str, Any],
     sessions_root: str,
-    product_version: object = "16.6.5",
+    product_version: object = "16.6.6",
 ) -> Dict[str, Any]:
     wanted = _text(objective_id, limit=80)
     known = [item for item in objectives.get("objectives", []) if isinstance(item, dict) and str(item.get("id")) == wanted]
@@ -641,15 +644,15 @@ def objective_report(
         matrix = completion_matrix(sessions_root)
         rows = qualified_no_subject_attempts(sessions_root)
         qualified = len(rows)
-        expected = int(known[0].get("trial_count") or matrix.get("no_subject_expected") or 72)
+        expected = int(cast(Any, known[0].get("trial_count") or matrix.get("no_subject_expected") or 72))
         threshold = float(known[0].get("threshold") or 0.05)
         common_provenance = {
-            "product_version": _text(product_version, limit=32) or "16.6.5",
+            "product_version": _text(product_version, limit=32) or "16.6.6",
             "objective": known[0],
             "sessions_root": str(Path(sessions_root).resolve()),
-            "no_subject_attempt_count": int(matrix.get("no_subject_attempt_count") or 0),
+            "no_subject_attempt_count": int(cast(Any, matrix.get("no_subject_attempt_count") or 0)),
             "no_subject_qualified_count": qualified,
-            "no_subject_unqualified_count": int(matrix.get("no_subject_unqualified_count") or 0),
+            "no_subject_unqualified_count": int(cast(Any, matrix.get("no_subject_unqualified_count") or 0)),
         }
         if qualified != expected:
             reason = (
@@ -746,7 +749,7 @@ def objective_report(
                 session_id,
             )
 
-        false_alarm_trials = sum(int(row["false_alarm_count"]) for row in rows)
+        false_alarm_trials = sum(int(cast(Any, row["false_alarm_count"])) for row in rows)
         try:
             from rvt_trainer.statistics import exact_proportion
 
@@ -773,7 +776,7 @@ def objective_report(
 
         alpha = 0.05
         reject_null = float(exact["p_value"]) < alpha
-        report = {
+        report: Optional[Dict[str, Any]] = {
             "estimand": "trial-level no-subject false-alarm proportion",
             "planned_trial_count": expected,
             "qualified_trial_count": qualified,
@@ -831,9 +834,10 @@ def objective_report(
     if latest is None:
         status = "inconclusive"
         report = None
-        exclusions = [{"reason": "no_completed_analysis_job", "count": 1}]
+        exclusions: list[Dict[str, Any]] = [{"reason": "no_completed_analysis_job", "count": 1}]
     else:
-        request = latest.get("request") if isinstance(latest.get("request"), dict) else {}
+        raw_request = latest.get("request")
+        request: Dict[str, Any] = raw_request if isinstance(raw_request, dict) else {}
         if request.get("confirmatory") is not True:
             output_value = _text(latest.get("output_dir"), limit=1000)
             output_dir = Path(output_value).resolve() if output_value else None
@@ -841,7 +845,7 @@ def objective_report(
             summary = read_json_if_exists(str(output_dir / "train_summary.json")) if output_dir else None
             stats = None
             valid = False
-            validation_reasons = [{"reason": "exploratory_analysis"}]
+            validation_reasons: list[Dict[str, Any]] = [{"reason": "exploratory_analysis"}]
             status = "descriptive"
         else:
             valid, validation_reasons, output_dir, manifest, summary = _validate_completed_job_artifacts(
@@ -868,7 +872,7 @@ def objective_report(
         "report": report,
         "exclusions": exclusions,
         "provenance": {
-            "product_version": _text(product_version, limit=32) or "16.6.5",
+            "product_version": _text(product_version, limit=32) or "16.6.6",
             "objective": known[0],
             "latest_job_id": latest.get("job_id") if latest else None,
             "sessions_root": str(Path(sessions_root).resolve()),

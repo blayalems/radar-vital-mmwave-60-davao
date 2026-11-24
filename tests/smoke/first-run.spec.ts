@@ -173,7 +173,9 @@ test.describe('First-run tutorial gate', () => {
       try {
         localStorage.setItem('rvt-consent-record', JSON.stringify({ version, accepted_at: new Date().toISOString() }));
         // Do NOT set rvt-tutorial-done
-      } catch (_) {}
+      } catch {
+        // storage unavailable in this context
+      }
     }, '2026-06-12.1');
 
     await page.addInitScript(() => {

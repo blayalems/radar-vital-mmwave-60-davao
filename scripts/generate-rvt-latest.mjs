@@ -110,8 +110,8 @@ function generateManifest(distDir, prodVersion, options = buildOptions(prodVersi
   const aabReleasePath = path.join(distDir, 'radar-vital-release.aab');
   const exePath = path.join(distDir, 'radar-vital-windows-installer.exe');
 
-  let apkFilePath = '';
-  let apkFileName = '';
+  let apkFilePath;
+  let apkFileName;
 
   if (fs.existsSync(apkReleasePath)) {
     apkFilePath = apkReleasePath;

@@ -35,7 +35,7 @@ function cleanProfiles() {
   ];
   for (const profilePath of profilePaths) {
     if (fs.existsSync(profilePath)) {
-      try { fs.unlinkSync(profilePath); } catch (_) {}
+      try { fs.unlinkSync(profilePath); } catch { /* ignore cleanup failure for transient test profile file */ }
     }
   }
 }

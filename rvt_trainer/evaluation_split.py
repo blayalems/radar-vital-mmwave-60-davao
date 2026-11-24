@@ -7,7 +7,7 @@ import json
 import math
 import re
 from pathlib import Path
-from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple, cast
 
 import pandas as pd
 import numpy as np
@@ -78,8 +78,8 @@ def _one_value(frame: pd.DataFrame, column: str, session_id: object) -> object:
     return values[0]
 
 
-def _session_records(df: pd.DataFrame) -> list[Dict[str, object]]:
-    records = []
+def _session_records(df: pd.DataFrame) -> list[Dict[str, Any]]:
+    records: list[Dict[str, Any]] = []
     if "session_id" not in df:
         raise ValueError("Participant-aware evaluation requires session_id.")
     for session_id, frame in df.groupby("session_id", sort=False):
@@ -91,7 +91,7 @@ def _session_records(df: pd.DataFrame) -> list[Dict[str, object]]:
         distance_raw = _one_value(frame, "distance_m", session_id)
         if isinstance(distance_raw, bool):
             raise ValueError(f"Session {session_id!r} has a non-numeric distance_m")
-        distance_m = float(distance_raw)
+        distance_m = float(cast(Any, distance_raw))
         if not math.isfinite(distance_m):
             raise ValueError(f"Session {session_id!r} has a non-finite distance_m")
         barrier_type = str(_one_value(frame, "barrier_type", session_id))
@@ -108,9 +108,9 @@ def _session_records(df: pd.DataFrame) -> list[Dict[str, object]]:
         duration_raw = _one_value(frame, "planned_duration_s", session_id)
         if (
             isinstance(trial_raw, bool)
-            or not float(trial_raw).is_integer()
+            or not float(cast(Any, trial_raw)).is_integer()
             or isinstance(duration_raw, bool)
-            or not float(duration_raw).is_integer()
+            or not float(cast(Any, duration_raw)).is_integer()
         ):
             raise ValueError(
                 f"Session {session_id!r} trial_number and planned_duration_s "
@@ -141,8 +141,8 @@ def _session_records(df: pd.DataFrame) -> list[Dict[str, object]]:
                 "condition_id": condition_id,
                 "distance_m": distance_m,
                 "barrier_type": barrier_type,
-                "trial_number": int(trial_raw),
-                "planned_duration_s": int(duration_raw),
+                "trial_number": int(cast(Any, trial_raw)),
+                "planned_duration_s": int(cast(Any, duration_raw)),
                 "study_classification": classification,
                 "confirmatory_eligible": bool(eligible_raw),
                 "rows": int(len(frame)),
@@ -197,9 +197,9 @@ def _select_holdout(
 
 def _split_block(
     df: pd.DataFrame,
-    records: Sequence[Mapping[str, object]],
+    records: Sequence[Mapping[str, Any]],
     participants: Sequence[str],
-) -> Tuple[pd.DataFrame, Dict[str, object]]:
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     participant_set = set(participants)
     block = df[df["participant_id"].isin(participant_set)].copy().reset_index(drop=True)
     block_records = [
@@ -231,7 +231,7 @@ def participant_split(
     three_way: bool,
     random_state: int,
     require_confirmatory: bool,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict[str, object]]:
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
     """Split by participant and emit one ledger shared by GBR and 1-D CNN."""
 
     records = _session_records(df)
@@ -340,7 +340,7 @@ def participant_split(
     if any(participant_overlap.values()):
         reasons.append("participant groups overlap across evaluation partitions")
     reasons = list(dict.fromkeys(reasons))
-    ledger = {
+    ledger: Dict[str, Any] = {
         "schema_version": "rvt-evaluation-split-v1",
         "mode": "participant_group_three_way" if three_way else "participant_group_two_way",
         "assignment_algorithm": "condition_coverage_greedy_sha256_v1",

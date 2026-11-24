@@ -31,7 +31,9 @@ function cleanProfiles() {
     }
     try {
       fs.unlinkSync(profilePath);
-    } catch (_) {}
+    } catch {
+      // ignore cleanup failure for transient test profile file
+    }
   }
 }
 

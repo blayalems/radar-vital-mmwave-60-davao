@@ -7,7 +7,7 @@ import asyncio
 import inspect
 from types import SimpleNamespace
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Coroutine, Dict, cast
 
 PreflightHandler = Callable[[str, float, Dict[str, Any], Any], Dict[str, object]]
 
@@ -91,7 +91,7 @@ def _check_firmware_file_present(
             "Firmware file",
             "fail",
             f"{path.name}: expected {len(expected)} columns, got {len(actual)}",
-            f"Flash radar_vital_v16_6_5.ino - the firmware that emits this trainer's {len(expected)}-column contract.",
+            f"Flash radar_vital_v16_6_6.ino - the firmware that emits this trainer's {len(expected)}-column contract.",
             start,
         )
     return runtime.preflight_result(
@@ -99,7 +99,7 @@ def _check_firmware_file_present(
         "Firmware file",
         "fail",
         "No parseable firmware DATA header found",
-        "Place radar_vital_v16_6_5.ino beside the trainer.",
+        "Place radar_vital_v16_6_6.ino beside the trainer.",
         start,
     )
 
@@ -185,7 +185,7 @@ def _check_ble_device_probe(check_id: str, start: float, params: Dict[str, Any],
     if finder is None:
         return runtime.preflight_result(check_id, "BLE device", "fail", "BleakScanner.find_device_by_address unavailable", "Check Bleak installation.", start)
     value = finder(address, timeout=float(params.get("timeout_s") or 6.0))
-    device = asyncio.run(value) if inspect.isawaitable(value) else value
+    device = asyncio.run(cast(Coroutine[Any, Any, Any], value)) if inspect.isawaitable(value) else value
     if device is None:
         return runtime.preflight_result(
             check_id,
@@ -285,7 +285,7 @@ def run_preflight_all(**params) -> Dict[str, object]:
         wanted = {str(x).strip() for x in include if str(x).strip()}
         checks = [cid for cid in checks if cid in wanted]
     results = [run_preflight_check(cid, **params) for cid in checks]
-    summary = {k: sum(1 for r in results if r.get("status") == k) for k in ("ok", "warn", "fail", "skip")}
+    summary: Dict[str, Any] = {k: sum(1 for r in results if r.get("status") == k) for k in ("ok", "warn", "fail", "skip")}
     summary["overall"] = "fail" if summary["fail"] else ("warn" if summary["warn"] else "ok")
     return {
         "summary": summary,

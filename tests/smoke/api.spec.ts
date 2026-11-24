@@ -137,7 +137,7 @@ test.describe('Trainer API smoke', () => {
           return { status: resp.status, contentType: ct, gotChunk: false };
         }
         const reader = resp.body.getReader();
-        const timer = setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, 4000);
+        const timer = setTimeout(() => { try { ctrl.abort(); } catch { /* ignore abort errors */ } }, 4000);
         let gotChunk = false;
         let firstChunk = '';
         try {
@@ -146,11 +146,11 @@ test.describe('Trainer API smoke', () => {
             gotChunk = true;
             firstChunk = new TextDecoder().decode(value).slice(0, 80);
           }
-        } catch (_) {
+        } catch {
           // aborted or stream ended
         }
         clearTimeout(timer);
-        try { ctrl.abort(); } catch (_) {}
+        try { ctrl.abort(); } catch { /* ignore abort errors */ }
         return { status: resp.status, contentType: ct, gotChunk, firstChunk };
       } catch (e) {
         return { status: 0, contentType: '', gotChunk: false, error: String(e) };

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import random
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -21,7 +21,7 @@ MODEL_FAMILIES = (MODEL_FAMILY_GRADIENT_BOOSTING, MODEL_FAMILY_CNN_1D)
 
 def build_causal_windows(
     features: np.ndarray,
-    session_ids: Sequence[object],
+    session_ids: Iterable[object],
     window_size: int,
     endpoint_mask: Optional[Sequence[bool]] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -127,7 +127,7 @@ class Keras1DCNNRegressor:
         self.model_json_: Optional[str] = None
         self.model_weights_: Optional[list[np.ndarray]] = None
         self.history_: Dict[str, list[float]] = {}
-        self._model = None
+        self._model: Any = None
 
     @staticmethod
     def _tensorflow():

@@ -18,7 +18,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional, cast
 
 from rvt_trainer.api.common import atomic_write_json, read_json_if_exists
 
@@ -73,7 +73,7 @@ def _safe_text(value: object, *, default: str = "", limit: int = 160) -> str:
     return text[:limit]
 
 
-def frozen_configuration_hash(configuration: Mapping[str, object]) -> str:
+def frozen_configuration_hash(configuration: object) -> str:
     """Return the stable SHA-256 identity for one frozen no-subject setup."""
 
     if not isinstance(configuration, Mapping) or not configuration:
@@ -92,7 +92,7 @@ def frozen_configuration_hash(configuration: Mapping[str, object]) -> str:
 
 
 def validate_frozen_no_subject_configuration(
-    configuration: Mapping[str, object],
+    configuration: object,
 ) -> Dict[str, object]:
     """Validate the minimum frozen identities required by Objective 3."""
 
@@ -179,7 +179,7 @@ def canonical_logical_trial_id(
     if not _CONDITION_RE.fullmatch(condition):
         raise ValueError("condition_id must use dNNN_none or dNNN_cardboard form")
     try:
-        trial = int(trial_number)
+        trial = int(cast(Any, trial_number))
     except (TypeError, ValueError):
         raise ValueError("trial_number must be an integer") from None
     if trial < 1:
@@ -252,7 +252,7 @@ def _base_attempt_record(
         "logical_trial_id": _safe_text(logical_trial_id, limit=120) or None,
         "trial_id": _safe_text(trial_id, limit=120) or None,
         "condition_id": _safe_text(condition_id).lower() or None,
-        "trial_number": int(trial_number) if trial_number not in (None, "") else None,
+        "trial_number": int(cast(Any, trial_number)) if trial_number not in (None, "") else None,
         "product_version": _safe_text(product_version) or None,
         "protocol_id": _safe_text(protocol_id) or None,
         "status": status,
@@ -630,26 +630,26 @@ def completion_matrix(sessions_root: str) -> Dict[str, object]:
         trial = row.get("trial_number")
         if not participant or not condition or trial in (None, ""):
             continue
-        key = f"{participant}|{condition}|{int(trial)}"
+        key = f"{participant}|{condition}|{int(cast(Any, trial))}"
         previous = by_key.get(key)
         if previous is None or str(row.get("updated_at", "")) >= str(previous.get("updated_at", "")):
             by_key[key] = row
         participants.setdefault(participant, {"participant_id": participant, "status": "unknown"})
-    matrix: Dict[str, object] = {}
+    matrix: Dict[str, Dict[str, Any]] = {}
     for participant, profile in sorted(participants.items()):
         cells: Dict[str, object] = {}
         completed = 0
         for condition in CONFIRMATORY_CONDITION_IDS:
-            for trial in TRIAL_NUMBERS:
-                key = f"{participant}|{condition}|{trial}"
-                row = by_key.get(key)
-                status = str(row.get("status") if row else "missing")
+            for trial_num in TRIAL_NUMBERS:
+                key = f"{participant}|{condition}|{trial_num}"
+                cell_row = by_key.get(key)
+                status = str(cell_row.get("status") if cell_row else "missing")
                 if status == "completed":
                     completed += 1
-                cells[f"{condition}:t{trial}"] = {
+                cells[f"{condition}:t{trial_num}"] = {
                     "status": status,
-                    "attempt_id": row.get("attempt_id") if row else None,
-                    "attempt_type": row.get("attempt_type") if row else "subject",
+                    "attempt_id": cell_row.get("attempt_id") if cell_row else None,
+                    "attempt_type": cell_row.get("attempt_type") if cell_row else "subject",
                 }
         matrix[participant] = {
             "participant_id": participant,

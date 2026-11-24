@@ -9,7 +9,7 @@ start paths.
 
 from __future__ import annotations
 
-from typing import Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional, cast
 
 
 SERIAL_PROTOCOL_VERSION = "v15.2"
@@ -93,7 +93,7 @@ def server_compatibility_decision(
 
     if serial_width_observed not in (None, "", "unknown"):
         try:
-            observed_width = int(serial_width_observed)
+            observed_width: object = int(cast(Any, serial_width_observed))
         except (TypeError, ValueError):
             observed_width = serial_width_observed
         if observed_width != int(serial_width_expected):
@@ -239,7 +239,7 @@ def validate_client_compatibility(
         expected_value = expected[field]
         if field == "serial_width_expected":
             try:
-                observed = int(observed)
+                observed = int(cast(Any, observed))
             except (TypeError, ValueError):
                 pass
         if observed != expected_value:

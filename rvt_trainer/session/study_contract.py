@@ -8,7 +8,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional, cast
 
 from rvt_trainer.api.common import atomic_write_json, read_json_if_exists
 from rvt_trainer.session.protocol_ledger import canonical_logical_trial_id
@@ -81,7 +81,7 @@ def participant_registry_path(sessions_root: str) -> Path:
     return Path(sessions_root).resolve().parent / "participant_profiles.json"
 
 
-def load_participant_registry(sessions_root: str) -> Dict[str, object]:
+def load_participant_registry(sessions_root: str) -> Dict[str, Any]:
     path = participant_registry_path(sessions_root)
     data = read_json_if_exists(str(path))
     if not isinstance(data, dict):
@@ -151,7 +151,7 @@ def create_participant_profile(
                 "status must be active, completed, or withdrawn",
             )
         now = _iso_now()
-        profile = {
+        profile: Dict[str, object] = {
             "participant_id": participant_id,
             "display_code": participant_id,
             "profile_code": participant_id,
@@ -340,9 +340,9 @@ def validate_study_assignment(
             "barrier_type must be none or cardboard",
         )
     try:
-        distance_m = round(float(payload.get("distance_m")), 3)
-        trial_number = int(payload.get("trial_number"))
-        planned_duration_s = float(payload.get("planned_duration_s"))
+        distance_m = round(float(cast(Any, payload.get("distance_m"))), 3)
+        trial_number = int(cast(Any, payload.get("trial_number")))
+        planned_duration_s = float(cast(Any, payload.get("planned_duration_s")))
     except (TypeError, ValueError):
         raise StudyContractError(
             "INVALID_STUDY_NUMERIC_FIELD",
@@ -365,7 +365,7 @@ def validate_study_assignment(
         )
     if payload.get("duration_s") not in (None, ""):
         try:
-            actual_duration_s = float(payload.get("duration_s"))
+            actual_duration_s = float(cast(Any, payload.get("duration_s")))
         except (TypeError, ValueError):
             raise StudyContractError(
                 "INVALID_CAPTURE_DURATION",

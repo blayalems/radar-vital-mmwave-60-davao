@@ -1,0 +1,13 @@
+node_modules/
+web/
+web-legacy/
+www/
+assets/
+src-tauri/
+packaging/
+android/
+dist/
+playwright-report/
+test-results/
+*.html
+package-lock.json

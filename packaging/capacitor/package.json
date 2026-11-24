@@ -1,6 +1,6 @@
 {
   "name": "radar-vital-mobile",
-  "version": "16.6.5",
+  "version": "16.6.6",
   "private": true,
   "type": "module",
   "scripts": {

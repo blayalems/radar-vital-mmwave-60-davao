@@ -70,8 +70,8 @@ class FeatureContract:
     def create(
         cls,
         *,
-        base_feature_cols: Sequence[object],
-        expanded_feature_cols: Sequence[object],
+        base_feature_cols: Iterable[object],
+        expanded_feature_cols: Iterable[object],
         feature_mode: object,
         feature_engineering_version: object,
         feature_schema_version: object,
@@ -95,7 +95,7 @@ class FeatureContract:
         return contract
 
     @classmethod
-    def from_mapping(cls, value: Mapping[str, object]) -> "FeatureContract":
+    def from_mapping(cls, value: Mapping[str, Any]) -> "FeatureContract":
         return cls.create(
             base_feature_cols=value.get("base_feature_cols", ()),
             expanded_feature_cols=value.get("expanded_feature_cols", ()),

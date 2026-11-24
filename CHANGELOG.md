@@ -6,6 +6,24 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.6.6 CI stabilization and static-analysis gate
+
+- Verified green `main` CI baseline (`4202492`), removed the stale PR #75 fallback
+  string from `.github/workflows/visual-baseline-refresh.yml`, and confirmed that
+  `codex-repair-pr76.yml` was never present on `main`.
+- Added root `package.json` static-analysis and formatting scripts (`lint`,
+  `lint:py`, `format`, `format:check`, `typecheck`, `typecheck:py`) backed by
+  standalone `ruff.toml`, `mypy.ini`, `eslint.config.mjs`, `tsconfig.json`,
+  `.prettierrc.json`, `.prettierignore`, and `requirements-dev.txt`.
+- Added `.github/workflows/static-analysis.yml` running `ruff`, `mypy`,
+  `tsc --noEmit`, and `eslint` with pinned action SHAs, read-only permissions, and
+  explicit job timeouts, and updated `AGENTS.md` verification protocol item 7.
+- Completed behavior-preserving static-analysis paydown across Python (`ruff` 85,
+  `mypy` 332) and TypeScript/MJS (`tsc` 1, `eslint` 26), and bumped the
+  coordinated product/QMS version to v16.6.6 across all carriers.
+- Documented an explicit repository invariant in `AGENTS.md` and `README.md` that
+  the single-file Arduino `.ino` firmware sketch must never be refactored or split.
+
 ### v16.6.5 approved September 2026 manuscript alignment (in progress)
 
 - Updated `docs/manuscript/manuscript.tex` to the approved September 2026

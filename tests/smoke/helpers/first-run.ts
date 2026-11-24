@@ -23,7 +23,7 @@ export async function seedFirstRunComplete(page: Page): Promise<void> {
         JSON.stringify({ version, accepted_at: acceptedAt })
       );
       localStorage.setItem('rvt-tutorial-done', '1');
-    } catch (_) {
+    } catch {
       /* storage unavailable in this context — consent gate will handle it */
     }
   }, { version: TERMS_VERSION, acceptedAt: CONSENT_ACCEPTED_AT });

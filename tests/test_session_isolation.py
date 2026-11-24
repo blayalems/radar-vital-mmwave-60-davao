@@ -1,4 +1,3 @@
-import os
 import json
 import subprocess
 import time
@@ -11,7 +10,6 @@ from rvt_trainer.monolith import (
     _consume_supervisor_stop_request,
     _latest_live_dashboard_payload,
     _next_session_dir,
-    _session_is_active,
     _supervisor_stop_path,
     _write_supervisor_stop_request,
     save_json,

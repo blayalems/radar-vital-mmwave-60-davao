@@ -8,7 +8,6 @@ export default defineConfig([
     ignores: [
       'node_modules/**',
       'web/**',
-      'web-legacy/**',
       'www/**',
       'assets/**',
       'src-tauri/**',

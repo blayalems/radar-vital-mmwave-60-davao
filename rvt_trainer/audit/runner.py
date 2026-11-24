@@ -24,11 +24,14 @@ def _load_preflight_runtime() -> SimpleNamespace:
         DEFAULT_BLE_ADDRESS,
         RADAR_LOG_COLUMNS,
     )
+    from ..protocol_contract import load_protocol_contract, protocol_contract_path
 
     return SimpleNamespace(
         preflight_result=_preflight_result,
         candidate_ino_paths=_candidate_ino_paths,
         extract_firmware_data_header_tokens=_extract_firmware_data_header_tokens,
+        load_protocol_contract=load_protocol_contract,
+        protocol_contract_path=protocol_contract_path,
         read_session_lock=_read_session_lock,
         scoring_weights_hash=_scoring_weights_hash,
         iso_now=_iso_now,
@@ -70,7 +73,8 @@ def _check_firmware_file_present(
     runtime: Any,
 ) -> Dict[str, object]:
     expected = list(runtime.radar_log_columns)
-    for path in runtime.candidate_ino_paths(params.get("ino_search_paths")):
+    explicit_search = params.get("ino_search_paths")
+    for path in runtime.candidate_ino_paths(explicit_search):
         if not path.exists():
             continue
         try:
@@ -91,15 +95,45 @@ def _check_firmware_file_present(
             "Firmware file",
             "fail",
             f"{path.name}: expected {len(expected)} columns, got {len(actual)}",
-            f"Flash radar_vital_v16_6_7.ino - the firmware that emits this trainer's {len(expected)}-column contract.",
+            f"Flash radar_vital.ino - the firmware that emits this trainer's {len(expected)}-column contract.",
+            start,
+        )
+    if explicit_search:
+        return runtime.preflight_result(
+            check_id,
+            "Firmware file",
+            "fail",
+            "No parseable firmware DATA header found",
+            "Provide radar_vital.ino or omit ino_search_paths to validate config/protocol_contract.json.",
+            start,
+        )
+    try:
+        contract_path = runtime.protocol_contract_path()
+        contract = runtime.load_protocol_contract(contract_path)
+        if list(contract.get("columns") or []) == expected:
+            return runtime.preflight_result(
+                check_id,
+                "Firmware file",
+                "ok",
+                f"{contract_path.name}: {len(expected)}-column wire contract matches",
+                "",
+                start,
+            )
+    except Exception as exc:
+        return runtime.preflight_result(
+            check_id,
+            "Firmware file",
+            "fail",
+            f"Protocol contract unavailable: {exc}",
+            "Place config/protocol_contract.json or radar_vital.ino beside the trainer.",
             start,
         )
     return runtime.preflight_result(
         check_id,
         "Firmware file",
         "fail",
-        "No parseable firmware DATA header found",
-        "Place radar_vital_v16_6_7.ino beside the trainer.",
+        "No valid protocol_contract.json or firmware DATA header found",
+        "Place config/protocol_contract.json or radar_vital.ino beside the trainer.",
         start,
     )
 

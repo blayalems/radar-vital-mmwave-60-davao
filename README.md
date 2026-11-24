@@ -6,9 +6,9 @@ The repository ships three coupled artefacts:
 
 | Component | File | Role |
 |---|---|---|
-| **Firmware** | [`radar_vital_v16_6_7.ino`](./radar_vital_v16_6_7.ino) | XIAO ESP32-C6 + MR60BHA2 driver. Emits the v15.2 222-column CSV at 115 200 baud over USB; the first 207 columns remain the frozen v15 contract, 208-219 preserve v15.1 diagnostics, and 220-222 retain the audit fields introduced in v16.4. `ENABLE_BLE` stays off by default; passive module-firmware readback after radar boot/recovery lets session truthfulness record the MR60BHA2 version. **Frozen single-file sketch:** the `.ino` firmware source must never be refactored or split into separate modules. |
-| **Trainer** | [`radar_vital_trainer_v12_for_v16_0.py`](./radar_vital_trainer_v12_for_v16_0.py) + [`rvt_trainer/`](./rvt_trainer/) | Python 3.11+ `ThreadingHTTPServer`. The root script is a compatibility shim over the package entrypoint. It reads the firmware CSV, manages sessions, runs preflight/ML-readiness/audit, writes `live_dashboard.json`, serves REST/SSE APIs, handles COM7/COM10 serial capture, and captures AiLink BLE reference data through `bleak` when available. |
-| **Dashboard** | [`web/src/`](./web/src/) -> [`radar_vital_live_dashboard_v12_for_v16_0.html`](./radar_vital_live_dashboard_v12_for_v16_0.html) | Standalone Angular 21 + Material 3 application compiled to a committed single-file PWA artefact and `www/` packages. Polls or subscribes to `/api/events/subscribe`, renders live KPIs, bounded waveforms/Doppler plots, alerts, reports, pairing, preflight progress, and scoped offline state. |
+| **Firmware** | [`radar_vital.ino`](./radar_vital.ino) | XIAO ESP32-C6 + MR60BHA2 driver. Emits the v15.2 222-column CSV at 115 200 baud over USB (mirrored in [`config/protocol_contract.json`](./config/protocol_contract.json)); the first 207 columns remain the frozen v15 contract, 208-219 preserve v15.1 diagnostics, and 220-222 retain the audit fields introduced in v16.4. `ENABLE_BLE` stays off by default; passive module-firmware readback after radar boot/recovery lets session truthfulness record the MR60BHA2 version. **Frozen single-file sketch:** the `.ino` firmware source must never be refactored or split into separate modules. |
+| **Trainer** | [`radar_vital_trainer.py`](./radar_vital_trainer.py) + [`rvt_trainer/`](./rvt_trainer/) | Python 3.11+ `ThreadingHTTPServer`. The root script is a compatibility shim over the package entrypoint. It reads the firmware CSV, manages sessions, runs preflight/ML-readiness/audit, writes `live_dashboard.json`, serves REST/SSE APIs, handles COM7/COM10 serial capture, and captures AiLink BLE reference data through `bleak` when available. |
+| **Dashboard** | [`web/src/`](./web/src/) -> [`radar_vital_live_dashboard.html`](./radar_vital_live_dashboard.html) | Standalone Angular 21 + Material 3 application compiled to a committed single-file PWA artefact and `www/` packages. Polls or subscribes to `/api/events/subscribe`, renders live KPIs, bounded waveforms/Doppler plots, alerts, reports, pairing, preflight progress, and scoped offline state. |
 
 The mobile-first redesign plan that this branch implements is documented in [`AGENTS.md`](./AGENTS.md).
 For a non-developer operator setup guide (EXE/APK/PWA pairing, placement, signal quality, troubleshooting) see [`docs/operator-quickstart.md`](./docs/operator-quickstart.md).
@@ -50,8 +50,8 @@ Short captures and weak oximeter contact can still produce conditional or not-re
 python3 -m pip install -r requirements.txt   # pyserial, pandas, numpy, etc.
 
 # 2. Plug in the XIAO ESP32-C6 over USB-C (or run mock mode without hardware)
-python3 radar_vital_trainer_v12_for_v16_0.py serve --mock        # trainer-provided mock data, no serial
-python3 radar_vital_trainer_v12_for_v16_0.py serve               # operator starts live sessions from the dashboard
+python3 radar_vital_trainer.py serve --mock        # trainer-provided mock data, no serial
+python3 radar_vital_trainer.py serve               # operator starts live sessions from the dashboard
 # Equivalent package entrypoint:
 python3 -m rvt_trainer serve --mock
 
@@ -95,7 +95,7 @@ Requires Python 3.11+. `bleak>=0.21` is included in core `[project].dependencies
 By default the trainer binds `127.0.0.1` so nothing leaks to the network. Opt into PIN-paired LAN mode explicitly:
 
 ```bash
-python3 radar_vital_trainer_v12_for_v16_0.py serve --bind lan
+python3 radar_vital_trainer.py serve --bind lan
 ```
 
 `--bind lan` generates a six-digit PIN (five-minute TTL, single-use), prints the pairing page URL, and supplies a QR link encoding `http://<lan-ip>:8765/?pair=<PIN>`. The public `/api/server-info` route is metadata-only and does not serve a QR image or expose the PIN. The Windows EXE Settings card reads PIN details through the native bridge from loopback-only `/api/native-pairing-info`; phone/APK/PWA clients use the printed QR, `/pair`, or manual PIN entry. The Angular Settings view keeps the issued `X-RVT-Auth` token in session storage only. Five invalid PIN exchanges from one client within a minute trigger a one-minute pairing cooldown; reopen the pairing flow after the cooldown or mint a new PIN if an operator mistyped repeatedly. Protected session APIs also require an operator session token after bootstrap on local and LAN serves.
@@ -295,10 +295,12 @@ Pre-mobile baseline tag: `v15.0.0-pre-mobile` — rollback point for the redesig
 
 ```
 .
-├── radar_vital_v16_6_7.ino                         # firmware (v16.6.7; v15.2 222-column USB contract, BLE gated off)
-├── radar_vital_trainer_v12_for_v16_0.py             # trainer compatibility shim
+├── radar_vital.ino                                  # firmware (v16.7.0; v15.2 222-column USB contract, BLE gated off)
+├── radar_vital_trainer.py                           # trainer compatibility shim
 ├── rvt_trainer/                                     # trainer package facade + legacy monolith
-├── radar_vital_live_dashboard_v12_for_v16_0.html    # PWA dashboard (single file)
+├── radar_vital_live_dashboard.html                  # PWA dashboard (single file)
+├── config/
+│   └── protocol_contract.json                       # shared machine-readable 222-column wire contract
 ├── assets/
 │   ├── sw.js                                        # service worker (registered at /sw.js)
 │   ├── manifest.webmanifest                         # static fallback (trainer overrides at /manifest.webmanifest)

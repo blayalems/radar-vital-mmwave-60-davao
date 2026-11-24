@@ -1,4 +1,4 @@
-"""radar_vital_trainer_v12_for_v16_0.py - v12.0.0
+"""radar_vital_trainer.py - v12.0.0
 =====================================================
 Leakage-aware offline trainer + full session pipeline for the
 XIAO ESP32-C6 + MR60BHA2 system.
@@ -21,18 +21,18 @@ Change highlights
 
 Primary workflow
 ────────────────
-  1.  python radar_vital_trainer_v12_for_v16_0.py doctor
-  2.  python radar_vital_trainer_v12_for_v16_0.py quickstart
+  1.  python radar_vital_trainer.py doctor
+  2.  python radar_vital_trainer.py quickstart
 
   Per session (single command):
-      python radar_vital_trainer_v12_for_v16_0.py session \
+      python radar_vital_trainer.py session \
         --port COM10 \
         --address 10:22:33:9E:8F:63 \
         --duration-s 480 \
         --open-dashboard
 
   After session:
-      python radar_vital_trainer_v12_for_v16_0.py compare --sessions-dir sessions/ --out report.html
+      python radar_vital_trainer.py compare --sessions-dir sessions/ --out report.html
 
   Optional manual workflow:
       log / ble_reflog / align / analyse / train / sweep
@@ -157,6 +157,19 @@ from rvt_trainer.session.study_evidence import (
     update_analysis_job as _update_analysis_job,
 )
 from rvt_trainer.statistics import DEFAULT_ANALYSIS_PLAN, analysis_plan_sha256
+from rvt_trainer.protocol_contract import (
+    EXPECTED_RADAR_LOG_COLUMN_COUNT,
+    EXPECTED_RADAR_LOG_TAIL,
+    LEGACY_V14_COLUMN_COUNT,
+    LEGACY_V14_RADAR_LOG_TAIL as LEGACY_V14_RADAR_LOG_TAIL,
+    LEGACY_V15_1_COLUMN_COUNT,
+    LEGACY_V15_COLUMN_COUNT,
+    RADAR_LOG_COLUMNS,
+    SCHEMA_VERSION_MAP,
+    V15_NEW_COLUMN_DEFAULTS as V15_NEW_COLUMN_DEFAULTS,
+    load_protocol_contract as _load_protocol_contract,
+    protocol_contract_candidates as _protocol_contract_candidates,
+)
 from rvt_trainer.runtime_paths import runtime_root
 
 import warnings
@@ -166,11 +179,20 @@ _wait_for_process_exit = _wait_for_process_exit  # explicit compatibility re-exp
 
 _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = runtime_root()
-_TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
+_TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer.py"
 
-VERSION = "16.6.7"
-DASHBOARD_VERSION = "16.6.7"
-FIRMWARE_VERSION_EXPECTED = "v16.6.7"
+
+def _trainer_command_prefix() -> List[str]:
+    if getattr(sys, "frozen", False):
+        return [sys.executable]
+    if _TRAINER_ENTRYPOINT.is_file():
+        return [sys.executable, str(_TRAINER_ENTRYPOINT)]
+    return [sys.executable, "-m", "rvt_trainer"]
+
+
+VERSION = "16.7.0"
+DASHBOARD_VERSION = "16.7.0"
+FIRMWARE_VERSION_EXPECTED = "v16.7.0"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -326,235 +348,11 @@ HR_CONFIDENCE_SOURCE_NAMES = {
     7: "direct_raw_fast",
 }
 
-RADAR_LOG_COLUMNS = [
-    "timestamp_ms",
-    "heart_phase_stabilized",
-    "breath_phase_stabilized",
-    "raw_hr",
-    "raw_hr_uncorrected",
-    "raw_hr_corrected",
-    "raw_rr",
-    "raw_rr_effective",
-    "raw_rr_likely_harmonic",
-    "reported_hr",
-    "reported_rr",
-    "candidate_hr",
-    "candidate_rr",
-    "candidate_hr_conf",
-    "candidate_rr_conf",
-    "pqi_heart",
-    "pqi_breath",
-    "hr_confidence",
-    "hr_gate_reason",
-    "rr_gate_reason",
-    "hr_gate_pqi_used",
-    "rr_gate_pqi_used",
-    "hr_zc_bpm",
-    "hr_zc_conf",
-    "hr_spec_bpm",
-    "hr_spec_mag",
-    "hr_triple_agree",
-    "rr_zc_bpm",
-    "rr_zc_conf",
-    "rr_spec_bpm",
-    "rr_spec_conf",
-    "rr_triple_agree",
-    "reflector_distance_cm",
-    "reported_distance_cm",
-    "in_motion",
-    "human_detected",
-    "radar_is_present",
-    "hr_state",
-    "ghost_suspect",
-    "dist_sd_cm",
-    "disp_state",
-    "dsp_task",
-    "present_votes",
-    "absent_votes",
-    "phase_fresh",
-    "trusted_vital_fresh",
-    "logged_hr_valid",
-    "logged_rr_valid",
-    "hr_publish_reason",
-    "rr_publish_reason",
-    "skipdsp_misses",
-    "hr_band_min",
-    "hr_band_max",
-    "radar_gain",
-    "hr_arbiter_corrected",
-    "hr_rejectphase_rejected",
-    "hr_coherence_rejected",
-    "hr_raw_source",
-    "hr_raw_agree",
-    "hr_agree_err_bpm",
-    "hr_bypass_pqi_ok",
-    "hr_bypass_conf_ok",
-    "hr_bypass_gate_ok",
-    "hr_bypass_active",
-    "hr_grace_eligible",
-    "hr_grace_active",
-    "rr_anchor_fresh",
-    "rr_outlier_persist",
-    "rr_raw_agree_ok",
-    "rr_pre_acceptphase",
-    "rr_post_acceptphase",
-    "rr_post_blend",
-    "rr_post_bias_correction",
-    "rr_post_kalman",
-    "rr_final_publish_candidate",
-    "rr_anchor_value",
-    "rr_anchor_age_ms",
-    "rr_anchor_source",
-    "rr_anchor_confidence",
-    "rr_fundamental_recovery_count",
-    "rr_fundamental_recovery_triggered",
-    "rr_raw_seed_consistent_count",
-    "rr_midsession_raw_reanchor_allowed",
-    "rr_midsession_raw_reanchor_blocked",
-    "rr_midsession_raw_reanchor_reason",
-    "rr_raw_anchor_err_bpm",
-    "hr_pre_rejectphase",
-    "hr_post_rejectphase",
-    "hr_post_blend",
-    "hr_post_coherence",
-    "hr_final_publish_candidate",
-    "hr_arbiter_anchor_used",
-    "hr_arbiter_anchor_value",
-    "hr_rejectphase_anchor_used",
-    "hr_rejectphase_anchor_value",
-    "hr_raw_looks_like_half_rate",
-    "hr_trusted_anchor_value",
-    "hr_age_ms",
-    "candidate_hr_age_ms",
-    "candidate_rr_age_ms",
-    "hr_updated_this_cycle",
-    "hr_update_source",
-    "latched_raw_hr",
-    "trusted_rr_fresh",
-    "radar_is_present_raw",
-    "harmonic_mode",
-    "session_phase",
-    "point_cloud_ok",
-    "target_info_ok",
-    "num_targets",
-    "max_dop_abs",
-    "max_dop_speed_cms",
-    "doppler_motion",
-    "cluster_anomaly",
-    "multi_target",
-    "primary_x",
-    "primary_y",
-    "primary_dop",
-    "primary_dop_speed_cms",
-    "primary_cluster",
-    "spatial_source",
-    "spatial_age_ms",
-    "position_radius_cm",
-    "phase_warmup_complete",
-    "clutter_warmup_count",
-    "current_clutter_alpha",
-    "use_fast_path",
-    "phase_valid_this_frame",
-    "dsp_ran_this_frame",
-    "hr_confidence_source",
-    "hr_path_source",
-    "module_fw_major",
-    "module_fw_sub",
-    "module_fw_mod",
-    "sketch_major",
-    "sketch_sub",
-    "sketch_mod",
-    "hr_trusted_phase_anchor",
-    "hr_anchor_source",
-    "hr_anchor_err_bpm",
-    "hr_raw_high_bias_suspect",
-    "rr_seed_from_raw_used",
-    "trusted_hr_fresh",
-    "allow_logged_hr_vitals",
-    "allow_logged_rr_vitals",
-    "logged_hr_quality_gate",
-    "logged_rr_quality_gate",
-    "phase_valid_run_len",
-    "phase_invalid_run_len",
-    "hr_phase_backed_update_count",
-    "rr_phase_backed_update_count",
-    "near_field_reflector_suspect",
-    "agc_floor_suspect",
-    "phase_backed_publish_ready",
-    "hr_anchor_drift_suspect",
-    "phase_gap_fill_count",
-    "clutter_rewarm_count",
-    "rewarm_triggered",
-    "rewarm_reason",
-    "experimental_profile_enabled",
-    "fs_effective",
-    "fs_snap_used",
-    "hr_fs_guard_min",
-    "hr_autocorr_best_conf",
-    "phase_zero_fill_pct",
-    "fs_fallback_used",
-    "module_fw_valid",
-    "hr_trust_age_ms",
-    "rr_trust_age_ms",
-    "skipdsp_run_len",
-    "agc_floor_run_len",
-    "buffer_zero_injected",
-    "hr_raw_minus_anchor_bpm",
-    "hr_phase_minus_anchor_bpm",
-    "hr_raw_minus_phase_bpm",
-    "rr_candidate_present",
-    "rr_candidate_source",
-    "rr_source_reject_reason",
-    "rr_source_latched_ok",
-    "hr_publish_block_stage",
-    "rr_publish_block_stage",
-    "hr_raw_age_ms",
-    "hr_raw_disagree_subreason",
-    "rr_phase_backed_publish_ready",
-    "rr_source_current_ok",
-    "logged_rr_valid_current",
-    "logged_rr_valid_latched",
-    "hr_publish_source_class",
-    "rr_publish_source_class",
-    "hr_freeze_suspect",
-    "hr_value_frozen_confirmed",
-    "hr_freeze_duration_ms",
-    "hr_no_fresh_update_duration_ms",
-    "hr_raw_disagree_anchor_drift_suspect",
-    "hr_raw_disagree_phase_stale_suspect",
-    "hr_raw_disagree_high_bias_suspect",
-    "hr_raw_disagree_low_dynamic_range_suspect",
-    "hr_raw_disagree_sumfreq_suspect",
-    "hr_raw_disagree_rr_harmonic_k",
-    # v15.0 Stage A: 8 reserved columns (final-schema-first).
-    # Stage B activates col 200; Stage C activates 201-204; Stage E/v12 activates 205-207.
-    # v15.1 appends field diagnostics in cols 208-219.
-    # Until activated, columns emit safe defaults that the trainer parser excludes
-    # from the relevant analysis sub-sections (NaN for floats, 0 for ints).
-    "presence_fsm_debug",            # col 200, Stage B
-    "pqi_heart_v15",                 # col 201, Stage C
-    "pqi_breath_v15",                # col 202, Stage C
-    "phase_buffer_valid_pct",        # col 203, Stage C
-    "pqi_v15_pair_coverage_min",     # col 204, Stage C
-    "correction_shadow_delta_bpm",   # col 205, Stage E
-    "correction_source",             # col 206, Stage E/v12
-    "correction_params_hash",        # col 207, Stage E/v12
-    "loop_dt_mean_ms",               # col 208, v15.1
-    "loop_dt_max_ms",                # col 209, v15.1
-    "heap_free_kb",                  # col 210, v15.1
-    "heap_min_free_kb",              # col 211, v15.1
-    "radar_uart_overflow_count",     # col 212, v15.1
-    "radar_crc_err_count",           # col 213, v15.1
-    "i2c_recover_count",             # col 214, v15.1
-    "lcd_reinit_count",              # col 215, v15.1
-    "wdt_near_miss_count",           # col 216, v15.1
-    "cmd_rx_count",                  # col 217, v15.1
-    "cmd_err_count",                 # col 218, v15.1
-    "uart_rx_high_water",            # col 219, v15.2 (audit A3a)
-    "hr_publish_tier",               # col 220, v15.2 (audit A4b: 0=INVALID,1=HELD,2=LIVE)
-    "rr_publish_tier",               # col 221, v15.2 (audit A4b)
-    "fw_uptime_s",                   # col 222, v15.1 value kept at firmware right edge
-]
+# Wire contract constants (RADAR_LOG_COLUMNS, EXPECTED_RADAR_LOG_COLUMN_COUNT,
+# LEGACY_V15_1_COLUMN_COUNT, LEGACY_V15_COLUMN_COUNT, LEGACY_V14_COLUMN_COUNT,
+# SCHEMA_VERSION_MAP, V15_NEW_COLUMN_DEFAULTS, EXPECTED_RADAR_LOG_TAIL,
+# LEGACY_V14_RADAR_LOG_TAIL) are loaded from config/protocol_contract.json via
+# rvt_trainer.protocol_contract.
 
 HR_PATH_SOURCE_NAMES = {
     0: "None",
@@ -578,102 +376,6 @@ HARMONIC_MODE_BIT_LABELS = {
 HEART_PQI_GATE_NEAR = 0.15
 HEART_PQI_GATE_MID = 0.20
 HEART_PQI_GATE_FAR = 0.35
-# v11/v15: final-schema-first. v15.1 firmware emits 219 columns.
-# The trainer accepts 207 and v14.1 rows; missing right-edge columns are padded.
-EXPECTED_RADAR_LOG_COLUMN_COUNT = 222
-LEGACY_V15_1_COLUMN_COUNT = 219
-LEGACY_V15_COLUMN_COUNT = 207
-LEGACY_V14_COLUMN_COUNT = 199
-SCHEMA_VERSION_MAP = {
-    LEGACY_V14_COLUMN_COUNT: "v14.1",
-    LEGACY_V15_COLUMN_COUNT: "v15.0",
-    LEGACY_V15_1_COLUMN_COUNT: "v15.1",
-    EXPECTED_RADAR_LOG_COLUMN_COUNT: "v15.2",
-}
-# v15/v15.1 right-edge default values for legacy row padding.
-# Float columns use NaN (parser converts to NaN downstream); int columns use 0.
-V15_NEW_COLUMN_DEFAULTS = {
-    "presence_fsm_debug": 0,
-    "pqi_heart_v15": float("nan"),
-    "pqi_breath_v15": float("nan"),
-    "phase_buffer_valid_pct": float("nan"),
-    "pqi_v15_pair_coverage_min": float("nan"),
-    "correction_shadow_delta_bpm": float("nan"),
-    "correction_source": 0,
-    "correction_params_hash": 0,
-    "loop_dt_mean_ms": float("nan"),
-    "loop_dt_max_ms": float("nan"),
-    "heap_free_kb": float("nan"),
-    "heap_min_free_kb": float("nan"),
-    "radar_uart_overflow_count": 0,
-    "radar_crc_err_count": 0,
-    "i2c_recover_count": 0,
-    "lcd_reinit_count": 0,
-    "wdt_near_miss_count": 0,
-    "cmd_rx_count": 0,
-    "cmd_err_count": 0,
-    "fw_uptime_s": 0,
-}
-EXPECTED_RADAR_LOG_TAIL = (
-    "rr_phase_backed_publish_ready",
-    "rr_source_current_ok",
-    "logged_rr_valid_current",
-    "logged_rr_valid_latched",
-    "hr_publish_source_class",
-    "rr_publish_source_class",
-    "hr_freeze_suspect",
-    "hr_value_frozen_confirmed",
-    "hr_freeze_duration_ms",
-    "hr_no_fresh_update_duration_ms",
-    "hr_raw_disagree_anchor_drift_suspect",
-    "hr_raw_disagree_phase_stale_suspect",
-    "hr_raw_disagree_high_bias_suspect",
-    "hr_raw_disagree_low_dynamic_range_suspect",
-    "hr_raw_disagree_sumfreq_suspect",
-    "hr_raw_disagree_rr_harmonic_k",
-    # v15.0 Stage A: 8 reserved columns (final-schema-first)
-    "presence_fsm_debug",
-    "pqi_heart_v15",
-    "pqi_breath_v15",
-    "phase_buffer_valid_pct",
-    "pqi_v15_pair_coverage_min",
-    "correction_shadow_delta_bpm",
-    "correction_source",
-    "correction_params_hash",
-    "loop_dt_mean_ms",
-    "loop_dt_max_ms",
-    "heap_free_kb",
-    "heap_min_free_kb",
-    "radar_uart_overflow_count",
-    "radar_crc_err_count",
-    "i2c_recover_count",
-    "lcd_reinit_count",
-    "wdt_near_miss_count",
-    "cmd_rx_count",
-    "cmd_err_count",
-    "uart_rx_high_water",
-    "hr_publish_tier",
-    "rr_publish_tier",
-    "fw_uptime_s",
-)
-LEGACY_V14_RADAR_LOG_TAIL = (
-    "rr_phase_backed_publish_ready",
-    "rr_source_current_ok",
-    "logged_rr_valid_current",
-    "logged_rr_valid_latched",
-    "hr_publish_source_class",
-    "rr_publish_source_class",
-    "hr_freeze_suspect",
-    "hr_value_frozen_confirmed",
-    "hr_freeze_duration_ms",
-    "hr_no_fresh_update_duration_ms",
-    "hr_raw_disagree_anchor_drift_suspect",
-    "hr_raw_disagree_phase_stale_suspect",
-    "hr_raw_disagree_high_bias_suspect",
-    "hr_raw_disagree_low_dynamic_range_suspect",
-    "hr_raw_disagree_sumfreq_suspect",
-    "hr_raw_disagree_rr_harmonic_k",
-)
 
 
 def _detect_csv_schema_version(columns) -> str:
@@ -4590,8 +4292,9 @@ window.addEventListener('DOMContentLoaded', init);
 </html>
 '''
 
-_DASHBOARD_HTML_NAME = "radar_vital_live_dashboard_v12_for_v16_0.html"
+_DASHBOARD_HTML_NAME = "radar_vital_live_dashboard.html"
 _LEGACY_DASHBOARD_HTML_NAMES = (
+    "radar_vital_live_dashboard_v12_for_v16_0.html",
     "radar_vital_live_dashboard_v10_for_v14_1.html",
     "radar_vital_live_dashboard_v10_for_v14_1_UIUX_REVISED_EXTERNAL_RESTORED_ICONS_FIXED_PHASES_COMPLETE.html",
     "radar_vital_live_dashboard_v9_1_for_v14_1.html",
@@ -4752,7 +4455,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_6_7.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -6137,8 +5840,7 @@ def _run_study_analysis_job_once(sessions_root: str, job_id: str) -> None:
             f.write("--confirmatory-evaluation\n")
 
     argv = [
-        sys.executable,
-        str(_TRAINER_ENTRYPOINT),
+        *_trainer_command_prefix(),
         f"@{args_file}",
     ]
 
@@ -6884,7 +6586,7 @@ def _spawn_auto_analyse(session_dir: str, reason: str = "session_stop") -> Optio
         },
         str(sentinel),
     )
-    argv = [sys.executable, str(_TRAINER_ENTRYPOINT), "analyse", "--radar", str(radar), "--ref", str(ref), "--out", str(out)]
+    argv = [*_trainer_command_prefix(), "analyse", "--radar", str(radar), "--ref", str(ref), "--out", str(out)]
 
     def _runner():
         code = 1
@@ -6962,7 +6664,7 @@ def _rerun_session_analysis(session_dir: str) -> Dict[str, object]:
             status_path.unlink()
     except Exception:
         pass
-    argv = [sys.executable, str(_TRAINER_ENTRYPOINT), "analyse", "--radar", str(radar), "--ref", str(ref), "--out", str(out)]
+    argv = [*_trainer_command_prefix(), "analyse", "--radar", str(radar), "--ref", str(ref), "--out", str(out)]
     proc = subprocess.Popen(argv)
     job_id = root.name
     started_at = _iso_now()
@@ -8067,7 +7769,10 @@ class _ControlHandler(SimpleHTTPRequestHandler):
         if path.startswith("/api/"):
             self._send_json(404, _api_error("NOT_FOUND", "API route not found"))
             return
-        dashboard_routes = {f"/{str(name)}" for name in _DASHBOARD_HTML_FALLBACK_NAMES}
+        dashboard_routes = {
+            *(f"/{str(name)}" for name in _DASHBOARD_HTML_FALLBACK_NAMES),
+            "/radar_vital_live_dashboard_v12_for_v16_0.html",
+        }
         if route_name in {
             "shell_root",
             "shell_index",
@@ -8958,33 +8663,15 @@ def _firmware_contract_candidates() -> List[Path]:
         _REPO_ROOT,
         Path(os.getcwd()),
     ]
-    relatives = [
-        Path("radar_vital_v16_6_7.ino"),
-        Path("radar_vital_v16_3_0.ino"),
-        Path("radar_vital_v15_0_0.ino"),
-        Path("radar_vital_v14_0_0.ino"),
-        Path("radar_vital_v14.ino"),
-        Path("radar_vital_v13_9_8.ino"),
-        Path("radar_vital_v13_9_7.ino"),
-        Path("radar_vital_v13_9d.ino"),
-        Path("radar_vital_v13_9c.ino"),
-        Path("radar_vital_v13_9b.ino"),
-        Path("radar_vital_v13_9a.ino"),
-        Path("radar_vital_v13_8_0.ino"),
-        Path("radar_vital_v13_7_5.ino"),
-        Path("radar_vital_v13_7_4.ino"),
-        Path("radar_vital_v13_7_3.ino"),
-    ]
     out: List[Path] = []
     seen = set()
     for root in roots:
-        for rel in relatives:
-            path = (root / rel).resolve()
-            key = str(path).lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append(path)
+        path = (root / "radar_vital.ino").resolve()
+        key = str(path).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(path)
     return out
 
 
@@ -9015,33 +8702,32 @@ def _assert_radar_log_contract(allow_missing_source: bool = False) -> Optional[P
 
     searched = []
     mismatches = []
-    for path in _firmware_contract_candidates():
+    for path in _protocol_contract_candidates():
         searched.append(str(path))
-        if not path.exists():
+        if not path.is_file():
             continue
-        actual = _extract_firmware_data_header_tokens(path)
-        if len(actual) == LEGACY_RADAR_LOG_COLUMN_COUNT and tuple(actual[-len(LEGACY_RADAR_LOG_TAIL):]) == LEGACY_RADAR_LOG_TAIL:
-            continue
+        contract = _load_protocol_contract(path)
+        actual = [str(col) for col in contract.get("columns", [])]
         if actual == expected:
             _FIRMWARE_CONTRACT_CACHE = (str(path), tuple(actual))
             return path
         mismatch_idx = next(
-            (i for i, (trainer_col, fw_col) in enumerate(zip(expected, actual)) if trainer_col != fw_col),
+            (i for i, (trainer_col, contract_col) in enumerate(zip(expected, actual)) if trainer_col != contract_col),
             min(len(expected), len(actual)),
         )
         trainer_col = expected[mismatch_idx] if mismatch_idx < len(expected) else "<end>"
-        fw_col = actual[mismatch_idx] if mismatch_idx < len(actual) else "<end>"
-        mismatches.append((path, mismatch_idx, trainer_col, fw_col, len(actual)))
+        contract_col = actual[mismatch_idx] if mismatch_idx < len(actual) else "<end>"
+        mismatches.append((path, mismatch_idx, trainer_col, contract_col, len(actual)))
 
     if mismatches:
         details = []
-        for path, mismatch_idx, trainer_col, fw_col, actual_len in mismatches[:4]:
+        for path, mismatch_idx, trainer_col, contract_col, actual_len in mismatches[:4]:
             details.append(
-                f"file={path}, index={mismatch_idx}, trainer={trainer_col!r}, firmware={fw_col!r}, "
-                f"trainer_count={len(expected)}, firmware_count={actual_len}"
+                f"file={path}, index={mismatch_idx}, trainer={trainer_col!r}, contract={contract_col!r}, "
+                f"trainer_count={len(expected)}, contract_count={actual_len}"
             )
         raise RuntimeError(
-            "Firmware DATA header mismatch: no candidate matched the trainer contract. "
+            "Protocol contract mismatch: no candidate matched the trainer contract. "
             + " | ".join(details)
             + f". Searched: {', '.join(searched)}"
         )
@@ -9049,7 +8735,7 @@ def _assert_radar_log_contract(allow_missing_source: bool = False) -> Optional[P
     if allow_missing_source:
         return None
     raise RuntimeError(
-        "Could not locate firmware DATA header source for contract verification. "
+        "Could not locate config/protocol_contract.json for contract verification. "
         f"Tried: {', '.join(searched)}"
     )
 
@@ -10570,10 +10256,10 @@ _QUICKSTART_TEXT = """
 RECOMMENDED THESIS WORKFLOW (single command per session)
 
 STEP 0 - Check your setup
-  python radar_vital_trainer_v12_for_v16_0.py doctor
+  python radar_vital_trainer.py doctor
 
 STEP 1 - Run one full session
-  python radar_vital_trainer_v12_for_v16_0.py session \
+  python radar_vital_trainer.py session \
     --port COM10 \
     --address 10:22:33:9E:8F:63 \
     --duration-s 480 \
@@ -10609,11 +10295,11 @@ STEP 2 - Review the outputs
     - session_quick_report.txt
 
 STEP 3 - Compare sessions after you collect several runs
-  python radar_vital_trainer_v12_for_v16_0.py compare \
+  python radar_vital_trainer.py compare \
     --sessions-dir sessions/ --out report.html
 
 STEP 4 - Train a correction model after baseline quality is acceptable
-  python radar_vital_trainer_v12_for_v16_0.py train \
+  python radar_vital_trainer.py train \
     --radar sessions/s01/radar.csv --ref sessions/s01/ref.csv \
     --feature-mode core --require-baseline-gate \
     --out model_s01/
@@ -10621,27 +10307,27 @@ STEP 4 - Train a correction model after baseline quality is acceptable
 ADVANCED / MANUAL WORKFLOW
 
 Manual radar logging:
-  python radar_vital_trainer_v12_for_v16_0.py log --port COM10 --out sessions/s01/radar.csv
+  python radar_vital_trainer.py log --port COM10 --out sessions/s01/radar.csv
 
 Manual BLE reference logging:
-  python radar_vital_trainer_v12_for_v16_0.py ble_reflog \
+  python radar_vital_trainer.py ble_reflog \
     --out sessions/s01/ref.csv \
     --address 10:22:33:9E:8F:63 \
     --ble-profile ailink_oximeter \
     --notify-char 0000ffe2-0000-1000-8000-00805f9b34fb
 
 Manual analysis:
-  python radar_vital_trainer_v12_for_v16_0.py analyse \
+  python radar_vital_trainer.py analyse \
     --radar sessions/s01/radar.csv --ref sessions/s01/ref.csv \
     --out sessions/s01/analysis/
 
 DSP sweep:
-  python radar_vital_trainer_v12_for_v16_0.py sweep \
+  python radar_vital_trainer.py sweep \
     --sweep-json params_sweep.json \
-    --port COM10 --sketch radar_vital_v15_0_0.ino \
+    --port COM10 --sketch radar_vital.ino \
     --out-dir sweep_results/
 
-Run  python radar_vital_trainer_v12_for_v16_0.py doctor  to verify your environment.
+Run  python radar_vital_trainer.py doctor  to verify your environment.
 For BLE pulse oximeter logging, also install:  pip install bleak
 """.format(ver=VERSION)
 
@@ -10732,7 +10418,7 @@ def cmd_doctor(args):
     print()
     if ok_all:
         print(_green("All required dependencies satisfied. You are ready to go!"))
-        print(f"Run  {_bold('python radar_vital_trainer_v12_for_v16_0.py quickstart')}  for the workflow guide.\n")
+        print(f"Run  {_bold('python radar_vital_trainer.py quickstart')}  for the workflow guide.\n")
     else:
         print(_red("Some required dependencies are missing. Install them and re-run doctor.\n"))
 
@@ -15534,7 +15220,7 @@ def cmd_align(args):
     print(f"\n[OUT] Merged CSV: {out_csv}")
     print(f"[OUT] Report:     {os.path.join(args.out, 'alignment_report.txt')}")
     print("\nNext step:")
-    print(f"  python radar_vital_trainer_v12_for_v16_0.py analyse --radar {args.radar[0]} "
+    print(f"  python radar_vital_trainer.py analyse --radar {args.radar[0]} "
           f"--ref {args.ref[0]} --out <analysis_dir>")
 
 
@@ -15667,7 +15353,7 @@ def cmd_sweep(args):
         print(f"\n  {_bold('GET INTO POSITION:')} sit {args.distance_hint}m from the radar.")
         print(f"  Session will log for {duration_s}s (~{duration_s/60:.1f} min) once you press Enter.")
         if args.ref:
-            print(f"  {_yellow('REMINDER:')} run  python radar_vital_trainer_v12_for_v16_0.py reflog  in a second terminal!")
+            print(f"  {_yellow('REMINDER:')} run  python radar_vital_trainer.py reflog  in a second terminal!")
         try:
             input("  Press Enter when ready... ")
         except KeyboardInterrupt:
@@ -15738,7 +15424,7 @@ def cmd_sweep(args):
 
     if args.ref:
         print("\nTo compare all sessions:")
-        print(f"  python radar_vital_trainer_v12_for_v16_0.py compare --sessions-dir {args.out_dir} --out report.html")
+        print(f"  python radar_vital_trainer.py compare --sessions-dir {args.out_dir} --out report.html")
 
 
 # -----------------------------------------------------------------------------
@@ -16265,8 +15951,8 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Quick start:\n"
-            "  python radar_vital_trainer_v12_for_v16_0.py doctor      # check dependencies\n"
-            "  python radar_vital_trainer_v12_for_v16_0.py quickstart  # full workflow guide\n"
+            "  python radar_vital_trainer.py doctor      # check dependencies\n"
+            "  python radar_vital_trainer.py quickstart  # full workflow guide\n"
         ),
     )
     parser.add_argument("--version", action="version", version=VERSION)

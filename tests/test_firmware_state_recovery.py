@@ -1,11 +1,11 @@
-import ast
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FW = ROOT / "radar_vital_v16_6_7.ino"
+FW = ROOT / "radar_vital.ino"
 
 
 def _firmware() -> str:
@@ -431,23 +431,17 @@ def test_firmware_csv_header_and_emitters_match_frozen_trainer_schema():
     firmware_columns = header.split(",")
     assert firmware_columns[0] == "DATA"
 
-    trainer_source = (ROOT / "rvt_trainer" / "monolith.py").read_text(
-        encoding="utf-8", errors="ignore"
+    contract = json.loads(
+        (ROOT / "config" / "protocol_contract.json").read_text(encoding="utf-8")
     )
-    trainer_module = ast.parse(trainer_source)
-    columns_assignment = next(
-        node
-        for node in trainer_module.body
-        if isinstance(node, ast.Assign)
-        and any(
-            isinstance(target, ast.Name) and target.id == "RADAR_LOG_COLUMNS"
-            for target in node.targets
-        )
-    )
-    trainer_columns = ast.literal_eval(columns_assignment.value)
+    trainer_columns = contract["columns"]
+    from rvt_trainer.monolith import RADAR_LOG_COLUMNS as monolith_columns
+    from rvt_trainer.protocol_contract import RADAR_LOG_COLUMNS as contract_columns
 
     assert len(trainer_columns) == 222
     assert firmware_columns[1:] == trainer_columns
+    assert contract_columns == trainer_columns
+    assert monolith_columns == trainer_columns
 
     emit_start = source.index('Serial.print("DATA,");')
     emit_end = source.index(

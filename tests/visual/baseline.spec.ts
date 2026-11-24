@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
+const DASHBOARD = '/radar_vital_live_dashboard.html';
 const THEMES = ['light', 'dark', 'night', 'hc'] as const;
 const TRAINER_ORIGIN = `http://127.0.0.1:${process.env.RVT_TEST_PORT || '8990'}`;
 

@@ -12,7 +12,7 @@ The Windows EXE target is:
 Tauri shell -> bundled PyInstaller trainer sidecar -> http://127.0.0.1:8765 -> Angular dashboard
 ```
 
-The installer should not require the operator to manually run `radar_vital_trainer_v12_for_v16_0.py`. On app startup, Tauri launches the bundled `rvt-trainer` sidecar in local-bind mode, pins native API/download requests to `http://127.0.0.1:8765`, and allows the Angular dashboard to talk to the same local trainer through the native bridge.
+The installer should not require the operator to manually run `radar_vital_trainer.py`. On app startup, Tauri launches the bundled `rvt-trainer` sidecar in local-bind mode, pins native API/download requests to `http://127.0.0.1:8765`, and allows the Angular dashboard to talk to the same local trainer through the native bridge.
 
 ### Acceptance criteria
 

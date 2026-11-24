@@ -33,6 +33,7 @@ SPEC_DIR = ROOT / ".artifact-check" / "pyinstaller-spec"
 ADD_DATA: list[tuple[Path, str]] = [
     (ROOT / "rvt_trainer" / "assets", "rvt_trainer/assets"),
     (ROOT / "assets", "assets"),
+    (ROOT / "config" / "protocol_contract.json", "config"),
     (ROOT / "requirements.txt", "requirements.txt"),
 ]
 

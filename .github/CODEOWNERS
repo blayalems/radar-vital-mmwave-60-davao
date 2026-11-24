@@ -1,4 +1,4 @@
-# RVT-QMS-CFG-001, revision R01.
+# RVT-QMS-CFG-001, revision R02.
 # CODEOWNERS requests review; the main ruleset is the authoritative approval
 # control. Roles and actual reviewers are recorded in the pull request.
 
@@ -33,7 +33,7 @@
 /docs/physical-acceptance-checklist.md @blayalems
 
 # Coupled shipped sources
-/radar_vital_v*.ino @blayalems
+/radar_vital.ino @blayalems
 /rvt_trainer/ @blayalems
 /web/src/ @blayalems
 /src-tauri/ @blayalems

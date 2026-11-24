@@ -1,6 +1,6 @@
-const CACHE = 'rvt-shell-v12.0.7';
+const CACHE = 'rvt-shell-v12.0.8';
 const DASHBOARD = './index.html';
-const MONOLITH = './radar_vital_live_dashboard_v12_for_v16_0.html';
+const MONOLITH = './radar_vital_live_dashboard.html';
 const NAVIGATION_CACHE_KEY = new URL(DASHBOARD, self.registration.scope).href;
 const NAVIGATION_MONOLITH_KEY = new URL(MONOLITH, self.registration.scope).href;
 const APP_SHELL_PATHS = new Set([
@@ -12,6 +12,7 @@ const APP_SHELL_PATHS = new Set([
   'help',
   'settings',
   'index.html',
+  'radar_vital_live_dashboard.html',
   'radar_vital_live_dashboard_v12_for_v16_0.html'
 ]);
 const PRECACHE = [

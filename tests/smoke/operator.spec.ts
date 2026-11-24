@@ -127,7 +127,7 @@ test.describe('Operator profile and lock system', () => {
       console.error(`[BROWSER ERROR] ${err.message}`);
     });
 
-    await page.goto('/radar_vital_live_dashboard_v12_for_v16_0.html', { waitUntil: 'domcontentloaded' });
+    await page.goto('/radar_vital_live_dashboard.html', { waitUntil: 'domcontentloaded' });
     
     // Wait for overlay and onboarding flow
     await expect(page.locator('section.idle-lock-overlay')).toBeVisible();

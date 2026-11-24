@@ -148,7 +148,7 @@ jobs:
           test -f www/sw.js
           test -f www/privacy.html
           test -f www/terms.html
-          test -f www/radar_vital_live_dashboard_v12_for_v16_0.html
+          test -f www/radar_vital_live_dashboard.html
           grep -q '<app-root></app-root>' www/index.html
           grep -q '<app-root></app-root>' www/404.html
           grep -q 'Radar Vital Privacy Notice' www/privacy.html

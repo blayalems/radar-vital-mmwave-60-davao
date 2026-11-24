@@ -15,7 +15,7 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const WEB = path.join(ROOT, 'web');
 const WWW = path.join(ROOT, 'www');
-const DASHBOARD = path.join(ROOT, 'radar_vital_live_dashboard_v12_for_v16_0.html');
+const DASHBOARD = path.join(ROOT, 'radar_vital_live_dashboard.html');
 const SRC_ASSETS = path.join(ROOT, 'assets');
 
 function normalizeNewlines(text) {

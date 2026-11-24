@@ -46,6 +46,7 @@ sessions/
 *.exe
 # Python packaging metadata (pip install -e .)
 rvt_trainer.egg-info/
+rvt_trainer/assets/runtime/
 build/
 *.egg-info/
 

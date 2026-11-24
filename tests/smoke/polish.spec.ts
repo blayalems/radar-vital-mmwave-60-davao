@@ -1,7 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { seedFirstRunComplete } from './helpers/first-run';
 
-const DASHBOARD = '/radar_vital_live_dashboard_v12_for_v16_0.html';
+const DASHBOARD = '/radar_vital_live_dashboard.html';
 
 async function seedUnlocked(page: Page): Promise<void> {
   await seedFirstRunComplete(page);
@@ -34,8 +34,8 @@ async function applyPolishRoutes(page: Page, options: { offline?: boolean; activ
           ok: true,
           mode: 'live',
           active_session: options.activeLive ? { session_id: 'session-offline-recovery' } : null,
-          trainer_version: '16.6.7',
-          dashboard_version: '16.6.7'
+          trainer_version: '16.7.0',
+          dashboard_version: '16.7.0'
         })
       });
       return;

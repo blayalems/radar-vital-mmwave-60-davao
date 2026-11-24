@@ -1,4 +1,4 @@
-// One-shot extractor: monolithic radar_vital_live_dashboard_v12_for_v16_0.html
+// One-shot extractor: monolithic radar_vital_live_dashboard.html
 // → web/styles/<id>.css, web/modules/<id>.js, web/index.html (shell with markers).
 //
 // Run once when the monolith changes shape. Day-to-day, edit the split files
@@ -16,7 +16,7 @@ import url from 'node:url';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const SRC = path.join(ROOT, 'radar_vital_live_dashboard_v12_for_v16_0.html');
+const SRC = path.join(ROOT, 'radar_vital_live_dashboard.html');
 const WEB = path.join(ROOT, 'web');
 const STYLES = path.join(WEB, 'styles');
 const MODULES = path.join(WEB, 'modules');

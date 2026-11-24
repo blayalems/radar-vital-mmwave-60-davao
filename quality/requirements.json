@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R17",
-  "effective_product_version": "16.6.7",
+  "register_revision": "R18",
+  "effective_product_version": "16.7.0",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -96,7 +96,9 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_6_7.ino",
+        "radar_vital.ino",
+        "config/protocol_contract.json",
+        "rvt_trainer/protocol_contract.py",
         "packaging/firmware/arduino-toolchain.json",
         "rvt_trainer/monolith.py"
       ],
@@ -793,6 +795,7 @@
         ".github/workflows/release-artifacts.yml",
         ".github/workflows/playwright.yml",
         "pyproject.toml",
+        "setup.py",
         "rvt_trainer/runtime_paths.py",
         "rvt_trainer/assets/static.py",
         "scripts/check-release-source.mjs",
@@ -1002,7 +1005,7 @@
       "owner_role": "firmware_owner",
       "status": "active",
       "implementation_paths": [
-        "radar_vital_v16_6_7.ino",
+        "radar_vital.ino",
         "rvt_trainer/monolith.py"
       ],
       "verification_refs": [

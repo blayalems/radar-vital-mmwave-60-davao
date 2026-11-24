@@ -1,6 +1,6 @@
 // Round-trip check: confirms web/ is the source of truth.
 //
-//   1. Snapshot current radar_vital_live_dashboard_v12_for_v16_0.html.
+//   1. Snapshot current radar_vital_live_dashboard.html.
 //   2. Run build-angular.mjs.
 //   3. Verify the rebuilt monolith equals the snapshot after newline
 //      normalization. This keeps Windows checkouts from failing on CRLF-only
@@ -17,7 +17,7 @@ import { spawnSync } from 'node:child_process';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const DASHBOARD = path.join(ROOT, 'radar_vital_live_dashboard_v12_for_v16_0.html');
+const DASHBOARD = path.join(ROOT, 'radar_vital_live_dashboard.html');
 const OUT = path.join(ROOT, 'www');
 
 function normalizeHtmlBytes(buf) {
@@ -35,7 +35,7 @@ const after = await fs.readFile(DASHBOARD);
 if (Buffer.compare(normalizeHtmlBytes(before), normalizeHtmlBytes(after)) !== 0) {
   console.error(`ERROR: monolith drift detected.
 The assembled output from Angular build does not match the committed
-radar_vital_live_dashboard_v12_for_v16_0.html.
+radar_vital_live_dashboard.html.
 
 Either the Angular web project has modifications but the monolith was not re-committed
 (run \`npm run build:web\` and commit the result).`);

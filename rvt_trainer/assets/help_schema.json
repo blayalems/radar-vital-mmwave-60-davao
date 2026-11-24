@@ -411,7 +411,7 @@
             "id": "firmware_contract_mismatch",
             "title": "Firmware contract mismatch",
             "steps": [
-                "Use the v16.7.0 firmware source (radar_vital.ino) or bundled protocol_contract.json.",
+                "Use the v16.8.0 firmware source (radar_vital.ino) or bundled protocol_contract.json.",
                 "Reflash if the device emits a different header.",
                 "Do not train from mismatched sessions."
             ]

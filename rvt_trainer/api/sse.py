@@ -1,13 +1,20 @@
 """Control server and SSE API classes."""
 
 from __future__ import annotations
+
 import json
 import time
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
-from ..monolith import _ControlHandler as ControlHandler
-from ..monolith import _SessionSupervisor as SessionSupervisor
+from rvt_trainer.api.common import (
+    nan_safe,
+    read_json_if_exists as _read_json_if_exists,
+)
+from rvt_trainer.api.server import _ControlHandler as ControlHandler
+from rvt_trainer.constants import FEATURE_FLAGS, LIVE_EVENT_SCHEMA_VERSION, _iso_now
+from rvt_trainer.session.live_dashboard import _mock_live_payload
+from rvt_trainer.session.supervisor import SessionSupervisor
 
 SSE_DEADLINE_WARN_BEFORE_S = 60
 
@@ -18,16 +25,6 @@ def handle_sse_subscription(handler, session_id_hint: Optional[str] = None):
     Delegates low-level HTTP socket writing and headers to the calling HTTP
     handler, keeping the streaming loop isolated and testable.
     """
-    # Import necessary helpers dynamically to avoid circular imports
-    from ..monolith import (
-        FEATURE_FLAGS,
-        LIVE_EVENT_SCHEMA_VERSION,
-        _mock_live_payload,
-        _iso_now,
-        nan_safe,
-        _read_json_if_exists
-    )
-
     if not FEATURE_FLAGS.get("enable_sse", True):
         handler._send_json(404, {"ok": False, "error": {"code": "SSE_DISABLED", "message": "SSE is disabled by feature flag"}})
         return
@@ -65,7 +62,7 @@ def handle_sse_subscription(handler, session_id_hint: Optional[str] = None):
             if time_remaining <= SSE_DEADLINE_WARN_BEFORE_S and not warned:
                 write_event("session_warning", {
                     "reason": "deadline_approaching",
-                    "seconds_remaining": SSE_DEADLINE_WARN_BEFORE_S
+                    "seconds_remaining": SSE_DEADLINE_WARN_BEFORE_S,
                 })
                 warned = True
 

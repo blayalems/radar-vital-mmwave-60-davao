@@ -7,8 +7,8 @@ import json
 import tempfile
 from pathlib import Path
 
+from rvt_trainer.api.server import _ControlServer
 from rvt_trainer.audit.runner import run_preflight_check
-from rvt_trainer.monolith import _ControlServer
 from rvt_trainer.runtime_paths import runtime_root
 
 

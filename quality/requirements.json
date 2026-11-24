@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R18",
-  "effective_product_version": "16.7.0",
+  "register_revision": "R19",
+  "effective_product_version": "16.8.0",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [
@@ -100,7 +100,8 @@
         "config/protocol_contract.json",
         "rvt_trainer/protocol_contract.py",
         "packaging/firmware/arduino-toolchain.json",
-        "rvt_trainer/monolith.py"
+        "rvt_trainer/constants.py",
+        "rvt_trainer/transport/serial.py"
       ],
       "verification_refs": [
         {
@@ -144,7 +145,7 @@
       "implementation_paths": [
         "rvt_trainer/assets/static.py",
         "rvt_trainer/api/route_registry/types.py",
-        "rvt_trainer/monolith.py",
+        "rvt_trainer/api/server.py",
         ".gitignore"
       ],
       "verification_refs": [
@@ -291,7 +292,8 @@
       "owner_role": "trainer_owner",
       "status": "active",
       "implementation_paths": [
-        "rvt_trainer/monolith.py",
+        "rvt_trainer/api/sse.py",
+        "rvt_trainer/api/server.py",
         "web/src/app/services/sse-driver.service.ts"
       ],
       "verification_refs": [
@@ -456,7 +458,9 @@
         "rvt_trainer/session/protocol_ledger.py",
         "rvt_trainer/session/study_contract.py",
         "rvt_trainer/session/supervisor.py",
-        "rvt_trainer/monolith.py"
+        "rvt_trainer/session/manifest.py",
+        "rvt_trainer/session/analysis_jobs.py",
+        "rvt_trainer/api/server.py"
       ],
       "verification_refs": [
         {
@@ -566,7 +570,9 @@
         "rvt_trainer/evaluation_split.py",
         "rvt_trainer/model_artifacts.py",
         "rvt_trainer/modeling.py",
-        "rvt_trainer/monolith.py",
+        "rvt_trainer/features.py",
+        "rvt_trainer/audit/verdict.py",
+        "rvt_trainer/audit/truthfulness.py",
         "rvt_trainer/session/study_evidence.py",
         "web/src/app/components/report/report.component.ts",
         "web/src/app/services/api.service.ts",
@@ -656,7 +662,8 @@
         "quality/schemas/precollection-readiness.schema.json",
         "rvt_trainer/session/collection_authorization.py",
         "rvt_trainer/session/supervisor.py",
-        "rvt_trainer/monolith.py",
+        "rvt_trainer/api/server.py",
+        "rvt_trainer/session/analysis_jobs.py",
         "web/src/app/components/participant-study-setup"
       ],
       "verification_refs": [
@@ -716,7 +723,8 @@
       "implementation_paths": [
         "docs/system-feedback-loop.md",
         "rvt_trainer/statistics.py",
-        "rvt_trainer/monolith.py",
+        "rvt_trainer/session/analysis_jobs.py",
+        "rvt_trainer/modeling.py",
         "rvt_trainer/session/protocol_ledger.py",
         "rvt_trainer/session/study_evidence.py",
         "quality/statistical-analysis-plan.json",
@@ -1006,7 +1014,11 @@
       "status": "active",
       "implementation_paths": [
         "radar_vital.ino",
-        "rvt_trainer/monolith.py"
+        "rvt_trainer/transport/serial.py",
+        "rvt_trainer/cli.py",
+        "rvt_trainer/modeling.py",
+        "rvt_trainer/session/live_dashboard.py",
+        "rvt_trainer/api/server.py"
       ],
       "verification_refs": [
         {

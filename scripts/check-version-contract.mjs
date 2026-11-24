@@ -73,10 +73,10 @@ if (version) {
     .find((block) => /^name = "radar-vital"$/m.test(block));
   equal('Cargo lock package version', ownCargoLockBlock?.match(/^version = "([^"]+)"$/m)?.[1], version);
 
-  contains('trainer version', 'rvt_trainer/monolith.py', `VERSION = "${version}"`);
-  contains('dashboard version', 'rvt_trainer/monolith.py', `DASHBOARD_VERSION = "${version}"`);
-  contains('expected firmware version', 'rvt_trainer/monolith.py', `FIRMWARE_VERSION_EXPECTED = "v${version}"`);
-  contains('trainer firmware path', 'rvt_trainer/monolith.py', firmwareFile);
+  contains('trainer version', 'rvt_trainer/constants.py', `VERSION = "${version}"`);
+  contains('dashboard version', 'rvt_trainer/constants.py', `DASHBOARD_VERSION = "${version}"`);
+  contains('expected firmware version', 'rvt_trainer/constants.py', `FIRMWARE_VERSION_EXPECTED = "v${version}"`);
+  contains('trainer firmware path', 'rvt_trainer/transport/serial.py', firmwareFile);
   contains('study objectives product version', 'rvt_trainer/session/study_objectives.py', `"product_version": "${version}"`);
 
   contains('Angular product version', 'web/src/app/services/app-meta.ts', `PRODUCT_VERSION = '${version}'`);

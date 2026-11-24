@@ -1,34 +1,98 @@
 """Preflight and audit runner helpers."""
 
 from __future__ import annotations
-import time
-import shutil
+
 import asyncio
 import inspect
-from types import SimpleNamespace
+import shutil
+import time
 from pathlib import Path
-from typing import Any, Callable, Coroutine, Dict, cast
+from types import SimpleNamespace
+from typing import Any, Callable, Coroutine, Dict, Iterable, List, Optional, Sequence, cast
+
+from rvt_trainer._compat import monolith_override
+from rvt_trainer.constants import (
+    DEFAULT_BLE_ADDRESS,
+    DEFAULT_RADAR_PORT,
+    RADAR_LOG_COLUMNS,
+    _REPO_ROOT,
+    _iso_now,
+    _scoring_weights_hash,
+)
+from rvt_trainer.protocol_contract import load_protocol_contract, protocol_contract_path
+from rvt_trainer.session.supervisor import _read_session_lock
+from rvt_trainer.transport.serial import (
+    _extract_firmware_data_header_tokens,
+    _firmware_contract_candidates,
+)
 
 PreflightHandler = Callable[[str, float, Dict[str, Any], Any], Dict[str, object]]
 
+SESSION_START_PREFLIGHT_IDS = [
+    "serial_port_list",
+    "session_folder_writable",
+    "disk_space",
+    "schema_hash_consistency",
+    "clock_monotonic_sanity",
+]
+
+
+def _preflight_result(check_id: str, label: str, status: str, detail: str,
+                      remediation: str = "", start_t: Optional[float] = None) -> Dict[str, object]:
+    elapsed_ms = 0.0 if start_t is None else max(0.0, (time.monotonic() - start_t) * 1000.0)
+    return {
+        "id": check_id,
+        "label": label,
+        "status": status if status in {"ok", "warn", "fail", "skip"} else "fail",
+        "detail": str(detail),
+        "remediation": str(remediation or ""),
+        "duration_ms": round(elapsed_ms, 1),
+    }
+
+
+def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> List[Path]:
+    if ino_search_paths:
+        out: List[Path] = []
+        for root in ino_search_paths:
+            p = Path(root)
+            if p.is_file():
+                out.append(p)
+            elif p.exists():
+                out.extend(sorted(p.glob("*.ino")))
+        return out
+    return [_REPO_ROOT / "radar_vital.ino"] + monolith_override("_firmware_contract_candidates", _firmware_contract_candidates)()
+
+
+_CANONICAL_CANDIDATE_INO_PATHS = _candidate_ino_paths
+
+
+def _session_start_blocking_failures(report: Dict[str, object]) -> List[Dict[str, object]]:
+    blocking_ids = set(SESSION_START_PREFLIGHT_IDS)
+    failures = []
+    raw_checks = report.get("checks")
+    checks = raw_checks if isinstance(raw_checks, Iterable) and not isinstance(raw_checks, (str, bytes)) else []
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        if check.get("id") not in blocking_ids or check.get("status") != "fail":
+            continue
+        failures.append({
+            "id": check.get("id"),
+            "label": check.get("label"),
+            "detail": check.get("detail"),
+            "remediation": check.get("remediation"),
+        })
+    return failures
+
 
 def _load_preflight_runtime() -> SimpleNamespace:
-    from ..monolith import (
-        _preflight_result,
-        _candidate_ino_paths,
-        _extract_firmware_data_header_tokens,
-        _read_session_lock,
-        _scoring_weights_hash,
-        _iso_now,
-        DEFAULT_RADAR_PORT,
-        DEFAULT_BLE_ADDRESS,
-        RADAR_LOG_COLUMNS,
-    )
-    from ..protocol_contract import load_protocol_contract, protocol_contract_path
-
     return SimpleNamespace(
         preflight_result=_preflight_result,
-        candidate_ino_paths=_candidate_ino_paths,
+        candidate_ino_paths=monolith_override(
+            "_candidate_ino_paths",
+            _candidate_ino_paths,
+            canonical=_CANONICAL_CANDIDATE_INO_PATHS,
+        ),
         extract_firmware_data_header_tokens=_extract_firmware_data_header_tokens,
         load_protocol_contract=load_protocol_contract,
         protocol_contract_path=protocol_contract_path,

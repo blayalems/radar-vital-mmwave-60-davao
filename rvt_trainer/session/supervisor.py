@@ -1,7 +1,6 @@
 """Detached capture-session lifecycle ownership.
 
-The legacy trainer still supplies analysis, schema, and CLI functions from
-``rvt_trainer.monolith``. Imports of that module are deliberately deferred
+Shared schemas, defaults, and lifecycle helpers live in ``rvt_trainer`` submodules. Imports of that module are deliberately deferred
 until method execution so this service remains importable on its own and the
 monolith can re-export it without a circular import.
 """
@@ -18,10 +17,22 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Optional, cast
 
+from rvt_trainer._compat import monolith_override
 from rvt_trainer.api.common import (
     atomic_write_json,
     read_json_if_exists,
     wait_for_process_exit,
+)
+from rvt_trainer.constants import (
+    DASHBOARD_VERSION,
+    EXPECTED_RADAR_LOG_COLUMN_COUNT,
+    FIRMWARE_VERSION_EXPECTED,
+    SESSION_MANIFEST_SCHEMA_VERSION,
+    SESSION_MANIFEST_VERSION,
+    VERSION,
+    _pid_alive as _default_pid_alive,
+    _schema_wrap,
+    _trainer_command_prefix,
 )
 from rvt_trainer.session.study_contract import (
     release_provenance,
@@ -66,10 +77,14 @@ class SessionStartPreflightError(RuntimeError):
         self.failed_session_id: Optional[str] = None
 
 
-def _legacy():
-    from rvt_trainer import monolith
+def _supervisor_next_session_dir(sessions_root: str) -> str:
+    from rvt_trainer.session.storage import _next_session_dir
 
-    return monolith
+    fn = monolith_override("_next_session_dir", _next_session_dir)
+    return fn(sessions_root)
+
+
+_CANONICAL_REQUIRE_COLLECTION_AUTHORIZATION = require_collection_authorization
 
 
 def _iso_now() -> str:
@@ -222,7 +237,7 @@ def _clear_supervisor_stop_request(
 def _pid_alive(pid: object) -> bool:
     # Keep the historical monolith monkeypatch seam used by packaged and test
     # callers while ownership lives in this module.
-    return bool(_legacy()._pid_alive(pid))
+    return bool(monolith_override("_pid_alive", _default_pid_alive)(pid))
 
 
 def _check_stale_session_lock(sessions_root: str) -> bool:
@@ -465,7 +480,7 @@ class SessionSupervisor:
                 "session_id": session_id,
                 "elapsed_s": 0.0,
                 "remaining_s": remaining,
-                "version": _legacy().VERSION,
+                "version": monolith_override("VERSION", VERSION),
                 "session_dir": os.path.abspath(session_dir),
                 "note": "Session subprocess is starting.",
             },
@@ -497,9 +512,12 @@ class SessionSupervisor:
         study_payload = dict(kwargs)
         study_payload["duration_s"] = duration_s
         if str(study_payload.get("study_classification") or "") == "confirmatory":
-            require_collection_authorization(self.sessions_root)
-        legacy = _legacy()
-        session_dir = str(Path(legacy._next_session_dir(self.sessions_root)))
+            monolith_override(
+                "_require_collection_authorization",
+                require_collection_authorization,
+                canonical=_CANONICAL_REQUIRE_COLLECTION_AUTHORIZATION,
+            )(self.sessions_root)
+        session_dir = str(Path(_supervisor_next_session_dir(self.sessions_root)))
         self.session_dir = session_dir
         Path(session_dir).mkdir(parents=True, exist_ok=True)
         if str(study_payload.get("study_classification") or "") in {
@@ -539,8 +557,8 @@ class SessionSupervisor:
             }
         release_compatible = client_compatibility.get("decision") == "compatible"
         initial_manifest = {
-            "schema_version": legacy.SESSION_MANIFEST_SCHEMA_VERSION,
-            "manifest_version": legacy.SESSION_MANIFEST_VERSION,
+            "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
+            "manifest_version": SESSION_MANIFEST_VERSION,
             "generated_at": _iso_now(),
             "status": "starting",
             "terminal": False,
@@ -550,11 +568,11 @@ class SessionSupervisor:
             "study_session_schema_version": study_assignment.pop("schema_version"),
             **study_assignment,
             **release_provenance(
-                product_version=legacy.VERSION,
-                trainer_version=legacy.VERSION,
-                dashboard_version=legacy.DASHBOARD_VERSION,
-                firmware_expected=legacy.FIRMWARE_VERSION_EXPECTED,
-                serial_width_expected=legacy.EXPECTED_RADAR_LOG_COLUMN_COUNT,
+                product_version=monolith_override("VERSION", VERSION),
+                trainer_version=monolith_override("VERSION", VERSION),
+                dashboard_version=monolith_override("DASHBOARD_VERSION", DASHBOARD_VERSION),
+                firmware_expected=monolith_override("FIRMWARE_VERSION_EXPECTED", FIRMWARE_VERSION_EXPECTED),
+                serial_width_expected=monolith_override("EXPECTED_RADAR_LOG_COLUMN_COUNT", EXPECTED_RADAR_LOG_COLUMN_COUNT),
                 model_family=kwargs.get("model_family"),
                 model_bundle=kwargs.get("model_bundle"),
             ),
@@ -868,7 +886,6 @@ class SessionSupervisor:
         timeout_s: float = 30.0,
         **kwargs,
     ):
-        legacy = _legacy()
         self._poll()
         if self.proc is not None and self.proc.poll() is None:
             raise RuntimeError("SESSION_IN_PROGRESS: active session already running")
@@ -881,7 +898,7 @@ class SessionSupervisor:
         self._allocate_session_manifest(duration_s=duration_s, **kwargs)
         session_dir = cast(str, self.session_dir)
         argv = [
-            *legacy._trainer_command_prefix(),
+            *monolith_override("_trainer_command_prefix", _trainer_command_prefix)(),
             "session",
             "--session-dir",
             session_dir,
@@ -1034,7 +1051,7 @@ class SessionSupervisor:
             if self.proc is None:
                 if not missing_ok:
                     raise RuntimeError("no active session")
-                return _legacy()._schema_wrap(
+                return _schema_wrap(
                     {
                         "session_id": "",
                         "stopped_at": _iso_now(),
@@ -1113,13 +1130,15 @@ class SessionSupervisor:
                     "marker owned by another session was preserved"
                 )
 
-            legacy = _legacy()
+            from rvt_trainer.session.analysis_jobs import _spawn_auto_analyse
+
+            spawn_fn = monolith_override("_spawn_auto_analyse", _spawn_auto_analyse)
             auto = (
-                legacy._spawn_auto_analyse(stopped_session_dir, reason=reason)
+                spawn_fn(stopped_session_dir, reason=reason)
                 if auto_analyse and stopped_session_dir
                 else None
             )
-            return legacy._schema_wrap(
+            return _schema_wrap(
                 {
                     "session_id": Path(stopped_session_dir).name,
                     "stopped_at": _iso_now(),

@@ -41,7 +41,7 @@ async function startStaticPagesServer(): Promise<{ origin: string; close: () => 
       const body = await fs.readFile(target);
       res.writeHead(200, { 'Content-Type': contentType(target), 'Cache-Control': 'no-store' });
       res.end(body);
-    } catch (_) {
+    } catch {
       const body = await fs.readFile(path.join(WWW, '404.html'));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(body);

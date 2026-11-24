@@ -4,10 +4,8 @@ pinging, stopped states, and client disconnection resilience.
 
 from __future__ import annotations
 
-import time
 import json
 from typing import Optional, Dict, Any
-from pathlib import Path
 import pytest
 from unittest.mock import patch
 

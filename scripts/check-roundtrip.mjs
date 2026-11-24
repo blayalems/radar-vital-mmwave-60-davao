@@ -54,7 +54,7 @@ const requiredWwwAssets = [
 for (const asset of requiredWwwAssets) {
   try {
     await fs.access(path.join(OUT, asset));
-  } catch (_) {
+  } catch {
     console.error(`ERROR: missing packaged www asset: ${asset}`);
     process.exit(1);
   }

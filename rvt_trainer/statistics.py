@@ -23,7 +23,7 @@ import numpy as np
 
 # This mirrors the controlled JSON plan shape.  It is useful for descriptive
 # previews, but confirmatory callers must provide an explicit approved copy.
-DEFAULT_ANALYSIS_PLAN = {
+DEFAULT_ANALYSIS_PLAN: dict[str, Any] = {
     "$schema": "./schemas/statistical-analysis-plan.schema.json",
     "schema_version": "rvt-analysis-plan-v1",
     "plan_id": "RVT-STA-PLAN-16.5.8",
@@ -188,7 +188,14 @@ def _validate_analysis_plan(
     aggregation = normalized.get("aggregation")
     reports = normalized.get("reports")
     interpretation = normalized.get("interpretation")
-    if not all(isinstance(value, Mapping) for value in (protocol, primary, secondary, aggregation, reports, interpretation)):
+    if (
+        not isinstance(protocol, Mapping)
+        or not isinstance(primary, Mapping)
+        or not isinstance(secondary, Mapping)
+        or not isinstance(aggregation, Mapping)
+        or not isinstance(reports, Mapping)
+        or not isinstance(interpretation, Mapping)
+    ):
         raise StatisticalInputError("analysis_plan is missing a required section")
     expected_protocol = {
         "confirmatory_distances_m": [0.6, 0.8, 1.0, 2.0, 3.0],
@@ -668,7 +675,7 @@ def repeated_measures_agreement(
         raise StatisticalInputError("bootstrap_reps must be at least 200 for agreement CIs")
     rng = np.random.default_rng(int(seed))
     unique = np.unique(groups)
-    draws = {key: [] for key in ("bias", "loa_lower", "loa_upper")}
+    draws: dict[str, list[float]] = {key: [] for key in ("bias", "loa_lower", "loa_upper")}
     for _ in range(bootstrap_reps):
         sampled = rng.choice(unique, size=unique.size, replace=True)
         cluster_indexes = [np.flatnonzero(groups == group) for group in sampled]
@@ -1119,9 +1126,9 @@ def coverage_report(
             raise StatisticalInputError("attempt-ledger coverage requires pandas") from exc
         ledger = attempt_ledger.copy() if hasattr(attempt_ledger, "copy") else pd.DataFrame(attempt_ledger)
         key_columns = ["participant_id", "trial_id", "condition_id"]
-        missing = [column for column in key_columns if column not in ledger.columns]
-        if missing:
-            raise StatisticalInputError("attempt ledger is missing " + ", ".join(missing))
+        missing_columns = [column for column in key_columns if column not in ledger.columns]
+        if missing_columns:
+            raise StatisticalInputError("attempt ledger is missing " + ", ".join(missing_columns))
         if "eligible" in ledger.columns:
             eligible_mask = _strict_bool_mask(ledger["eligible"], name="attempt_ledger.eligible")
             ledger = ledger.loc[eligible_mask].copy()
@@ -1162,19 +1169,19 @@ def coverage_report(
             tuple(row[column] for column in key_columns)
             for _, row in ledger.iterrows()
         }
-        with_output = attempted_keys.intersection(output_keys)
+        with_output_keys = attempted_keys.intersection(output_keys)
         attempted = len(attempted_keys)
-        result: dict[str, Any] = {
+        ledger_result: dict[str, Any] = {
             "n_attempted": attempted,
-            "n_with_output": len(with_output),
-            "n_missing_output": attempted - len(with_output),
-            "coverage": len(with_output) / attempted,
+            "n_with_output": len(with_output_keys),
+            "n_missing_output": attempted - len(with_output_keys),
+            "coverage": len(with_output_keys) / attempted,
             "denominator_unit": "trial",
             "coverage_exact": exact_proportion(
-                len(with_output), attempted, null_proportion=0.95, alternative="two-sided"
+                len(with_output_keys), attempted, null_proportion=0.95, alternative="two-sided"
             ),
             "missing_output_exact": exact_proportion(
-                attempted - len(with_output), attempted, null_proportion=0.05, alternative="greater"
+                attempted - len(with_output_keys), attempted, null_proportion=0.05, alternative="greater"
             ),
         }
         if false_alarm_column:
@@ -1198,15 +1205,15 @@ def coverage_report(
                 truth = values.map(lambda value: value is True or str(value).strip().lower() in {"1", "true", "yes", "alarm"})
                 if bool(truth.any()):
                     alarm_keys.add(normalized_key)
-            result["no_subject_denominator"] = len(no_subject_keys)
-            result["no_subject_false_alarms"] = len(no_subject_keys.intersection(alarm_keys))
-            result["false_alarm_exact"] = exact_proportion(
-                result["no_subject_false_alarms"],
+            ledger_result["no_subject_denominator"] = len(no_subject_keys)
+            ledger_result["no_subject_false_alarms"] = len(no_subject_keys.intersection(alarm_keys))
+            ledger_result["false_alarm_exact"] = exact_proportion(
+                ledger_result["no_subject_false_alarms"],
                 len(no_subject_keys),
                 null_proportion=false_alarm_null,
                 alternative="less",
             )
-        return result
+        return ledger_result
     if "trial_id" in frame:
         try:
             import pandas as pd

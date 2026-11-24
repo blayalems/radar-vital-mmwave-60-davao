@@ -18,7 +18,6 @@ The function signature is:
 """
 from __future__ import annotations
 
-import pytest
 
 from rvt_trainer.monolith import (
     _build_ml_readiness_verdict,

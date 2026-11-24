@@ -915,11 +915,37 @@ test.describe('Dashboard smoke', () => {
 
   test('exposes the native BLE acceptance probe and receives an allowlisted Tauri notification', async ({ page }) => {
     await page.addInitScript(() => {
-      let notify: ((event: { payload: { device_id: string; data_base64: string } }) => void) | null = null;
-      (window as any).__TAURI_INTERNALS__ = {};
-      (window as any).__TAURI__ = {
+      type NativeInvokeRequest = {
+        origin: string;
+        path: string;
+        method: string;
+        headers?: Record<string, string>;
+        body?: string;
+      };
+      type NativeNotificationEvent = { payload: { device_id: string; data_base64: string } };
+      type TauriMockWindow = Window & {
+        __TAURI_INTERNALS__?: Record<string, unknown>;
+        __TAURI__?: {
+          core: {
+            invoke: (
+              command: string,
+              args?: { request?: NativeInvokeRequest }
+            ) => Promise<unknown>;
+          };
+          event: {
+            listen: (
+              event: string,
+              listener: ((event: NativeNotificationEvent) => void) | null
+            ) => Promise<() => void>;
+          };
+        };
+      };
+      let notify: ((event: NativeNotificationEvent) => void) | null = null;
+      const tauriWindow = window as TauriMockWindow;
+      tauriWindow.__TAURI_INTERNALS__ = {};
+      tauriWindow.__TAURI__ = {
         core: {
-          invoke: async (command: string, args?: any) => {
+          invoke: async (command: string, args?: { request?: NativeInvokeRequest }) => {
             if (command === 'native_ble_scan') return [{ id: 'native-ailink', name: 'AiLink QA' }];
             if (command === 'native_ble_start_notifications') {
               setTimeout(() => notify?.({ payload: { device_id: 'native-ailink', data_base64: 'AQI=' } }), 0);
@@ -973,7 +999,7 @@ test.describe('Dashboard smoke', () => {
                 reader.readAsDataURL(blob);
                 const body_base64 = await base64Promise;
                 return { status: res.status, body_base64, content_type: res.headers.get('content-type') || 'application/octet-stream' };
-              } catch (err) {
+              } catch {
                 return { status: 500, body_base64: '', content_type: 'application/octet-stream' };
               }
             }

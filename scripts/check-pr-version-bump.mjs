@@ -38,7 +38,10 @@ try {
   });
 } catch (error) {
   const stderr = String(error?.stderr ?? '').trim();
-  throw new Error(`Cannot read pyproject.toml from ${requestedBase}${stderr ? `: ${stderr}` : ''}`);
+  throw new Error(
+    `Cannot read pyproject.toml from ${requestedBase}${stderr ? `: ${stderr}` : ''}`,
+    { cause: error },
+  );
 }
 const base = projectVersion(baseText, requestedBase);
 

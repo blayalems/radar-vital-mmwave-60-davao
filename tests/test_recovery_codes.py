@@ -12,8 +12,6 @@ Coverage:
 from __future__ import annotations
 
 import json
-import shutil
-import tempfile
 from email.message import Message
 from io import BytesIO
 from pathlib import Path
@@ -407,13 +405,11 @@ def test_host_reset_unknown_operator_rejected(server: _StubServer, sessions_root
 
 def test_monolith_host_reset_loopback_check(sessions_root: str):
     """Verify the monolith handler rejects non-loopback clients with 403."""
-    import threading
     import urllib.request
     import urllib.error
     import json as _json
 
     # Start a minimal monolith server
-    from rvt_trainer.monolith import ThreadingHTTPServer, _ControlHandler
     import argparse
 
     args = argparse.Namespace(

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import time
 import urllib.error
@@ -9,7 +8,6 @@ import urllib.request
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-import pytest
 from rvt_trainer.monolith import _ControlServer, _manifest_cache
 
 def _request(base: str, path: str, method: str = "GET", token: str = "", payload=None, headers=None):

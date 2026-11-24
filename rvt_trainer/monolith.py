@@ -39,10 +39,8 @@ Primary workflow
 """
 
 import argparse
-import asyncio
 import base64
 import hashlib
-import inspect
 import importlib.util
 import json
 import math
@@ -51,7 +49,6 @@ import os
 import pickle
 import re
 import secrets
-import signal
 import shutil
 import socket
 import ssl
@@ -68,7 +65,7 @@ from html import escape as html_escape
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Deque, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Deque, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, cast
 from urllib.parse import parse_qs, unquote, urlparse
 
 import matplotlib
@@ -165,13 +162,15 @@ from rvt_trainer.runtime_paths import runtime_root
 import warnings
 warnings.filterwarnings("ignore")
 
+_wait_for_process_exit = _wait_for_process_exit  # explicit compatibility re-export
+
 _PACKAGE_ROOT = Path(__file__).resolve().parent
 _REPO_ROOT = runtime_root()
 _TRAINER_ENTRYPOINT = _REPO_ROOT / "radar_vital_trainer_v12_for_v16_0.py"
 
-VERSION = "16.6.5"
-DASHBOARD_VERSION = "16.6.5"
-FIRMWARE_VERSION_EXPECTED = "v16.6.5"
+VERSION = "16.6.6"
+DASHBOARD_VERSION = "16.6.6"
+FIRMWARE_VERSION_EXPECTED = "v16.6.6"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 # Hard upper bound for JSON control-API request bodies. The control surface only
@@ -692,7 +691,7 @@ def _detect_csv_schema_version(columns) -> str:
 
 def _is_supported_radar_contract_length(length: object) -> bool:
     try:
-        n = int(length)
+        n = int(cast(Any, length))
     except Exception:
         return False
     return n in {EXPECTED_RADAR_LOG_COLUMN_COUNT, LEGACY_V15_1_COLUMN_COUNT, LEGACY_V15_COLUMN_COUNT, LEGACY_V14_COLUMN_COUNT}
@@ -963,7 +962,7 @@ def _coverage_penalized_hr_gate(
         return empty
 
     candidates = np.unique(ts[pair_mask])
-    best = dict(empty)
+    best: Dict[str, Any] = dict(empty)
     best_score = float("inf")
     for anchor in candidates:
         start = float(anchor)
@@ -1058,7 +1057,7 @@ def _first_populated_series(raw_df: pd.DataFrame, *names: str) -> pd.Series:
 
 def _truthfulness_from_radar(raw_df: pd.DataFrame, contract_length: Optional[int] = None) -> Dict[str, object]:
     fallback_len = int(len(raw_df.columns)) if isinstance(raw_df, pd.DataFrame) else EXPECTED_RADAR_LOG_COLUMN_COUNT
-    out = {
+    out: Dict[str, object] = {
         "version": "unknown",
         "module_version": None,
         "module_version_detected": False,
@@ -1194,7 +1193,7 @@ def _coverage_stage_label(row: pd.Series, target: str, has_reference: bool) -> s
 
 
 def _coverage_loss_ledger(raw_df: pd.DataFrame, has_reference: bool = True) -> Dict[str, object]:
-    ledger = {
+    ledger: Dict[str, object] = {
         "hr": {"histogram": {}, "salvageable_pct": float("nan")},
         "rr": {"histogram": {}, "salvageable_pct": float("nan")},
     }
@@ -1820,12 +1819,15 @@ def _build_agc_anomaly_flags(raw_df: pd.DataFrame) -> Dict[str, object]:
     else:
         near_field = safe_series(raw_df, "reflector_distance_cm", default=np.nan).fillna(np.nan) < 10.0
     skipdsp = safe_series(raw_df, "skipdsp_misses", default=0.0).fillna(0.0) >= 3.0
-    flags["gain_floor_pct"] = float(gain_floor.mean() * 100.0)
-    flags["near_field_pct"] = float(near_field.mean() * 100.0)
-    flags["skipdsp_pct"] = float(skipdsp.mean() * 100.0)
-    flags["gain_floor_suspected"] = bool(flags["gain_floor_pct"] >= 10.0)
-    flags["near_field_suspected"] = bool(flags["near_field_pct"] >= 10.0)
-    flags["skipdsp_dead_zone_suspected"] = bool(flags["skipdsp_pct"] >= 10.0)
+    gain_floor_pct = float(gain_floor.mean() * 100.0)
+    near_field_pct = float(near_field.mean() * 100.0)
+    skipdsp_pct = float(skipdsp.mean() * 100.0)
+    flags["gain_floor_pct"] = gain_floor_pct
+    flags["near_field_pct"] = near_field_pct
+    flags["skipdsp_pct"] = skipdsp_pct
+    flags["gain_floor_suspected"] = bool(gain_floor_pct >= 10.0)
+    flags["near_field_suspected"] = bool(near_field_pct >= 10.0)
+    flags["skipdsp_dead_zone_suspected"] = bool(skipdsp_pct >= 10.0)
     return flags
 
 
@@ -1900,19 +1902,28 @@ def _compute_session_quality_score(summary: Optional[Dict], feat_df: Optional[pd
         hr_cov = float(hr.get("coverage_pct", float("nan")))
         rr_cov = float(rr.get("coverage_pct", float("nan")))
         score = 0.0
-        if np.isfinite(hr_rmse): score += 18.0 * _clip01((20.0 - hr_rmse) / 20.0)
-        if np.isfinite(rr_rmse): score += 18.0 * _clip01((10.0 - rr_rmse) / 10.0)
-        if np.isfinite(hr_r): score += 14.0 * _clip01((hr_r + 0.2) / 0.8)
-        if np.isfinite(rr_r): score += 14.0 * _clip01((rr_r + 0.2) / 0.8)
-        if np.isfinite(hr_bias): score += 10.0 * _clip01((10.0 - hr_bias) / 10.0)
-        if np.isfinite(rr_bias): score += 10.0 * _clip01((5.0 - rr_bias) / 5.0)
-        if np.isfinite(hr_cov): score += 8.0 * _clip01(hr_cov / 40.0)
-        if np.isfinite(rr_cov): score += 8.0 * _clip01(rr_cov / 60.0)
+        if np.isfinite(hr_rmse):
+            score += 18.0 * _clip01((20.0 - hr_rmse) / 20.0)
+        if np.isfinite(rr_rmse):
+            score += 18.0 * _clip01((10.0 - rr_rmse) / 10.0)
+        if np.isfinite(hr_r):
+            score += 14.0 * _clip01((hr_r + 0.2) / 0.8)
+        if np.isfinite(rr_r):
+            score += 14.0 * _clip01((rr_r + 0.2) / 0.8)
+        if np.isfinite(hr_bias):
+            score += 10.0 * _clip01((10.0 - hr_bias) / 10.0)
+        if np.isfinite(rr_bias):
+            score += 10.0 * _clip01((5.0 - rr_bias) / 5.0)
+        if np.isfinite(hr_cov):
+            score += 8.0 * _clip01(hr_cov / 40.0)
+        if np.isfinite(rr_cov):
+            score += 8.0 * _clip01(rr_cov / 60.0)
         raw_hr_bias_est = float(((summary.get("raw_hr_bias_estimate") or {}).get("bias_bpm", float("nan"))))
         if np.isfinite(raw_hr_bias_est):
             # v8.3: Temporarily neutralised penalty until v13.7 data validates the new arithmetic
             score -= 0.0 * _clip01((abs(raw_hr_bias_est) - 8.0) / 12.0)
-        if bool((summary.get("ml_gate") or {}).get("passed")): score += 10.0
+        if bool((summary.get("ml_gate") or {}).get("passed")):
+            score += 10.0
         return round(max(0.0, min(100.0, score)), 1)
 
     score = internal
@@ -2028,10 +2039,10 @@ class _CSVAppendTracker:
     def __init__(self, path: str, keep_rows: int = 240):
         self.path = path
         self.position = 0
-        self.header = None
+        self.header: Optional[List[str]] = None
         self.partial = ""
         self.rows = 0
-        self.last_row = None
+        self.last_row: Optional[Dict[str, str]] = None
         self._last_size = 0
         self.recent_rows: Deque[Dict[str, str]] = deque(maxlen=int(keep_rows))
         self.last_poll_wall_s: Optional[float] = None
@@ -4741,7 +4752,7 @@ def _candidate_ino_paths(ino_search_paths: Optional[Sequence[str]] = None) -> Li
             elif p.exists():
                 out.extend(sorted(p.glob("*.ino")))
         return out
-    return [_REPO_ROOT / "radar_vital_v16_6_5.ino"] + _firmware_contract_candidates()
+    return [_REPO_ROOT / "radar_vital_v16_6_6.ino"] + _firmware_contract_candidates()
 
 
 from rvt_trainer.audit.runner import (  # noqa: E402
@@ -4825,7 +4836,7 @@ def _build_adaptive_correction_shadow(df) -> Dict[str, object]:
 
     push_eligible is ALWAYS False in v11 — Stage E is analysis-only.
     """
-    out = {
+    out: Dict[str, Any] = {
         "schema_version": "v15.0",
         "enabled": False,
         "n_paired_points": 0,
@@ -4971,7 +4982,7 @@ def _build_pqi_v15_shadow(df) -> Dict[str, object]:
     motion frames more than 10% of the time, v15 PQI is rewarding motion
     artifacts and Stage D must NOT be activated.
     """
-    out = {
+    out: Dict[str, Any] = {
         "schema_version": "v15.0",
         "enabled": False,
         "n_rows": 0,
@@ -5081,7 +5092,7 @@ def _build_pqi_v15_shadow(df) -> Dict[str, object]:
         if c in df.columns:
             motion_col = c
             break
-    mfic = out["motion_frame_inflation_check"]
+    mfic: Dict[str, Any] = out["motion_frame_inflation_check"]
     if motion_col is not None:
         motion_vals = _pd.to_numeric(df[motion_col], errors="coerce").fillna(0).astype(int)
         motion_active_mask = active_mask & (motion_vals > 0)
@@ -5143,10 +5154,14 @@ def _build_ml_readiness_verdict(analyse_summary, **kwargs) -> Dict[str, object]:
             "limitation_kind": "unknown",
             "next_action": "rerun analysis",
         }
-    gate = analyse_summary.get("ml_gate") if isinstance(analyse_summary.get("ml_gate"), dict) else {}
-    secondary_gate = gate.get("secondary_gate") if isinstance(gate.get("secondary_gate"), dict) else {}
-    ble = analyse_summary.get("ble_ref_quality") if isinstance(analyse_summary.get("ble_ref_quality"), dict) else {}
-    fw = analyse_summary.get("fw_truthfulness") if isinstance(analyse_summary.get("fw_truthfulness"), dict) else {}
+    raw_gate = analyse_summary.get("ml_gate")
+    gate = raw_gate if isinstance(raw_gate, dict) else {}
+    raw_secondary_gate = gate.get("secondary_gate")
+    secondary_gate = raw_secondary_gate if isinstance(raw_secondary_gate, dict) else {}
+    raw_ble = analyse_summary.get("ble_ref_quality")
+    ble = raw_ble if isinstance(raw_ble, dict) else {}
+    raw_fw = analyse_summary.get("fw_truthfulness")
+    fw = raw_fw if isinstance(raw_fw, dict) else {}
     pqi = _to_num(analyse_summary.get("pqi_lock_pct"), float("nan"))
     # PR72 session-data audit: prefer true time coverage over the packet ratio
     # (distilled_rows_pct_of_raw), which protocol-normally sits near 33% and
@@ -5169,25 +5184,30 @@ def _build_ml_readiness_verdict(analyse_summary, **kwargs) -> Dict[str, object]:
     contract_len = _safe_int(fw.get("contract_length", EXPECTED_RADAR_LOG_COLUMN_COUNT), EXPECTED_RADAR_LOG_COLUMN_COUNT)
     critical_cols_ok = bool(fw.get("critical_columns_ok", False))
     module_valid = bool(fw.get("module_version_valid", False))
-    sketch_version = fw.get("version")
     schema_hash = analyse_summary.get("feature_schema_hash")
     schema_hash_ok = not bool(schema_hash) or schema_hash == feature_schema_hash()
     secondary_kind = str(secondary_gate.get("kind", "")).lower()
     secondary_basis = str(secondary_gate.get("basis", ""))
-    hr_base = analyse_summary.get("hr_baseline", {}) if isinstance(analyse_summary.get("hr_baseline"), dict) else {}
-    rr_base = analyse_summary.get("rr_baseline", {}) if isinstance(analyse_summary.get("rr_baseline"), dict) else {}
-    hr_valid = hr_base.get("valid_only", {}) if isinstance(hr_base.get("valid_only"), dict) else {}
-    rr_valid = rr_base.get("valid_only", {}) if isinstance(rr_base.get("valid_only"), dict) else {}
+    raw_hr_base = analyse_summary.get("hr_baseline")
+    hr_base = raw_hr_base if isinstance(raw_hr_base, dict) else {}
+    raw_rr_base = analyse_summary.get("rr_baseline")
+    rr_base = raw_rr_base if isinstance(raw_rr_base, dict) else {}
+    raw_hr_valid = hr_base.get("valid_only")
+    hr_valid = raw_hr_valid if isinstance(raw_hr_valid, dict) else {}
+    raw_rr_valid = rr_base.get("valid_only")
+    rr_valid = raw_rr_valid if isinstance(raw_rr_valid, dict) else {}
     hr_cov = _to_num(hr_base.get("coverage_pct"), float("nan"))
     rr_cov = _to_num(rr_base.get("coverage_pct"), float("nan"))
     hr_mae = _to_num(hr_valid.get("mae"), float("nan"))
     hr_bias = _to_num(hr_valid.get("bias"), float("nan"))
     rr_mae = _to_num(rr_valid.get("mae"), float("nan"))
-    rr_bias = _to_num(rr_valid.get("bias"), float("nan"))
-    publish_hist = analyse_summary.get("publish_reason_histogram") if isinstance(analyse_summary.get("publish_reason_histogram"), dict) else {}
-    publish_hr = publish_hist.get("hr") if isinstance(publish_hist.get("hr"), dict) else publish_hist
-    publish_rr = publish_hist.get("rr") if isinstance(publish_hist.get("rr"), dict) else publish_hist
-    total_publish = sum(_safe_int(v, 0) for v in list(publish_hr.values()) + list(publish_rr.values())) if isinstance(publish_hist, dict) else 0
+    raw_publish_hist = analyse_summary.get("publish_reason_histogram")
+    publish_hist = raw_publish_hist if isinstance(raw_publish_hist, dict) else {}
+    raw_publish_hr = publish_hist.get("hr")
+    publish_hr = raw_publish_hr if isinstance(raw_publish_hr, dict) else publish_hist
+    raw_publish_rr = publish_hist.get("rr")
+    publish_rr = raw_publish_rr if isinstance(raw_publish_rr, dict) else publish_hist
+    total_publish = sum(_safe_int(v, 0) for v in list(publish_hr.values()) + list(publish_rr.values())) if isinstance(raw_publish_hist, dict) else 0
     suppress = sum(_safe_int(publish_hr.get(k), 0) for k in ("TRUST_STALE", "NO_EVIDENCE", "STATE"))
     suppress += sum(_safe_int(publish_rr.get(k), 0) for k in ("TRUST_STALE", "NO_EVIDENCE", "STALE"))
     suppress_frac = suppress / max(total_publish, 1)
@@ -5281,7 +5301,8 @@ def _build_ml_readiness_verdict(analyse_summary, **kwargs) -> Dict[str, object]:
         next_action = "extend session or adjust publish policy"
         add_cat("policy", "Publish policy", "fail", "Publish suppression dominates", "Extend session or review warmup/publish policy.")
 
-    raw = analyse_summary.get("raw_hr_bias_audit") if isinstance(analyse_summary.get("raw_hr_bias_audit"), dict) else {}
+    raw_bias_audit = analyse_summary.get("raw_hr_bias_audit")
+    raw = raw_bias_audit if isinstance(raw_bias_audit, dict) else {}
     if _to_num(raw.get("rr_harmonic_k_frac"), 0.0) >= 0.5 or _to_num(raw.get("hr_raw_disagree_rr_harmonic_k"), 0.0) > 0:
         signal_verdict = "degraded_signal"
         training_verdict = "degraded_signal" if training_verdict not in {"deferred", "firmware_rejected"} else training_verdict
@@ -5380,8 +5401,10 @@ def _download_items_for_session(session_dir: str) -> List[Dict[str, str]]:
 
 def _metric_summary(block: Optional[Dict[str, object]]) -> Dict[str, object]:
     block = block if isinstance(block, dict) else {}
-    vo = block.get("valid_only", {}) if isinstance(block.get("valid_only"), dict) else {}
-    all_frames = block.get("all_frames", {}) if isinstance(block.get("all_frames"), dict) else {}
+    raw_vo = block.get("valid_only")
+    vo = raw_vo if isinstance(raw_vo, dict) else {}
+    raw_all_frames = block.get("all_frames")
+    all_frames = raw_all_frames if isinstance(raw_all_frames, dict) else {}
     return {
         "coverage_pct": block.get("coverage_pct"),
         "valid_only": vo,
@@ -5454,7 +5477,7 @@ def _infer_session_timestamp(root: Path, manifest: Optional[Dict[str, object]]) 
 
 def _numeric_or_none(value: object) -> Optional[float]:
     try:
-        numeric = float(value)
+        numeric = float(cast(Any, value))
     except Exception:
         return None
     return numeric if math.isfinite(numeric) else None
@@ -5510,7 +5533,8 @@ def _infer_session_duration_s(root: Path, manifest: Optional[Dict[str, object]],
 def _contract_diagnosis(analysis: Optional[Dict[str, object]], manifest: Optional[Dict[str, object]]) -> Dict[str, object]:
     analysis = analysis if isinstance(analysis, dict) else {}
     manifest = manifest if isinstance(manifest, dict) else {}
-    fw = analysis.get("fw_truthfulness") if isinstance(analysis.get("fw_truthfulness"), dict) else {}
+    raw_fw = analysis.get("fw_truthfulness")
+    fw = raw_fw if isinstance(raw_fw, dict) else {}
     observed_len = _safe_int(fw.get("contract_length", EXPECTED_RADAR_LOG_COLUMN_COUNT), EXPECTED_RADAR_LOG_COLUMN_COUNT)
     sketch = _summary_value(fw.get("version"), manifest.get("sketch_version"))
     schema_hash = _summary_value(analysis.get("feature_schema_hash"), manifest.get("feature_schema_hash"))
@@ -5635,8 +5659,10 @@ def _load_session_summary(session_dir: str) -> Dict[str, object]:
         verdict_obj = _build_ml_readiness_verdict(analysis)
     hr = _metric_summary(analysis.get("hr_baseline"))
     rr = _metric_summary(analysis.get("rr_baseline"))
-    ble_quality = analysis.get("ble_ref_quality") if isinstance(analysis.get("ble_ref_quality"), dict) else (ble_summary or {})
-    fw = analysis.get("fw_truthfulness") if isinstance(analysis.get("fw_truthfulness"), dict) else {}
+    raw_ble_quality = analysis.get("ble_ref_quality")
+    ble_quality = raw_ble_quality if isinstance(raw_ble_quality, dict) else (ble_summary or {})
+    raw_fw = analysis.get("fw_truthfulness")
+    fw = raw_fw if isinstance(raw_fw, dict) else {}
     signal_quality = {
         "pqi_lock_pct": analysis.get("pqi_lock_pct"),
         "coverage_locked": analysis.get("coverage_locked"),
@@ -5655,9 +5681,12 @@ def _load_session_summary(session_dir: str) -> Dict[str, object]:
         "settling": analysis.get("ml_gate_settling"),
         "golden_check": analysis.get("golden_check"),
     }
-    publish_hist = analysis.get("publish_reason_histogram") if isinstance(analysis.get("publish_reason_histogram"), dict) else {}
-    publish_hr = publish_hist.get("hr") if isinstance(publish_hist.get("hr"), dict) else publish_hist
-    publish_rr = publish_hist.get("rr") if isinstance(publish_hist.get("rr"), dict) else publish_hist
+    raw_publish_hist = analysis.get("publish_reason_histogram")
+    publish_hist = raw_publish_hist if isinstance(raw_publish_hist, dict) else {}
+    raw_publish_hr = publish_hist.get("hr")
+    publish_hr = raw_publish_hr if isinstance(raw_publish_hr, dict) else publish_hist
+    raw_publish_rr = publish_hist.get("rr")
+    publish_rr = raw_publish_rr if isinstance(raw_publish_rr, dict) else publish_hist
     histograms = {
         "publish_reason_histogram": publish_hist,
         "hr_gate_reason_histogram": analysis.get("hr_gate_reason_histogram"),
@@ -5713,13 +5742,22 @@ def _scan_sessions_root(root: str, prefix: str = "s") -> List[Dict[str, object]]
     items = []
     for d in sorted([p for p in base.iterdir() if p.is_dir() and pat.match(p.name)], key=lambda p: p.name.lower()):
         summary = _load_session_summary(str(d))
-        manifest = summary.get("manifest") if isinstance(summary.get("manifest"), dict) else {}
-        analysis = summary.get("analysis") if isinstance(summary.get("analysis"), dict) else {}
-        hr = analysis.get("hr_baseline", {}) if isinstance(analysis.get("hr_baseline"), dict) else {}
-        vo = hr.get("valid_only", {}) if isinstance(hr.get("valid_only"), dict) else {}
-        ble = analysis.get("ble_ref_quality", {}) if isinstance(analysis.get("ble_ref_quality"), dict) else {}
-        rr = analysis.get("rr_baseline", {}) if isinstance(analysis.get("rr_baseline"), dict) else {}
-        rr_vo = rr.get("valid_only", {}) if isinstance(rr.get("valid_only"), dict) else {}
+        raw_manifest = summary.get("manifest")
+        manifest = raw_manifest if isinstance(raw_manifest, dict) else {}
+        raw_analysis = summary.get("analysis")
+        analysis = raw_analysis if isinstance(raw_analysis, dict) else {}
+        raw_hr = analysis.get("hr_baseline")
+        hr = raw_hr if isinstance(raw_hr, dict) else {}
+        raw_vo = hr.get("valid_only")
+        vo = raw_vo if isinstance(raw_vo, dict) else {}
+        raw_ble = analysis.get("ble_ref_quality")
+        ble = raw_ble if isinstance(raw_ble, dict) else {}
+        raw_rr = analysis.get("rr_baseline")
+        rr = raw_rr if isinstance(raw_rr, dict) else {}
+        raw_rr_vo = rr.get("valid_only")
+        rr_vo = raw_rr_vo if isinstance(raw_rr_vo, dict) else {}
+        raw_ref_q = summary.get("reference_quality")
+        ref_q = raw_ref_q if isinstance(raw_ref_q, dict) else {}
         items.append({
             "session_id": d.name,
             "started_at": summary.get("started_at") or manifest.get("started_at"),
@@ -5738,7 +5776,7 @@ def _scan_sessions_root(root: str, prefix: str = "s") -> List[Dict[str, object]]
             "hr_r": summary.get("hr_r", vo.get("r")),
             "rr_rmse": summary.get("rr_rmse", rr_vo.get("rmse")),
             "rr_r": summary.get("rr_r", rr_vo.get("r")),
-            "ref_coverage_pct": (summary.get("reference_quality") or {}).get("distilled_rows_pct_of_raw", ble.get("distilled_rows_pct_of_raw")),
+            "ref_coverage_pct": ref_q.get("distilled_rows_pct_of_raw", ble.get("distilled_rows_pct_of_raw")),
             "path": str(d),
             "aligned_features_path": _first_existing([str(d / "analysis" / "aligned_1hz_features.csv"), str(d / "analysis" / "aligned_1hz.csv"), str(d / "aligned_1hz_features.csv"), str(d / "aligned_1hz.csv")]),
         })
@@ -5761,7 +5799,7 @@ def _compare_session_payload(root: str, session_id: str) -> Dict[str, object]:
         return (verdict_rank, rmse if np.isfinite(rmse) else float("inf"), str(item.get("session_id")))
 
     best_item = min(items, key=best_key) if items else None
-    best = _load_session_summary(str(Path(root) / best_item["session_id"])) if best_item else None
+    best = _load_session_summary(str(Path(root) / str(best_item["session_id"]))) if best_item else None
     compare_rows = []
     for item in items:
         row = dict(item)
@@ -5778,7 +5816,7 @@ def _compare_session_payload(root: str, session_id: str) -> Dict[str, object]:
     return {"session_id": session_id, "selected": selected, "previous": previous, "best": best, "sweep_delta_rows": delta_rows, "bootstrap_n": 300}
 
 
-_ANALYSIS_JOBS: Dict[str, Dict[str, object]] = {}
+_ANALYSIS_JOBS: Dict[str, Dict[str, Any]] = {}
 _ANALYSIS_JOBS_MAX = 32
 _STUDY_ANALYSIS_PROCS: Dict[str, subprocess.Popen] = {}
 _STUDY_ANALYSIS_LOCK = threading.RLock()
@@ -5792,8 +5830,8 @@ _RATE_LIMIT_MAX = 1024
 # package boundary owns it; we re-export under the underscored names that
 # existing call sites in this file already use.
 from rvt_trainer.api.auth import (  # noqa: E402
-    _PIN_MAX,
-    _PIN_TTL_S,
+    _PIN_MAX as _PIN_MAX,
+    _PIN_TTL_S as _PIN_TTL_S,
     exchange_pair_pin as _exchange_pair_pin,
     make_pair_pin as _make_pair_pin,
     load_operator_profiles as _load_operator_profiles,
@@ -5801,7 +5839,7 @@ from rvt_trainer.api.auth import (  # noqa: E402
     create_operator_profile as _create_operator_profile,
     reset_pin_with_recovery as _reset_pin_with_recovery,
     host_reset_pin as _host_reset_pin,
-    _invalidate_operator_sessions,
+    _invalidate_operator_sessions as _invalidate_operator_sessions,
     _invalidate_operator_sse_tokens,
     _OPERATOR_LOCK,
 )
@@ -5884,7 +5922,7 @@ def _save_subject_profiles(sessions_root: str, payload: Mapping[str, object]) ->
                 raise ValueError(f"subject profile {profile_id} expected_hr_range is invalid")
             profile["expected_hr_range"] = [low, high]
         profiles[profile_id] = profile
-    data = {"schema_version": SUBJECT_PROFILE_SCHEMA_VERSION, "profiles": profiles}
+    data: Dict[str, object] = {"schema_version": SUBJECT_PROFILE_SCHEMA_VERSION, "profiles": profiles}
     save_json(data, str(_subject_profiles_path(sessions_root)))
     return data
 
@@ -5950,18 +5988,19 @@ def _run_study_statistics_job(sessions_root: str, output_dir: Path, job: Mapping
     """Run the controlled statistical phase after confirmatory training."""
 
     status_path = output_dir / "statistics_status.json"
-    request = job.get("request") if isinstance(job.get("request"), dict) else {}
+    raw_request = job.get("request")
+    request = raw_request if isinstance(raw_request, dict) else {}
     if not bool(request.get("confirmatory")):
-        result = {"status": "not_requested", "reason": "exploratory job"}
-        save_json(result, str(status_path))
-        return result
+        not_requested: Dict[str, object] = {"status": "not_requested", "reason": "exploratory job"}
+        save_json(not_requested, str(status_path))
+        return not_requested
     manifest_path = output_dir / "confirmatory_run_manifest.json"
     manifest = _read_json_if_exists(str(manifest_path))
     oof = manifest.get("outer_oof_predictions") if isinstance(manifest, dict) else None
     oof_path = str(oof.get("path") or "") if isinstance(oof, dict) else ""
     ledger_path = _write_attempt_ledger_csv(sessions_root, output_dir)
-    if not oof_path or ledger_path is None:
-        result = {
+    if not isinstance(manifest, dict) or not oof_path or ledger_path is None:
+        result: Dict[str, object] = {
             "status": "blocked",
             "reason": "confirmatory statistics require outer OOF predictions and an attempted-trial ledger",
         }
@@ -6010,14 +6049,14 @@ def _run_study_statistics_job(sessions_root: str, output_dir: Path, job: Mapping
             stderr=subprocess.STDOUT,
             check=False,
         )
-    result = {
+    final_result: Dict[str, object] = {
         "status": "completed" if completed.returncode == 0 and stats_path.is_file() else "blocked",
         "exit_code": int(completed.returncode),
         "report_path": str(stats_path) if stats_path.is_file() else None,
         "log_path": str(stats_log),
     }
-    save_json(result, str(status_path))
-    return result
+    save_json(final_result, str(status_path))
+    return final_result
 
 
 def _run_study_analysis_job_once(sessions_root: str, job_id: str) -> None:
@@ -6028,7 +6067,8 @@ def _run_study_analysis_job_once(sessions_root: str, job_id: str) -> None:
         return
     if str(job.get("status") or "") in {"cancelling", "cancelled"} or job.get("cancel_requested") is True:
         return
-    request = job.get("request") if isinstance(job.get("request"), dict) else {}
+    raw_request = job.get("request")
+    request = raw_request if isinstance(raw_request, dict) else {}
     session_ids = [str(value) for value in request.get("session_ids", []) if str(value).strip()]
     if not session_ids:
         _update_analysis_job(
@@ -6278,7 +6318,11 @@ def _process_memory_mb() -> float:
     except Exception:
         try:
             import resource
-            rss = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+            getrusage = getattr(resource, "getrusage", None)
+            rusage_self = getattr(resource, "RUSAGE_SELF", None)
+            if getrusage is None or rusage_self is None:
+                raise AttributeError("resource.getrusage unavailable")
+            rss = float(getrusage(rusage_self).ru_maxrss)
             return rss / 1024.0 if rss > 1024 * 10 else rss
         except Exception:
             return float("nan")
@@ -6286,7 +6330,7 @@ def _process_memory_mb() -> float:
 
 def _system_metrics(path: str) -> Dict[str, object]:
     usage = shutil.disk_usage(path)
-    metrics = {
+    metrics: Dict[str, object] = {
         "memory_mb": _process_memory_mb(),
         "disk_free_mb": float(usage.free / (1024 * 1024)),
     }
@@ -6295,7 +6339,10 @@ def _system_metrics(path: str) -> Dict[str, object]:
         metrics["cpu_percent"] = float(psutil.cpu_percent(interval=0.0))
     except Exception:
         try:
-            metrics["cpu_percent"] = float(os.getloadavg()[0])
+            getloadavg = getattr(os, "getloadavg", None)
+            if getloadavg is None:
+                raise AttributeError("os.getloadavg unavailable")
+            metrics["cpu_percent"] = float(getloadavg()[0])
         except Exception:
             metrics["cpu_percent"] = None
     return metrics
@@ -6346,6 +6393,7 @@ from rvt_trainer.api.server_info import (  # noqa: E402
     pair_page_html as _pair_page_html,
     support_matrix_html as _support_matrix_html,
 )
+_advertised_host = _advertised_host  # explicit compatibility re-export
 
 
 def _qr_png_bytes(text: str, scale: int = 8, border: int = 4) -> bytes:
@@ -6598,7 +6646,7 @@ def _ensure_self_signed_cert(cert_path: str, key_path: str, host: str):
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Radar Vital Local"),
         x509.NameAttribute(NameOID.COMMON_NAME, host or "localhost"),
     ])
-    alt_names = [x509.DNSName("localhost")]
+    alt_names: List[x509.GeneralName] = [x509.DNSName("localhost")]
     for candidate in {host, "127.0.0.1", _guess_lan_ip()}:
         try:
             alt_names.append(x509.IPAddress(ipaddress.ip_address(candidate)))
@@ -6628,14 +6676,16 @@ def _session_annotations_path(session_dir: Path) -> Path:
 def _load_session_annotations_payload(session_dir: Path, session_id: str) -> Dict[str, object]:
     path = _session_annotations_path(session_dir)
     existing = _read_json_if_exists(str(path)) or {}
-    annotations = existing.get("annotations") if isinstance(existing.get("annotations"), list) else []
+    raw_annotations = existing.get("annotations")
+    annotations = raw_annotations if isinstance(raw_annotations, list) else []
     return {"schema_version": CHART_ANNOTATIONS_SCHEMA_VERSION, "session_id": session_id, "updated_at": existing.get("updated_at"), "annotations": annotations}
 
 
 def _upsert_session_annotation(session_dir: Path, session_id: str, chart_key: str, annotation: Dict[str, object], action: str = "upsert") -> Dict[str, object]:
     path = _session_annotations_path(session_dir)
     existing = _read_json_if_exists(str(path)) or {}
-    annotations = existing.get("annotations") if isinstance(existing.get("annotations"), list) else []
+    raw_annotations = existing.get("annotations")
+    annotations = raw_annotations if isinstance(raw_annotations, list) else []
     ann = dict(annotation or {})
     ann_id = _sanitize_user_string(ann.get("id") or f"ann_{int(time.time() * 1000)}", 120)
     chart_key = _sanitize_user_string(chart_key or ann.get("chart_key") or ann.get("chartKey") or "chart", 80)
@@ -6981,12 +7031,18 @@ def _build_report_export_html(session_dir: str, out_dir: Optional[str] = None) -
         warnings.insert(0, "UNSIGNED REPORT: operator validation sign-off has not been recorded.")
     payload = json.dumps(nan_safe(summary), ensure_ascii=False)
     warn_html = "".join(f"<li>{html_escape(w)}</li>" for w in warnings) or "<li>No missing optional artifacts.</li>"
-    verdict = summary.get("ml_readiness_verdict") if isinstance(summary.get("ml_readiness_verdict"), dict) else {}
-    hr = summary.get("hr_metrics") if isinstance(summary.get("hr_metrics"), dict) else {}
-    rr = summary.get("rr_metrics") if isinstance(summary.get("rr_metrics"), dict) else {}
-    ref = summary.get("reference_quality") if isinstance(summary.get("reference_quality"), dict) else {}
-    truth = summary.get("truthfulness") if isinstance(summary.get("truthfulness"), dict) else {}
-    diagnosis = summary.get("contract_diagnosis") if isinstance(summary.get("contract_diagnosis"), dict) else {}
+    raw_verdict = summary.get("ml_readiness_verdict")
+    verdict = raw_verdict if isinstance(raw_verdict, dict) else {}
+    raw_hr = summary.get("hr_metrics")
+    hr = raw_hr if isinstance(raw_hr, dict) else {}
+    raw_rr = summary.get("rr_metrics")
+    rr = raw_rr if isinstance(raw_rr, dict) else {}
+    raw_ref = summary.get("reference_quality")
+    ref = raw_ref if isinstance(raw_ref, dict) else {}
+    raw_truth = summary.get("truthfulness")
+    truth = raw_truth if isinstance(raw_truth, dict) else {}
+    raw_diagnosis = summary.get("contract_diagnosis")
+    diagnosis = raw_diagnosis if isinstance(raw_diagnosis, dict) else {}
     def tr(label, value):
         return f"<tr><th>{html_escape(str(label))}</th><td>{html_escape(str(value if value is not None else '--'))}</td></tr>"
     rows = "".join([
@@ -7007,7 +7063,9 @@ def _build_report_export_html(session_dir: str, out_dir: Optional[str] = None) -
         tr("Initials", signoff.get("initials") or "--"),
         tr("Signed at", signoff.get("signed_at") or "UNSIGNED"),
     ])
-    downloads = "".join(f"<li>{html_escape(str(d.get('label', d.get('relpath', 'file'))))}</li>" for d in summary.get("downloads", []))
+    raw_downloads = summary.get("downloads")
+    download_items = raw_downloads if isinstance(raw_downloads, list) else []
+    downloads = "".join(f"<li>{html_escape(str(d.get('label', d.get('relpath', 'file'))))}</li>" for d in download_items if isinstance(d, dict))
     style = "body{font-family:Arial,sans-serif;margin:24px;line-height:1.45;color:#1a1b1e}table{border-collapse:collapse;min-width:520px}th,td{border-bottom:1px solid #ddd;padding:8px 10px;text-align:left}.badge{display:inline-block;border-radius:999px;padding:6px 10px;background:#dbe4ff;font-weight:700}.ready{background:#cdf3d6}.conditional{background:#ffe1bf}.not_ready{background:#ffdad6}.warn{color:#8a4b00}pre{white-space:pre-wrap;background:#f4f2f7;padding:12px;border-radius:8px;max-height:420px;overflow:auto}"
     verdict_name = str(verdict.get("verdict", summary.get("verdict", "not_ready")))
     return (
@@ -7061,24 +7119,24 @@ from rvt_trainer.session.supervisor import (  # noqa: E402
     SessionStartPreflightError,
     SessionSupervisor as _SessionSupervisor,
     _check_stale_session_lock,
-    _clear_supervisor_stop_request,
+    _clear_supervisor_stop_request as _clear_supervisor_stop_request,
     _consume_supervisor_stop_request,
     _lock_path,
-    _read_session_lock,
+    _read_session_lock as _read_session_lock,
     _release_session_lock,
-    _release_session_lock_if_owned,
-    _same_session_dir,
+    _release_session_lock_if_owned as _release_session_lock_if_owned,
+    _same_session_dir as _same_session_dir,
     _session_is_active,
-    _session_marker_owned_by,
-    _supervisor_stop_path,
+    _session_marker_owned_by as _session_marker_owned_by,
+    _supervisor_stop_path as _supervisor_stop_path,
     _write_session_lock,
-    _write_supervisor_stop_request,
+    _write_supervisor_stop_request as _write_supervisor_stop_request,
 )
 from rvt_trainer.session.start_idempotency import StartIdempotencyError  # noqa: E402
 
 
 def _effective_defaults(sessions_root: str) -> Dict[str, object]:
-    defaults = {
+    defaults: Dict[str, object] = {
         "radar_port": DEFAULT_RADAR_PORT,
         "ble_address": DEFAULT_BLE_ADDRESS,
         "ble_profile": "ailink_oximeter",
@@ -7133,12 +7191,8 @@ def _observed_release_identity(server) -> Tuple[object, object]:
     live = _read_json_if_exists(str(Path(session_dir) / "live_dashboard.json"))
     if isinstance(live, dict):
         analysis = live.get("analysis")
-        truth = (
-            analysis.get("fw_truthfulness")
-            if isinstance(analysis, dict)
-            and isinstance(analysis.get("fw_truthfulness"), dict)
-            else {}
-        )
+        raw_truth = analysis.get("fw_truthfulness") if isinstance(analysis, dict) else None
+        truth = raw_truth if isinstance(raw_truth, dict) else {}
         firmware_observed = truth.get("version") or firmware_observed
         width_observed = truth.get("contract_length") or width_observed
     return firmware_observed, width_observed
@@ -7162,7 +7216,9 @@ def _server_release_handshake(server) -> Dict[str, object]:
 def _session_start_blocking_failures(report: Dict[str, object]) -> List[Dict[str, object]]:
     blocking_ids = set(SESSION_START_PREFLIGHT_IDS)
     failures = []
-    for check in report.get("checks", []):
+    raw_checks = report.get("checks")
+    checks = raw_checks if isinstance(raw_checks, Iterable) and not isinstance(raw_checks, (str, bytes)) else []
+    for check in checks:
         if not isinstance(check, dict):
             continue
         if check.get("id") not in blocking_ids or check.get("status") != "fail":
@@ -7176,7 +7232,28 @@ def _session_start_blocking_failures(report: Dict[str, object]) -> List[Dict[str
     return failures
 
 
+class _ControlHTTPServer(ThreadingHTTPServer):
+    sessions_root: str
+    supervisor: "_SessionSupervisor"
+    started_at: str
+    cors_origin: str
+    mock: bool
+    bind_mode: str
+    tls_enabled: bool
+    tls_trusted: bool
+    advertised_host: str
+    auth_tokens: Set[str]
+    pair_pins: Dict[str, Any]
+    pair_exchange_failures: Dict[str, Any]
+    active_pin: str
+    active_pin_expires_at: float
+    operator_sessions: Dict[str, Any]
+    sse_tokens: Dict[str, Any]
+    content_security_policy: str
+
+
 class _ControlHandler(SimpleHTTPRequestHandler):
+    server: _ControlHTTPServer
     def handle(self):
         try:
             super().handle()
@@ -8298,16 +8375,6 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 if model_bundle
                 else None
             )
-            start_provenance = {
-                **study_assignment,
-                "subject_profile_id": body.get(
-                    "subject_profile_id",
-                    "adult_default",
-                ),
-                "model_family": model_family,
-                "model_bundle": model_bundle or None,
-                "client_compatibility": client_compatibility,
-            }
             advanced = body.get("advanced") if isinstance(body.get("advanced"), dict) else {}
             timeout_s = float(body.get("timeout_s", 30.0) or 30.0)
             idempotency_payload = {
@@ -8687,7 +8754,7 @@ class _ControlServer:
         os.makedirs(self.sessions_root, exist_ok=True)
         _cleanup_json_temp_files(self.sessions_root)
         handler = partial(_ControlHandler, directory=str(_REPO_ROOT))
-        self.httpd = ThreadingHTTPServer((host, int(port)), handler)
+        self.httpd: _ControlHTTPServer = cast(_ControlHTTPServer, ThreadingHTTPServer((host, int(port)), handler))
         if tls_cert and tls_key:
             _ensure_self_signed_cert(tls_cert, tls_key, host if host not in {"0.0.0.0", "::"} else _guess_lan_ip())
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -8750,8 +8817,8 @@ class _ControlServer:
                     self.sentinel.unlink()
                 except FileNotFoundError:
                     pass
-        self.httpd.serve_forever = _serve_forever_with_flag
-        self.httpd.shutdown = _shutdown_with_cleanup
+        setattr(self.httpd, "serve_forever", _serve_forever_with_flag)
+        setattr(self.httpd, "shutdown", _shutdown_with_cleanup)
 
     def start(self):
         with self._lifecycle_lock:
@@ -8892,7 +8959,7 @@ def _firmware_contract_candidates() -> List[Path]:
         Path(os.getcwd()),
     ]
     relatives = [
-        Path("radar_vital_v16_6_5.ino"),
+        Path("radar_vital_v16_6_6.ino"),
         Path("radar_vital_v16_3_0.ino"),
         Path("radar_vital_v15_0_0.ino"),
         Path("radar_vital_v14_0_0.ino"),
@@ -9109,7 +9176,7 @@ def _tracker_dataframe(tracker: _CSVAppendTracker) -> pd.DataFrame:
 def _series_from_trackers(radar_tracker: _CSVAppendTracker, ref_tracker: _CSVAppendTracker, window_s: float = 180.0) -> Dict[str, List[object]]:
     rad_df = _tracker_dataframe(radar_tracker)
     ref_df = _tracker_dataframe(ref_tracker)
-    empty = {
+    empty: Dict[str, List[object]] = {
         "t": [],
         "radar_hr": [], "reported_hr": [], "candidate_hr": [], "raw_hr": [], "raw_hr_uncorrected": [], "raw_hr_corrected": [], "radar_hr_valid": [],
         "radar_rr": [], "reported_rr": [], "candidate_rr": [], "raw_rr": [], "radar_rr_valid": [],
@@ -9416,12 +9483,12 @@ def _recent_rate_hz(tracker: _CSVAppendTracker, ts_key: str = "timestamp_ms", ma
     return 1000.0 / med if ts_key == "timestamp_ms" or max(ts) > 1000.0 else 1.0 / med
 
 
-def _build_dashboard_faults(radar: Dict[str, object], ble: Dict[str, object], thresholds: Dict[str, float]) -> List[Dict[str, str]]:
+def _build_dashboard_faults(radar: Dict[str, Any], ble: Dict[str, Any], thresholds: Dict[str, float]) -> List[Dict[str, str]]:
     faults: List[Dict[str, str]] = []
-    hr = radar.get("hr")
-    rr = radar.get("rr")
-    ref_hr = ble.get("hr")
-    ref_rr = ble.get("rr")
+    hr: Any = radar.get("hr")
+    rr: Any = radar.get("rr")
+    ref_hr: Any = ble.get("hr")
+    ref_rr: Any = ble.get("rr")
     pqi_h = radar.get("pqi_heart")
     pqi_b = radar.get("pqi_breath")
     hr_gate_reason = str(radar.get("hr_gate_reason_name") or radar.get("hr_gate_reason") or "").strip()
@@ -9467,8 +9534,8 @@ def _build_dashboard_faults(radar: Dict[str, object], ble: Dict[str, object], th
             "copy": f"A candidate RR exists but it was not published. Gate reason: {rr_gate_reason or 'unknown'}; publish reason: {rr_publish_reason or 'unknown'}."
         })
 
-    reported_hr = radar.get("reported_hr")
-    reported_rr = radar.get("reported_rr")
+    reported_hr: Any = radar.get("reported_hr")
+    reported_rr: Any = radar.get("reported_rr")
     if np.isfinite(float(radar.get("candidate_hr", float("nan"))) ) and not (np.isfinite(float(reported_hr)) and float(reported_hr) > 0.0):
         faults.append({
             "severity": "warn",
@@ -9572,7 +9639,7 @@ def _write_live_dashboard_json(session_dir: str, status: str, elapsed: float, re
         "harmonic_mode_hex": (None if not np.isfinite(harmonic_mode_live) else f"0x{int(round(harmonic_mode_live)):02X}"),
         "harmonic_mode_labels": _harmonic_mode_labels(harmonic_mode_live),
         "session_phase": session_phase_live,
-        "session_phase_name": SESSION_PHASE_NAMES.get(session_phase_int, str(session_phase_int) if session_phase_int is not None else ""),
+        "session_phase_name": SESSION_PHASE_NAMES.get(session_phase_int, str(session_phase_int)) if session_phase_int is not None else "",
         "hr_locked_live": int(session_phase_int == 3),
         "hr_zc_bpm": _to_num(_row_get(radar_row, "hr_zc_bpm"), default=float("nan")),
         "hr_zc_conf": _to_num(_row_get(radar_row, "hr_zc_conf"), default=float("nan")),
@@ -10051,8 +10118,6 @@ def _print_and_save_session_report(session_dir: str, analyse_dir: str, radar_out
                          f"skipdsp={_to_num(agc.get('skipdsp_pct'), float('nan')):.1f}%")
         exp_audit = analyse_summary.get("experimental_audit", {})
         if isinstance(exp_audit, dict):
-            no_early = exp_audit.get("combined_without_early_window", {})
-            no_half = exp_audit.get("combined_without_suspect_half_rate", {})
             no_both = exp_audit.get("combined_without_early_or_suspect_half_rate", {})
             lines.append(f"experimental_audit: early_excluded={_safe_int(exp_audit.get('early_window_excluded_n'), 0)} | "
                          f"suspect_half_rate_excluded={_safe_int(exp_audit.get('suspect_half_rate_excluded_n'), 0)}")
@@ -10284,7 +10349,9 @@ def cmd_session(args):
             time.sleep(max(0.15, float(getattr(args, "dashboard_refresh_s", 1.0))))
             elapsed = time.time() - start_t
             if dashboard_enabled:
-                radar_tracker.poll(); ref_tracker.poll(); raw_tracker.poll()
+                radar_tracker.poll()
+                ref_tracker.poll()
+                raw_tracker.poll()
                 _render_live_dashboard(session_dir, start_t, args.duration_s, radar_tracker, ref_tracker, raw_tracker,
                                        recent_events, event_lock, "collecting", analysis_summary=_dashboard_analysis_payload(session_dir))
 
@@ -10323,7 +10390,9 @@ def cmd_session(args):
             radar_thread.join(timeout=3.0)
         if ble_thread is not None:
             ble_thread.join(timeout=3.0)
-        radar_tracker.poll(); ref_tracker.poll(); raw_tracker.poll()
+        radar_tracker.poll()
+        ref_tracker.poll()
+        raw_tracker.poll()
         if dashboard_enabled:
             _render_live_dashboard(session_dir, start_t, args.duration_s, radar_tracker, ref_tracker, raw_tracker,
                                    recent_events, event_lock, f"stopped ({stop_reason})", analysis_summary=_dashboard_analysis_payload(session_dir))
@@ -10412,7 +10481,9 @@ def cmd_session(args):
     with event_lock:
         recent_events.append("[ANALYSIS] Summary ready")
     if dashboard_enabled:
-        radar_tracker.poll(); ref_tracker.poll(); raw_tracker.poll()
+        radar_tracker.poll()
+        ref_tracker.poll()
+        raw_tracker.poll()
         _render_live_dashboard(session_dir, start_t, args.duration_s, radar_tracker, ref_tracker, raw_tracker,
                                recent_events, event_lock, "analysis complete", analysis_summary=analysis_payload)
         hold_s = max(0.0, float(getattr(args, "dashboard_hold_s", 6.0) or 0.0))
@@ -10421,7 +10492,9 @@ def cmd_session(args):
             time.sleep(hold_s)
     if not dashboard_enabled:
         try:
-            radar_tracker.poll(); ref_tracker.poll(); raw_tracker.poll()
+            radar_tracker.poll()
+            ref_tracker.poll()
+            raw_tracker.poll()
             _write_live_dashboard_html(session_dir)
             _write_live_dashboard_json(session_dir, "analysis complete", time.time() - start_t, 0.0,
                                        radar_tracker, ref_tracker, raw_tracker, list(recent_events),
@@ -10471,7 +10544,9 @@ def cmd_dashboard(args):
     try:
         while True:
             time.sleep(max(0.15, float(args.dashboard_refresh_s)))
-            radar_tracker.poll(); ref_tracker.poll(); raw_tracker.poll()
+            radar_tracker.poll()
+            ref_tracker.poll()
+            raw_tracker.poll()
             _render_live_dashboard(session_dir, start_t, args.duration_s, radar_tracker, ref_tracker, raw_tracker,
                                    recent_events, event_lock, "watching", analysis_summary=_dashboard_analysis_payload(session_dir))
             if args.duration_s and (time.time() - start_t) >= args.duration_s:
@@ -10717,7 +10792,7 @@ def cmd_log(args):
                     f.flush()
                     accepted += 1
                     if not first_sample:
-                        print(_green(f"[LOG] First sample received - logging active."))
+                        print(_green("[LOG] First sample received - logging active."))
                         first_sample = True
                     if accepted % 100 == 0:
                         print(f"[LOG] {accepted} frames logged...", end="\r")
@@ -10726,7 +10801,7 @@ def cmd_log(args):
                     if dropped <= 5:
                         print(f"[LOG] Dropped malformed DATA line ({detail})")
         except KeyboardInterrupt:
-            print(f"\n[LOG] Stopped.")
+            print("\n[LOG] Stopped.")
             print(f"[LOG] Accepted: {_green(str(accepted))} frames")
             if header_lines:
                 print(f"[LOG] Skipped firmware header lines: {header_lines}")
@@ -10896,7 +10971,6 @@ def _pick_notify_characteristics(services, preferred_uuid: Optional[str] = None)
     if not notify_chars:
         return []
 
-    ranked = sorted(notify_chars, key=lambda u: score_uuid(u, set()), reverse=True)
     # Re-score with actual props preserved to break ties correctly.
     scored = []
     for service in services:
@@ -11325,7 +11399,7 @@ def cmd_ble_reflog(args):
     parsed_f.flush()
     raw_f.flush()
 
-    stats: Dict[str, Dict[str, object]] = {}
+    stats: Dict[str, Dict[str, Any]] = {}
     parse_source_uuid: Optional[str] = None
     active_notify_chars: List[str] = []
 
@@ -12254,13 +12328,20 @@ def aggregate_radar_1hz(
                 s = s.where(s > 0, np.nan)
                 row[f"{prefix}_nonzero_count"] = int(s.notna().sum())
             arr = s.dropna().to_numpy(dtype=float)
-            if "mean"   in stats: row[f"{prefix}_mean"]   = float(np.mean(arr))   if len(arr) else np.nan
-            if "std"    in stats: row[f"{prefix}_std"]    = float(np.std(arr, ddof=0)) if len(arr) else np.nan
-            if "min"    in stats: row[f"{prefix}_min"]    = float(np.min(arr))    if len(arr) else np.nan
-            if "max"    in stats: row[f"{prefix}_max"]    = float(np.max(arr))    if len(arr) else np.nan
-            if "median" in stats: row[f"{prefix}_median"] = float(np.median(arr)) if len(arr) else np.nan
-            if "last"   in stats: row[f"{prefix}_last"]   = float(arr[-1])        if len(arr) else np.nan
-            if "sum"    in stats: row[f"{prefix}_sum"]    = float(np.sum(arr))    if len(arr) else np.nan
+            if "mean"   in stats:
+                row[f"{prefix}_mean"]   = float(np.mean(arr))   if len(arr) else np.nan
+            if "std"    in stats:
+                row[f"{prefix}_std"]    = float(np.std(arr, ddof=0)) if len(arr) else np.nan
+            if "min"    in stats:
+                row[f"{prefix}_min"]    = float(np.min(arr))    if len(arr) else np.nan
+            if "max"    in stats:
+                row[f"{prefix}_max"]    = float(np.max(arr))    if len(arr) else np.nan
+            if "median" in stats:
+                row[f"{prefix}_median"] = float(np.median(arr)) if len(arr) else np.nan
+            if "last"   in stats:
+                row[f"{prefix}_last"]   = float(arr[-1])        if len(arr) else np.nan
+            if "sum"    in stats:
+                row[f"{prefix}_sum"]    = float(np.sum(arr))    if len(arr) else np.nan
 
         g = g.copy()
         g["reported_hr__valid_only"] = pd.to_numeric(g["reported_hr"], errors="coerce").where(g["row_hr_valid"] > 0.0, np.nan)
@@ -12959,7 +13040,7 @@ def longest_false_run(mask: np.ndarray) -> int:
     return int(longest)
 
 
-def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, target: str) -> Dict[str, float]:
+def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, target: str) -> Dict[str, Any]:
     if len(y_true) == 0:
         return {
             "n": 0, "rmse": float("nan"), "mae": float("nan"), "bias": float("nan"),
@@ -12987,7 +13068,7 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, target: str) -> Dict
     }
 
 
-def _dynamic_range_gate(y_pred: np.ndarray, *, min_std: float, min_unique: int = 3) -> Dict[str, object]:
+def _dynamic_range_gate(y_pred: np.ndarray, *, min_std: float, min_unique: int = 3) -> Dict[str, Any]:
     if len(y_pred) == 0:
         return {"passed": False, "std": float("nan"), "unique_count": 0}
     arr = np.asarray(y_pred, dtype=float)
@@ -13008,7 +13089,7 @@ def _confidently_wrong_curve(y_true: np.ndarray, y_pred: np.ndarray, target: str
     return {f"abs_err_gt_{thr:g}": float(100.0 * np.mean(abs_err > thr)) for thr in thresholds}
 
 
-def _evaluability_block(y_true: np.ndarray, y_pred: np.ndarray, target: str, dyn_gate: Dict[str, object]) -> Dict[str, object]:
+def _evaluability_block(y_true: np.ndarray, y_pred: np.ndarray, target: str, dyn_gate: Dict[str, Any]) -> Dict[str, object]:
     min_n = 15 if target == "hr" else 30
     preferred_n = 30
     ref = np.asarray(y_true, dtype=float)
@@ -13146,7 +13227,7 @@ def finite_pair_mask(df: pd.DataFrame, true_col: str, pred_col: str) -> np.ndarr
             safe_series(df, pred_col).notna().to_numpy(dtype=bool))
 
 
-def baseline_summary(df: pd.DataFrame, target: str) -> Dict[str, Dict[str, float]]:
+def baseline_summary(df: pd.DataFrame, target: str) -> Dict[str, Any]:
     pred_col_valid = f"reported_{target}_mean"
     pred_col_all = f"reported_{target}_all_mean" if f"reported_{target}_all_mean" in df.columns else pred_col_valid
     ref_col = f"ref_{target}"
@@ -13172,7 +13253,7 @@ def baseline_summary(df: pd.DataFrame, target: str) -> Dict[str, Dict[str, float
     all_frames_true = compute_metrics(y_true[pair_mask_all], y_pred_zero_invalid[pair_mask_all], target)
     all_frames_true["basis"] = "aligned_1hz_zero_invalid"
     all_frames_true.update(_confidently_wrong_curve(y_true[pair_mask_all], y_pred_zero_invalid[pair_mask_all], target))
-    source_blocks: Dict[str, Dict[str, float]] = {}
+    source_blocks: Dict[str, Dict[str, Any]] = {}
     if target == "rr":
         for label, mask_col in (
             ("valid_current_source", "rr_valid_current_source_for_eval"),
@@ -13470,7 +13551,7 @@ def _compute_ble_ref_quality(ref_paths: Sequence[str], pi_threshold: float = BLE
     }
 
 
-def model_summary(df: pd.DataFrame, target: str) -> Dict[str, Dict[str, float]]:
+def model_summary(df: pd.DataFrame, target: str) -> Dict[str, Any]:
     pred_col  = f"pred_{target}"
     ref_col   = f"ref_{target}"
     valid_col = f"{target}_valid_for_eval"
@@ -13488,7 +13569,7 @@ def model_summary(df: pd.DataFrame, target: str) -> Dict[str, Dict[str, float]]:
     }
 
 
-def print_metric_block(label: str, metrics: Dict[str, Dict[str, float]]):
+def print_metric_block(label: str, metrics: Mapping[str, Any]):
     print(f"\n[{label}]")
     af = metrics["all_frames"]
     aft = metrics.get("all_frames_true", {})
@@ -13558,8 +13639,10 @@ def maybe_plot_bland_altman(y_true, y_pred, title, out_path, enabled=True, annot
     plt.figure(figsize=(6.5, 5.0))
     plt.scatter(mean, diff, s=12, alpha=0.7)
     plt.axhline(bias, linestyle="--")
-    if np.isfinite(loa_u): plt.axhline(loa_u, linestyle=":")
-    if np.isfinite(loa_l): plt.axhline(loa_l, linestyle=":")
+    if np.isfinite(loa_u):
+        plt.axhline(loa_u, linestyle=":")
+    if np.isfinite(loa_l):
+        plt.axhline(loa_l, linestyle=":")
     plt.xlabel("Mean of reference and estimate")
     plt.ylabel("Estimate - reference")
     plt.title(title)
@@ -13683,8 +13766,10 @@ def fit_target_model(
             "best_n_estimators": int(params["n_estimators"]),
             "best_val_rmse": float("nan")}
     def fit(m):
-        if weights is None: m.fit(X_train, y_train)
-        else:               m.fit(X_train, y_train, sample_weight=weights)
+        if weights is None:
+            m.fit(X_train, y_train)
+        else:
+            m.fit(X_train, y_train, sample_weight=weights)
         return m
     if use_early_stopping and len(val_rows) >= 10:
         max_n      = int(params["early_stop_max_estimators"])
@@ -13847,7 +13932,8 @@ def apply_causal_slew_limit(df, col, max_delta_per_s):
                 dt        = max(1e-6, ts[idx] - prev_time)
                 max_delta = float(max_delta_per_s) * dt
                 vals[idx] = np.clip(vals[idx], prev_out - max_delta, prev_out + max_delta)
-                prev_out  = vals[idx]; prev_time = ts[idx]
+                prev_out = vals[idx]
+                prev_time = ts[idx]
         g[col] = vals
         pieces.append(g)
     return pd.concat(pieces, ignore_index=True)
@@ -13952,7 +14038,8 @@ def export_tflite_surrogate(X_train, Y_train, X_val, Y_val, feature_names, out_d
     converter.target_spec.supported_types = [tf.float16]
     tflite_model = converter.convert()
     tflite_path  = os.path.join(out_dir, "embedded_surrogate.tflite")
-    with open(tflite_path, "wb") as f: f.write(tflite_model)
+    with open(tflite_path, "wb") as f:
+        f.write(tflite_model)
     header_path = os.path.join(out_dir, "embedded_surrogate_tflite.h")
     with open(header_path, "w", encoding="utf-8") as f:
         f.write("#pragma once\n\n")
@@ -13989,7 +14076,8 @@ def maybe_export_embedded(args, out_dir, X_train_all, X_eval_all, train_pred, ev
     if mode in {"tflite", "both"}:
         if not tensorflow_is_available():
             msg = "TensorFlow not installed. pip install tensorflow"
-            if mode == "tflite": raise RuntimeError(msg)
+            if mode == "tflite":
+                raise RuntimeError(msg)
             warn(msg + " Skipping TFLite export.")
             info["tflite_skipped"] = msg
         else:
@@ -14566,7 +14654,7 @@ def _run_loso_evaluation(base_df: pd.DataFrame, args, params, available_targets)
             fold["rr_model"] = model_summary(pred, "rr")
         folds.append(fold)
         completed_groups.append(str(holdout))
-    out = {
+    out: Dict[str, Any] = {
         "enabled": True,
         "mode": (
             "leave_one_participant_out"
@@ -14641,9 +14729,15 @@ def _validate_confirmatory_loso(
         or not isinstance(outer, Mapping)
     ):
         failures.append("complete participant-disjoint LOSO metadata")
-    expected = {str(value) for value in loo_eval.get("expected_groups") or []}
-    completed = {str(value) for value in loo_eval.get("completed_groups") or []}
-    skipped = {str(value) for value in loo_eval.get("skipped_groups") or []}
+    def _group_set(key: str) -> Set[str]:
+        raw_groups = loo_eval.get(key)
+        if not isinstance(raw_groups, Iterable) or isinstance(raw_groups, (str, bytes)):
+            return set()
+        return {str(value) for value in raw_groups}
+
+    expected = _group_set("expected_groups")
+    completed = _group_set("completed_groups")
+    skipped = _group_set("skipped_groups")
     if not expected or expected != completed or skipped:
         failures.append("exact outer-fold coverage with no skipped groups")
     if isinstance(outer, Mapping):
@@ -14734,8 +14828,8 @@ def _controlled_research_identity() -> Dict[str, str]:
 def _write_confirmatory_run_manifest(
     args,
     *,
-    split_info: Mapping[str, object],
-    loo_eval: Mapping[str, object],
+    split_info: Mapping[str, Any],
+    loo_eval: Mapping[str, Any],
     available_targets: Sequence[str],
 ) -> Dict[str, object]:
     """Persist one auditable identity joining inputs, folds, OOF, and models."""
@@ -15439,7 +15533,7 @@ def cmd_align(args):
     write_text_report(os.path.join(args.out, "alignment_report.txt"), report)
     print(f"\n[OUT] Merged CSV: {out_csv}")
     print(f"[OUT] Report:     {os.path.join(args.out, 'alignment_report.txt')}")
-    print(f"\nNext step:")
+    print("\nNext step:")
     print(f"  python radar_vital_trainer_v12_for_v16_0.py analyse --radar {args.radar[0]} "
           f"--ref {args.ref[0]} --out <analysis_dir>")
 
@@ -15459,7 +15553,6 @@ def _log_serial_for_duration(port: str, duration_s: int, out_csv: str) -> int:
 
     os.makedirs(os.path.dirname(os.path.abspath(out_csv)), exist_ok=True)
     accepted    = 0
-    dropped     = 0
     header_lines = 0
     t_start     = time.time()
     t_end       = t_start + duration_s
@@ -15541,7 +15634,7 @@ def cmd_sweep(args):
         print(f"  Output:   {exp_dir}")
 
         # 1. Flash
-        print(f"\n  Flashing firmware...")
+        print("\n  Flashing firmware...")
         build_dir = os.path.join(exp_dir, "build")
         os.makedirs(build_dir, exist_ok=True)
 
@@ -15644,7 +15737,7 @@ def cmd_sweep(args):
     print(f"\n[OUT] Sweep results saved to {args.out_dir}")
 
     if args.ref:
-        print(f"\nTo compare all sessions:")
+        print("\nTo compare all sessions:")
         print(f"  python radar_vital_trainer_v12_for_v16_0.py compare --sessions-dir {args.out_dir} --out report.html")
 
 
@@ -15653,7 +15746,8 @@ def cmd_sweep(args):
 # -----------------------------------------------------------------------------
 
 def _safe_float_val(v, fmt=".2f") -> str:
-    if v is None: return "-"
+    if v is None:
+        return "-"
     try:
         f = float(v)
         return "-" if not np.isfinite(f) else format(f, fmt)
@@ -15763,7 +15857,7 @@ def _build_sweep_delta_rows(rows: List[Dict], baseline_name: Optional[str], n_bo
     base_samples = _metric_samples_from_aligned(baseline.get("aligned_features_path"))
     base_rmse = _to_num(baseline.get("hr_rmse"), float("nan"))
     base_r = _to_num(baseline.get("hr_r"), float("nan"))
-    deltas = []
+    deltas: List[Dict[str, object]] = []
     for row in rows:
         if row is baseline:
             continue
@@ -15801,19 +15895,25 @@ def _generate_compare_html(rows: List[Dict], out_path: str, delta_rows: Optional
 
     def cell_color(val, thresholds, colors, reverse=False):
         """Returns inline CSS color for a metric value."""
-        if val is None: return ""
+        if val is None:
+            return ""
         try:
             f = float(val)
-            if not np.isfinite(f): return ""
+            if not np.isfinite(f):
+                return ""
         except Exception:
             return ""
         if reverse:
-            if f > thresholds[0]: return f"color:{colors[0]}"
-            if f > thresholds[1]: return f"color:{colors[1]}"
+            if f > thresholds[0]:
+                return f"color:{colors[0]}"
+            if f > thresholds[1]:
+                return f"color:{colors[1]}"
             return f"color:{colors[2]}"
         else:
-            if f < thresholds[0]: return f"color:{colors[0]}"
-            if f < thresholds[1]: return f"color:{colors[1]}"
+            if f < thresholds[0]:
+                return f"color:{colors[0]}"
+            if f < thresholds[1]:
+                return f"color:{colors[1]}"
             return f"color:{colors[2]}"
 
     gate_counts = {"PASS": 0, "FAIL": 0, "-": 0}

@@ -1,6 +1,6 @@
 {
   "name": "radar-vital-mobile",
-  "version": "16.6.5",
+  "version": "16.6.6",
   "private": true,
   "description": "Mobile-first PWA shell for the Radar Vital mmWave 60 GHz trainer. Capacitor APK + Tauri EXE + GitHub Pages.",
   "type": "module",
@@ -25,14 +25,26 @@
     "cap:sync": "npm run build:web && cap sync android && node scripts/patch-android-shell.mjs",
     "cap:open:android": "cap open android",
     "tauri:dev": "npm run build:web && tauri dev",
-    "tauri:build": "npm run build:web && tauri build"
+    "tauri:build": "npm run build:web && tauri build",
+    "lint": "eslint .",
+    "lint:py": "ruff check rvt_trainer tests scripts radar_vital_trainer_v12_for_v16_0.py",
+    "format": "prettier --write \"scripts/**/*.mjs\" \"tests/**/*.{ts,mjs}\" playwright.config.ts capacitor.config.ts eslint.config.mjs",
+    "format:check": "prettier --check \"scripts/**/*.mjs\" \"tests/**/*.{ts,mjs}\" playwright.config.ts capacitor.config.ts eslint.config.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:py": "mypy"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.0.0",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.55.1",
     "@tauri-apps/cli": "^2.11.2",
+    "@types/node": "^20.19.43",
     "esbuild": "0.28.1",
-    "typescript": "^6.0.3"
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.73.0"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^7.1.0",

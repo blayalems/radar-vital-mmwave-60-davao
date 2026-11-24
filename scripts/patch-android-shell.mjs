@@ -280,11 +280,11 @@ const IC_LAUNCHER_ROUND_XML = `<?xml version="1.0" encoding="utf-8"?>
 async function ensureLauncherBackgroundColor(colorHex) {
   const dedicatedFile = `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">${colorHex}</color>\n</resources>\n`;
 
-  let dedicatedExists = false;
+  let dedicatedExists;
   try {
     await fs.access(resValuesLauncherBgPath);
     dedicatedExists = true;
-  } catch (_) {
+  } catch {
     dedicatedExists = false;
   }
 
@@ -350,7 +350,7 @@ async function installAdaptiveIcon() {
   let pngSourceBuffer = null;
   try {
     pngSourceBuffer = await fs.readFile(srcPng512);
-  } catch (_) {
+  } catch {
     try {
       pngSourceBuffer = await fs.readFile(srcPng192);
     } catch (e) {

@@ -1,0 +1,3 @@
+-r requirements-v12.txt
+ruff==0.17.6
+mypy==2.4.1

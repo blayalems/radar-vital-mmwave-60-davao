@@ -7,7 +7,7 @@ import json
 import re
 import time
 from pathlib import Path
-from typing import Callable, Dict, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 from rvt_trainer.api.common import atomic_write_json, read_json_if_exists
 
@@ -65,7 +65,7 @@ class StartIdempotencyStore:
         self.max_records = max(1, int(max_records))
         self.clock = clock
 
-    def _load(self) -> Dict[str, object]:
+    def _load(self) -> Dict[str, Any]:
         payload = read_json_if_exists(str(self.path))
         if not isinstance(payload, dict):
             payload = {}
@@ -75,12 +75,12 @@ class StartIdempotencyStore:
             "records": dict(records) if isinstance(records, dict) else {},
         }
 
-    def _save(self, payload: Dict[str, object]) -> None:
+    def _save(self, payload: Dict[str, Any]) -> None:
         payload["schema_version"] = IDEMPOTENCY_SCHEMA_VERSION
         payload["updated_at_epoch_s"] = self.clock()
         atomic_write_json(payload, str(self.path))
 
-    def _prune(self, payload: Dict[str, object]) -> bool:
+    def _prune(self, payload: Dict[str, Any]) -> bool:
         now = self.clock()
         records = payload["records"]
         changed = False

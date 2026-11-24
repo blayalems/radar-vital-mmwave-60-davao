@@ -17,7 +17,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Mapping, Optional
+from typing import Any, Callable, Dict, Mapping, Optional, cast
 
 from rvt_trainer.api.common import (
     atomic_write_json,
@@ -139,7 +139,7 @@ def _session_marker_owned_by(
     ):
         return False
     try:
-        return int(data.get("pid")) == int(pid)
+        return int(cast(Any, data.get("pid"))) == int(cast(Any, pid))
     except Exception:
         return False
 
@@ -261,10 +261,10 @@ class SessionSupervisor:
         os.makedirs(self.sessions_root, exist_ok=True)
         self._lifecycle_lock = threading.RLock()
         self._closing = False
-        self.proc = None
-        self.session_dir = None
-        self.started_at = None
-        self.started_monotonic = None
+        self.proc: Optional[subprocess.Popen[bytes]] = None
+        self.session_dir: Optional[str] = None
+        self.started_at: Optional[str] = None
+        self.started_monotonic: Optional[float] = None
         self.params: Dict[str, Any] = {}
         self._stop_grace_s = 10.0
         self._terminate_grace_s = 3.0
@@ -278,11 +278,13 @@ class SessionSupervisor:
         return Path(self.sessions_root) / "current_session.json"
 
     def _write_current(self) -> None:
+        session_dir = cast(str, self.session_dir)
+        proc = cast(subprocess.Popen[bytes], self.proc)
         atomic_write_json(
             {
-                "session_id": Path(self.session_dir).name,
-                "session_dir": self.session_dir,
-                "pid": self.proc.pid,
+                "session_id": Path(session_dir).name,
+                "session_dir": session_dir,
+                "pid": proc.pid,
                 "started_at": self.started_at,
                 "params": self.params,
             },
@@ -355,7 +357,7 @@ class SessionSupervisor:
         if state != "starting":
             return False
         try:
-            age_s = time.time() - float(record.get("created_at_epoch_s") or 0.0)
+            age_s = time.time() - float(cast(Any, record.get("created_at_epoch_s") or 0.0))
         except (TypeError, ValueError):
             return False
         return 0.0 <= age_s <= STARTING_RESERVATION_STALE_S
@@ -446,7 +448,8 @@ class SessionSupervisor:
             self._closing = True
 
     def _write_starting_live_payload(self, duration_s=None) -> None:
-        session_id = Path(self.session_dir).name
+        session_dir = cast(str, self.session_dir)
+        session_id = Path(session_dir).name
         remaining = None
         if duration_s is not None:
             try:
@@ -464,7 +467,7 @@ class SessionSupervisor:
                 "elapsed_s": 0.0,
                 "remaining_s": remaining,
                 "version": _legacy().VERSION,
-                "session_dir": os.path.abspath(self.session_dir),
+                "session_dir": os.path.abspath(session_dir),
                 "note": "Session subprocess is starting.",
             },
             "radar": {"rows": 0},
@@ -477,11 +480,11 @@ class SessionSupervisor:
         }
         atomic_write_json(
             payload,
-            str(Path(self.session_dir) / "live_dashboard.json"),
+            str(Path(session_dir) / "live_dashboard.json"),
         )
         atomic_write_json(
             payload,
-            str(Path(self.session_dir) / "dashboard.json"),
+            str(Path(session_dir) / "dashboard.json"),
         )
 
     def _allocate_session_manifest(
@@ -497,8 +500,9 @@ class SessionSupervisor:
         if str(study_payload.get("study_classification") or "") == "confirmatory":
             require_collection_authorization(self.sessions_root)
         legacy = _legacy()
-        self.session_dir = str(Path(legacy._next_session_dir(self.sessions_root)))
-        Path(self.session_dir).mkdir(parents=True, exist_ok=True)
+        session_dir = str(Path(legacy._next_session_dir(self.sessions_root)))
+        self.session_dir = session_dir
+        Path(session_dir).mkdir(parents=True, exist_ok=True)
         if str(study_payload.get("study_classification") or "") in {
             "confirmatory",
             "exploratory",
@@ -602,9 +606,9 @@ class SessionSupervisor:
         initial_manifest["analysis_runs"] = []
         atomic_write_json(
             initial_manifest,
-            str(Path(self.session_dir) / "session_manifest.json"),
+            str(Path(session_dir) / "session_manifest.json"),
         )
-        initialize_session_attempt(self.session_dir, initial_manifest)
+        initialize_session_attempt(session_dir, initial_manifest)
         return initial_manifest
 
     def _record_start_failure(
@@ -623,7 +627,7 @@ class SessionSupervisor:
         manifest = read_json_if_exists(str(path))
         manifest = dict(manifest) if isinstance(manifest, dict) else {}
         failed_at = _iso_now()
-        failure = {
+        failure: Dict[str, Any] = {
             "stage": str(stage),
             "code": str(code),
             "reason": str(reason),
@@ -660,7 +664,7 @@ class SessionSupervisor:
         details: object = None,
         duration_s: object = None,
         **kwargs,
-    ) -> Dict[str, object]:
+    ) -> Dict[str, Any]:
         """Reserve a failed-session record when a preflight blocks capture."""
 
         with self._lifecycle_lock:
@@ -672,15 +676,16 @@ class SessionSupervisor:
             if _session_is_active(self.sessions_root):
                 raise RuntimeError("SESSION_IN_PROGRESS: session lock active")
             self._allocate_session_manifest(duration_s=duration_s, **kwargs)
+            session_dir = cast(str, self.session_dir)
             manifest = self._record_start_failure(
                 stage=stage,
                 code=code,
                 reason=reason,
                 details=details,
             )
-            result = {
-                "session_id": Path(self.session_dir).name,
-                "session_dir": self.session_dir,
+            result: Dict[str, Any] = {
+                "session_id": Path(session_dir).name,
+                "session_dir": session_dir,
                 "manifest": manifest,
             }
             self._reset_runtime_state()
@@ -749,7 +754,7 @@ class SessionSupervisor:
                             logical_trial_reservation_id=reservation_id,
                             **kwargs,
                         )
-                        exc.failed_session_id = failure_record["session_id"]
+                        exc.failed_session_id = str(failure_record["session_id"])
                         raise
                 result = self._start_locked(
                     duration_s=duration_s,
@@ -824,14 +829,13 @@ class SessionSupervisor:
         if state == "replay":
             return record
         if state == "failed":
-            error = record.get("error") if isinstance(record, dict) else {}
-            error = error if isinstance(error, dict) else {}
-            replay_details = (
-                dict(error.get("details"))
-                if isinstance(error.get("details"), dict)
-                else {}
+            raw_error = record.get("error") if isinstance(record, dict) else {}
+            error: Dict[str, Any] = raw_error if isinstance(raw_error, dict) else {}
+            raw_details = error.get("details")
+            replay_details: Dict[str, Any] = (
+                dict(raw_details) if isinstance(raw_details, dict) else {}
             )
-            if record.get("session_id") not in (None, ""):
+            if isinstance(record, dict) and record.get("session_id") not in (None, ""):
                 replay_details["failed_session_id"] = record.get("session_id")
             raise StartIdempotencyError(
                 str(error.get("code") or "IDEMPOTENT_START_FAILED"),
@@ -876,12 +880,13 @@ class SessionSupervisor:
             str(ble_address or DEFAULT_BLE_ADDRESS).strip() or DEFAULT_BLE_ADDRESS
         )
         self._allocate_session_manifest(duration_s=duration_s, **kwargs)
+        session_dir = cast(str, self.session_dir)
         argv = [
             sys.executable,
             str(legacy._TRAINER_ENTRYPOINT),
             "session",
             "--session-dir",
-            self.session_dir,
+            session_dir,
             "--sessions-root",
             self.sessions_root,
             "--port",
@@ -931,9 +936,10 @@ class SessionSupervisor:
         )
         try:
             self._write_starting_live_payload(duration_s=duration_s)
-            self.proc = subprocess.Popen(argv, creationflags=creationflags)
+            proc = subprocess.Popen(argv, creationflags=creationflags)
+            self.proc = proc
         except Exception as exc:
-            failed_session_dir = self.session_dir
+            failed_session_dir = session_dir
             self._record_start_failure(
                 stage="process_launch",
                 code="SPAWN_ERROR",
@@ -941,8 +947,8 @@ class SessionSupervisor:
             )
             self._reset_runtime_state()
             error = RuntimeError(f"SPAWN_ERROR: {exc}")
-            error.session_id = Path(failed_session_dir).name
-            error.session_dir = failed_session_dir
+            setattr(error, "session_id", Path(failed_session_dir).name)
+            setattr(error, "session_dir", failed_session_dir)
             raise error from exc
         self.started_at = _iso_now()
         self.started_monotonic = time.monotonic()
@@ -956,53 +962,51 @@ class SessionSupervisor:
             {key: value for key, value in kwargs.items() if value not in (None, "")}
         )
         self._write_current()
-        live = Path(self.session_dir) / "live_dashboard.json"
+        live = Path(session_dir) / "live_dashboard.json"
         deadline = time.monotonic() + float(timeout_s)
         while time.monotonic() < deadline:
-            if self.proc.poll() is not None:
-                proc = self.proc
-                failed_session_dir = self.session_dir
+            if proc.poll() is not None:
+                failed_session_dir = session_dir
                 self._record_start_failure(
                     stage="startup_exit",
                     code="SPAWN_ERROR",
                     reason="session exited before live_dashboard.json appeared",
                     details={"returncode": proc.poll()},
                 )
-                self._clear_current(pid=proc.pid, session_dir=self.session_dir)
+                self._clear_current(pid=proc.pid, session_dir=session_dir)
                 self._reset_runtime_state()
                 error = RuntimeError(
                     "SPAWN_ERROR: session exited before live_dashboard.json appeared"
                 )
-                error.session_id = Path(failed_session_dir).name
-                error.session_dir = failed_session_dir
+                setattr(error, "session_id", Path(failed_session_dir).name)
+                setattr(error, "session_dir", failed_session_dir)
                 raise error
             live_payload = read_json_if_exists(str(live))
             if isinstance(live_payload, dict) and not live_payload.get(
                 "_supervisor_placeholder"
             ):
                 try:
-                    append_session_attempt_event(self.session_dir, "collecting")
+                    append_session_attempt_event(session_dir, "collecting")
                 except ValueError:
                     pass
                 return {
-                    "session_id": Path(self.session_dir).name,
-                    "session_dir": self.session_dir,
-                    "pid": self.proc.pid,
+                    "session_id": Path(session_dir).name,
+                    "session_dir": session_dir,
+                    "pid": proc.pid,
                     "started_at": self.started_at,
                 }
             time.sleep(0.02)
-        failed_session_dir = self.session_dir
+        failed_session_dir = session_dir
         try:
-            self.proc.terminate()
-            self.proc.wait(timeout=3.0)
+            proc.terminate()
+            proc.wait(timeout=3.0)
         except Exception:
             try:
-                self.proc.kill()
-                self.proc.wait(timeout=2.0)
+                proc.kill()
+                proc.wait(timeout=2.0)
             except Exception:
                 pass
         finally:
-            proc = self.proc
             self._record_start_failure(
                 stage="startup_timeout",
                 code="SPAWN_TIMEOUT",
@@ -1011,13 +1015,13 @@ class SessionSupervisor:
             )
             self._clear_current(
                 pid=getattr(proc, "pid", None),
-                session_dir=self.session_dir,
+                session_dir=session_dir,
             )
             self._reset_runtime_state()
-        error = TimeoutError("live_dashboard.json did not appear before timeout")
-        error.session_id = Path(failed_session_dir).name
-        error.session_dir = failed_session_dir
-        raise error
+        timeout_error = TimeoutError("live_dashboard.json did not appear before timeout")
+        setattr(timeout_error, "session_id", Path(failed_session_dir).name)
+        setattr(timeout_error, "session_dir", failed_session_dir)
+        raise timeout_error
 
     _wait_for_exit = staticmethod(wait_for_process_exit)
 
@@ -1164,9 +1168,10 @@ class SessionSupervisor:
                 )
             except Exception:
                 remaining = None
+            session_dir = cast(str, self.session_dir)
             return {
-                "session_id": Path(self.session_dir).name,
-                "session_dir": self.session_dir,
+                "session_id": Path(session_dir).name,
+                "session_dir": session_dir,
                 "pid": self.proc.pid,
                 "started_at": self.started_at,
                 "elapsed_s": elapsed,

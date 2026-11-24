@@ -32,7 +32,7 @@ import tempfile
 import threading
 import time
 import unicodedata
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 logger = logging.getLogger("rvt_trainer.auth")
 
@@ -115,16 +115,17 @@ def exchange_pair_pin(server, pin: str, client_id: str = "") -> Tuple[int, Dict[
 
         def failure_response(code: str, message: str) -> Tuple[int, Dict[str, object]]:
             if key:
+                active_record = cast(Dict[str, Any], record)
                 recent = [
                     float(attempt)
-                    for attempt in record.get("attempts", [])
+                    for attempt in active_record.get("attempts", [])
                     if now - float(attempt) < _PAIR_FAILURE_WINDOW_S
                 ]
                 recent.append(now)
-                record["attempts"] = recent
+                active_record["attempts"] = recent
                 if len(recent) >= _PAIR_FAILURE_LIMIT:
-                    record["blocked_until"] = now + _PAIR_LOCKOUT_S
-                    failures[key] = record
+                    active_record["blocked_until"] = now + _PAIR_LOCKOUT_S
+                    failures[key] = active_record
                     return 429, {
                         "ok": False,
                         "error": {
@@ -133,7 +134,7 @@ def exchange_pair_pin(server, pin: str, client_id: str = "") -> Tuple[int, Dict[
                             "retry_after_s": int(_PAIR_LOCKOUT_S),
                         },
                     }
-                failures[key] = record
+                failures[key] = active_record
             return 410, {"ok": False, "error": {"code": code, "message": message}}
 
         pins = getattr(server, "pair_pins", None)

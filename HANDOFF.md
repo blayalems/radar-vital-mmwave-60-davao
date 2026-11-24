@@ -5,6 +5,14 @@
 > file is treated as a regression. Keep entries terse — one line per change.
 > The newest entry goes at the **top** of the log, dated.
 
+### 2026-11-23 - PR166: CI stabilization, static-analysis gate, and v16.6.6 release bump
+
+- **CI Baseline & Workflow Hygiene**: Verified green `main` baseline (`4202492`), removed the stale PR #75 fallback string from `.github/workflows/visual-baseline-refresh.yml` (confirming `codex-repair-pr76.yml` was never on `main`), and added `.github/workflows/static-analysis.yml` (pinned action SHAs, `contents: read` permissions, explicit timeout, running `lint:py`, `typecheck:py`, `typecheck`, and `lint`).
+- **Tooling & Static-Analysis Paydown**: Added root `package.json` scripts (`lint`, `lint:py`, `format`, `format:check`, `typecheck`, `typecheck:py`), standalone config files (`ruff.toml`, `mypy.ini`, `eslint.config.mjs`, `tsconfig.json`, `.prettierrc.json`, `.prettierignore`, `requirements-dev.txt`), and behavior-preserving fixes resolving existing Python (`ruff` 85, `mypy` 332) and TS/MJS (`tsc` 1, `eslint` 26) findings.
+- **Coordinated v16.6.6 & QMS Bump**: Renamed firmware to `radar_vital_v16_6_6.ino` (`SKETCH_VERSION_MOD = 6`), bumped all product/packaging/test carriers to `16.6.6` while keeping frozen schema/demo keys at `v16.6.5`, rebuilt `www/` and `radar_vital_live_dashboard_v12_for_v16_0.html`, updated controlled docs (`README.md`, `AGENTS.md`, `docs/system-feedback-loop.md`, `docs/physical-acceptance-checklist.md`, `CHANGELOG.md`), and incremented `quality/requirements.json` (R16) and `quality/document-register.json` (R19).
+- **Single-File Firmware Invariant**: Recorded in `AGENTS.md`, `README.md`, and `CHANGELOG.md` that the `.ino` firmware sketch must remain a single file and must never be refactored or split into modules.
+- **Tauri Lockfile Security Remediation**: Upgraded `cookie` (`0.18.1` -> `0.18.3`, `RUSTSEC-2026-0594`), `url` (`2.5.8` -> `2.5.9`, `RUSTSEC-2026-0592`), and `form_urlencoded` (`1.2.2` -> `1.2.3`) in `src-tauri/Cargo.lock`; verified 0 blocking RustSec advisories (excluding `RUSTSEC-2024-0429`) and 0 moderate+ npm audit findings across root, `web/`, and `packaging/capacitor/`.
+
 ### 2026-11-19 - Address PR #165 review findings, upgrade migrations, and security/CI cleanup
 
 - **Sandbox 6-to-10 Condition Upgrade Migration**: Versioned `SandboxApiService` protocol/schedule keys to `v16.6.5` (`demo:rvt-study-protocol-v16.6.5`, `demo:rvt-study-schedule-v16.6.5:`), migrated legacy `v16.5.9` 6-condition records (resetting locked 6-condition demo state to `draft` while preserving valid 10-condition locked protocols), invalidated mismatched seeds/schedules, updated preflight label to `XIAO ESP32-C6`, and added Vitest migration tests.

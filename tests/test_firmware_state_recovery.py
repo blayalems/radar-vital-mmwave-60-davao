@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FW = ROOT / "radar_vital_v16_6_5.ino"
+FW = ROOT / "radar_vital_v16_6_6.ino"
 
 
 def _firmware() -> str:

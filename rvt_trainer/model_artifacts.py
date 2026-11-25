@@ -16,7 +16,7 @@ import platform
 import sys
 from typing import Any, Dict, Iterable, Mapping, Optional, Sequence
 
-from .modeling import (
+from .constants import (
     MODEL_FAMILY_CNN_1D,
     MODEL_FAMILY_GRADIENT_BOOSTING,
     MODEL_FAMILIES,

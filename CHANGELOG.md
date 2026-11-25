@@ -6,6 +6,12 @@ product's semantic `MAJOR.MINOR.PATCH` scheme.
 
 ## [Unreleased]
 
+### v16.8.0 extract monolith submodules and retire rvt_trainer/monolith.py
+
+- **Trainer Submodule Extraction**: Extracted the 16,464-line `rvt_trainer/monolith.py` body into cohesive domain modules (`constants.py`, `features.py`, `transport/serial.py`, `transport/ble.py`, `audit/verdict.py`, `audit/truthfulness.py`, `audit/runner.py`, `session/manifest.py`, `session/_legacy_dashboard_template.py`, `session/live_dashboard.py`, `session/storage.py`, `session/analysis_jobs.py`, `session/commands.py`, `api/server.py`, `cli.py`, and `modeling.py`), eliminated all package-internal deferred back-imports of `monolith`, and added `_compat.py` bidirectional monkeypatch resolution so overrides on either canonical modules or legacy aliases remain preserved.
+- **Pure Compatibility Facade**: Replaced `rvt_trainer/monolith.py` with a 290-line pure re-export facade containing zero function or class definitions (`tests/test_monolith_retired_contract.py`), updated `scripts/check-version-contract.mjs`, `quality/requirements.json`, `AGENTS.md`, `README.md`, `tests/test_v12_static_contract.py`, and `tests/installed_wheel_probe.py` to target the extracted submodules, and maintained zero `ruff` and zero `mypy` errors across 53 Python source files.
+- **Coordinated v16.8.0 Release**: Bumped all version carriers (`16.7.0` -> `16.8.0`), updated `radar_vital.ino` release identifiers (`SKETCH_VERSION_SUB 8`, `MOD 0`), rebuilt `www/` and `radar_vital_live_dashboard.html`, refreshed desktop `v16.8` visual snapshots, and incremented controlled-document revisions and `quality/document-register.json` (`R22`) / `quality/requirements.json` (`R19`).
+
 ### v16.7.0 shared contract, package-data, and root hygiene
 
 - **Shared Wire Contract**: Added `config/protocol_contract.json` and `rvt_trainer/protocol_contract.py` as the single machine-readable source of truth for the frozen v15.2 222-column serial contract, removing runtime `.ino` regex grepping in normal trainer/preflight paths while keeping explicit `ino_search_paths` checks and strict static parity tests intact.

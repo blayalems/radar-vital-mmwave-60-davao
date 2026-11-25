@@ -18,7 +18,8 @@ import json
 import sys
 from pathlib import Path
 
-from rvt_trainer import monolith
+from rvt_trainer.cli import main as cli_main
+from rvt_trainer.constants import DASHBOARD_VERSION, VERSION, _PACKAGE_ROOT
 
 CANONICAL_ENTRYPOINT = "radar_vital_trainer.py"
 LEGACY_ENTRYPOINT = "radar_vital_trainer_v12_for_v16_0.py"
@@ -34,11 +35,11 @@ def _strip_legacy_script_arg() -> None:
 
 
 def _sidecar_self_test() -> int:
-    schema_path = Path(monolith.__file__).resolve().parent / "assets" / "help_schema.json"
+    schema_path = _PACKAGE_ROOT / "assets" / "help_schema.json"
     payload = {
         "ok": schema_path.exists(),
-        "version": monolith.VERSION,
-        "dashboard_version": monolith.DASHBOARD_VERSION,
+        "version": VERSION,
+        "dashboard_version": DASHBOARD_VERSION,
         "schema_path": str(schema_path),
     }
     print(json.dumps(payload, sort_keys=True))
@@ -49,7 +50,7 @@ def main() -> None:
     _strip_legacy_script_arg()
     if len(sys.argv) == 2 and sys.argv[1] == "--test":
         raise SystemExit(_sidecar_self_test())
-    monolith.main()
+    cli_main()
 
 
 if __name__ == "__main__":

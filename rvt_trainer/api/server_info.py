@@ -2,7 +2,7 @@
 
 These build JSON/HTML payloads served by the trainer's HTTP dispatcher.
 Pure helpers — no I/O, no socket access. The caller (dispatcher in
-:mod:`rvt_trainer.monolith`) reads the resulting payload and writes the
+:mod:`rvt_trainer.api.server`) reads the resulting payload and writes the
 HTTP response.
 
 * :func:`advertised_host` — host the trainer prints in QR/manifest. Resolves
@@ -19,6 +19,7 @@ HTTP response.
 
 from __future__ import annotations
 
+import socket
 import time
 from datetime import datetime
 from html import escape as html_escape
@@ -28,6 +29,23 @@ from typing import Dict, List, Tuple
 _AUTHORS = ("Lemuel Blaya", "Angelo Diaz", "Blessie Mugat")
 _PROGRAM = "BS Electronics Engineering"
 _UNIVERSITY = "University of Mindanao"
+
+
+def _guess_lan_ip() -> str:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except Exception:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return "127.0.0.1"
+    finally:
+        try:
+            sock.close()
+        except Exception:
+            pass
 
 
 def _server_scheme(server) -> str:
@@ -46,10 +64,6 @@ def advertised_host(server) -> str:
         return host
     bound = server.server_address[0] if getattr(server, "server_address", None) else "127.0.0.1"
     if bound in {"", "0.0.0.0", "::"}:
-        # Deferred import: rvt_trainer.monolith imports BACK from this module,
-        # so a top-level import would cycle. _guess_lan_ip is a pure stdlib
-        # helper that doesn't change behavior across the boundary.
-        from rvt_trainer.monolith import _guess_lan_ip
         return _guess_lan_ip()
     return bound
 

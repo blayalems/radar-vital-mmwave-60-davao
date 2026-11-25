@@ -1,6 +1,6 @@
 # Physical Hardware Acceptance Checklist (v12 stable)
 
-## v16.7.0 acceptance disposition
+## v16.8.0 acceptance disposition
 
 The project team reports that the firmware bench tests are complete, including
 presence loss/recovery and peripheral recovery. This is a pending controlled

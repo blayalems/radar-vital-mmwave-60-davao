@@ -127,8 +127,10 @@ Backend service ownership is split without changing the public entrypoint:
   authorization policies; the compatibility handler dispatches by those names.
 - `rvt_trainer.api.common` owns strict JSON responses, stable API errors,
   atomic JSON persistence, and bounded process waits.
-- `rvt_trainer.monolith` retains historical import aliases while downstream
-  callers migrate; `python -m rvt_trainer` and the root trainer script remain
+- `rvt_trainer.constants`, `transport/`, `audit/`, `session/`, `api/`, `features.py`,
+  `modeling.py`, and `cli.py` own the extracted trainer subsystems cleanly, while
+  `rvt_trainer.monolith` remains a thin pure re-export compatibility facade for
+  historical callers; `python -m rvt_trainer` and the root trainer script remain
   equivalent packaged entrypoints.
 
 Tokens live in the trainer's memory only — re-pair after every trainer restart.
@@ -295,9 +297,9 @@ Pre-mobile baseline tag: `v15.0.0-pre-mobile` — rollback point for the redesig
 
 ```
 .
-├── radar_vital.ino                                  # firmware (v16.7.0; v15.2 222-column USB contract, BLE gated off)
+├── radar_vital.ino                                  # firmware (v16.8.0; v15.2 222-column USB contract, BLE gated off)
 ├── radar_vital_trainer.py                           # trainer compatibility shim
-├── rvt_trainer/                                     # trainer package facade + legacy monolith
+├── rvt_trainer/                                     # modular trainer package + pure compatibility facade
 ├── radar_vital_live_dashboard.html                  # PWA dashboard (single file)
 ├── config/
 │   └── protocol_contract.json                       # shared machine-readable 222-column wire contract

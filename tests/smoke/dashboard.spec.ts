@@ -1311,12 +1311,21 @@ test.describe('Dashboard smoke', () => {
     await page.getByRole('menuitem', { name: /Alert history CSV/ }).click();
     expect((await alertsDownloadPromise).suggestedFilename()).toBe('radar-vital-alert-history.csv');
     await page.getByRole('button', { name: 'Done' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 
     await page.keyboard.press('Alt+6');
     await expect(page.getByText('Active Enforcement Logs')).toBeVisible();
-    await page.locator('.audit-card-header').getByRole('button', { name: 'Export' }).click();
+    const auditExportButton = page.locator('.audit-card-header').getByRole('button', { name: 'Export' });
+    const auditJsonItem = page.getByRole('menuitem', { name: /Audit JSON/ });
+    await expect(async () => {
+      if ((await auditExportButton.getAttribute('aria-expanded')) !== 'true') {
+        await auditExportButton.scrollIntoViewIfNeeded();
+        await auditExportButton.click();
+      }
+      await expect(auditJsonItem).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 15000 });
     const auditDownloadPromise = page.waitForEvent('download');
-    await page.getByRole('menuitem', { name: /Audit JSON/ }).click();
+    await auditJsonItem.click();
     expect((await auditDownloadPromise).suggestedFilename()).toBe('radar-vital-audit.json');
   });
 

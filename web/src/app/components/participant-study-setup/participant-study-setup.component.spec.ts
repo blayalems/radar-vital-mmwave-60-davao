@@ -328,4 +328,77 @@ describe('ParticipantStudySetupComponent', () => {
     expect(component.acclimatizationDisplay()).toBe('05:00');
     vi.useRealTimers();
   });
+
+  it('ignores stale resolved or rejected schedule responses after switching participants', async () => {
+    const pendingByPid = new Map<string, {
+      resolve: (value: unknown) => void;
+      reject: (reason: unknown) => void;
+    }>();
+    request.mockImplementation((path: string) => new Promise((resolve, reject) => {
+      const pid = new URL(`http://localhost${path}`).searchParams.get('participant_id') || '';
+      pendingByPid.set(pid, { resolve, reject });
+    }));
+
+    const p1 = { participant_id: 'P-001', display_code: 'P-001', status: 'active' as const };
+    const p2 = { participant_id: 'P-002', display_code: 'P-002', status: 'active' as const };
+    component.participants.set([p1, p2]);
+
+    component.selectParticipant(p1);
+    component.selectParticipant(p2);
+
+    pendingByPid.get('P-002')!.resolve({
+      participant_id: 'P-002',
+      entries: [
+        { participant_id: 'P-002', order: 1, condition_id: 'd300_none', trial_numbers: [1, 2, 3] },
+        { participant_id: 'P-002', order: 2, condition_id: 'd060_cardboard', trial_numbers: [1, 2, 3] }
+      ]
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(component.conditionMatrixRows().map(r => r.conditionId)).toEqual(['d300_none', 'd060_cardboard']);
+
+    // Slow response for P-001 resolves after P-002 already loaded -> must not overwrite P-002.
+    pendingByPid.get('P-001')!.resolve({
+      participant_id: 'P-001',
+      entries: [
+        { participant_id: 'P-001', order: 1, condition_id: 'd100_none', trial_numbers: [1, 2, 3] }
+      ]
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(component.scheduleEntries().map(e => e.participant_id)).toEqual(['P-002', 'P-002']);
+    expect(component.conditionMatrixRows().map(r => r.conditionId)).toEqual(['d300_none', 'd060_cardboard']);
+
+    // Slow failure for P-001 after switching to P-003 -> must not clear P-003.
+    const p3 = { participant_id: 'P-003', display_code: 'P-003', status: 'active' as const };
+    component.participants.set([p1, p2, p3]);
+    component.selectParticipant(p3);
+    pendingByPid.get('P-003')!.resolve({
+      participant_id: 'P-003',
+      entries: [{ participant_id: 'P-003', order: 1, condition_id: 'd200_none', trial_numbers: [1, 2, 3] }]
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const failPromise = component.loadSchedule('P-001');
+    const p1Second = pendingByPid.get('P-001')!;
+    p1Second.reject(new Error('timeout'));
+    await failPromise;
+    expect(component.scheduleEntries()).toEqual([]);
+
+    // Re-run explicit race where P-002 loads then stale P-001 rejects afterwards:
+    component.selectParticipant(p1);
+    const staleRejectGate = pendingByPid.get('P-001')!;
+    component.selectParticipant(p2);
+    pendingByPid.get('P-002')!.resolve({
+      participant_id: 'P-002',
+      entries: [{ participant_id: 'P-002', order: 1, condition_id: 'd300_none', trial_numbers: [1, 2, 3] }]
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    staleRejectGate.reject(new Error('late P-001 failure'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(component.scheduleEntries().map(e => e.condition_id)).toEqual(['d300_none']);
+  });
 });

@@ -473,3 +473,36 @@ def test_legacy_six_condition_protocol_and_schedule_normalize_to_ten(tmp_path: P
     loaded_locked = load_protocol(str(sessions_root))
     assert loaded_locked["state"] == "locked"
     assert loaded_locked["conditions"] == locked_conditions
+
+
+def test_analysis_worker_honors_owning_module_patches_when_monolith_loaded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from rvt_trainer.session import analysis_jobs
+
+    assert monolith._run_study_analysis_job is analysis_jobs._run_study_analysis_job
+    sessions_root = tmp_path / "sessions"
+    sessions_root.mkdir()
+    job = create_analysis_job(
+        str(sessions_root),
+        {"objective_id": "objective_1_rr", "model_family": "gbr"},
+    )
+    patched_semaphore = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(analysis_jobs, "_STUDY_ANALYSIS_SEMAPHORE", patched_semaphore)
+    calls: list[tuple[str, str]] = []
+
+    def patched_run_once(root: str, job_id: str) -> None:
+        calls.append((root, job_id))
+        raise RuntimeError("owning-module worker patch invoked")
+
+    monkeypatch.setattr(analysis_jobs, "_run_study_analysis_job_once", patched_run_once)
+    analysis_jobs._run_study_analysis_job(str(sessions_root), str(job["job_id"]))
+
+    assert calls == [(str(sessions_root), str(job["job_id"]))]
+    persisted = load_analysis_job(str(sessions_root), job["job_id"])
+    assert persisted is not None
+    assert persisted["status"] == "failed"
+    assert persisted["error"] == "RuntimeError: owning-module worker patch invoked"
+    assert patched_semaphore.acquire(blocking=False) is True
+    patched_semaphore.release()

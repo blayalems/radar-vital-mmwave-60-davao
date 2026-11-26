@@ -194,9 +194,9 @@ def test_workflow_tokens_and_intermediate_artifacts_are_scoped():
     for workflow in (playwright, pages, apk, exe, release):
         assert "permissions:\n  contents: read" in workflow
 
-    assert "pages: write" not in pages
-    assert "actions/deploy-pages" not in pages
-    assert "Production deployment has one owner" in pages
+    assert "if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'" in pages
+    assert "name: github-pages" in pages
+    assert "actions/deploy-pages@" in pages
     assert "actions: read\n      attestations: write\n      contents: write" in release
     assert playwright.count("persist-credentials: false") == 4
     assert release.count("persist-credentials: false") == 5

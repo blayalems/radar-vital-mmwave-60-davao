@@ -222,3 +222,20 @@ def test_release_verifier_accepts_optional_aab_zip() -> None:
     script = VERIFY_RELEASE_SCRIPT.read_text(encoding="utf-8")
     assert "[string]$AabZip" in script
     assert "Extension 'aab'" in script
+
+
+def test_sdist_manifest_and_exe_workflow_include_runtime_contract_inputs() -> None:
+    manifest_path = ROOT / "MANIFEST.in"
+    assert manifest_path.is_file()
+    manifest = manifest_path.read_text(encoding="utf-8")
+    for expected in (
+        "include radar_vital_live_dashboard.html",
+        "include config/protocol_contract.json",
+        "include quality/statistical-analysis-plan.json",
+        "recursive-include assets *",
+        "recursive-include rvt_trainer/assets *",
+    ):
+        assert expected in manifest
+
+    exe_workflow = (ROOT / ".github" / "workflows" / "build-exe.yml").read_text(encoding="utf-8")
+    assert "'config/**'" in exe_workflow

@@ -6,6 +6,7 @@ import { SessionSignoff } from '../../models/rvt.models';
 import { ApiService } from '../../services/api.service';
 import { StateService } from '../../services/state.service';
 import { ReportComponent } from './report.component';
+import { buildFallbackObjectiveExport, extractObjectiveEvidenceLines } from './report-thesis-helpers';
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -332,5 +333,111 @@ describe('ReportComponent request ownership', () => {
     await component.exportObjective({ objective_id: 'objective_1_rr', status: 'inconclusive' }, 'latex', false);
     await component.exportObjective({ objective_id: 'objective_1_rr', status: 'inconclusive' }, 'csv', false);
     expect(exportedBlobs).toEqual(['objective_1_rr_ieee_table.tex', 'objective_1_rr_conditions.csv']);
+  });
+
+  it('extracts nested statistical_report and false-alarm evidence truthfully and fails closed when unready', () => {
+    const readyStatsPayload = {
+      denominators: { n_participants: 38 },
+      coverage: { coverage: 0.962, n_attempted: 1140, n_with_output: 1097 },
+      participant_balanced_metrics: { bias_estimate_minus_reference: 0.14, rmse: 1.05, mae: 0.82 },
+      agreement: { loa_lower: -1.85, loa_upper: 2.13 },
+      condition_tost: {
+        primary: {
+          condition_id: 'd100_none',
+          status: 'tested',
+          n_participants: 38,
+          mean_difference: 0.14,
+          ci_low: -0.32,
+          ci_high: 0.60,
+          decision: 'equivalent'
+        },
+        secondary: []
+      },
+      condition_metrics: {
+        d100_none: {
+          condition_id: 'd100_none',
+          n_participants: 38,
+          valid_output_rate_pct: 97.4,
+          bias_estimate_minus_reference: 0.14,
+          rmse: 0.98,
+          mae: 0.76,
+          loa_lower: -1.70,
+          loa_upper: 1.98
+        }
+      }
+    };
+
+    const readyLines = extractObjectiveEvidenceLines({
+      objective_id: 'objective_1_rr',
+      status: 'ready',
+      report: { statistical_report: readyStatsPayload }
+    });
+    expect(readyLines).toEqual([
+      { label: 'Participants (n)', value: '38' },
+      { label: 'Valid output', value: '96.2%' },
+      { label: 'Bias / RMSE / MAE', value: '0.14 / 1.05 / 0.82' },
+      { label: 'BA 95% LoA', value: '[-1.85, 2.13]' },
+      { label: '90% TOST CI / Holm', value: '[-0.32, 0.60] · equivalent' }
+    ]);
+
+    const unreadyLines = extractObjectiveEvidenceLines({
+      objective_id: 'objective_1_rr',
+      status: 'inconclusive',
+      report: { statistical_report: readyStatsPayload }
+    });
+    expect(unreadyLines).toEqual([
+      { label: 'Participants (n)', value: '--' },
+      { label: 'Valid output', value: '--' },
+      { label: 'Bias / RMSE / MAE', value: '-- / -- / --' },
+      { label: 'BA 95% LoA', value: '--' },
+      { label: '90% TOST CI / Holm', value: 'inconclusive' }
+    ]);
+
+    const readyCsv = buildFallbackObjectiveExport({
+      objective_id: 'objective_1_rr',
+      status: 'ready',
+      report: { statistical_report: readyStatsPayload }
+    }, 'csv', true);
+    expect(readyCsv.content).toContain('# SANDBOX DEMO DATA');
+    expect(readyCsv.content).toContain('"d100_none","1.0","none","primary","38","97.4","0.14","0.98","0.76","-1.70","1.98","-0.32","0.60"');
+
+    const readyTex = buildFallbackObjectiveExport({
+      objective_id: 'objective_1_rr',
+      status: 'ready',
+      report: { statistical_report: readyStatsPayload }
+    }, 'latex', false);
+    expect(readyTex.content).toContain('d100\\_none & 38 & 97.4 & 0.14 & 0.98 & 0.76 & [-1.70, 1.98] & [-0.32, 0.60] & equivalent \\\\');
+
+    const readyFaReport = {
+      objective_id: 'objective_3_false_alarm',
+      status: 'ready',
+      report: {
+        planned_trial_count: 72,
+        qualified_trial_count: 72,
+        false_alarm_trial_count: 1,
+        observed_false_alarm_rate: 1 / 72,
+        confidence_interval_95: { low: 0.00036, high: 0.07504 },
+        exact_binomial_test: {
+          p_value: 0.11923,
+          decision: 'does_not_support_false_alarm_rate_below_threshold'
+        }
+      }
+    };
+    const faLines = extractObjectiveEvidenceLines(readyFaReport);
+    expect(faLines).toEqual([
+      { label: 'False alarms', value: '1 / 72 (1.39%)' },
+      { label: '95% Clopper-Pearson CI', value: '[0.04%, 7.50%]' },
+      { label: 'Outcome', value: 'does_not_support_false_alarm_rate_below_threshold' }
+    ]);
+
+    const faCsv = buildFallbackObjectiveExport(readyFaReport, 'csv', false);
+    expect(faCsv.content).toContain('"objective_3_false_alarm","ready","72","72","1","1.39","0.04","7.50","0.1192","does_not_support_false_alarm_rate_below_threshold"');
+
+    const faTex = buildFallbackObjectiveExport({
+      objective_id: 'objective_3_false_alarm',
+      status: 'inconclusive',
+      report: null
+    }, 'latex', false);
+    expect(faTex.content).toContain('No-subject false alarm & -- & -- & -- & -- \\\\');
   });
 });

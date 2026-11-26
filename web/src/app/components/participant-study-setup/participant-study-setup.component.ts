@@ -155,6 +155,7 @@ export class ParticipantStudySetupComponent implements OnInit, OnDestroy {
   readonly acclimatizationRemainingS = signal(ACCLIMATIZATION_DURATION_S);
   readonly acclimatizationRunning = signal(false);
   private acclimatizationTimer: ReturnType<typeof setInterval> | null = null;
+  private scheduleRequestSeq = 0;
 
   readonly isD060NoneSelected = computed(() => {
     const setup = this.state.setup();
@@ -262,6 +263,7 @@ export class ParticipantStudySetupComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.scheduleRequestSeq += 1;
     this.stopAcclimatizationInterval();
   }
 
@@ -282,19 +284,29 @@ export class ParticipantStudySetupComponent implements OnInit, OnDestroy {
   }
 
   async loadSchedule(participantId: string): Promise<void> {
-    if (!participantId) {
-      this.scheduleEntries.set([]);
+    const seq = ++this.scheduleRequestSeq;
+    const targetId = String(participantId || '').trim();
+    this.scheduleEntries.set([]);
+    if (!targetId) {
       return;
     }
     try {
       const api = this.api as Partial<ApiService>;
       const response = typeof api.loadStudySchedule === 'function'
-        ? await api.loadStudySchedule(participantId)
+        ? await api.loadStudySchedule(targetId)
         : (typeof api.request === 'function'
-            ? await api.request<StudyScheduleResponse>(`/api/study/schedule?participant_id=${encodeURIComponent(participantId)}`)
+            ? await api.request<StudyScheduleResponse>(`/api/study/schedule?participant_id=${encodeURIComponent(targetId)}`)
             : null);
+      const activePid = String(this.state.setup().participant_id || '').trim();
+      if (seq !== this.scheduleRequestSeq || (activePid && activePid !== targetId)) {
+        return;
+      }
       this.scheduleEntries.set(response?.entries || []);
     } catch (_) {
+      const activePid = String(this.state.setup().participant_id || '').trim();
+      if (seq !== this.scheduleRequestSeq || (activePid && activePid !== targetId)) {
+        return;
+      }
       this.scheduleEntries.set([]);
     }
   }
@@ -638,6 +650,7 @@ export class ParticipantStudySetupComponent implements OnInit, OnDestroy {
   }
 
   private clearParticipantSelection(): void {
+    this.scheduleRequestSeq += 1;
     this.updateSetup({ participant_id: '', subject_label: '' });
     this.scheduleEntries.set([]);
   }

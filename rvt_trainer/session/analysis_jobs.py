@@ -40,6 +40,7 @@ _ANALYSIS_JOBS_MAX = 32
 _STUDY_ANALYSIS_PROCS: Dict[str, subprocess.Popen] = {}
 _STUDY_ANALYSIS_LOCK = threading.RLock()
 _STUDY_ANALYSIS_SEMAPHORE = threading.BoundedSemaphore(1)
+_CANONICAL_STUDY_ANALYSIS_SEMAPHORE = _STUDY_ANALYSIS_SEMAPHORE
 
 
 def _evict_completed_analysis_jobs() -> None:
@@ -350,10 +351,17 @@ def _run_study_analysis_job_once(sessions_root: str, job_id: str) -> None:
             _STUDY_ANALYSIS_PROCS.pop(job_id, None)
 
 
+_CANONICAL_RUN_STUDY_ANALYSIS_JOB_ONCE = _run_study_analysis_job_once
+
+
 def _run_study_analysis_job(sessions_root: str, job_id: str) -> None:
     acquired = False
     try:
-        semaphore = monolith_override("_STUDY_ANALYSIS_SEMAPHORE", _STUDY_ANALYSIS_SEMAPHORE)
+        semaphore = monolith_override(
+            "_STUDY_ANALYSIS_SEMAPHORE",
+            _STUDY_ANALYSIS_SEMAPHORE,
+            canonical=_CANONICAL_STUDY_ANALYSIS_SEMAPHORE,
+        )
         acquired = semaphore.acquire(blocking=False)
         if not acquired:
             _update_analysis_job(
@@ -366,7 +374,11 @@ def _run_study_analysis_job(sessions_root: str, job_id: str) -> None:
                 },
             )
             return
-        run_once = monolith_override("_run_study_analysis_job_once", _run_study_analysis_job_once)
+        run_once = monolith_override(
+            "_run_study_analysis_job_once",
+            _run_study_analysis_job_once,
+            canonical=_CANONICAL_RUN_STUDY_ANALYSIS_JOB_ONCE,
+        )
         run_once(sessions_root, job_id)
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"[:1000]

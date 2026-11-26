@@ -111,3 +111,40 @@ def test_sidecar_self_test_resolves_package_root_when_entry_script_is_top_level(
     assert payload["ok"] is True
     assert pathlib.Path(payload["schema_path"]).is_file()
 
+
+def test_monolith_reexports_omitted_legacy_helpers() -> None:
+    monolith = importlib.import_module("rvt_trainer.monolith")
+    constants = importlib.import_module("rvt_trainer.constants")
+    evaluation_split = importlib.import_module("rvt_trainer.evaluation_split")
+    features = importlib.import_module("rvt_trainer.features")
+    live_dashboard = importlib.import_module("rvt_trainer.session.live_dashboard")
+    modeling = importlib.import_module("rvt_trainer.modeling")
+    statistics = importlib.import_module("rvt_trainer.statistics")
+    study_evidence = importlib.import_module("rvt_trainer.session.study_evidence")
+    study_objectives = importlib.import_module("rvt_trainer.session.study_objectives")
+
+    pairs = [
+        ("ML_READY_MIN_HR_VALID_PAIRS", constants, "ML_READY_MIN_HR_VALID_PAIRS"),
+        ("_stream_subprocess_output", constants, "_stream_subprocess_output"),
+        ("_terminate_subprocess", constants, "_terminate_subprocess"),
+        ("_participant_split", evaluation_split, "participant_split"),
+        ("_attach_study_metadata", evaluation_split, "attach_study_metadata"),
+        ("_has_any_study_metadata", evaluation_split, "has_any_study_metadata"),
+        ("_has_complete_study_metadata", evaluation_split, "has_complete_study_metadata"),
+        ("_build_feature_category", features, "_build_feature_category"),
+        ("_strip_missing_flag", features, "_strip_missing_flag"),
+        ("_temporal_derivatives", features, "_temporal_derivatives"),
+        ("_check_monotonic_before_sort", modeling, "_check_monotonic_before_sort"),
+        ("_radar_parse_stats", modeling, "_radar_parse_stats"),
+        ("_dashboard_template_path", live_dashboard, "_dashboard_template_path"),
+        ("STUDY_PROTOCOL_ID", study_evidence, "STUDY_PROTOCOL_ID"),
+        ("_objective_report", study_evidence, "objective_report"),
+        ("_study_objectives_payload", study_objectives, "study_objectives_payload"),
+        ("DEFAULT_ANALYSIS_PLAN", statistics, "DEFAULT_ANALYSIS_PLAN"),
+        ("analysis_plan_sha256", statistics, "analysis_plan_sha256"),
+    ]
+    for monolith_name, owner_mod, owner_name in pairs:
+        assert monolith_name in monolith.__all__
+        assert getattr(monolith, monolith_name) is getattr(owner_mod, owner_name)
+
+

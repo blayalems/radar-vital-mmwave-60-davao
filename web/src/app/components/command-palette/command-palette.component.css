@@ -21,7 +21,7 @@ mat-dialog-actions {
   max-height: none !important;
   min-height: 0;
   width: 100%;
-  padding-top: 8px;
+  padding-top: 14px;
 }
 
 .palette-content mat-nav-list {
@@ -52,7 +52,10 @@ mat-dialog-actions {
 }
 
 .command-main {
+  height: auto !important;
+  min-height: 48px !important;
   min-width: 0;
+  padding-block: 6px !important;
   text-align: left !important;
 }
 
@@ -82,7 +85,11 @@ mat-dialog-actions {
 }
 
 .pin-cmd-btn {
+  height: 44px;
   justify-self: center;
+  min-height: 44px;
+  min-width: 44px;
+  width: 44px;
 }
 
 @media (max-width: 600px) {

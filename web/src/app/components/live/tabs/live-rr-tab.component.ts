@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, ViewChild } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,6 +13,7 @@ import { LiveRrTabViewModel } from '../live-tab-view-models';
   imports: [
     ChartDataTableComponent,
     MatButtonModule,
+    MatButtonToggleModule,
     MatCardModule,
     MatChipsModule,
     MatIconModule,

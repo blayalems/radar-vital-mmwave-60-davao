@@ -27,6 +27,7 @@ ROUTES = (
     route("study_analysis_status", "GET", "/api/study/analysis/*", RouteGroup.REPORTS, AuthPolicy.OPERATOR),
     route("study_analysis_cancel", "DELETE", "/api/study/analysis/*", RouteGroup.REPORTS, AuthPolicy.OPERATOR),
     route("study_objective_report", "GET", "/api/study/objectives/*/report", RouteGroup.REPORTS, AuthPolicy.OPERATOR),
+    route("study_objective_export", "GET", "/api/study/objectives/*/export", RouteGroup.REPORTS, AuthPolicy.OPERATOR),
     route("report_export", "GET", "/api/report/export", RouteGroup.REPORTS, AuthPolicy.OPERATOR),
 )
 

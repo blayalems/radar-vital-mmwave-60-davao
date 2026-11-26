@@ -356,6 +356,10 @@ html[data-theme="night"] {
 }
 
 html[data-theme="hc"] {
+  --md-sys-color-background: #000000;
+  --md-sys-color-secondary-container: #ffffff;
+  --md-sys-color-on-secondary-container: #000000;
+  --rv-bg: #000000;
   /* Monochrome high-contrast: black vital surfaces, white accents. */
   --rv-hr: #ffffff;
   --rv-hrc: #000000;

@@ -76,7 +76,8 @@ describe('SandboxApiService', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ display_name: 'Demo Operator', initials: 'DO', pin: '123456' })
-    }) as { operator: { operator_id: string; display_name: string; initials: string } };
+    }) as { operator: { operator_id: string; display_name: string; initials: string }; recovery_code: string };
+    expect(created.recovery_code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
 
     const login = service.request('/api/auth/login', {
       method: 'POST',
@@ -273,5 +274,103 @@ describe('SandboxApiService', () => {
       method: 'PUT',
       body: JSON.stringify({ state: 'draft' })
     })).toThrow('locked');
+  });
+
+  it('supports sandbox parity for PIN reset, preflight canonical IDs, session persistence, P-DEMO status, and objective export', () => {
+    const created = service.request('/api/operator-profiles', {
+      method: 'POST',
+      body: JSON.stringify({ display_name: 'A', initials: 'AB', pin: '123456' })
+    }) as { ok: boolean; operator: { operator_id: string }; recovery_code: string };
+    expect(created.ok).toBe(true);
+    expect(created.recovery_code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+
+    const reset = service.request('/api/auth/reset-pin', {
+      method: 'POST',
+      body: JSON.stringify({
+        operator_id: created.operator.operator_id,
+        recovery_code: created.recovery_code,
+        new_pin: '654321'
+      })
+    }) as { ok: boolean; recovery_code: string };
+    expect(reset.ok).toBe(true);
+    expect(reset.recovery_code).not.toBe(created.recovery_code);
+
+    const hostReset = service.request('/api/auth/host-reset', {
+      method: 'POST',
+      body: JSON.stringify({ operator_id: created.operator.operator_id, new_pin: '112233' })
+    }) as { ok: boolean; recovery_code: string };
+    expect(hostReset.ok).toBe(true);
+
+    const preflight = service.request('/api/preflight') as { checks: Array<{ id: string; status: string; detail?: string }> };
+    expect(preflight.checks.every(c => (c.status === 'ok' || c.status === 'warn') && Boolean(c.detail))).toBe(true);
+    expect(preflight.checks.map(c => c.id)).toContain('firmware_file_present');
+
+    const updatedDemo = service.request('/api/participants/P-DEMO', {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'completed' })
+    }) as { ok: boolean; profile: { status: string } };
+    expect(updatedDemo.profile.status).toBe('completed');
+    const participants = service.request('/api/participants') as { participants: Array<{ participant_id: string; status: string }> };
+    expect(participants.participants.find(p => p.participant_id === 'P-DEMO')?.status).toBe('completed');
+
+    const allocated = service.request('/api/study/attempts', {
+      method: 'POST',
+      body: JSON.stringify({ attempt_type: 'no_subject', condition_id: 'd060_none', status: 'allocated' })
+    }) as { attempt: { terminal: boolean } };
+    expect(allocated.attempt.terminal).toBe(false);
+
+    service.request('/api/sessions/sandbox_s1/notes', {
+      method: 'PUT',
+      body: JSON.stringify({ review_summary: 'Persisted review' })
+    });
+    expect(service.request('/api/sessions/sandbox_s1/notes')).toMatchObject({
+      session_id: 'sandbox_s1',
+      review_summary: 'Persisted review'
+    });
+
+    service.request('/api/sessions/sandbox_s1/signoff', {
+      method: 'PUT',
+      body: JSON.stringify({ operator_name: 'Jane Doe', initials: 'JD', validation_comment: 'Valid' })
+    });
+    expect(service.request('/api/sessions/sandbox_s1/signoff')).toMatchObject({
+      session_id: 'sandbox_s1',
+      operator_name: 'Jane Doe',
+      initials: 'JD'
+    });
+
+    service.request('/api/sessions/sandbox_s1/tags', {
+      method: 'PUT',
+      body: JSON.stringify({ tags: ['clean'] })
+    });
+    expect(service.request('/api/sessions/sandbox_s1/summary')).toMatchObject({ tags: ['clean'] });
+
+    expect(service.request('/api/sessions/sandbox_s1/data')).toMatchObject({
+      ok: true,
+      session_id: 'sandbox_s1',
+      rows: expect.arrayContaining([expect.objectContaining({ timestamp_s: 0, timestamp_ms: 0 })])
+    });
+
+    expect(service.request('/api/update/manifest')).toMatchObject({ product_version: expect.any(String) });
+    expect(service.request('/api/serial/ports')).toMatchObject({ ok: true, ports: expect.any(Array) });
+    expect(service.request('/api/trainer/log')).toMatchObject({ ok: true, lines: expect.any(Array) });
+    expect(service.request('/api/help/schema')).toMatchObject({ ok: true });
+    expect(service.request('/api/server-info')).toMatchObject({ ok: true, bind_mode: 'local' });
+    expect(service.request('/api/session/buffer')).toMatchObject({ ok: true });
+    expect(service.request('/api/sessions/sandbox_s1/analyse', { method: 'POST' })).toMatchObject({ ok: true, status: 'complete' });
+    expect(service.request('/api/sessions/sandbox_s1/files/radar.csv')).toMatchObject({ ok: true, filename: 'radar.csv' });
+    expect(String(service.request('/api/report/export?session=sandbox_s1'))).toContain('<!doctype html>');
+
+    service.request('/api/sessions/sandbox_dup/references', {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'rr_observer', observer_id: 'OBS-1', value: 15 })
+    });
+    expect(() => service.request('/api/sessions/sandbox_dup/references', {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'rr_observer', observer_id: 'OBS-1', value: 16 })
+    })).toThrow('duplicate rr_observer');
+
+    const exported = service.request('/api/study/objectives/objective_1_rr/export?format=latex') as { ok: boolean; content: string };
+    expect(exported.ok).toBe(true);
+    expect(exported.content).toContain('% SANDBOX DEMO DATA — NOT FOR MANUSCRIPT SUBMISSION');
   });
 });

@@ -429,6 +429,8 @@ def _iter_attempt_records(sessions_root: str) -> Iterable[Dict[str, object]]:
     for path in sorted(root.glob("*/protocol_attempt.json")):
         record = read_json_if_exists(str(path))
         if isinstance(record, dict):
+            if not record.get("session_id"):
+                record = {**record, "session_id": path.parent.name}
             yield record
 
 
@@ -465,7 +467,7 @@ def list_protocol_attempts(
     return rows
 
 
-def _qualified_no_subject(row: Mapping[str, object], sessions_root: str) -> bool:
+def _no_subject_unqualified_reason(row: Mapping[str, object], sessions_root: str) -> Optional[str]:
     # A confirmatory control trial must be a completed capture, not merely any
     # terminal click (for example, an aborted or failed-start attempt).
     if (
@@ -473,7 +475,7 @@ def _qualified_no_subject(row: Mapping[str, object], sessions_root: str) -> bool
         or row.get("status") != "completed"
         or row.get("terminal") is not True
     ):
-        return False
+        return "not_completed"
     events = row.get("events")
     if not isinstance(events, list) or not any(
         isinstance(event, dict)
@@ -482,20 +484,17 @@ def _qualified_no_subject(row: Mapping[str, object], sessions_root: str) -> bool
         and bool(_safe_text(event.get("at"), limit=64))
         for event in events
     ):
-        return False
+        return "not_completed"
 
     duration = _finite_number(row.get("duration_s"))
+    if duration is None or duration < NO_SUBJECT_MIN_DURATION_S:
+        return "duration_mismatch"
     false_alarm_count = row.get("false_alarm_count")
-    if (
-        duration is None
-        or duration < NO_SUBJECT_MIN_DURATION_S
-        or type(false_alarm_count) is not int
-        or false_alarm_count not in {0, 1}
-    ):
-        return False
+    if type(false_alarm_count) is not int or false_alarm_count not in {0, 1}:
+        return "invalid_false_alarm_count"
     frozen_hash = str(row.get("frozen_configuration_hash") or "").strip().lower()
     if not re.fullmatch(r"[0-9a-f]{64}", frozen_hash):
-        return False
+        return "config_drift"
 
     # The hash must resolve to the single configuration frozen in the locked
     # protocol.  A syntactically valid, caller-invented hash is not evidence.
@@ -508,33 +507,33 @@ def _qualified_no_subject(row: Mapping[str, object], sessions_root: str) -> bool
         else None
     )
     if not isinstance(protocol, dict) or protocol.get("state") != "locked":
-        return False
+        return "config_drift"
     if not isinstance(no_subject, dict):
-        return False
+        return "config_drift"
     if (
         type(no_subject.get("trial_count")) is not int
         or no_subject.get("trial_count") != NO_SUBJECT_TRIAL_COUNT
     ):
-        return False
+        return "config_drift"
     protocol_duration = _finite_number(no_subject.get("planned_duration_s"))
     if protocol_duration != NO_SUBJECT_MIN_DURATION_S or duration != protocol_duration:
-        return False
+        return "duration_mismatch"
     try:
         configuration_evidence = validate_frozen_no_subject_configuration(configuration)
         if frozen_configuration_hash(configuration) != frozen_hash:
-            return False
+            return "config_drift"
     except ValueError:
-        return False
+        return "config_drift"
 
     session_id = _safe_text(row.get("session_id"), limit=120)
     if not session_id or "/" in session_id or "\\" in session_id or session_id in {".", ".."}:
-        return False
+        return "missing_interval"
     session_root = (root / session_id).resolve()
     if session_root.parent != root or session_root.name != session_id:
-        return False
+        return "missing_interval"
     manifest = read_json_if_exists(str(session_root / "session_manifest.json"))
     if not isinstance(manifest, dict):
-        return False
+        return "missing_interval"
 
     attempt_id = _safe_text(row.get("attempt_id"), limit=64)
     if (
@@ -545,10 +544,10 @@ def _qualified_no_subject(row: Mapping[str, object], sessions_root: str) -> bool
         or manifest.get("status") != "completed"
         or manifest.get("terminal") is not True
     ):
-        return False
+        return "not_completed"
     manifest_session_id = _safe_text(manifest.get("session_id"), limit=120)
     if manifest_session_id and manifest_session_id != session_id:
-        return False
+        return "missing_interval"
 
     # Bind the separately appended trial classification back to the immutable
     # capture evidence.  Duration, configuration, and alert activation must
@@ -557,24 +556,22 @@ def _qualified_no_subject(row: Mapping[str, object], sessions_root: str) -> bool
     manifest_duration = _finite_number(
         manifest.get("duration_s", manifest.get("planned_duration_s"))
     )
+    if manifest_duration != duration:
+        return "duration_mismatch"
     manifest_false_alarm_count = manifest.get("false_alarm_count")
-    if (
-        manifest_duration != duration
-        or str(manifest.get("frozen_configuration_hash") or "").strip().lower()
-        != frozen_hash
-        or type(manifest_false_alarm_count) is not int
-        or manifest_false_alarm_count != false_alarm_count
-    ):
-        return False
+    if type(manifest_false_alarm_count) is not int or manifest_false_alarm_count != false_alarm_count:
+        return "invalid_false_alarm_count"
+    if str(manifest.get("frozen_configuration_hash") or "").strip().lower() != frozen_hash:
+        return "config_drift"
 
     provenance = manifest.get("capture_provenance")
     if not isinstance(provenance, dict):
-        return False
+        return "missing_interval"
     if (
         provenance.get("source") != "session_start"
         or provenance.get("attempt_id") != attempt_id
     ):
-        return False
+        return "config_drift"
     for field in (
         "product_version",
         "trainer_version",
@@ -585,20 +582,60 @@ def _qualified_no_subject(row: Mapping[str, object], sessions_root: str) -> bool
     ):
         captured_value = _safe_text(provenance.get(field), limit=100)
         if not captured_value or _safe_text(manifest.get(field), limit=100) != captured_value:
-            return False
+            return "config_drift"
     frozen_firmware = str(configuration_evidence["firmware"])
     if (
         _safe_text(manifest.get("firmware_expected"), limit=100) != frozen_firmware
         or _safe_text(manifest.get("firmware_observed"), limit=100) != frozen_firmware
     ):
-        return False
+        return "config_drift"
     captured_at = _parse_timestamp(provenance.get("captured_at"))
     ended_at = _parse_timestamp(manifest.get("ended_at"))
     if captured_at is None or ended_at is None:
-        return False
+        return "missing_interval"
     if (ended_at - captured_at).total_seconds() + 1.0 < duration:
-        return False
-    return True
+        return "duration_mismatch"
+    return None
+
+
+def _qualified_no_subject(row: Mapping[str, object], sessions_root: str) -> bool:
+    return _no_subject_unqualified_reason(row, sessions_root) is None
+
+
+def _trial_valid_windows(sessions_root: str, session_id: Optional[str]) -> Optional[int]:
+    sid = _safe_text(session_id, limit=120)
+    if not sid or "/" in sid or "\\" in sid or sid in {".", ".."}:
+        return None
+    root = Path(sessions_root).resolve()
+    session_root = (root / sid).resolve()
+    if session_root.parent != root or session_root.name != sid:
+        return None
+    summary = read_json_if_exists(str(session_root / "analysis" / "analyse_summary.json"))
+    if not isinstance(summary, dict):
+        summary = read_json_if_exists(str(session_root / "analyse_summary.json"))
+    if not isinstance(summary, dict):
+        return None
+    explicit_windows = _finite_number(summary.get("valid_windows"))
+    if explicit_windows is not None and explicit_windows >= 0:
+        return int(explicit_windows)
+    bins: Optional[float] = None
+    gate_audit = summary.get("gate_audit")
+    if isinstance(gate_audit, Mapping):
+        funnel = gate_audit.get("funnel")
+        if isinstance(funnel, Mapping):
+            bins = _finite_number(funnel.get("rr_eval_bins"))
+        if bins is None:
+            bins = _finite_number(gate_audit.get("rr_eval_bins"))
+    if bins is None:
+        rr_baseline = summary.get("rr_baseline")
+        if isinstance(rr_baseline, Mapping):
+            valid_only = rr_baseline.get("valid_only")
+            if isinstance(valid_only, Mapping):
+                bins = _finite_number(valid_only.get("n"))
+    if bins is None:
+        return None
+    total_bins = int(bins)
+    return max(0, (total_bins - 30) // 5 + 1) if total_bins >= 30 else 0
 
 
 def qualified_no_subject_attempts(sessions_root: str) -> list[Dict[str, object]]:
@@ -637,20 +674,34 @@ def completion_matrix(sessions_root: str) -> Dict[str, object]:
         participants.setdefault(participant, {"participant_id": participant, "status": "unknown"})
     matrix: Dict[str, Dict[str, Any]] = {}
     for participant, profile in sorted(participants.items()):
-        cells: Dict[str, object] = {}
+        cells: Dict[str, Dict[str, Any]] = {}
+        conditions_summary: Dict[str, Dict[str, Any]] = {}
         completed = 0
         for condition in CONFIRMATORY_CONDITION_IDS:
+            valid_trials = 0
             for trial_num in TRIAL_NUMBERS:
                 key = f"{participant}|{condition}|{trial_num}"
                 cell_row = by_key.get(key)
                 status = str(cell_row.get("status") if cell_row else "missing")
                 if status == "completed":
                     completed += 1
+                session_id = _safe_text(cell_row.get("session_id"), limit=120) or None if cell_row else None
+                valid_windows = _trial_valid_windows(sessions_root, session_id) if session_id else None
+                meets_window_floor = bool(valid_windows >= 15) if valid_windows is not None else None
+                if status == "completed" and meets_window_floor is True:
+                    valid_trials += 1
                 cells[f"{condition}:t{trial_num}"] = {
                     "status": status,
                     "attempt_id": cell_row.get("attempt_id") if cell_row else None,
                     "attempt_type": cell_row.get("attempt_type") if cell_row else "subject",
+                    "session_id": session_id,
+                    "valid_windows": valid_windows,
+                    "meets_window_floor": meets_window_floor,
                 }
+            conditions_summary[condition] = {
+                "valid_trials": valid_trials,
+                "meets_trial_floor": valid_trials >= 2,
+            }
         matrix[participant] = {
             "participant_id": participant,
             "status": profile.get("status", "unknown") if isinstance(profile, dict) else "unknown",
@@ -658,10 +709,20 @@ def completion_matrix(sessions_root: str) -> Dict[str, object]:
             "expected_trials": len(CONFIRMATORY_CONDITION_IDS) * len(TRIAL_NUMBERS),
             "protocol_complete": completed == len(CONFIRMATORY_CONDITION_IDS) * len(TRIAL_NUMBERS),
             "cells": cells,
+            "conditions_summary": conditions_summary,
         }
-    qualified_no_subject = [
-        row for row in no_subject if _qualified_no_subject(row, sessions_root)
-    ]
+    qualified_no_subject: list[Dict[str, object]] = []
+    unqualified_reasons: Dict[str, int] = {}
+    for row in no_subject:
+        reason = _no_subject_unqualified_reason(row, sessions_root)
+        if reason is None:
+            qualified_no_subject.append(row)
+        else:
+            unqualified_reasons[reason] = unqualified_reasons.get(reason, 0) + 1
+    no_subject_qualified_duration_s = sum(
+        float(_finite_number(row.get("duration_s")) or 0.0)
+        for row in qualified_no_subject
+    )
     roster_profiles = [value for value in profiles.values() if isinstance(value, dict)]
     recruited_count = len(roster_profiles)
     active_count = sum(1 for profile in roster_profiles if profile.get("status") == "active")
@@ -708,6 +769,9 @@ def completion_matrix(sessions_root: str) -> Dict[str, object]:
         "no_subject_attempt_count": len(no_subject),
         "no_subject_qualified_count": len(qualified_no_subject),
         "no_subject_unqualified_count": len(no_subject) - len(qualified_no_subject),
+        "no_subject_qualified_duration_s": no_subject_qualified_duration_s,
+        "no_subject_target_duration_s": int(NO_SUBJECT_TRIAL_COUNT * NO_SUBJECT_MIN_DURATION_S),
+        "no_subject_unqualified_reasons": unqualified_reasons,
         "no_subject_expected": NO_SUBJECT_TRIAL_COUNT,
         "no_subject_remaining": max(0, NO_SUBJECT_TRIAL_COUNT - len(qualified_no_subject)),
         "attempt_count": len(rows),

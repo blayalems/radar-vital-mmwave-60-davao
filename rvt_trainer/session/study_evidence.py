@@ -278,12 +278,24 @@ def append_reference(session_dir: str, payload: Mapping[str, Any], *, actor: obj
             raise ValueError("reference kind must be rr_observer, temperature, or hr")
         if kind == "temperature" and str(payload.get("barrier_type") or "none").lower() == "cardboard":
             raise ValueError("temperature reference capture is limited to unobstructed trials")
+        observer_id = _text(payload.get("observer_id") or actor, limit=80) or None
+        raw_references = result.get("references")
+        references: list[Any] = raw_references if isinstance(raw_references, list) else []
+        if kind == "rr_observer" and observer_id is not None:
+            normalized_observer = observer_id.lower()
+            if any(
+                isinstance(item, dict)
+                and item.get("kind") == "rr_observer"
+                and _text(item.get("observer_id"), limit=80).lower() == normalized_observer
+                for item in references
+            ):
+                raise ValueError(f"duplicate rr_observer submission for observer_id {observer_id}")
         observation = {
             "observation_id": f"OBS-{secrets.token_hex(10)}",
             "schema_version": REFERENCE_SCHEMA_VERSION,
             "session_id": root.name,
             "kind": kind,
-            "observer_id": _text(payload.get("observer_id") or actor, limit=80) or None,
+            "observer_id": observer_id,
             "value": payload.get("value"),
             "unit": _text(payload.get("unit"), limit=24) or None,
             "duration_s": payload.get("duration_s"),
@@ -294,8 +306,6 @@ def append_reference(session_dir: str, payload: Mapping[str, Any], *, actor: obj
             "missing_reason": _text(payload.get("missing_reason"), limit=160) or None,
             "locked": True,
         }
-        raw_references = result.get("references")
-        references: list[Any] = raw_references if isinstance(raw_references, list) else []
         references.append(observation)
         result["references"] = references
         result["schema_version"] = REFERENCE_SCHEMA_VERSION
@@ -480,7 +490,7 @@ def _validate_completed_job_artifacts(
     """Validate the immutable identity and hashes before objective promotion."""
 
     root = _root(sessions_root)
-    expected_version = _text(product_version, limit=32) or "16.8.0"
+    expected_version = _text(product_version, limit=32) or "16.9.0"
     job_id = _text(job.get("job_id"), limit=100)
     expected_output_root = (root / "study_analysis" / job_id).resolve()
     output_value = _text(job.get("output_dir"), limit=1000)
@@ -625,7 +635,7 @@ def objective_report(
     *,
     objectives: Mapping[str, Any],
     sessions_root: str,
-    product_version: object = "16.8.0",
+    product_version: object = "16.9.0",
 ) -> Dict[str, Any]:
     wanted = _text(objective_id, limit=80)
     known = [item for item in objectives.get("objectives", []) if isinstance(item, dict) and str(item.get("id")) == wanted]
@@ -647,7 +657,7 @@ def objective_report(
         expected = int(cast(Any, known[0].get("trial_count") or matrix.get("no_subject_expected") or 72))
         threshold = float(known[0].get("threshold") or 0.05)
         common_provenance = {
-            "product_version": _text(product_version, limit=32) or "16.8.0",
+            "product_version": _text(product_version, limit=32) or "16.9.0",
             "objective": known[0],
             "sessions_root": str(Path(sessions_root).resolve()),
             "no_subject_attempt_count": int(cast(Any, matrix.get("no_subject_attempt_count") or 0)),
@@ -872,7 +882,7 @@ def objective_report(
         "report": report,
         "exclusions": exclusions,
         "provenance": {
-            "product_version": _text(product_version, limit=32) or "16.8.0",
+            "product_version": _text(product_version, limit=32) or "16.9.0",
             "objective": known[0],
             "latest_job_id": latest.get("job_id") if latest else None,
             "sessions_root": str(Path(sessions_root).resolve()),

@@ -29,7 +29,7 @@ export class AnnotationService {
     }
 
     try {
-      const resp = await this.api.request<{ ok?: boolean; annotations?: ChartAnnotation[] }>(`/api/sessions/${sessionId}/annotations`);
+      const resp = await this.api.request<{ ok?: boolean; annotations?: ChartAnnotation[] }>(`/api/sessions/${encodeURIComponent(sessionId)}/annotations`);
       if (resp && Array.isArray(resp.annotations)) {
         this.currentAnnotations.set(resp.annotations);
       }

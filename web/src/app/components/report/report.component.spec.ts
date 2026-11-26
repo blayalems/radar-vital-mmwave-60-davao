@@ -198,4 +198,139 @@ describe('ReportComponent request ownership', () => {
     expect(state.sessionSignoffs()['A']).toMatchObject({ session_id: 'A', initials: 'AA' });
     expect(component.signoff).toMatchObject({ session_id: 'B', operator_name: 'Bob' });
   });
+
+  it('normalizes missing validation_comment and reads manifest.tags fallback on session load', async () => {
+    request.mockImplementation((path: string) => {
+      if (path === '/api/sessions/A/summary') {
+        return Promise.resolve({ session_id: 'A', manifest: { tags: ['cardboard', 'stable'] } });
+      }
+      if (path === '/api/sessions/A/data?points=1000') return Promise.resolve({ rows: [] });
+      if (path === '/api/sessions/A/compare') return Promise.resolve({});
+      if (path === '/api/sessions/A/analyse/status') return Promise.resolve({ status: 'completed' });
+      if (path === '/api/sessions/A/notes') return Promise.resolve({ session_id: 'A', review_summary: '' });
+      if (path === '/api/sessions/A/signoff') return Promise.resolve({ session_id: 'A', operator_name: 'Alice', initials: 'AA' });
+      if (path === '/api/sessions/A/references') return Promise.resolve({ session_id: 'A', references: [] });
+      return Promise.resolve({});
+    });
+
+    component.selectedSessionId = 'A';
+    await component.onSessionChange();
+
+    expect(component.signoff.validation_comment).toBe('');
+    expect(component.sessionTagsInput).toBe('cardboard, stable');
+  });
+
+  it('keeps the first rr_observer entry blinded until a second distinct observer locks, then unblinds and adjudicates', async () => {
+    component.selectedSessionId = 'A';
+    component.selectedSummary = { session_id: 'A', condition_id: 'd060_cardboard', distance_m: 0.6, barrier_type: 'cardboard', duration_s: 150 };
+
+    request.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === '/api/sessions/A/references' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        if (body.observer_id === 'Obs-A') {
+          return Promise.resolve({
+            session_id: 'A',
+            references: [{ observation_id: 'r1', session_id: 'A', kind: 'rr_observer', observer_id: 'Obs-A', value: 16, unit: 'br/min', locked: true }]
+          });
+        }
+        return Promise.resolve({
+          session_id: 'A',
+          references: [
+            { observation_id: 'r1', session_id: 'A', kind: 'rr_observer', observer_id: 'Obs-A', value: 16, unit: 'br/min', locked: true },
+            { observation_id: 'r2', session_id: 'A', kind: 'rr_observer', observer_id: 'Obs-B', value: 18, unit: 'br/min', locked: true }
+          ]
+        });
+      }
+      if (path === '/api/sessions/A/references/rr-adjudication') {
+        const body = JSON.parse(String(init?.body));
+        return Promise.resolve({
+          session_id: 'A',
+          references: component.referencesSignal(),
+          rr_adjudication: { final_value: body.final_value, rationale: body.rationale }
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    // Observer A locks 16 br/min -> masked
+    component.rrObserverIdInput.set('Obs-A');
+    component.rrRateInput.set('16');
+    await component.submitRrObserverObservation();
+    expect(component.rrObserverSummary().lockedCount).toBe(1);
+    expect(component.rrObserverSummary().unblinded).toBe(false);
+    expect(component.rrObserverSummary().entries[0].displayValue).toBe('Locked (blinded)');
+
+    // Duplicate Observer A rejected on client
+    component.rrObserverIdInput.set('obs-a');
+    component.rrRateInput.set('17');
+    await component.submitRrObserverObservation();
+    expect(component.rrObserverSummary().lockedCount).toBe(1);
+
+    // Observer B uses full-trial breath count (45 breaths / 150 s = 18.00 br/min) -> unblinds
+    component.rrObserverIdInput.set('Obs-B');
+    component.rrEntryMode.set('count');
+    component.rrBreathCountInput.set('45');
+    component.rrTrialDurationInput.set('150');
+    expect(component.computedBreathCountRate()).toBe(18);
+    await component.submitRrObserverObservation();
+
+    expect(component.rrObserverSummary().lockedCount).toBe(2);
+    expect(component.rrObserverSummary().unblinded).toBe(true);
+    expect(component.rrObserverSummary().discrepancyBpm).toBe(2);
+    expect(component.rrObserverSummary().exceedsDiscrepancyThreshold).toBe(true);
+    expect(component.rrObserverSummary().suggestedMeanBpm).toBe(17);
+
+    // Temperature is blocked for cardboard
+    expect(component.isD060NoneAllowed()).toBe(false);
+
+    // Adjudicate final RR
+    component.adjudicationFinalValueInput.set('17');
+    component.adjudicationRationaleInput.set('Consensus review of thoracic trace');
+    await component.adjudicateRr();
+    expect(component.rrObserverSummary().adjudicatedFinalValue).toBe(17);
+  });
+
+  it('allows temperature observation only for d060_none and exports IEEE LaTeX/CSV truthfully', async () => {
+    component.selectedSessionId = 'A';
+    component.selectedSummary = { session_id: 'A', condition_id: 'd060_none', distance_m: 0.6, barrier_type: 'none' };
+    expect(component.isD060NoneAllowed()).toBe(true);
+
+    const exportedBlobs: string[] = [];
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const origCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = origCreateElement(tag);
+      if (tag === 'a') {
+        vi.spyOn(el as HTMLAnchorElement, 'click').mockImplementation(() => {
+          exportedBlobs.push((el as HTMLAnchorElement).download);
+        });
+      }
+      return el;
+    });
+
+    request.mockImplementation((path: string) => {
+      if (path.includes('/api/study/objectives/objective_1_rr/export?format=latex')) {
+        return Promise.resolve({
+          ok: true,
+          filename: 'objective_1_rr_ieee_table.tex',
+          content_type: 'application/x-tex',
+          content: '\\begin{table}[!t]\\end{table}'
+        });
+      }
+      if (path.includes('/api/study/objectives/objective_1_rr/export?format=csv')) {
+        return Promise.resolve({
+          ok: true,
+          filename: 'objective_1_rr_conditions.csv',
+          content_type: 'text/csv',
+          content: 'objective_id,condition_id,status\nobjective_1_rr,d060_none,inconclusive\n'
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    await component.exportObjective({ objective_id: 'objective_1_rr', status: 'inconclusive' }, 'latex', false);
+    await component.exportObjective({ objective_id: 'objective_1_rr', status: 'inconclusive' }, 'csv', false);
+    expect(exportedBlobs).toEqual(['objective_1_rr_ieee_table.tex', 'objective_1_rr_conditions.csv']);
+  });
 });

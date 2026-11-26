@@ -121,6 +121,7 @@ export class LayoutComponent implements OnInit {
 
   readonly isStaleBannerVisible = signal(false);
   private staleTimer: ReturnType<typeof setTimeout> | null = null;
+  private backButtonListener: { remove: () => Promise<void> | void } | null = null;
 
   readonly sessionProgress = computed(() => {
     const elapsed = this.state.lastPayload()?.meta?.elapsed_s ?? 0;
@@ -134,6 +135,16 @@ export class LayoutComponent implements OnInit {
         clearTimeout(this.staleTimer);
         this.staleTimer = null;
       }
+      if (this.backButtonListener) {
+        void this.backButtonListener.remove();
+        this.backButtonListener = null;
+      }
+    });
+
+    effect(() => {
+      this.showRail();
+      this.railIsCollapsed();
+      requestAnimationFrame(() => this.sidenavContainer?.updateContentMargins());
     });
 
     effect(() => {
@@ -174,14 +185,18 @@ export class LayoutComponent implements OnInit {
       const cap = (window as any).Capacitor;
       if (cap?.isNativePlatform?.()) {
         const appPlugin = cap?.Plugins?.App;
-        if (appPlugin) {
-          appPlugin.addListener('backButton', ({ canGoBack }: { canGoBack: boolean }) => {
-            if (canGoBack) {
-              window.history.back();
-            } else {
-              appPlugin.exitApp?.();
-            }
-          });
+        if (appPlugin?.addListener) {
+          Promise.resolve(
+            appPlugin.addListener('backButton', ({ canGoBack }: { canGoBack: boolean }) => {
+              if (canGoBack) {
+                window.history.back();
+              } else {
+                appPlugin.exitApp?.();
+              }
+            })
+          ).then((handle: { remove: () => Promise<void> | void }) => {
+            this.backButtonListener = handle ?? null;
+          }).catch(() => {});
         }
       }
     } catch (_) {}
@@ -253,6 +268,9 @@ export class LayoutComponent implements OnInit {
     }
     if (primaryModifier && !event.altKey && !event.shiftKey && key === 'h') {
       event.preventDefault();
+      if (this.dialog.openDialogs.some(ref => ref.componentInstance instanceof OperatorHandoffDialogComponent)) {
+        return;
+      }
       this.state.triggerHaptic('tap');
       this.dialog.open(OperatorHandoffDialogComponent, {
         maxWidth: 'calc(100vw - 24px)',

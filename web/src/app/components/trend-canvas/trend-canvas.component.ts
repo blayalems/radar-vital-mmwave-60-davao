@@ -215,6 +215,8 @@ export class TrendCanvasComponent implements AfterViewInit, OnDestroy {
 
   @HostListener('document:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
+    if (!this.isZoomed()) return;
+    if (!this.renderScheduler.canvasVisible(this.canvasRef?.nativeElement)) return;
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest('input, textarea, select, [contenteditable], [role="textbox"]')) return;
 

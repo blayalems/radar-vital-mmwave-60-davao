@@ -69,7 +69,7 @@ def test_protocol_schedule_and_no_subject_attempt_contract(study_server: _Contro
     status, objectives_payload = _request(study_server, "GET", "/api/study/objectives")
     assert status == 200
     assert objectives_payload["schema_version"] == "rvt-study-objectives-v16.6.5"
-    assert objectives_payload["product_version"] == "16.8.0"
+    assert objectives_payload["product_version"] == "16.9.0"
     assert len(objectives_payload["thesis_objectives"]) == 4
     assert [item["phase"] for item in objectives_payload["thesis_objectives"]] == ["design", "build", "integrate", "test"]
     assert len(objectives_payload["objectives"]) == 4
@@ -153,6 +153,10 @@ def test_protocol_schedule_and_no_subject_attempt_contract(study_server: _Contro
     assert status == 200
     assert matrix["no_subject_attempt_count"] == 0
 
+    status, participants_payload = _request(study_server, "GET", "/api/participants")
+    assert status == 200
+    assert participants_payload["participants"][0]["expected_trials"] == 30
+
     status, response = _request(study_server, "POST", "/api/participants", {})
     assert status == 412
     assert response["error"]["code"] == "STUDY_COLLECTION_NOT_AUTHORIZED"
@@ -178,6 +182,21 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
         )
         assert status == 201
         assert response["session_id"] == "s01"
+
+    status, response = _request(
+        study_server,
+        "POST",
+        "/api/sessions/s01/references",
+        {
+            "kind": "rr_observer",
+            "observer_id": "OBS-A",
+            "value": 16,
+            "unit": "breaths/min",
+            "duration_s": 150,
+        },
+    )
+    assert status == 400
+    assert "duplicate rr_observer" in response["error"]["message"]
 
     status, response = _request(
         study_server,
@@ -229,7 +248,39 @@ def test_reference_adjudication_analysis_and_objective_report_contract(
     assert status == 200
     assert response["objective_id"] == "objective_1_rr"
     assert response["status"] == "inconclusive"
-    assert response["provenance"]["product_version"] == "16.8.0"
+    assert response["provenance"]["product_version"] == "16.9.0"
+
+    status, tex_export = _request(
+        study_server,
+        "GET",
+        "/api/study/objectives/objective_1_rr/export?format=latex",
+    )
+    assert status == 200
+    assert tex_export["ok"] is True
+    assert tex_export["format"] == "latex"
+    assert tex_export["filename"] == "objective_1_rr_summary.tex"
+    assert "\\begin{table}[!t]" in tex_export["content"]
+    assert "inconclusive" in tex_export["content"]
+
+    status, csv_export = _request(
+        study_server,
+        "GET",
+        "/api/study/objectives/objective_1_rr/export?format=csv",
+    )
+    assert status == 200
+    assert csv_export["ok"] is True
+    assert csv_export["format"] == "csv"
+    assert csv_export["filename"] == "objective_1_rr_summary.csv"
+    assert "condition_id,distance_m,barrier_type" in csv_export["content"]
+    assert "d100_none,1.0,none,primary" in csv_export["content"]
+
+    status, bad_export = _request(
+        study_server,
+        "GET",
+        "/api/study/objectives/objective_1_rr/export?format=pdf",
+    )
+    assert status == 400
+    assert bad_export["error"]["code"] == "VALIDATION_FAILED"
 
 
 def test_study_evidence_routes_are_operator_protected(study_server: _ControlServer):
@@ -249,6 +300,7 @@ def test_study_evidence_routes_are_operator_protected(study_server: _ControlServ
         ("GET", "/api/study/analysis/JOB-1"),
         ("DELETE", "/api/study/analysis/JOB-1"),
         ("GET", "/api/study/objectives/objective_1_rr/report"),
+        ("GET", "/api/study/objectives/objective_1_rr/export"),
     )
     for method, path in cases:
         route = match_route(method, path)

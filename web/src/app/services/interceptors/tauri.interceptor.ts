@@ -52,11 +52,10 @@ function explicitStoredOrigin(): string {
   try {
     const stored = normalizeHttpOrigin(localStorage.getItem(API_BASE_KEY) || localStorage.getItem(SERVER_URL_KEY) || '');
     // Dynamic bundled sidecar origins must not survive process restarts. Treat
-    // loopback values from older builds as stale and let Rust provide the fresh
-    // per-launch sidecar origin through native_trainer_status.
+    // loopback values in storage as non-authoritative for native IPC routing and
+    // let Rust provide the fresh per-launch sidecar origin through
+    // native_trainer_status without wiping the active origin needed by download().
     if (stored && isLoopbackHttpOrigin(stored)) {
-      localStorage.removeItem(API_BASE_KEY);
-      localStorage.removeItem(SERVER_URL_KEY);
       return '';
     }
     return stored;

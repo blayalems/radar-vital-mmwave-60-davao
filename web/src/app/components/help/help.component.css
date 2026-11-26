@@ -31,6 +31,7 @@
 }
 
 .help-main-icon {
+  flex-shrink: 0;
   font-size: 2.2rem;
   width: 36px;
   height: 36px;
@@ -230,8 +231,20 @@
 .pipeline-grid {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 16px;
+}
+
+@media (max-width: 900px) {
+  .pipeline-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .pipeline-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .pipeline-step,
@@ -311,19 +324,9 @@
 }
 
 .help-header-card {
-  background:
-    radial-gradient(circle at 96% -20%, color-mix(in srgb, var(--md-sys-color-tertiary-container) 70%, transparent), transparent 42%),
-    linear-gradient(120deg, var(--md-sys-color-surface-container), var(--md-sys-color-surface-container-low)) !important;
+  background: var(--md-sys-color-surface-container-lowest, #ffffff) !important;
   overflow: hidden;
   position: relative;
-}
-
-.help-header-card::before {
-  background: linear-gradient(90deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
-  content: '';
-  height: 3px;
-  inset: 0 0 auto;
-  position: absolute;
 }
 
 .header-controls {

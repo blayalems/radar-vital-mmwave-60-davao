@@ -146,6 +146,7 @@ def test_concurrent_same_key_same_payload_allocates_and_spawns_once(
 
     assert responses[0] == responses[1]
     assert responses[0][0] == 200
+    assert responses[0][1]["ok"] is True
     assert responses[0][1]["session_id"] == "s01"
     assert spawn_calls == ["s01"]
     capture_launches = [

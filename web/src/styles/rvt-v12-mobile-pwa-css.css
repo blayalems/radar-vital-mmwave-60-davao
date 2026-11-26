@@ -242,7 +242,7 @@ body {
 /* ==========================================
    SHAPE & ELEVATION (EXPRESSIVE SCALE)
    ========================================== */
-.card, .kpi, dialog, .sheet {
+.card, .kpi, .sheet {
   border-radius: var(--radius-lg) !important;
   background: var(--md-sys-color-surface-container-low) !important;
   border: 1px solid var(--md-sys-color-outline-variant) !important;
@@ -255,204 +255,16 @@ body {
   border-color: var(--md-sys-color-outline) !important;
 }
 
-button, .ca-btn, .ghost-btn, .ic-btn {
+.ca-btn, .ghost-btn {
   border-radius: var(--radius-md) !important;
   min-height: var(--tap) !important;
   transition: var(--transition-standard) !important;
 }
-input, textarea, select {
-  border-radius: var(--radius-sm) !important;
-  border: 1.5px solid var(--md-sys-color-outline-variant) !important;
-  background: var(--md-sys-color-surface) !important;
-  color: var(--md-sys-color-on-surface) !important;
-  padding: 8px 12px !important;
-  transition: var(--transition-standard) !important;
-}
-input:focus, textarea:focus, select:focus {
-  border-color: var(--md-sys-color-primary) !important;
-  outline: none !important;
-}
 
 
 
 
-/* ==========================================
-   RESPONSIVE BREAKPOINT GRID & NAVIGATION
-   ========================================== */
-
-/* MEDIUM & EXPANDED VIEWPORTS (>= 600px) */
-@media (min-width: 600px) {
-  .app {
-    display: grid !important;
-    grid-template-columns: auto 1fr !important;
-    min-height: 100vh !important;
-    width: 100% !important;
-    background: var(--md-sys-color-surface) !important;
-  }
-  .rail {
-    display: flex !important;
-    flex-direction: column !important;
-    height: 100vh !important;
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 999 !important;
-    background: var(--md-sys-color-surface-container-low) !important;
-    border-right: 1px solid var(--md-sys-color-outline-variant) !important;
-    padding: 24px 12px !important;
-    box-sizing: border-box !important;
-    transition: width 0.3s cubic-bezier(0.2, 0, 0, 1) !important;
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-  }
-  body[data-rail-collapsed="1"] .rail {
-    width: var(--rail-w-collapsed) !important;
-  }
-  body[data-rail-collapsed="0"] .rail {
-    width: var(--rail-w) !important;
-  }
-  .main {
-    padding: var(--gap) !important;
-    display: block !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-  }
-  .bottom-nav {
-    display: none !important;
-  }
-
-  /* Left sidebar active indicator pills */
-  .r-item {
-    border-radius: 28px !important;
-    padding: var(--nav-item-padding) !important;
-    display: flex !important;
-    align-items: center !important;
-    width: 100% !important;
-    gap: 12px !important;
-    background: transparent !important;
-    color: var(--md-sys-color-on-surface-variant) !important;
-    transition: var(--transition-standard) !important;
-    border: none !important;
-    cursor: pointer !important;
-  }
-  .r-item:hover {
-    background: var(--md-sys-color-surface-container-high) !important;
-    color: var(--md-sys-color-on-surface) !important;
-  }
-  .r-item.active {
-    background: var(--md-sys-color-primary-container) !important;
-    color: var(--md-sys-color-on-primary-container) !important;
-    font-weight: 700 !important;
-  }
-
-  /* Collapsed sidebar transitions and font-size: 0 override */
-  body[data-rail-collapsed="1"] .r-item {
-    font-size: 0 !important;
-    justify-content: center !important;
-    padding: 0 !important;
-    border-radius: 50% !important;
-    width: 56px !important;
-    height: 56px !important;
-    margin: 0 auto 8px !important;
-  }
-  body[data-rail-collapsed="1"] .r-item .r-ic {
-    margin: 0 !important;
-  }
-  body[data-rail-collapsed="1"] .r-item .nav-kbd {
-    display: none !important;
-  }
-}
-
-/* PHONE VIEWPORTS (< 600px) */
-@media (max-width: 599.98px) {
-  .rail {
-    display: none !important;
-  }
-  #mobileRailToggle {
-    display: none !important;
-  }
-  .bottom-nav {
-    display: flex !important;
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 1000 !important;
-    background: var(--md-sys-color-surface-container) !important;
-    border-top: 1px solid var(--md-sys-color-outline-variant) !important;
-    padding-bottom: var(--sab) !important;
-    height: calc(var(--bn-h) + var(--sab)) !important;
-    align-items: center !important;
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06) !important;
-  }
-  .bottom-nav-inner {
-    display: flex !important;
-    width: 100% !important;
-    height: 100% !important;
-    justify-content: space-around !important;
-    align-items: center !important;
-  }
-  .bn-item {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    background: transparent !important;
-    border: none !important;
-    color: var(--md-sys-color-on-surface-variant) !important;
-    font-size: 11px !important;
-    font-weight: 500 !important;
-    cursor: pointer !important;
-    gap: 2px !important;
-    height: 100% !important;
-    flex: 1 !important;
-    min-width: 0 !important;
-    transition: var(--transition-standard) !important;
-  }
-  .bn-item span.material-symbols-rounded {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 56px !important;
-    height: 28px !important;
-    border-radius: 14px !important;
-    transition: var(--transition-standard) !important;
-  }
-  .bn-item.active {
-    color: var(--md-sys-color-primary) !important;
-    font-weight: 700 !important;
-  }
-  .bn-item.active span.material-symbols-rounded {
-    background: var(--md-sys-color-primary-container) !important;
-    color: var(--md-sys-color-on-primary-container) !important;
-  }
-
-  .main {
-    display: block !important;
-    width: 100% !important;
-    padding: var(--gap) !important;
-    padding-bottom: calc(var(--bn-h) + var(--sab) + var(--gap)) !important;
-    box-sizing: border-box !important;
-  }
-
-  /* Single vertical column cards layout */
-  .kpi-grid {
-    grid-template-columns: 1fr !important;
-  }
-  .grid.c2, .grid.c4 {
-    grid-template-columns: 1fr !important;
-  }
-  .rad {
-    grid-template-columns: 1fr !important;
-    display: flex !important;
-    flex-direction: column !important;
-    gap: var(--gap) !important;
-  }
-  .rad .side {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: var(--gap) !important;
-  }
-}
+/* Legacy @media (min-width: 600px) and (max-width: 599.98px) shell/rail/bottom-nav rules removed; LayoutComponent owns shell layout. */
 
 /* ==========================================
    LEGACY OVERRIDES & RECOVERY PREVENTATIVE
@@ -497,8 +309,7 @@ html[data-sandbox="1"] #demoBanner { display: flex !important; }
   background: var(--md-sys-color-surface-container) !important;
 }
 .topbar {
-  min-height: calc(var(--topbar-h) + var(--sat)) !important;
-  padding-top: var(--sat) !important;
+  min-height: var(--topbar-h) !important;
   padding-left: max(var(--gap), var(--sal)) !important;
   padding-right: max(var(--gap), var(--sar)) !important;
   border-bottom: 1px solid var(--md-sys-color-outline-variant) !important;

@@ -166,7 +166,7 @@ def study_objectives_payload() -> Dict[str, object]:
     return {
         "schema_version": STUDY_OBJECTIVES_SCHEMA_VERSION,
         "control_status": "draft_not_authorized",
-        "product_version": "16.8.0",
+        "product_version": "16.9.0",
         "manuscript": copy.deepcopy(MANUSCRIPT_IDENTITY),
         "thesis_objectives": copy.deepcopy(_THESIS_OBJECTIVES),
         "confirmatory_conditions": [

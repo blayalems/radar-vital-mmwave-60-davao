@@ -225,4 +225,107 @@ describe('ParticipantStudySetupComponent', () => {
       condition_id: 'd300_none'
     }));
   });
+
+  it('orders the 10x3 condition matrix by study schedule, flags <15 valid windows, and prefills setup on cell click', async () => {
+    request.mockImplementation((path: string) => {
+      if (path.startsWith('/api/study/schedule')) {
+        return Promise.resolve({
+          participant_id: 'P-003',
+          entries: [
+            { participant_id: 'P-003', order: 1, condition_id: 'd200_cardboard', trial_numbers: [1, 2, 3] },
+            { participant_id: 'P-003', order: 2, condition_id: 'd060_none', trial_numbers: [1, 2, 3] }
+          ]
+        });
+      }
+      if (path === '/api/participants') {
+        return Promise.resolve({
+          participants: [{ participant_id: 'P-003', display_code: 'P-003', status: 'active', completed_trials: 1 }],
+          completion_matrix: {
+            conditions: ['d060_none', 'd200_cardboard'],
+            trials: [1, 2, 3],
+            participants: {
+              'P-003': {
+                participant_id: 'P-003',
+                completed_trials: 1,
+                expected_trials: 30,
+                protocol_complete: false,
+                conditions_summary: {
+                  d200_cardboard: { valid_trials: 0, meets_trial_floor: false },
+                  d060_none: { valid_trials: 2, meets_trial_floor: true }
+                },
+                cells: {
+                  'd200_cardboard:t2': { status: 'completed', valid_windows: 12, meets_window_floor: false },
+                  'd060_none:t1': { status: 'completed', valid_windows: 22, meets_window_floor: true }
+                }
+              }
+            },
+            participant_count: 1,
+            protocol_complete_participant_count: 0,
+            no_subject_attempt_count: 3,
+            no_subject_qualified_count: 2,
+            no_subject_qualified_duration_s: 300,
+            no_subject_target_duration_s: 10800,
+            no_subject_unqualified_reasons: { duration_mismatch: 1 },
+            no_subject_expected: 72,
+            attempt_count: 4
+          }
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    await component.loadParticipants();
+    component.selectParticipant(component.participants()[0]);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const rows = component.conditionMatrixRows();
+    expect(rows.map(r => r.conditionId)).toEqual(['d200_cardboard', 'd060_none']);
+    expect(rows[0].meetsTrialFloor).toBe(false);
+    expect(rows[0].cells[1].validWindows).toBe(12);
+    expect(rows[0].cells[1].meetsWindowFloor).toBe(false);
+    expect(rows[1].meetsTrialFloor).toBe(true);
+    expect(rows[1].cells[0].validWindows).toBe(22);
+
+    component.selectMatrixCell(rows[0], 2);
+    expect(setup()).toEqual(expect.objectContaining({
+      condition_id: 'd200_cardboard',
+      distance_m: 2.0,
+      barrier_type: 'cardboard',
+      trial_number: 2,
+      duration_s: 150
+    }));
+
+    expect(component.noSubjectStats()).toEqual(expect.objectContaining({
+      qualifiedCount: 2,
+      targetCount: 72,
+      qualifiedDurationS: 300,
+      targetDurationS: 10800,
+      reasons: { duration_mismatch: 1 }
+    }));
+  });
+
+  it('runs and resets the non-blocking 300 s MLX90614 acclimatization timer without blocking study setup', () => {
+    vi.useFakeTimers();
+    sessionStorage.clear();
+    component.setDistance(0.6);
+    component.setBarrier('none');
+    expect(component.isD060NoneSelected()).toBe(true);
+    expect(component.acclimatizationRemainingS()).toBe(300);
+
+    component.startAcclimatizationTimer();
+    vi.advanceTimersByTime(3000);
+    expect(component.acclimatizationRemainingS()).toBe(297);
+    expect(component.acclimatizationDisplay()).toBe('04:57');
+    expect(studySetupError({ ...setup(), participant_id: 'P-001', duration_s: 150 })).toBe('');
+
+    component.pauseAcclimatizationTimer();
+    vi.advanceTimersByTime(2000);
+    expect(component.acclimatizationRemainingS()).toBe(297);
+
+    component.resetAcclimatizationTimer();
+    expect(component.acclimatizationRemainingS()).toBe(300);
+    expect(component.acclimatizationDisplay()).toBe('05:00');
+    vi.useRealTimers();
+  });
 });

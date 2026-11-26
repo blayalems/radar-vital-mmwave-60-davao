@@ -10,8 +10,11 @@ from rvt_trainer.statistics import (
     analysis_plan_sha256,
     aggregate_confirmatory_frame,
     analyze_frame,
+    build_condition_summary_rows,
     coverage_report,
     exact_proportion,
+    format_condition_summary_csv,
+    format_ieee_latex_table,
     holm_adjust,
     paired_metrics,
     paired_tost,
@@ -21,7 +24,7 @@ from rvt_trainer.statistics import (
 )
 
 
-def _confirmatory_provenance(plan, *, run_product_version="16.8.0"):
+def _confirmatory_provenance(plan, *, run_product_version="16.9.0"):
     return {
         "source_commit": "c" * 40,
         "model_family": "gradient_boosting",
@@ -538,7 +541,7 @@ def test_confirmatory_provenance_separates_plan_study_and_run_identities():
     )
 
     assert plan["effective_product_version"] == "16.5.8"
-    assert report["provenance"]["run_product_version"] == "16.8.0"
+    assert report["provenance"]["run_product_version"] == "16.9.0"
     assert report["provenance"]["analysis_plan_id"] == "RVT-STA-PLAN-16.5.8"
     assert len(report["provenance"]["analysis_plan_sha256"]) == 64
     assert report["provenance"]["study_protocol_id"] == "RVT-THESIS-16.5.9"
@@ -729,3 +732,48 @@ def test_coverage_uses_attempt_ledger_for_no_subject_denominator():
 def test_statistical_tools_fail_closed_on_invalid_designs(call):
     with pytest.raises(StatisticalInputError):
         call()
+
+
+def test_condition_summary_rows_and_ieee_exports_remain_truthful_when_unready():
+    unready_payload = {
+        "ok": True,
+        "objective_id": "objective_1_rr",
+        "status": "inconclusive",
+        "report": None,
+        "provenance": {"objective": {"label": "GBR-assisted respiration-rate equivalence"}},
+    }
+    rows = build_condition_summary_rows(unready_payload)
+    assert len(rows) == 10
+    assert all(row["holm_decision"] == "inconclusive" and row["bias"] is None for row in rows)
+
+    latex = format_ieee_latex_table(unready_payload)
+    assert "\\begin{table}[!t]" in latex
+    assert "d100\\_none & -- & -- & -- & -- & -- & -- & -- & inconclusive" in latex
+
+    csv_text = format_condition_summary_csv(unready_payload)
+    assert "d100_none,1.0,none,primary,--,--,--,--,--,--,--,--,--,--,--,inconclusive" in csv_text
+
+    ready_payload = {
+        "ok": True,
+        "objective_id": "objective_1_rr",
+        "status": "ready",
+        "report": {
+            "statistical_report": {
+                "condition_tost": {
+                    "primary": {
+                        "condition_id": "d100_none",
+                        "status": "tested",
+                        "n_participants": 38,
+                        "mean_difference": 0.12,
+                        "ci_low": -0.45,
+                        "ci_high": 0.69,
+                        "decision": "equivalent",
+                    },
+                    "secondary": [],
+                }
+            }
+        },
+        "provenance": {"objective": {"label": "GBR-assisted respiration-rate equivalence"}},
+    }
+    ready_latex = format_ieee_latex_table(ready_payload)
+    assert "d100\\_none & 38 & -- & 0.12 & -- & -- & -- & [-0.45, 0.69] & equivalent" in ready_latex

@@ -1,4 +1,12 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
+}
+
 .consent-hero {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 16px;
@@ -72,7 +80,9 @@
 }
 
 .consent-content {
-  max-height: 60vh;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
   padding: 0 24px 16px;
 }
@@ -179,5 +189,40 @@
   .consent-content,
   .blocked-content {
     padding-inline: 18px;
+  }
+}
+
+@media (max-height: 720px) {
+  .consent-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    margin-bottom: 8px;
+    padding: 12px 16px;
+    border-radius: 16px;
+  }
+
+  .consent-mark {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+
+  .consent-mark mat-icon {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+
+  .consent-hero h2 {
+    font-size: 1.1rem !important;
+  }
+
+  .consent-hero p:last-child {
+    margin-top: 4px;
+    font-size: 0.8rem;
+  }
+
+  .consent-content {
+    padding: 0 16px 10px;
   }
 }

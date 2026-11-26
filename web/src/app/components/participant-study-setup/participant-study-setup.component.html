@@ -117,7 +117,7 @@
         </div>
         <div>
           <strong>No-subject denominator</strong>
-          <span>{{ matrix.no_subject_qualified_count ?? 0 }} / {{ matrix.no_subject_expected }} qualified · {{ matrix.no_subject_attempt_count }} attempted</span>
+          <span>{{ noSubjectStats().qualifiedCount }} / {{ noSubjectStats().targetCount }} qualified ({{ noSubjectStats().qualifiedDurationS }} / {{ noSubjectStats().targetDurationS }} s) · {{ matrix.no_subject_attempt_count }} attempted</span>
         </div>
         @if (selectedParticipant(); as selected) {
           @if (completionFor(selected.participant_id); as completion) {
@@ -127,6 +127,86 @@
             </div>
           }
         }
+      </div>
+
+      <!-- 72-TRIAL (10,800 S) NO-SUBJECT PROGRESS PANEL -->
+      <div class="no-subject-panel" role="region" aria-label="No-subject false-alarm progress">
+        <div class="no-subject-header">
+          <div>
+            <strong>72-Trial No-Subject False-Alarm Control</strong>
+            <span>{{ noSubjectStats().qualifiedCount }} / {{ noSubjectStats().targetCount }} qualified · {{ noSubjectStats().qualifiedDurationS | number:'1.0-0' }} / {{ noSubjectStats().targetDurationS | number:'1.0-0' }} s (3.0 h)</span>
+          </div>
+          <span class="frozen-config-badge" [class.locked]="noSubjectStats().frozenConfigLocked">
+            <mat-icon aria-hidden="true">{{ noSubjectStats().frozenConfigLocked ? 'lock' : 'lock_open' }}</mat-icon>
+            {{ noSubjectStats().frozenConfigLocked ? 'Frozen config locked' : 'Frozen config pending' }}
+          </span>
+        </div>
+        <mat-progress-bar mode="determinate" [value]="noSubjectStats().progressPct" aria-label="No-subject qualified progress"></mat-progress-bar>
+        @if ((noSubjectStats().reasons | keyvalue).length > 0) {
+          <div class="unqualified-reasons-row">
+            @for (entry of noSubjectStats().reasons | keyvalue; track entry.key) {
+              <span class="reason-chip">{{ entry.key }}: {{ entry.value }}</span>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- 10x3 CONDITION MATRIX ORDERED BY PARTICIPANT SCHEDULE -->
+    @if (conditionMatrixRows().length > 0) {
+      <div class="condition-matrix-panel" role="region" aria-label="Participant 10-condition randomized schedule matrix">
+        <div class="matrix-header">
+          <div>
+            <strong>Participant Condition Schedule Matrix (10 × 3)</strong>
+            <span>Ordered by participant randomization schedule. Click any cell to select condition and trial.</span>
+          </div>
+        </div>
+        <div class="matrix-table-scroll">
+          <table class="condition-matrix-table">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">Condition</th>
+                <th scope="col">Trial floor</th>
+                <th scope="col">T1</th>
+                <th scope="col">T2</th>
+                <th scope="col">T3</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of conditionMatrixRows(); track row.conditionId) {
+                <tr>
+                  <td class="matrix-order">#{{ row.order }}</td>
+                  <td class="matrix-cond">
+                    <strong>{{ row.conditionId }}</strong>
+                    <small>{{ row.label }}</small>
+                  </td>
+                  <td>
+                    <span class="trial-floor-badge" [class.met]="row.meetsTrialFloor">
+                      {{ row.validTrials }} / 3 · ≥2 needed
+                    </span>
+                  </td>
+                  @for (cell of row.cells; track cell.trial) {
+                    <td>
+                      <button type="button"
+                              class="matrix-cell-btn"
+                              [attr.data-status]="cell.status"
+                              [class.active]="state.setup().condition_id === row.conditionId && state.setup().trial_number === cell.trial"
+                              [attr.aria-label]="'Select ' + row.conditionId + ' trial ' + cell.trial + ', status ' + cell.status"
+                              (click)="selectMatrixCell(row, cell.trial)">
+                        <mat-icon aria-hidden="true">{{ cellStatusIcon(cell.status) }}</mat-icon>
+                        <span>T{{ cell.trial }}</span>
+                        @if (cell.validWindows !== null) {
+                          <em class="window-chip" [class.low]="cell.validWindows < 15">{{ cell.validWindows }}/25</em>
+                        }
+                      </button>
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
     }
   }
@@ -212,6 +292,34 @@
           </button>
         }
       </div>
+    </div>
+
+    <!-- 0.6 m UNOBSTRUCTED MLX90614 5-MIN ACCLIMATIZATION ADVISORY TIMER -->
+    <div class="acclimatization-card span-full" [class.excluded]="!isD060NoneSelected()" role="status" aria-live="polite">
+      <mat-icon aria-hidden="true">{{ isD060NoneSelected() ? 'thermostat' : 'block' }}</mat-icon>
+      @if (isD060NoneSelected()) {
+        <div class="acclimatization-copy">
+          <strong>MLX90614 5-min acclimatization cue (0.6 m unobstructed · non-blocking)</strong>
+          <span>Recommended thermal stabilization before d060_none reference temperature capture: <strong>{{ acclimatizationDisplay() }}</strong> ({{ acclimatizationRemainingS() }} s)</span>
+        </div>
+        <div class="acclimatization-actions">
+          @if (!acclimatizationRunning()) {
+            <button mat-stroked-button type="button" (click)="startAcclimatizationTimer()">
+              <mat-icon aria-hidden="true">play_arrow</mat-icon>Start 5m
+            </button>
+          } @else {
+            <button mat-stroked-button type="button" (click)="pauseAcclimatizationTimer()">
+              <mat-icon aria-hidden="true">pause</mat-icon>Pause
+            </button>
+          }
+          <button mat-button type="button" (click)="resetAcclimatizationTimer()">Reset</button>
+        </div>
+      } @else {
+        <div class="acclimatization-copy">
+          <strong>MLX90614 IR temperature excluded</strong>
+          <span>Line-of-sight IR temperature excluded for cardboard or &gt;0.6 m conditions.</span>
+        </div>
+      }
     </div>
 
     <div class="trial-summary" role="status" aria-live="polite">

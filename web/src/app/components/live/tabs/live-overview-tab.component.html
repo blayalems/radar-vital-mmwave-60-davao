@@ -191,17 +191,19 @@
             <mat-card class="diagnostics-mini-card">
               <mat-card-header><mat-card-title>Radar Packet</mat-card-title></mat-card-header>
               <mat-card-content class="diagnostics-table-wrap">
-                <table class="diagnostics-table">
-                  <tbody>
-                    <tr><td>Reported HR</td><td>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) + ' bpm' : '--' }}</td></tr>
-                    <tr><td>Reported RR</td><td>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) + ' br/m' : '--' }}</td></tr>
-                    <tr><td>Candidate HR</td><td>{{ state.lastPayload()?.radar?.candidate_hr ? Math.round(state.lastPayload()?.radar?.candidate_hr ?? 0) + ' bpm' : '--' }}</td></tr>
-                    <tr><td>Candidate RR</td><td>{{ state.lastPayload()?.radar?.candidate_rr ? Math.round(state.lastPayload()?.radar?.candidate_rr ?? 0) + ' br/m' : '--' }}</td></tr>
-                    <tr><td>Loop mean / max</td><td>{{ metricText('loop_dt_mean_ms', 2, ' ms') }} / {{ metricText('loop_dt_max_ms', 0, ' ms') }}</td></tr>
-                    <tr><td>Heap free / min</td><td>{{ metricText('heap_free_kb', 1, ' KB') }} / {{ metricText('heap_min_free_kb', 1, ' KB') }}</td></tr>
-                    <tr><td>Firmware uptime</td><td>{{ metricText('fw_uptime_s', 0, ' s') }}</td></tr>
-                  </tbody>
-                </table>
+                @if (state.lastPayload()) {
+                  <table class="diagnostics-table">
+                    <tbody>
+                      <tr><td>Reported HR</td><td>{{ state.lastPayload()?.radar?.reported_hr ? Math.round(state.lastPayload()?.radar?.reported_hr ?? 0) + ' bpm' : '--' }}</td></tr>
+                      <tr><td>Reported RR</td><td>{{ state.lastPayload()?.radar?.reported_rr ? Math.round(state.lastPayload()?.radar?.reported_rr ?? 0) + ' br/min' : '--' }}</td></tr>
+                      <tr><td>Candidate HR</td><td>{{ state.lastPayload()?.radar?.candidate_hr ? Math.round(state.lastPayload()?.radar?.candidate_hr ?? 0) + ' bpm' : '--' }}</td></tr>
+                      <tr><td>Candidate RR</td><td>{{ state.lastPayload()?.radar?.candidate_rr ? Math.round(state.lastPayload()?.radar?.candidate_rr ?? 0) + ' br/min' : '--' }}</td></tr>
+                      <tr><td>Firmware uptime</td><td>{{ metricText('fw_uptime_s', 0, ' s') }}</td></tr>
+                    </tbody>
+                  </table>
+                } @else {
+                  <p class="empty-copy">Waiting for radar packet…</p>
+                }
               </mat-card-content>
             </mat-card>
 
@@ -212,7 +214,7 @@
                   <tbody>
                     <tr><td>Linked device</td><td>{{ state.lastPayload()?.ble?.address || 'Not Linked' }}</td></tr>
                     <tr><td>BLE Pulse HR</td><td>{{ state.lastPayload()?.ble?.hr ? Math.round(state.lastPayload()?.ble?.hr ?? 0) + ' bpm' : '--' }}</td></tr>
-                    <tr><td>BLE Respiration RR</td><td>{{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/m' : '--' }}</td></tr>
+                    <tr><td>BLE Respiration RR</td><td>{{ state.lastPayload()?.ble?.rr ? Math.round(state.lastPayload()?.ble?.rr ?? 0) + ' br/min' : '--' }}</td></tr>
                     <tr><td>Adapter active</td><td>{{ state.lastPayload()?.ble?.connected ? 'CONNECTED' : (state.lastPayload() ? 'NOT REPORTED' : '--') }}</td></tr>
                   </tbody>
                 </table>
@@ -220,16 +222,10 @@
             </mat-card>
 
             <mat-card class="diagnostics-mini-card">
-              <mat-card-header><mat-card-title>Mismatches / Faults</mat-card-title></mat-card-header>
+              <mat-card-header><mat-card-title>Active Faults</mat-card-title></mat-card-header>
               <mat-card-content class="diagnostics-table-wrap">
                 <table class="diagnostics-table">
                   <tbody>
-                    <tr><td>Radar UART overflow</td><td>{{ metricText('radar_uart_overflow_count', 0) }}</td></tr>
-                    <tr><td>Radar CRC errors</td><td>{{ metricText('radar_crc_err_count', 0) }}</td></tr>
-                    <tr><td>I2C recoveries</td><td>{{ metricText('i2c_recover_count', 0) }}</td></tr>
-                    <tr><td>LCD re-inits</td><td>{{ metricText('lcd_reinit_count', 0) }}</td></tr>
-                    <tr><td>WDT near misses</td><td>{{ metricText('wdt_near_miss_count', 0) }}</td></tr>
-                    <tr><td>Command RX / errors</td><td>{{ metricText('cmd_rx_count', 0) }} / {{ metricText('cmd_err_count', 0) }}</td></tr>
                     <tr><td>Active faults</td><td>{{ state.lastPayload()?.faults?.length || 0 }}</td></tr>
                   </tbody>
                 </table>
@@ -254,14 +250,18 @@
             <mat-card class="diagnostics-mini-card">
               <mat-card-header><mat-card-title>Spatial Targets</mat-card-title></mat-card-header>
               <mat-card-content class="diagnostics-table-wrap">
-                <table class="diagnostics-table">
-                  <tbody>
-                    <tr><td>Person Detected</td><td>{{ state.lastPayload()?.radar?.human ? 'YES' : 'NO' }}</td></tr>
-                    <tr><td>Distance (cm)</td><td>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) : '--' }}</td></tr>
-                    <tr><td>Point cloud targets</td><td>{{ metricLabel('num_targets') }}</td></tr>
-                    <tr><td>Doppler cm/s</td><td>{{ metricText('primary_dop_speed_cms', 1) }}</td></tr>
-                  </tbody>
-                </table>
+                @if (state.lastPayload()) {
+                  <table class="diagnostics-table">
+                    <tbody>
+                      <tr><td>Person Detected</td><td>{{ state.lastPayload()?.radar?.human ? 'YES' : 'NO' }}</td></tr>
+                      <tr><td>Distance (cm)</td><td>{{ state.lastPayload()?.radar?.distance_cm ? Math.round(state.lastPayload()?.radar?.distance_cm ?? 0) : '--' }}</td></tr>
+                      <tr><td>Point cloud targets</td><td>{{ metricLabel('num_targets') }}</td></tr>
+                      <tr><td>Doppler cm/s</td><td>{{ metricText('primary_dop_speed_cms', 1) }}</td></tr>
+                    </tbody>
+                  </table>
+                } @else {
+                  <p class="empty-copy">Waiting for target telemetry…</p>
+                }
               </mat-card-content>
             </mat-card>
           </div>

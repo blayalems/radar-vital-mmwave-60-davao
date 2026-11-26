@@ -60,12 +60,14 @@
 
       <!-- SIGNAL LOCK-STATE / MOTION / READINESS CHIPS -->
       <div class="signal-status-chips" role="status" aria-live="polite" aria-atomic="false">
-        <span class="status-chip standby-chip" [class.recording]="state.lastPayload()?.meta?.status === 'running'">
-          <mat-icon aria-hidden="true">{{ state.lastPayload()?.meta?.status === 'running' ? 'fiber_manual_record' : 'schedule' }}</mat-icon>
-          {{ state.lastPayload()?.meta?.status === 'running' ? 'Recording' : 'Standby' }}
-        </span>
+        @if (state.lastPayload()?.meta?.status === 'running') {
+          <span class="status-chip recording-chip">
+            <mat-icon aria-hidden="true">fiber_manual_record</mat-icon>
+            Recording
+          </span>
+        }
         <!-- Phase / motion / readiness chips are Advanced-mode detail; the
-             Simple (zen) view shows a single status chip like the prototype. -->
+             Simple (zen) view stays minimal. -->
         @if (!state.zenMode()) {
           @if (sessionPhaseLabel(); as phaseLabel) {
             <span class="status-chip phase-chip" [attr.data-phase]="sessionPhaseName()" [class.stale-dim]="state.telemetryStale()">
@@ -125,9 +127,7 @@
   </div>
 
   <!-- SIX HIGH-FIDELITY LIVE TAB PAGES -->
-  <div class="main-layout-split" [class.is-split]="splitScreenActive()">
-    <div class="primary-pane">
-      <mat-tab-group class="live-tabs-group" [selectedIndex]="activeTabIndex" (selectedTabChange)="onTabChange($event)">
+  <mat-tab-group class="live-tabs-group" animationDuration="0ms" [selectedIndex]="activeTabIndex()" (selectedTabChange)="onTabChange($event)">
 
     <!-- 1. OVERVIEW TAB -->
     <mat-tab label="Overview">
@@ -159,90 +159,7 @@
       <live-audit-tab [context]="auditTabContext" />
     </mat-tab>
 
-      </mat-tab-group>
-    </div>
-
-    @if (splitScreenActive()) {
-      <div class="secondary-pane">
-        <mat-card class="split-pane-card">
-          <mat-card-header>
-            <mat-card-title>Secondary Monitor (Pane B)</mat-card-title>
-            <div class="pane-actions">
-              <mat-button-toggle-group [value]="paneBTabIndex()" (change)="paneBTabIndex.set($event.value); requestCanvasDraw()" aria-label="Secondary pane view selection">
-                <mat-button-toggle [value]="1">Waves</mat-button-toggle>
-                <mat-button-toggle [value]="2">HR</mat-button-toggle>
-                <mat-button-toggle [value]="3">RR</mat-button-toggle>
-              </mat-button-toggle-group>
-            </div>
-          </mat-card-header>
-          <mat-card-content class="pane-b-content">
-            @if (paneBTabIndex() === 1) {
-              <div class="canvas-plot-container bg-pink-tint secondary-wave">
-                <wave-canvas #breathCanvasClone
-                             [data]="seriesNumbers('breath_phase', 'breath')"
-                             color="rgba(97, 105, 198, 0.95)"
-                             chartKey="breath"
-                             ariaLabel="Secondary Breath waveform"
-                             [annotations]="getAnnotationsFor('breath')">
-                </wave-canvas>
-              </div>
-              <div class="canvas-plot-container bg-teal-tint secondary-wave">
-                <wave-canvas #heartCanvasClone
-                             [data]="seriesNumbers('heart_phase', 'heart')"
-                             color="rgba(0, 164, 150, 0.95)"
-                             chartKey="heart"
-                             ariaLabel="Secondary Heart waveform"
-                             [annotations]="getAnnotationsFor('heart')">
-                </wave-canvas>
-              </div>
-            } @else if (paneBTabIndex() === 2) {
-              @if (ghostPointCount('hr') > 1) {
-                <div class="trend-legend compact" role="group" aria-label="Secondary heart rate trend legend">
-                  <span class="trend-legend-item"><span class="trend-line current hr" aria-hidden="true"></span>Current</span>
-                  <span class="trend-legend-item"><span class="trend-line ghost" aria-hidden="true"></span>{{ ghostLegendText('hr') }}</span>
-                </div>
-              }
-              <div class="large-canvas-container secondary-trend">
-                <trend-canvas #hrTrendCanvasClone
-                              [data]="trimTrend(seriesNumbers('reported_hr', 'hr'))"
-                              color="rgba(0, 164, 150, 0.95)"
-                              [minV]="Math.max(0, state.kpiThresholds().hrLow - 20)"
-                              [maxV]="state.kpiThresholds().hrHigh + 20"
-                              type="hr"
-                              [ariaLabel]="trendChartLabel('Secondary heart rate trend', 'reported_hr', 'beats per minute', 'hr')"
-                              [ghostData]="ghostHrData()"
-                              [ghostSessionLabel]="ghostSessionLabel()"
-                              [ghostSessionActive]="ghostSessionActive()"
-                              [annotations]="getAnnotationsFor('hr')">
-                </trend-canvas>
-              </div>
-            } @else if (paneBTabIndex() === 3) {
-              @if (ghostPointCount('rr') > 1) {
-                <div class="trend-legend compact" role="group" aria-label="Secondary respiration trend legend">
-                  <span class="trend-legend-item"><span class="trend-line current rr" aria-hidden="true"></span>Current</span>
-                  <span class="trend-legend-item"><span class="trend-line ghost" aria-hidden="true"></span>{{ ghostLegendText('rr') }}</span>
-                </div>
-              }
-              <div class="large-canvas-container secondary-trend">
-                <trend-canvas #rrTrendCanvasClone
-                              [data]="trimTrend(seriesNumbers('reported_rr', 'rr'))"
-                              color="rgba(97, 105, 198, 0.95)"
-                              [minV]="Math.max(0, state.kpiThresholds().rrLow - 5)"
-                              [maxV]="state.kpiThresholds().rrHigh + 5"
-                              type="rr"
-                              [ariaLabel]="trendChartLabel('Secondary respiration trend', 'reported_rr', 'breaths per minute', 'rr')"
-                              [ghostData]="ghostRrData()"
-                              [ghostSessionLabel]="ghostSessionLabel()"
-                              [ghostSessionActive]="ghostSessionActive()"
-                              [annotations]="getAnnotationsFor('rr')">
-                </trend-canvas>
-              </div>
-            }
-          </mat-card-content>
-        </mat-card>
-      </div>
-    }
-  </div>
+  </mat-tab-group>
 
 </div>
 }

@@ -30,16 +30,16 @@
         } @else {
           <div class="canvas-plot-container bg-pink-tint">
             <wave-canvas #breathCanvas
-              [data]="context().seriesNumbers('breath_phase', 'breath')"
+              [data]="context().breathSeries()"
               color="rgba(97, 105, 198, 0.95)"
               chartKey="breath"
-              [ariaLabel]="context().chartLabel('Breathing waveform', 'reported_rr', 'breaths per minute')"
-              [annotations]="context().getAnnotationsFor('breath')"
+              [ariaLabel]="context().breathChartLabel()"
+              [annotations]="context().breathAnnotations()"
               (click)="context().handleChartClick($event, 'breath')" />
           </div>
-          @if (context().getAnnotationsFor('breath').length > 0) {
+          @if (context().breathAnnotations().length > 0) {
             <div class="annotation-chips">
-              @for (ann of context().getAnnotationsFor('breath'); track ann.id) {
+              @for (ann of context().breathAnnotations(); track ann.id) {
                 <mat-chip-row (removed)="context().deleteAnnotation('breath', ann)">
                   {{ ann.label }} ({{ (ann.xPct * 100).toFixed(0) }}%)
                   <button matChipRemove [attr.aria-label]="'Remove annotation ' + ann.label"><mat-icon>cancel</mat-icon></button>
@@ -48,10 +48,10 @@
             </div>
           }
         }
-        <mat-progress-bar mode="determinate" [value]="context().qualityPercent('pqi_breath')" class="quality-bar rr-quality" />
-        <span class="quality-label">{{ context().qualityLabel('pqi_breath') }}</span>
-        <div class="sqi-ribbon" role="img" [attr.aria-label]="context().ribbonLabel('breath')">
-          @for (seg of context().ribbonSegments('breath'); track $index) {
+        <mat-progress-bar mode="determinate" [value]="context().breathQualityPercent()" class="quality-bar rr-quality" />
+        <span class="quality-label">{{ context().breathQualityLabel() }}</span>
+        <div class="sqi-ribbon" role="img" [attr.aria-label]="context().breathRibbonLabel()">
+          @for (seg of context().breathRibbonSegments(); track $index) {
             <span [class]="seg"></span>
           }
         </div>
@@ -76,16 +76,16 @@
         } @else {
           <div class="canvas-plot-container bg-teal-tint">
             <wave-canvas #heartCanvas
-              [data]="context().seriesNumbers('heart_phase', 'heart')"
+              [data]="context().heartSeries()"
               color="rgba(0, 164, 150, 0.95)"
               chartKey="heart"
-              [ariaLabel]="context().chartLabel('Heartbeat waveform', 'reported_hr', 'beats per minute')"
-              [annotations]="context().getAnnotationsFor('heart')"
+              [ariaLabel]="context().heartChartLabel()"
+              [annotations]="context().heartAnnotations()"
               (click)="context().handleChartClick($event, 'heart')" />
           </div>
-          @if (context().getAnnotationsFor('heart').length > 0) {
+          @if (context().heartAnnotations().length > 0) {
             <div class="annotation-chips">
-              @for (ann of context().getAnnotationsFor('heart'); track ann.id) {
+              @for (ann of context().heartAnnotations(); track ann.id) {
                 <mat-chip-row (removed)="context().deleteAnnotation('heart', ann)">
                   {{ ann.label }} ({{ (ann.xPct * 100).toFixed(0) }}%)
                   <button matChipRemove [attr.aria-label]="'Remove annotation ' + ann.label"><mat-icon>cancel</mat-icon></button>
@@ -94,10 +94,10 @@
             </div>
           }
         }
-        <mat-progress-bar mode="determinate" [value]="context().qualityPercent('pqi_heart')" class="quality-bar hr-quality" />
-        <span class="quality-label">{{ context().qualityLabel('pqi_heart') }}</span>
-        <div class="sqi-ribbon" role="img" [attr.aria-label]="context().ribbonLabel('heart')">
-          @for (seg of context().ribbonSegments('heart'); track $index) {
+        <mat-progress-bar mode="determinate" [value]="context().heartQualityPercent()" class="quality-bar hr-quality" />
+        <span class="quality-label">{{ context().heartQualityLabel() }}</span>
+        <div class="sqi-ribbon" role="img" [attr.aria-label]="context().heartRibbonLabel()">
+          @for (seg of context().heartRibbonSegments(); track $index) {
             <span [class]="seg"></span>
           }
         </div>

@@ -493,3 +493,44 @@ def test_confirmatory_assignment_exposes_logical_trial_id(tmp_path: Path):
     )
     assert assignment["logical_trial_id"] == "P-001-d060-none-t1"
     assert assignment["attempt_type"] == "subject"
+
+
+def test_completion_matrix_enriches_windows_conditions_and_no_subject_breakdown(tmp_path: Path):
+    sessions_root = tmp_path / "sessions"
+    sessions_root.mkdir()
+    create_participant_profile(str(sessions_root), {})
+    session_dir = sessions_root / "s-p001-t1"
+    (session_dir / "analysis").mkdir(parents=True)
+    initialize_session_attempt(str(session_dir), _manifest(participant_id="P-001", trial_number=1))
+    append_session_attempt_event(str(session_dir), "collecting")
+    append_session_attempt_event(str(session_dir), "completed")
+    save_json({"gate_audit": {"funnel": {"rr_eval_bins": 120}}}, str(session_dir / "analysis" / "analyse_summary.json"))
+
+    register_protocol_attempt(
+        str(sessions_root),
+        {
+            "attempt_type": "no_subject",
+            "condition_id": "d060_none",
+            "trial_number": 1,
+            "status": "no_output",
+        },
+    )
+    configuration_hash = _lock_no_subject_protocol(sessions_root)
+    _register_no_subject_capture(sessions_root, 1, configuration_hash)
+
+    matrix = completion_matrix(str(sessions_root))
+    assert matrix["no_subject_target_duration_s"] == 10800
+    assert matrix["no_subject_qualified_duration_s"] == 150.0
+    assert matrix["no_subject_unqualified_reasons"]["not_completed"] == 1
+
+    participant = matrix["participants"]["P-001"]
+    assert participant["expected_trials"] == 30
+    cell = participant["cells"]["d060_none:t1"]
+    assert cell["session_id"] == "s-p001-t1"
+    # 120 1-Hz bins with 30 s window and 5 s stride -> (120 - 30) // 5 + 1 = 19 windows (>= 15)
+    assert cell["valid_windows"] == 19
+    assert cell["meets_window_floor"] is True
+    assert participant["conditions_summary"]["d060_none"] == {
+        "valid_trials": 1,
+        "meets_trial_floor": False,
+    }

@@ -1,16 +1,48 @@
-import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, effect, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, computed, effect, inject, input } from '@angular/core';
+import { MatIconModule } from '@angular/material/icon';
 import { ChartAnnotation } from '../../models/rvt.models';
 import { ChartRenderSchedulerService } from '../../services/chart-render-scheduler.service';
 
 @Component({
   selector: 'wave-canvas',
   standalone: true,
+  imports: [MatIconModule],
   template: `
-    <canvas #canvas class="waveform-canvas" style="display: block; width: 100%; height: 100%;"
-            [attr.aria-label]="ariaLabel()">
-    </canvas>
+    <div class="wave-canvas-container">
+      <canvas #canvas class="waveform-canvas" style="display: block; width: 100%; height: 100%;"
+              [attr.aria-label]="accessibleLabel()">
+      </canvas>
+      @if (!hasSamples()) {
+        <div class="wave-empty-state" aria-hidden="true">
+          <mat-icon>waves</mat-icon>
+          <strong>Waiting for waveform samples</strong>
+          <span>Phase waveform data will appear once telemetry samples arrive.</span>
+        </div>
+      }
+    </div>
   `,
-  styles: [':host { display: block; width: 100%; height: 100%; }'],
+  styles: [`
+    :host { display: block; width: 100%; height: 100%; }
+    .wave-canvas-container { position: relative; width: 100%; height: 100%; }
+    .wave-empty-state {
+      position: absolute;
+      inset: 12px;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: 4px;
+      padding: 12px;
+      border: 1px dashed var(--md-sys-color-outline-variant, #cbd5e1);
+      border-radius: 12px;
+      color: var(--md-sys-color-on-surface-variant, #64748b);
+      background: color-mix(in srgb, var(--md-sys-color-surface-container-lowest, #ffffff) 88%, transparent);
+      text-align: center;
+      pointer-events: none;
+    }
+    .wave-empty-state mat-icon { width: 24px; height: 24px; font-size: 24px; color: var(--md-sys-color-primary, #36618e); }
+    .wave-empty-state strong { font-size: 0.88rem; color: var(--md-sys-color-on-surface, #16212e); }
+    .wave-empty-state span { font-size: 0.76rem; line-height: 1.35; max-width: 32ch; }
+  `],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class WaveCanvasComponent implements AfterViewInit, OnDestroy {
@@ -22,6 +54,13 @@ export class WaveCanvasComponent implements AfterViewInit, OnDestroy {
   chartKey = input<string>('');
   ariaLabel = input<string>('');
   annotations = input<ChartAnnotation[]>([]);
+  protected readonly hasSamples = computed(() => this.data().length >= 2);
+  protected readonly accessibleLabel = computed(() => {
+    const base = this.ariaLabel().trim();
+    if (this.hasSamples()) return base;
+    const separator = base && !base.endsWith('.') ? '.' : '';
+    return `${base}${separator} Waiting for waveform samples.`.trim();
+  });
 
   @ViewChild('canvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;
 

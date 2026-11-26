@@ -72,6 +72,8 @@ export class UiStore {
     }
 
     if (typeof navigator === 'undefined' || !('vibrate' in navigator)) return;
+    const userActivation = (navigator as Navigator & { userActivation?: { hasBeenActive?: boolean } }).userActivation;
+    if (userActivation && !userActivation.hasBeenActive) return;
 
     try {
       switch (kind) {

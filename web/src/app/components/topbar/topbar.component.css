@@ -55,14 +55,6 @@
   white-space: nowrap !important;
 }
 
-:host .crumb-trail {
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: capitalize;
-}
-
 :host .topbar-status {
   display: flex;
   flex: 0 0 auto;
@@ -234,10 +226,6 @@
     white-space: normal !important;
   }
 
-  :host .crumb-trail {
-    display: none;
-  }
-
   :host .topbar-status {
     flex: 0 0 auto !important;
     margin-left: 0 !important;
@@ -266,13 +254,15 @@
   }
 
   :host .topbar-actions {
-    gap: 2px;
+    gap: 4px;
   }
 
   :host .ic-btn,
   :host .tb-more {
-    height: 42px !important;
-    width: 42px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    min-width: 44px !important;
+    width: 44px !important;
   }
 }
 
@@ -286,16 +276,28 @@
   }
 }
 
-:host-context(html[data-theme='hc']) .topbar,
+:host-context(html[data-theme='hc']) .topbar {
+  background: #000 !important;
+  border-bottom: 2px solid #fff !important;
+}
+
 :host-context(html[data-theme='hc']) .crumb-title,
 :host-context(html[data-theme='hc']) .crumb-eyebrow {
   color: #fff !important;
 }
 
-:host-context(html[data-theme='hc']) .mode-badge,
+:host-context(html[data-theme='hc']) .topbar .status-pill.mode-badge,
+:host-context(html[data-theme='hc']) .topbar .status-pill.mode-badge.demo,
+:host-context(html[data-theme='hc']) .topbar .status-pill.mode-badge.live,
+:host-context(html[data-theme='hc']) .topbar .status-pill.mode-badge.failed,
 :host-context(html[data-theme='hc']) .ic-btn,
 :host-context(html[data-theme='hc']) .tb-more {
-  border-color: #fff !important;
+  background: #000 !important;
+  border: 1px solid #fff !important;
+  color: #fff !important;
+}
+
+:host-context(html[data-theme='hc']) .topbar .status-pill.mode-badge .status-sub {
   color: #fff !important;
 }
 

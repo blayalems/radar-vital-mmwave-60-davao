@@ -1005,6 +1005,7 @@ class SessionSupervisor:
                 except ValueError:
                     pass
                 return {
+                    "ok": True,
                     "session_id": Path(session_dir).name,
                     "session_dir": session_dir,
                     "pid": proc.pid,
@@ -1053,6 +1054,7 @@ class SessionSupervisor:
                     raise RuntimeError("no active session")
                 return _schema_wrap(
                     {
+                        "ok": True,
                         "session_id": "",
                         "stopped_at": _iso_now(),
                         "reason": reason,
@@ -1140,6 +1142,7 @@ class SessionSupervisor:
             )
             return _schema_wrap(
                 {
+                    "ok": True,
                     "session_id": Path(stopped_session_dir).name,
                     "stopped_at": _iso_now(),
                     "reason": reason,

@@ -56,18 +56,18 @@ function buildSteps(platform: TutorialPlatform): TutorialStep[] {
       body:
         'Before every session, open <strong>Home</strong> and run the hardware preflight ' +
         'checklist. Place the mmWave sensor so the subject falls within the highlighted ' +
-        '<strong>Optimal zone</strong> (0.3 – 1.5 m) shown in the Radar Scope card. ' +
-        'A green <em>Optimal</em> chip confirms correct placement.'
+        '<strong>Sweet spot</strong> (40 – 100 cm) shown in the Radar Scope card. ' +
+        'A green <em>Sweet spot</em> chip confirms ideal placement.'
     },
     {
       icon: 'monitor_heart',
       title: 'Live View — Monitoring',
       body:
         'The <strong>Live</strong> tab streams real-time heart rate and respiration. ' +
-        'Watch the <strong>lock-state chip</strong> (unlocked → locking → locked) in the ' +
-        'KPI cards for measurement confidence. The <strong>SQI ribbon</strong> shows ' +
-        'signal-quality index over time. Use <strong>P</strong> to pause, ' +
-        '<strong>Alt+5</strong> to save a snapshot.'
+        'Watch the <strong>quality and freshness badges</strong> in the KPI cards for ' +
+        'measurement confidence. The <strong>SQI</strong> ribbon and trends show ' +
+        'signal quality over time. Use <kbd>Space</kbd> to pause, <kbd>P</kbd> to pin ' +
+        'a snapshot, and <kbd>Alt+5</kbd> to open the Snaps tab.'
     },
     {
       icon: 'assignment',

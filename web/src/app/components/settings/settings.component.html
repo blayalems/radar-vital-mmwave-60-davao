@@ -1,14 +1,4 @@
 <div class="settings-container">
-  <div class="settings-header">
-    <div>
-      <h2 class="settings-title">Dashboard Settings</h2>
-      <p class="settings-subtitle">Keep live mode honest. Demo mode is explicit, not silent.</p>
-    </div>
-    <button mat-icon-button (click)="close()" title="Close settings" aria-label="Close settings" class="close-btn">
-      <mat-icon>close</mat-icon>
-    </button>
-  </div>
-
   <mat-form-field appearance="outline" class="settings-search-field">
     <mat-icon matPrefix>search</mat-icon>
     <input
@@ -65,27 +55,6 @@
           <button mat-flat-button type="button" (click)="reconnectTrainer()" [disabled]="connectionBusy()">
             <mat-icon>link</mat-icon>{{ connectionBusy() ? 'Connecting...' : 'Connect to trainer' }}
           </button>
-
-          <div class="lan-pin-block">
-            <div class="lan-pin-head">
-              <span class="lan-pin-title">Single-use LAN pairing PIN</span>
-              <span class="lan-pin-expiry">expires in {{ pinExpiryLabel() }}</span>
-            </div>
-            <div class="lan-pin-row">
-              <div class="lan-pin-boxes" role="group" aria-label="LAN pairing PIN">
-                @for (digit of lanPinDigits(); track $index) {
-                  <span class="lan-pin-box">{{ digit }}</span>
-                }
-              </div>
-              <button mat-icon-button type="button" class="lan-pin-refresh" (click)="regenerateLanPin()" title="Regenerate PIN" aria-label="Regenerate pairing PIN">
-                <mat-icon>autorenew</mat-icon>
-              </button>
-              <button mat-flat-button type="button" class="mat-tonal-button" (click)="showPairingQr()">
-                <mat-icon>grid_on</mat-icon>Show QR
-              </button>
-            </div>
-            <p class="lan-pin-hint">Enter this PIN on the paired phone to authorize LAN access. PINs are single-use and held in memory only.</p>
-          </div>
         </mat-card-content>
       </mat-card>
     }
@@ -284,7 +253,7 @@
           <div class="settings-row block-row">
             <div class="settings-copy">
               <span class="row-title">Color palette</span>
-              <span class="row-description">Material 3 Expressive explorations. Each retunes the whole tonal system.</span>
+              <span class="row-description">Color palette presets for surface and accent tokens.</span>
             </div>
             <div class="palette-options" role="radiogroup" aria-label="Color palette">
               @for (opt of paletteOptions; track opt.id) {
@@ -310,13 +279,13 @@
           <div class="settings-row block-row">
             <div class="settings-copy">
               <span class="row-title">Theme</span>
-              <span class="row-description">Choose a fixed theme or follow system settings.</span>
+              <span class="row-description">Select light, dark, night red, or high-contrast surfaces.</span>
             </div>
             <mat-button-toggle-group [value]="state.theme()" (change)="state.theme.set($event.value)" aria-label="Theme mode" class="theme-toggle-group">
               <mat-button-toggle value="light">Light</mat-button-toggle>
               <mat-button-toggle value="dark">Dark</mat-button-toggle>
               <mat-button-toggle value="night">Night Red</mat-button-toggle>
-              <mat-button-toggle value="hc">HC</mat-button-toggle>
+              <mat-button-toggle value="hc">High contrast</mat-button-toggle>
             </mat-button-toggle-group>
           </div>
 
@@ -344,7 +313,7 @@
               <span class="row-description">Comfortable leaves more breathing room; compact fits more telemetry.</span>
             </div>
             <mat-button-toggle-group [value]="state.density()" (change)="state.density.set($event.value)" aria-label="Display density" class="density-toggle-group">
-              <mat-button-toggle value="comfortable">Comfort</mat-button-toggle>
+              <mat-button-toggle value="comfortable">Comfortable</mat-button-toggle>
               <mat-button-toggle value="compact">Compact</mat-button-toggle>
             </mat-button-toggle-group>
           </div>
@@ -363,7 +332,7 @@
           <div class="settings-row">
             <div class="settings-copy">
               <span class="row-title">Dynamic Color</span>
-              <span class="row-description">Generate the entire color palette from a single source color, just like Material You on Android.</span>
+              <span class="row-description">Derive UI color tokens from a custom source color.</span>
             </div>
             <mat-slide-toggle [checked]="dynamicColor.enabled()" (change)="dynamicColor.setEnabled($event.checked)"></mat-slide-toggle>
           </div>
@@ -790,7 +759,7 @@
 
     <!-- About & Legal (embedded repo cards) -->
     @if (settingsCardMatches('system')) {
-      <mat-card class="settings-card premium-card">
+      <mat-card class="settings-card premium-card about-legal-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="card-avatar">info</mat-icon>
           <mat-card-title>About & legal</mat-card-title>

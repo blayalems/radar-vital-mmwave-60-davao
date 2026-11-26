@@ -167,6 +167,10 @@ from rvt_trainer.session.study_evidence import (
     schedule_for_participant as _schedule_for_participant,
 )
 from rvt_trainer.session.study_objectives import study_objectives_payload as _study_objectives_payload
+from rvt_trainer.statistics import (
+    format_condition_summary_csv as _format_condition_summary_csv,
+    format_ieee_latex_table as _format_ieee_latex_table,
+)
 from rvt_trainer.session.supervisor import (
     SessionStartPreflightError,
     SessionSupervisor as _SessionSupervisor,
@@ -1018,7 +1022,7 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 row = matrix_rows.get(profile.get("participant_id"), {}) if isinstance(matrix_rows, dict) else {}
                 enriched = dict(profile)
                 enriched["completed_trials"] = int(row.get("completed_trials", 0)) if isinstance(row, dict) else 0
-                enriched["expected_trials"] = int(row.get("expected_trials", 18)) if isinstance(row, dict) else 18
+                enriched["expected_trials"] = int(row.get("expected_trials", 30)) if isinstance(row, dict) else 30
                 enriched["protocol_complete"] = bool(row.get("protocol_complete", False)) if isinstance(row, dict) else False
                 participants.append(enriched)
             self._send_json(200, {
@@ -1420,6 +1424,45 @@ class _ControlHandler(SimpleHTTPRequestHandler):
                 )
                 return
             self._send_json(200, report)
+            return
+        if route_name == "study_objective_export":
+            objective_id = unquote(path.split("/")[4])
+            fmt = str((parse_qs(parsed.query).get("format") or ["latex"])[-1] or "latex").strip().lower()
+            if fmt not in {"latex", "csv"}:
+                self._send_json(
+                    400,
+                    _api_error("VALIDATION_FAILED", "format must be latex or csv"),
+                )
+                return
+            try:
+                report = _objective_report(
+                    objective_id,
+                    objectives=_study_objectives_payload(),
+                    sessions_root=self.server.sessions_root,
+                    product_version=VERSION,
+                )
+            except KeyError:
+                self._send_json(
+                    404,
+                    _api_error("OBJECTIVE_NOT_FOUND", "study objective not found"),
+                )
+                return
+            content = (
+                _format_ieee_latex_table(report)
+                if fmt == "latex"
+                else _format_condition_summary_csv(report)
+            )
+            ext = "tex" if fmt == "latex" else "csv"
+            content_type = "application/x-tex; charset=utf-8" if fmt == "latex" else "text/csv; charset=utf-8"
+            self._send_json(200, {
+                "ok": True,
+                "objective_id": objective_id,
+                "format": fmt,
+                "filename": f"{objective_id}_summary.{ext}",
+                "content_type": content_type,
+                "content": content,
+                "status": report.get("status"),
+            })
             return
         if route_name == "report_export":
             sid = (parse_qs(parsed.query).get("session") or [""])[-1]

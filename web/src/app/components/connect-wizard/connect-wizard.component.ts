@@ -30,16 +30,16 @@ import { SourceModeService } from '../../services/source-mode.service';
     MatExpansionModule
   ],
   template: `
-    <div class="connect-wizard-container" style="display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 16px; box-sizing: border-box; background: var(--md-sys-color-background, #fafafa);">
-      <mat-card style="max-width: 480px; width: 100%;">
-        <mat-card-header style="text-align: center; display: block; margin-bottom: 16px;">
+    <div class="connect-wizard-container" style="display: flex; justify-content: center; align-items: center; min-height: 100dvh; padding: 16px; box-sizing: border-box; background: var(--rv-bg, var(--md-sys-color-background));">
+      <mat-card style="max-width: 480px; width: 100%; padding: 24px; box-sizing: border-box;">
+        <mat-card-header style="text-align: center; display: block; padding: 0 0 16px 0;">
           <mat-card-title style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">Welcome to Radar Vital</mat-card-title>
           <mat-card-subtitle>Configure your connection to the 60 GHz mmWave trainer</mat-card-subtitle>
         </mat-card-header>
 
-        <mat-card-content>
+        <mat-card-content style="padding: 0;">
           @if (error()) {
-            <div class="error-banner" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 14px;">
+            <div class="error-banner" style="background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); padding: 12px; border-radius: var(--rv-r2, 14px); margin-bottom: 16px; font-size: 14px;">
               {{ error() }}
             </div>
           }
@@ -50,7 +50,7 @@ import { SourceModeService } from '../../services/source-mode.service';
               <p style="margin-top: 16px; color: var(--md-sys-color-on-surface-variant);">Connecting and pairing...</p>
             </div>
           } @else if (scanning()) {
-            <div class="camera-preview-container" style="position: relative; width: 100%; border-radius: 8px; overflow: hidden; background: black; aspect-ratio: 4/3;">
+            <div class="camera-preview-container" style="position: relative; width: 100%; border-radius: var(--rv-r2, 14px); overflow: hidden; background: black; aspect-ratio: 4/3;">
               <video #videoElement style="width: 100%; height: 100%; object-fit: cover;" autoplay playsinline></video>
               <div style="position: absolute; inset: 0; border: 2px dashed rgba(255,255,255,0.6); margin: 40px; pointer-events: none;"></div>
               <button mat-flat-button color="warn" style="position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);" (click)="stopScanner()">
@@ -66,9 +66,9 @@ import { SourceModeService } from '../../services/source-mode.service';
               </button>
 
               <div style="display: flex; align-items: center; margin: 8px 0;">
-                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--md-sys-color-outline-variant, #e0e0e0);">
+                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--md-sys-color-outline-variant);">
                 <span style="padding: 0 16px; color: var(--md-sys-color-on-surface-variant); font-size: 14px;">or connect to a trainer</span>
-                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--md-sys-color-outline-variant, #e0e0e0);">
+                <hr style="flex-grow: 1; border: none; border-top: 1px solid var(--md-sys-color-outline-variant);">
               </div>
 
               <!-- Scan QR Option -->
@@ -78,7 +78,7 @@ import { SourceModeService } from '../../services/source-mode.service';
               </button>
 
               <!-- Manual Connect Form -->
-              <mat-expansion-panel [expanded]="manualExpanded()" (opened)="manualExpanded.set(true)" (closed)="manualExpanded.set(false)" style="box-shadow: none; border: 1px solid var(--md-sys-color-outline-variant, #e0e0e0); border-radius: 8px;">
+              <mat-expansion-panel [expanded]="manualExpanded()" (opened)="manualExpanded.set(true)" (closed)="manualExpanded.set(false)" style="box-shadow: none; border: 1px solid var(--md-sys-color-outline-variant); border-radius: var(--rv-r2, 14px);">
                 <mat-expansion-panel-header>
                   <mat-panel-title>Enter Address & PIN Manually</mat-panel-title>
                 </mat-expansion-panel-header>
@@ -125,6 +125,9 @@ export class ConnectWizardComponent implements OnDestroy {
   @ViewChild('videoElement') videoElement?: ElementRef<HTMLVideoElement>;
   private scannerStream?: MediaStream;
   private scanTimer?: number;
+  private scanStartTimeout?: ReturnType<typeof setTimeout>;
+  private scanCanvas?: HTMLCanvasElement;
+  private scanCtx?: CanvasRenderingContext2D | null;
 
   ngOnDestroy() {
     this.stopScanner();
@@ -151,7 +154,8 @@ export class ConnectWizardComponent implements OnDestroy {
 
       this.scanning.set(true);
 
-      setTimeout(() => {
+      this.scanStartTimeout = setTimeout(() => {
+        this.scanStartTimeout = undefined;
         if (this.videoElement && this.scannerStream) {
           this.videoElement.nativeElement.srcObject = this.scannerStream;
           this.startScanLoop();
@@ -165,6 +169,10 @@ export class ConnectWizardComponent implements OnDestroy {
 
   stopScanner() {
     this.scanning.set(false);
+    if (this.scanStartTimeout !== undefined) {
+      clearTimeout(this.scanStartTimeout);
+      this.scanStartTimeout = undefined;
+    }
     if (this.scanTimer) {
       cancelAnimationFrame(this.scanTimer);
       this.scanTimer = undefined;
@@ -173,31 +181,36 @@ export class ConnectWizardComponent implements OnDestroy {
       this.scannerStream.getTracks().forEach(track => track.stop());
       this.scannerStream = undefined;
     }
+    this.scanCanvas = undefined;
+    this.scanCtx = undefined;
   }
 
   private startScanLoop() {
     const video = this.videoElement?.nativeElement;
     if (!video) return;
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    if (!this.scanCanvas) {
+      this.scanCanvas = document.createElement('canvas');
+      this.scanCtx = this.scanCanvas.getContext('2d', { willReadFrequently: true });
+    }
+    const canvas = this.scanCanvas;
+    const ctx = this.scanCtx;
 
     const scan = () => {
       if (!this.scanning()) return;
 
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      if (video.readyState === video.HAVE_ENOUGH_DATA && ctx) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-        if (imageData) {
-          const code = (window as any).jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: 'dontInvert'
-          });
+        const code = (window as any).jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: 'dontInvert'
+        });
 
-          if (code && code.data) {
-            this.handleScannedQR(code.data);
+        if (code && code.data) {
+          if (this.handleScannedQR(code.data)) {
             return;
           }
         }
@@ -208,7 +221,7 @@ export class ConnectWizardComponent implements OnDestroy {
     this.scanTimer = requestAnimationFrame(scan);
   }
 
-  private handleScannedQR(qrText: string) {
+  private handleScannedQR(qrText: string): boolean {
     try {
       const url = new URL(qrText);
       const pin = url.searchParams.get('pair');
@@ -216,12 +229,12 @@ export class ConnectWizardComponent implements OnDestroy {
         const serverAddress = url.origin;
         this.stopScanner();
         void this.pairAndConnect(serverAddress, pin);
-      } else {
-        this.scanTimer = requestAnimationFrame(() => this.startScanLoop());
+        return true;
       }
-    } catch (e) {
-      this.scanTimer = requestAnimationFrame(() => this.startScanLoop());
+    } catch (_) {
+      // Non-URL QR payload — keep scanning on the existing animation loop.
     }
+    return false;
   }
 
   async connectManual() {

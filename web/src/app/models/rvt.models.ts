@@ -80,6 +80,14 @@ export interface CompletionCell {
   status: ProtocolAttemptStatus | 'missing' | string;
   attempt_id?: string | null;
   attempt_type?: ProtocolAttemptType | string;
+  session_id?: string | null;
+  valid_windows?: number | null;
+  meets_window_floor?: boolean | null;
+}
+
+export interface CompletionConditionSummary {
+  valid_trials: number;
+  meets_trial_floor: boolean;
 }
 
 export interface CompletionParticipant {
@@ -89,6 +97,7 @@ export interface CompletionParticipant {
   expected_trials: number;
   protocol_complete: boolean;
   cells: Record<string, CompletionCell>;
+  conditions_summary?: Record<string, CompletionConditionSummary>;
 }
 
 export interface CompletionMatrix {
@@ -114,6 +123,9 @@ export interface CompletionMatrix {
   no_subject_attempt_count: number;
   no_subject_qualified_count?: number;
   no_subject_unqualified_count?: number;
+  no_subject_qualified_duration_s?: number;
+  no_subject_target_duration_s?: number;
+  no_subject_unqualified_reasons?: Record<string, number>;
   no_subject_expected: number;
   no_subject_remaining?: number;
   attempt_count: number;
@@ -368,6 +380,16 @@ export interface StudyObjectiveReport {
   exclusions?: Array<Record<string, unknown>>;
   provenance?: Record<string, unknown>;
   [key: string]: unknown;
+}
+
+export interface StudyObjectiveExportResponse {
+  ok: boolean;
+  objective_id: string;
+  format: 'latex' | 'csv' | string;
+  filename: string;
+  content_type: string;
+  content: string;
+  status?: string;
 }
 
 export interface ParticipantStatusResponse {

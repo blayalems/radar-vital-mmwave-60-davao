@@ -16,10 +16,10 @@
     <section>
       <h4>Vitals</h4>
       <dl>
-        <div><dt>Radar HR</dt><dd>{{ state.lastPayload()?.radar?.reported_hr ?? '--' }} bpm</dd></div>
-        <div><dt>Radar RR</dt><dd>{{ state.lastPayload()?.radar?.reported_rr ?? '--' }} br/min</dd></div>
-        <div><dt>BLE HR</dt><dd>{{ state.lastPayload()?.ble?.hr ?? '--' }} bpm</dd></div>
-        <div><dt>Range</dt><dd>{{ state.lastPayload()?.radar?.distance_cm ?? '--' }} cm</dd></div>
+        <div><dt>Radar HR</dt><dd>{{ state.lastPayload()?.radar?.reported_hr != null ? (state.lastPayload()?.radar?.reported_hr | number:'1.0-1') : '--' }} bpm</dd></div>
+        <div><dt>Radar RR</dt><dd>{{ state.lastPayload()?.radar?.reported_rr != null ? (state.lastPayload()?.radar?.reported_rr | number:'1.0-1') : '--' }} br/min</dd></div>
+        <div><dt>BLE HR</dt><dd>{{ state.lastPayload()?.ble?.hr != null ? (state.lastPayload()?.ble?.hr | number:'1.0-1') : '--' }} bpm</dd></div>
+        <div><dt>Range</dt><dd>{{ state.lastPayload()?.radar?.distance_cm != null ? (state.lastPayload()?.radar?.distance_cm | number:'1.0-1') : '--' }} cm</dd></div>
       </dl>
     </section>
 

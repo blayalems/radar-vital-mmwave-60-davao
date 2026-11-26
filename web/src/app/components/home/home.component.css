@@ -20,10 +20,44 @@
   transition: all 0.3s ease;
 }
 
+.sandbox-note .status-icon {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  font-size: 24px;
+}
+
 .sandbox-note.connected {
   background: var(--md-sys-color-primary-container, rgba(0, 164, 150, 0.08));
-  color: var(--md-sys-color-on-primary-container, #064e3b);
+  color: var(--md-sys-color-on-primary-container, #001d35);
   border: 1px solid var(--md-sys-color-primary, rgba(0, 164, 150, 0.2));
+}
+
+.sandbox-note.connected strong {
+  color: inherit;
+}
+
+:host-context(html[data-theme='hc']) .sandbox-note.connected {
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+}
+
+:host-context(html[data-theme='hc']) .home-ring {
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+}
+
+:host-context(html[data-theme='hc']) .home-ring small {
+  color: #ffffff;
+  opacity: 1;
+}
+
+:host-context(html[data-theme='hc']) .start-gate-hint {
+  background: #000000;
+  color: #ffffff;
+  border: 1px solid #ffffff;
 }
 
 .sandbox-note-copy {
@@ -1150,10 +1184,18 @@
   padding: 14px 16px;
   border: 1px solid color-mix(in srgb, var(--md-sys-color-primary, #0061a4) 28%, var(--md-sys-color-outline-variant, #cbd5e1));
   border-radius: 12px !important;
-  background:
-    linear-gradient(115deg, color-mix(in srgb, var(--md-sys-color-primary-container, #d5e3ff) 44%, transparent), transparent 58%),
-    var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface, #ffffff) !important;
   box-shadow: none !important;
+}
+
+.sessions-loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px 16px;
+  color: var(--md-sys-color-on-surface-variant, #64748b);
+  font-size: 0.88rem;
 }
 
 .install-prompt-icon {

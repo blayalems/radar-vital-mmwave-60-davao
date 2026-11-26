@@ -1021,17 +1021,15 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('.native-ble-result')).toContainText(/trainer telemetry remains the session source/i);
   });
 
-  test('issues a single-use LAN pairing PIN display with QR action', async ({ page }) => {
+  test('exposes trainer LAN pairing controls in Settings', async ({ page }) => {
     await gotoDashboardRoute(page, '/settings');
-    // The prototype shows a generated single-use PIN across six digit boxes
-    // (held in memory only — never a raw token input).
-    const boxes = page.locator('.lan-pin-box');
-    await expect(boxes).toHaveCount(6);
-    const pin = (await boxes.allInnerTexts()).join('');
-    expect(pin).toMatch(/^\d{6}$/);
-    await expect(page.getByText(/expires in \d{2}:\d{2}/)).toBeVisible();
-    await page.getByRole('button', { name: 'Show QR' }).click();
-    await expect(page.locator('simple-snack-bar').last()).toContainText(/pairing PIN/i);
+    await expect(page.getByLabel('Six-digit LAN pairing PIN')).toBeVisible();
+    const pairButton = page.getByRole('button', { name: /Pair with PIN/ });
+    await expect(pairButton).toBeVisible();
+    await expect(pairButton).toBeDisabled();
+    await page.getByLabel('Six-digit LAN pairing PIN').fill('123456');
+    await expect(pairButton).toBeEnabled();
+    await expect(page.locator('.lan-pin-box')).toHaveCount(0);
   });
 
   test('persists demo report review and structured sign-off through Material controls', async ({ page }) => {

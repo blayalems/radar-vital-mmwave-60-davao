@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 
 import { ApiService } from './api.service';
+import { isLoopbackHttpOrigin } from './api-target-policy';
 import { AuthService } from './auth.service';
 import { SERVER_URL_KEY } from './rvt-storage-keys';
 import { StateService } from './state.service';
@@ -126,6 +127,9 @@ export class ServerLifecycleService {
     }
     this.status.set('starting');
     this.lastError.set(null);
+    if (isLoopbackHttpOrigin(this.api.currentApiBase())) {
+      this.api.setApiBase('');
+    }
     try {
       const lifecycle = await this.invoke<TauriLifecycleResponse>('trainer_start', { bindMode: bindMode || 'local' });
       this.applyLifecycle(lifecycle);

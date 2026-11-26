@@ -1424,6 +1424,273 @@ def write_statistical_outputs(
     return outputs
 
 
+CANONICAL_CONDITION_IDS: tuple[str, ...] = (
+    "d060_none",
+    "d080_none",
+    "d100_none",
+    "d200_none",
+    "d300_none",
+    "d060_cardboard",
+    "d080_cardboard",
+    "d100_cardboard",
+    "d200_cardboard",
+    "d300_cardboard",
+)
+
+
+def _condition_distance_barrier(condition_id: str) -> tuple[float, str]:
+    match = re.fullmatch(r"d([0-9]{3})_(none|cardboard)", str(condition_id or "").strip().lower())
+    if not match:
+        return (0.0, "unknown")
+    return (int(match.group(1)) / 100.0, match.group(2))
+
+
+def _latex_escape(value: Any) -> str:
+    return (
+        str(value)
+        .replace("\\", "\\textbackslash{}")
+        .replace("&", "\\&")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
+
+
+def _fmt_num(value: Any, decimals: int = 2) -> str:
+    number = _float(value)
+    return "--" if number is None else f"{number:.{decimals}f}"
+
+
+def build_condition_summary_rows(report: Optional[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Build ordered 10-condition summary rows from an objective or statistical report."""
+
+    outer_status = str(report.get("status") or "").lower() if isinstance(report, Mapping) else ""
+    ready = outer_status in {"", "ready"}
+    inner: Optional[Mapping[str, Any]] = None
+    if isinstance(report, Mapping) and ready:
+        candidate = report.get("report") if "objective_id" in report else report
+        if isinstance(candidate, Mapping):
+            stats_report = candidate.get("statistical_report")
+            inner = stats_report if isinstance(stats_report, Mapping) else candidate
+
+    tost_by_condition: dict[str, Mapping[str, Any]] = {}
+    metrics_by_condition: dict[str, Mapping[str, Any]] = {}
+    if isinstance(inner, Mapping):
+        condition_tost = inner.get("condition_tost")
+        if isinstance(condition_tost, Mapping):
+            primary = condition_tost.get("primary")
+            if isinstance(primary, Mapping) and primary.get("condition_id"):
+                tost_by_condition[str(primary["condition_id"])] = primary
+            secondary = condition_tost.get("secondary")
+            if isinstance(secondary, list):
+                for item in secondary:
+                    if isinstance(item, Mapping) and item.get("condition_id"):
+                        tost_by_condition[str(item["condition_id"])] = item
+        for key in ("condition_metrics", "by_condition", "conditions"):
+            raw_map = inner.get(key)
+            if isinstance(raw_map, Mapping):
+                for cid, val in raw_map.items():
+                    if isinstance(val, Mapping):
+                        metrics_by_condition[str(cid)] = val
+
+    rows: list[dict[str, Any]] = []
+    for condition_id in CANONICAL_CONDITION_IDS:
+        distance_m, barrier_type = _condition_distance_barrier(condition_id)
+        role = "primary" if condition_id == "d100_none" else "secondary"
+        tost = tost_by_condition.get(condition_id) if ready else None
+        extra = metrics_by_condition.get(condition_id) if ready else None
+        n_participants = None
+        if isinstance(tost, Mapping) and tost.get("n_participants") is not None:
+            n_participants = int(tost["n_participants"])
+        elif isinstance(extra, Mapping) and extra.get("n_participants") is not None:
+            n_participants = int(extra["n_participants"])
+        valid_rate = _float(extra.get("valid_output_rate_pct")) if isinstance(extra, Mapping) else None
+        if valid_rate is None and isinstance(extra, Mapping):
+            cov = _float(extra.get("coverage"))
+            if cov is not None:
+                valid_rate = cov * 100.0
+        bias = _float(extra.get("bias", extra.get("bias_estimate_minus_reference"))) if isinstance(extra, Mapping) else None
+        if bias is None and isinstance(tost, Mapping):
+            bias = _float(tost.get("mean_difference"))
+        rmse_val = _float(extra.get("rmse")) if isinstance(extra, Mapping) else None
+        mae_val = _float(extra.get("mae")) if isinstance(extra, Mapping) else None
+        ba_low = _float(extra.get("ba_loa_low", extra.get("loa_lower"))) if isinstance(extra, Mapping) else None
+        ba_high = _float(extra.get("ba_loa_high", extra.get("loa_upper"))) if isinstance(extra, Mapping) else None
+        ci_low = _float(tost.get("ci_low")) if isinstance(tost, Mapping) else None
+        ci_high = _float(tost.get("ci_high")) if isinstance(tost, Mapping) else None
+        p_val = _float(tost.get("p_value")) if isinstance(tost, Mapping) else None
+        p_holm = _float(tost.get("p_value_holm")) if isinstance(tost, Mapping) else None
+        if isinstance(tost, Mapping):
+            decision = str(
+                tost.get("decision_holm")
+                or tost.get("decision")
+                or "inconclusive"
+            )
+            if str(tost.get("status") or "").startswith("inconclusive"):
+                decision = "inconclusive"
+        else:
+            decision = "inconclusive"
+        rows.append({
+            "condition_id": condition_id,
+            "distance_m": distance_m,
+            "barrier_type": barrier_type,
+            "role": role,
+            "n_participants": n_participants,
+            "valid_output_rate_pct": valid_rate,
+            "bias": bias,
+            "rmse": rmse_val,
+            "mae": mae_val,
+            "ba_loa_low": ba_low,
+            "ba_loa_high": ba_high,
+            "tost_ci_low": ci_low,
+            "tost_ci_high": ci_high,
+            "p_value": p_val,
+            "p_value_holm": p_holm,
+            "holm_decision": decision,
+        })
+    return rows
+
+
+def format_ieee_latex_table(objective_payload: Mapping[str, Any]) -> str:
+    """Render an IEEE manuscript-ready LaTeX table for a study objective."""
+
+    objective_id = str(objective_payload.get("objective_id") or "objective")
+    status = str(objective_payload.get("status") or "inconclusive")
+    provenance = objective_payload.get("provenance")
+    obj_meta = provenance.get("objective") if isinstance(provenance, Mapping) else None
+    label_text = str(
+        obj_meta.get("label")
+        if isinstance(obj_meta, Mapping) and obj_meta.get("label")
+        else objective_id
+    )
+    is_ready = status == "ready"
+    lines = [
+        f"% Generated by rvt_trainer.statistics for {objective_id} (status={status})",
+        "\\begin{table}[!t]",
+        "\\centering",
+        f"\\caption{{{_latex_escape(label_text)} ({_latex_escape(status)})}}",
+        f"\\label{{tab:{_latex_escape(objective_id)}}}",
+    ]
+    if objective_id == "objective_3_false_alarm":
+        raw_report = objective_payload.get("report")
+        report: Optional[Mapping[str, Any]] = raw_report if is_ready and isinstance(raw_report, Mapping) else None
+        raw_ci = report.get("confidence_interval_95") if isinstance(report, Mapping) else None
+        ci: Mapping[str, Any] = raw_ci if isinstance(raw_ci, Mapping) else {}
+        raw_test = report.get("exact_binomial_test") if isinstance(report, Mapping) else None
+        test_res: Mapping[str, Any] = raw_test if isinstance(raw_test, Mapping) else {}
+        qualified = str(report.get("qualified_trial_count")) if isinstance(report, Mapping) and report.get("qualified_trial_count") is not None else "--"
+        alarms = str(report.get("false_alarm_trial_count")) if isinstance(report, Mapping) and report.get("false_alarm_trial_count") is not None else "--"
+        obs_rate = _float(report.get("observed_false_alarm_rate")) if isinstance(report, Mapping) else None
+        rate = _fmt_num(obs_rate * 100.0, 2) if obs_rate is not None else "--"
+        ci_low_val = _float(ci.get("low")) if is_ready else None
+        ci_high_val = _float(ci.get("high")) if is_ready else None
+        ci_text = (
+            f"[{_fmt_num(ci_low_val * 100.0, 2)}, {_fmt_num(ci_high_val * 100.0, 2)}]\\%"
+            if ci_low_val is not None and ci_high_val is not None
+            else "--"
+        )
+        decision = str(test_res.get("decision") or "inconclusive") if is_ready else "inconclusive"
+        lines.extend([
+            "\\begin{tabular}{lcccc}",
+            "\\toprule",
+            "Outcome & Qualified Trials & False Alarms & Rate (\\%) & 95\\% Clopper--Pearson CI \\\\",
+            "\\midrule",
+            f"No-subject false alarm & {_latex_escape(qualified)} & {_latex_escape(alarms)} & {rate} & {ci_text} \\\\",
+            f"Decision & \\multicolumn{{4}}{{l}}{{{_latex_escape(decision)}}} \\\\",
+            "\\bottomrule",
+            "\\end{tabular}",
+            "\\end{table}",
+            "",
+        ])
+        return "\n".join(lines)
+
+    rows = build_condition_summary_rows(objective_payload)
+    lines.extend([
+        "\\begin{tabular}{lcccccccl}",
+        "\\toprule",
+        "Condition & $n$ & Valid (\\%) & Bias & RMSE & MAE & BA LoA & 90\\% TOST CI & Holm Decision \\\\",
+        "\\midrule",
+    ])
+    for row in rows:
+        n_str = str(row["n_participants"]) if is_ready and row["n_participants"] is not None else "--"
+        valid_str = _fmt_num(row["valid_output_rate_pct"], 1) if is_ready else "--"
+        bias_str = _fmt_num(row["bias"], 2) if is_ready else "--"
+        rmse_str = _fmt_num(row["rmse"], 2) if is_ready else "--"
+        mae_str = _fmt_num(row["mae"], 2) if is_ready else "--"
+        ba_str = (
+            f"[{_fmt_num(row['ba_loa_low'], 2)}, {_fmt_num(row['ba_loa_high'], 2)}]"
+            if is_ready and row["ba_loa_low"] is not None and row["ba_loa_high"] is not None
+            else "--"
+        )
+        tost_str = (
+            f"[{_fmt_num(row['tost_ci_low'], 2)}, {_fmt_num(row['tost_ci_high'], 2)}]"
+            if is_ready and row["tost_ci_low"] is not None and row["tost_ci_high"] is not None
+            else "--"
+        )
+        decision = str(row["holm_decision"] or "inconclusive") if is_ready else "inconclusive"
+        lines.append(
+            f"{_latex_escape(row['condition_id'])} & {n_str} & {valid_str} & {bias_str} & "
+            f"{rmse_str} & {mae_str} & {ba_str} & {tost_str} & {_latex_escape(decision)} \\\\"
+        )
+    lines.extend(["\\bottomrule", "\\end{tabular}", "\\end{table}", ""])
+    return "\n".join(lines)
+
+
+def format_condition_summary_csv(objective_payload: Mapping[str, Any]) -> str:
+    """Render a condition-stratified summary CSV for a study objective."""
+
+    import io
+
+    objective_id = str(objective_payload.get("objective_id") or "objective")
+    status = str(objective_payload.get("status") or "inconclusive")
+    is_ready = status == "ready"
+    rows = build_condition_summary_rows(objective_payload)
+    buf = io.StringIO()
+    fieldnames = [
+        "objective_id",
+        "status",
+        "condition_id",
+        "distance_m",
+        "barrier_type",
+        "role",
+        "n_participants",
+        "valid_output_rate_pct",
+        "bias",
+        "rmse",
+        "mae",
+        "ba_loa_low",
+        "ba_loa_high",
+        "tost_ci_low",
+        "tost_ci_high",
+        "p_value",
+        "p_value_holm",
+        "holm_decision",
+    ]
+    writer = csv.DictWriter(buf, fieldnames=fieldnames)
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({
+            "objective_id": objective_id,
+            "status": status,
+            "condition_id": row["condition_id"],
+            "distance_m": row["distance_m"],
+            "barrier_type": row["barrier_type"],
+            "role": row["role"],
+            "n_participants": row["n_participants"] if is_ready and row["n_participants"] is not None else "--",
+            "valid_output_rate_pct": _fmt_num(row["valid_output_rate_pct"], 1) if is_ready else "--",
+            "bias": _fmt_num(row["bias"], 2) if is_ready else "--",
+            "rmse": _fmt_num(row["rmse"], 2) if is_ready else "--",
+            "mae": _fmt_num(row["mae"], 2) if is_ready else "--",
+            "ba_loa_low": _fmt_num(row["ba_loa_low"], 2) if is_ready else "--",
+            "ba_loa_high": _fmt_num(row["ba_loa_high"], 2) if is_ready else "--",
+            "tost_ci_low": _fmt_num(row["tost_ci_low"], 2) if is_ready else "--",
+            "tost_ci_high": _fmt_num(row["tost_ci_high"], 2) if is_ready else "--",
+            "p_value": _fmt_num(row["p_value"], 4) if is_ready else "--",
+            "p_value_holm": _fmt_num(row["p_value_holm"], 4) if is_ready else "--",
+            "holm_decision": row["holm_decision"] if is_ready else "inconclusive",
+        })
+    return buf.getvalue()
+
+
 def analyze_frame(
     frame: Any,
     *,

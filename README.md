@@ -297,7 +297,7 @@ Pre-mobile baseline tag: `v15.0.0-pre-mobile` — rollback point for the redesig
 
 ```
 .
-├── radar_vital.ino                                  # firmware (v16.8.0; v15.2 222-column USB contract, BLE gated off)
+├── radar_vital.ino                                  # firmware (v16.9.0; v15.2 222-column USB contract, BLE gated off)
 ├── radar_vital_trainer.py                           # trainer compatibility shim
 ├── rvt_trainer/                                     # modular trainer package + pure compatibility facade
 ├── radar_vital_live_dashboard.html                  # PWA dashboard (single file)

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, HostListener, ViewChild, AfterViewInit, effect, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, OnDestroy, ElementRef, HostListener, ViewChild, AfterViewInit, computed, effect, signal } from '@angular/core';
 import { KeyValuePipe, UpperCasePipe } from '@angular/common';
 import { DurationPipe } from '../../pipes/duration.pipe';
 import { FormsModule } from '@angular/forms';
@@ -41,6 +41,7 @@ import {
   studySetupError,
   studyTrialId
 } from '../participant-study-setup/participant-study-setup.component';
+import { describePlacementZone } from './placement-zone';
 export { preflightSetupFingerprint } from './preflight-request-coordinator.service';
 
 const FALLBACK_RADAR_PORT = 'COM10';
@@ -183,7 +184,6 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   private viewReady = false;
   private readonly sparklineRenderOwner = {};
   private sparklineQueueTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly onVisibilityChange = () => this.requestCanvasDraw();
 
   constructor() {
     effect(() => {
@@ -191,37 +191,138 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       this.state.spark();
       this.state.ctlStatus();
       this.state.theme(); // Redraw on theme change
+      this.requestCanvasDraw();
+    });
+
+    effect(() => {
       this.state.sessionItems();
       this.state.sessionNotes();
-      this.requestCanvasDraw();
+      this.sessionFilter();
       this.scheduleSessionSparklines();
     });
   }
 
-  // Local form model binding
-  radarPorts: string[] = [...DEFAULT_RADAR_PORT_CHOICES];
-  bleDevices: BleScanDevice[] = [];
-  subjectProfiles: Record<string, SubjectProfileRecord> = {};
-  preflightError = '';
-  isScanningPorts = false;
-  isScanningBle = false;
-  bleScanAttempted = false;
-  isValidatingNativeBle = false;
-  nativeBleProbeStatus = '';
+  // Local form and loading state signals
+  readonly radarPorts = signal<string[]>([...DEFAULT_RADAR_PORT_CHOICES]);
+  readonly bleDevices = signal<BleScanDevice[]>([]);
+  readonly subjectProfiles = signal<Record<string, SubjectProfileRecord>>({});
+  readonly preflightError = signal('');
+  readonly isScanningPorts = signal(false);
+  readonly isScanningBle = signal(false);
+  readonly bleScanAttempted = signal(false);
+  readonly bleScanError = signal('');
+  readonly isValidatingNativeBle = signal(false);
+  readonly nativeBleProbeStatus = signal('');
+  readonly sessionsLoading = signal(false);
+  readonly subjectProfilesLoading = signal(false);
   readonly isStartingSession = signal(false);
-  selectedDuration = 30;
+  readonly selectedDurationSignal = signal(30);
+  get selectedDuration(): number {
+    return this.selectedDurationSignal();
+  }
+  set selectedDuration(value: number) {
+    this.selectedDurationSignal.set(value);
+  }
   private startIntent: SessionStartIntent | null = null;
   private startInFlight: Promise<void> | null = null;
 
-  sessionFilter: 'all' | 'pass' | 'warn' | 'fail' | 'tagged' = 'all';
+  readonly sessionFilter = signal<'all' | 'pass' | 'warn' | 'fail' | 'tagged'>('all');
+
+  readonly preflightChecksSignal = computed(() => this.state.preflightChecks());
+  readonly isPreflightRunningSignal = computed(() => this.state.preflightRunning());
 
   get preflightChecks(): PreflightCheck[] {
-    return this.state.preflightChecks();
+    return this.preflightChecksSignal();
   }
 
   get isPreflightRunning(): boolean {
-    return this.state.preflightRunning();
+    return this.isPreflightRunningSignal();
   }
+
+  readonly checksPassedCount = computed(() =>
+    this.preflightChecksSignal().filter(c => this.checkPasses(c)).length
+  );
+
+  readonly readinessPercentage = computed(() => {
+    const checks = this.preflightChecksSignal();
+    if (!checks.length) return 0;
+    return Math.round((this.checksPassedCount() / checks.length) * 100);
+  });
+
+  readonly hasBlockingPreflightFailureSignal = computed(() =>
+    this.preflightChecksSignal().some(check => isStartBlockingPreflightCheck(check))
+  );
+
+  readonly placementZone = computed(() =>
+    describePlacementZone(this.state.lastPayload()?.radar?.distance_cm)
+  );
+
+  readonly bleDeviceRows = computed(() =>
+    this.bleDevices().map(dev => ({
+      dev,
+      address: this.bleDeviceAddress(dev),
+      signalClass: this.bleSignalClass(dev.rssi),
+      signalLabel: this.bleSignalLabel(dev.rssi)
+    }))
+  );
+
+  readonly filteredSessions = computed(() => {
+    const list = this.state.sessionItems();
+    const filter = this.sessionFilter();
+    if (filter === 'all') return list;
+    if (filter === 'tagged') {
+      return list.filter(s => this.state.sessionNotes()[s.session_id]);
+    }
+    return list.filter(s => {
+      const verd = this.sessionVerdict(s).toLowerCase();
+      if (filter === 'pass') return verd === 'ready' || verd === 'pass';
+      if (filter === 'warn') return verd === 'conditional' || verd === 'warn';
+      if (filter === 'fail') return verd === 'unready' || verd === 'fail' || verd === 'not_ready';
+      return true;
+    });
+  });
+
+  readonly groupedSessions = computed(() => {
+    const list = this.filteredSessions();
+    const notes = this.state.sessionNotes();
+    const sorted = [...list].sort((a, b) => {
+      const timeA = sessionStartTimestampMs(a) ?? -1;
+      const timeB = sessionStartTimestampMs(b) ?? -1;
+      return timeB - timeA;
+    });
+
+    const groups: Record<string, Array<{
+      session: SessionRecord;
+      startTimeLabel: string;
+      durationLabel: string;
+      subjectLabel: string;
+      verdict: string;
+      summaryText: string;
+    }>> = {};
+
+    for (const session of sorted) {
+      const startedMs = sessionStartTimestampMs(session);
+      const dateLabel = startedMs
+        ? new Date(startedMs).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+        : 'Undated sessions';
+      if (!groups[dateLabel]) {
+        groups[dateLabel] = [];
+      }
+      groups[dateLabel].push({
+        session,
+        startTimeLabel: this.sessionStartTimeLabel(session),
+        durationLabel: this.sessionDuration(session),
+        subjectLabel: this.sessionSubjectLabel(session),
+        verdict: this.sessionVerdict(session),
+        summaryText: notes[session.session_id] || session.summary || 'No operator summary recorded.'
+      });
+    }
+
+    return Object.keys(groups).map(dateLabel => ({
+      dateLabel,
+      items: groups[dateLabel]
+    }));
+  });
 
   ngOnInit() {
     this.selectedDuration = this.state.setup().duration_s;
@@ -316,12 +417,12 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
             return { ...s, radar_port: preserveOperatorChoice ? current : (defs.radar_port ?? current) };
           });
         }
-        this.radarPorts = mergeRadarPortChoices(
+        this.radarPorts.set(mergeRadarPortChoices(
           [this.state.setup().radar_port],
           Array.isArray(defs.serial_ports) ? defs.serial_ports : undefined,
           [defs.radar_port],
           DEFAULT_RADAR_PORT_CHOICES
-        );
+        ));
       }
     } catch (e) {
       console.warn('Could not load hardware defaults, using fallback lists', e);
@@ -356,31 +457,37 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   async loadSubjectProfiles(): Promise<void> {
+    this.subjectProfilesLoading.set(true);
     try {
-      this.subjectProfiles = await this.api.loadSubjectProfiles();
+      this.subjectProfiles.set(await this.api.loadSubjectProfiles());
     } catch (_) {
-      this.subjectProfiles = {};
+      this.subjectProfiles.set({});
+    } finally {
+      this.subjectProfilesLoading.set(false);
     }
   }
 
   async loadSessions(): Promise<void> {
+    this.sessionsLoading.set(true);
     try {
       this.state.sessionItems.set(await this.api.loadSessions());
     } catch (_) {
       this.state.sessionItems.set([]);
+    } finally {
+      this.sessionsLoading.set(false);
     }
   }
 
   async scanSerialPorts(refreshPreflightAfterChange = true) {
     const setupBefore = this.currentPreflightFingerprint();
-    this.isScanningPorts = true;
+    this.isScanningPorts.set(true);
     this.state.triggerHaptic('tap');
     try {
       const result = await this.api.loadSerialPorts();
       const ports = (result.ports || []).map(port => port.device).filter(Boolean);
       if (ports.length) {
         const current = String(this.state.setup().radar_port || '').trim();
-        this.radarPorts = mergeRadarPortChoices([current], ports, [result.selected], DEFAULT_RADAR_PORT_CHOICES);
+        this.radarPorts.set(mergeRadarPortChoices([current], ports, [result.selected], DEFAULT_RADAR_PORT_CHOICES));
         if (current && ports.includes(current)) {
           // Keep the operator's explicit COM choice.
         } else if (ports.length === 1) {
@@ -393,7 +500,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     } catch (_) {
       this.state.triggerHaptic('warn');
     } finally {
-      this.isScanningPorts = false;
+      this.isScanningPorts.set(false);
       if (refreshPreflightAfterChange && setupBefore !== this.currentPreflightFingerprint()) {
         void this.runPreflight();
       }
@@ -401,20 +508,35 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   async scanBleDevices() {
-    this.isScanningBle = true;
-    this.bleScanAttempted = true;
+    this.isScanningBle.set(true);
+    this.bleScanAttempted.set(true);
+    this.bleScanError.set('');
     this.state.triggerHaptic('tap');
     try {
       if (this.serverLifecycle.platform() === 'exe' && this.bluetooth.isSupported()) {
         const dev = await this.bluetooth.requestDevice();
-        this.bleDevices = [{
+        this.bleDevices.set([{
           id: dev.id,
           name: dev.name || 'Windows BLE device',
           address: String(dev.nativeHandle?.address || dev.id || '').trim()
-        }];
+        }]);
       } else if (this.state.ctlStatus()?.mode !== 'sandbox') {
-        const response = await this.api.request<{ devices?: BleScanDevice[] }>('/api/ble/scan?timeout_s=3');
-        this.bleDevices = response.devices || [];
+        const response = await this.api.request<{
+          ok?: boolean;
+          devices?: BleScanDevice[];
+          error?: string | { code?: string; message?: string };
+        }>('/api/ble/scan?timeout_s=3');
+        if (response?.ok === false) {
+          const message = typeof response.error === 'string'
+            ? response.error
+            : (response.error?.message || 'BLE scan failed on trainer.');
+          this.bleScanError.set(message);
+          this.bleDevices.set([]);
+          this.snackBar.open(message, 'Dismiss', { duration: 6000 });
+          this.state.triggerHaptic('warn');
+          return;
+        }
+        this.bleDevices.set(response.devices || []);
       } else if (this.bluetooth.isSupported() && !this.state.demoMode()) {
         const dev = await this.bluetooth.requestDevice();
         if (dev && dev.name) {
@@ -423,16 +545,18 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
           void this.runPreflight();
         }
       } else {
-        this.bleDevices = [
+        this.bleDevices.set([
           { name: 'Demo oximeter', id: this.state.setup().ble_address, address: this.state.setup().ble_address }
-        ];
+        ]);
       }
       this.state.triggerHaptic('success');
     } catch (err) {
       console.warn(err);
+      const message = err instanceof Error ? err.message : 'BLE scan failed.';
+      this.bleScanError.set(message);
       this.state.triggerHaptic('warn');
     } finally {
-      this.isScanningBle = false;
+      this.isScanningBle.set(false);
     }
   }
 
@@ -445,7 +569,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
     }
     this.updateSetup('ble_address', address);
     this.onFormChange();
-    this.bleDevices = [];
+    this.bleDevices.set([]);
     this.snackBar.open(`BLE reference set to ${device.name || address}.`, 'Dismiss', { duration: 3000 });
   }
 
@@ -468,39 +592,41 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   async validateNativeBleReference(): Promise<void> {
-    this.isValidatingNativeBle = true;
-    this.nativeBleProbeStatus = '';
+    this.isValidatingNativeBle.set(true);
+    this.nativeBleProbeStatus.set('');
     this.state.triggerHaptic('tap');
     try {
       const result = await this.bluetooth.validateReferenceNotification();
       const device = result.device.name || result.device.id;
       if (result.notificationBytes !== null) {
-        this.nativeBleProbeStatus =
+        this.nativeBleProbeStatus.set(
           `Native GATT verified: received ${result.notificationBytes} byte${result.notificationBytes === 1 ? '' : 's'} from ${device}. ` +
-          'This probe validates local BLE only; trainer telemetry remains the session source.';
+          'This probe validates local BLE only; trainer telemetry remains the session source.'
+        );
         this.snackBar.open('Native BLE reference notification received.', 'Dismiss', { duration: 5000 });
         this.state.triggerHaptic('success');
       } else {
-        this.nativeBleProbeStatus =
+        this.nativeBleProbeStatus.set(
           `Connected to ${device}, but no AiLink notification arrived within five seconds. ` +
-          'Do not approve this client for live BLE validation yet.';
+          'Do not approve this client for live BLE validation yet.'
+        );
         this.snackBar.open('Native BLE connected without reference data.', 'Dismiss', { duration: 6000 });
         this.state.triggerHaptic('warn');
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Native BLE validation failed.';
-      this.nativeBleProbeStatus = `Native GATT validation failed: ${message}`;
-      this.snackBar.open(this.nativeBleProbeStatus, 'Dismiss', { duration: 7000 });
+      this.nativeBleProbeStatus.set(`Native GATT validation failed: ${message}`);
+      this.snackBar.open(this.nativeBleProbeStatus(), 'Dismiss', { duration: 7000 });
       this.state.triggerHaptic('reject');
     } finally {
-      this.isValidatingNativeBle = false;
+      this.isValidatingNativeBle.set(false);
     }
   }
 
   async runPreflight(): Promise<boolean> {
     const setup = this.capturePreflightSetup();
     this.state.preflightRunning.set(true);
-    this.preflightError = '';
+    this.preflightError.set('');
     let superseded = false;
     try {
       const result = await this.preflightRequests.runAll(setup, () => this.currentPreflightFingerprint());
@@ -509,7 +635,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         return false;
       }
       if (result.status === 'stale') {
-        this.preflightError = 'Setup changed while checks were running. Run preflight again for the current radar and BLE selection.';
+        this.preflightError.set('Setup changed while checks were running. Run preflight again for the current radar and BLE selection.');
         return false;
       }
       if (result.status === 'applied') {
@@ -517,9 +643,9 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
         this.state.preflightUpdatedAtMs.set(Date.now());
         return true;
       }
-      this.preflightError = result.status === 'empty'
+      this.preflightError.set(result.status === 'empty'
         ? 'Preflight returned no hardware checks.'
-        : result.message;
+        : result.message);
       return false;
     } finally {
       if (!superseded) this.state.preflightRunning.set(false);
@@ -529,7 +655,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   async runSingleCheck(checkId: string) {
     const setup = this.capturePreflightSetup();
     this.state.preflightRunning.set(true);
-    this.preflightError = '';
+    this.preflightError.set('');
     this.state.triggerHaptic('tap');
     let superseded = false;
     try {
@@ -540,7 +666,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       }
       if (result.status === 'stale') return;
       if (result.status === 'error') {
-        this.preflightError = result.message;
+        this.preflightError.set(result.message);
         this.state.triggerHaptic('reject');
         return;
       }
@@ -548,7 +674,7 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
       if (check && check.id) {
         this.state.preflightChecks.set(this.preflightChecks.map(c => c.id === checkId ? check : c));
         this.state.preflightUpdatedAtMs.set(Date.now());
-        if (check.status === 'good') {
+        if (this.checkPasses(check)) {
           this.state.triggerHaptic('success');
         } else {
           this.state.triggerHaptic('warn');
@@ -560,17 +686,15 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   getChecksPassedCount(): number {
-    return this.preflightChecks.filter(c => this.checkPasses(c)).length;
+    return this.checksPassedCount();
   }
 
   getReadinessPercentage(): number {
-    if (!this.preflightChecks.length) return 0;
-    const good = this.preflightChecks.filter(c => this.checkPasses(c)).length;
-    return Math.round((good / this.preflightChecks.length) * 100);
+    return this.readinessPercentage();
   }
 
   hasBlockingPreflightFailure(): boolean {
-    return this.preflightChecks.some(check => isStartBlockingPreflightCheck(check));
+    return this.hasBlockingPreflightFailureSignal();
   }
 
   preflightProgressLabel(): string {
@@ -621,70 +745,19 @@ export class HomeComponent implements OnInit, OnDestroy, AfterViewInit {
   // Placement zones mirror the firmware's distance-confidence bands
   // (optimal 40–100 cm, good ≤140 cm, acceptable ≤180 cm) and Seeed's
   // ≤1.5 m chest-height guidance for the MR60BHA2.
-  placementZone(): { id: string; label: string; hint: string } {
-    const distance = Number(this.state.lastPayload()?.radar?.distance_cm);
-    if (!Number.isFinite(distance) || distance <= 0) {
-      return { id: 'searching', label: 'No target', hint: 'Seat the subject facing the radar at chest height.' };
-    }
-    if (distance < 40) {
-      return { id: 'close', label: 'Too close', hint: 'Move back to 40–100 cm for the cleanest signal.' };
-    }
-    if (distance <= 100) {
-      return { id: 'optimal', label: 'Sweet spot', hint: 'Hold this position for the session.' };
-    }
-    if (distance <= 140) {
-      return { id: 'good', label: 'Good', hint: 'Slightly closer (40–100 cm) may improve heart-rate quality.' };
-    }
-    if (distance <= 180) {
-      return { id: 'acceptable', label: 'Acceptable', hint: 'Best results within 1.5 m of the radar.' };
-    }
-    return { id: 'far', label: 'Out of range', hint: 'Bring the subject within 1.5 m of the radar.' };
-  }
-
   setSessionFilter(filter: 'all' | 'pass' | 'warn' | 'fail' | 'tagged') {
-    this.sessionFilter = filter;
+    this.sessionFilter.set(filter);
     this.state.triggerHaptic('tap');
-    this.scheduleSessionSparklines();
   }
 
   getFilteredSessions(): SessionRecord[] {
-    const list = this.state.sessionItems();
-    if (this.sessionFilter === 'all') return list;
-    if (this.sessionFilter === 'tagged') {
-      return list.filter(s => this.state.sessionNotes()[s.session_id]);
-    }
-    return list.filter(s => {
-      const verd = this.sessionVerdict(s).toLowerCase();
-      if (this.sessionFilter === 'pass') return verd === 'ready' || verd === 'pass';
-      if (this.sessionFilter === 'warn') return verd === 'conditional' || verd === 'warn';
-      if (this.sessionFilter === 'fail') return verd === 'unready' || verd === 'fail';
-      return true;
-    });
+    return this.filteredSessions();
   }
 
   getGroupedSessions(): { dateLabel: string; items: SessionRecord[] }[] {
-    const list = this.getFilteredSessions();
-    const sorted = [...list].sort((a, b) => {
-      const timeA = sessionStartTimestampMs(a) ?? -1;
-      const timeB = sessionStartTimestampMs(b) ?? -1;
-      return timeB - timeA;
-    });
-
-    const groups: { [key: string]: SessionRecord[] } = {};
-    for (const session of sorted) {
-      const startedMs = sessionStartTimestampMs(session);
-      const dateLabel = startedMs
-        ? new Date(startedMs).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-        : 'Undated sessions';
-      if (!groups[dateLabel]) {
-        groups[dateLabel] = [];
-      }
-      groups[dateLabel].push(session);
-    }
-
-    return Object.keys(groups).map(dateLabel => ({
-      dateLabel,
-      items: groups[dateLabel]
+    return this.groupedSessions().map(group => ({
+      dateLabel: group.dateLabel,
+      items: group.items.map(entry => entry.session)
     }));
   }
 

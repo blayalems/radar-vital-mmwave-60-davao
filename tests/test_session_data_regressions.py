@@ -180,3 +180,38 @@ def test_ble_ref_quality_decode_errors_from_summary_stats(tmp_path):
     out = monolith._compute_ble_ref_quality([ref_path])
     assert out["decode_error_pct"] == 0.0
     assert out["status"] == "OK"
+
+
+def test_session_summary_populates_tags_and_data_includes_aligned_ref_columns(tmp_path):
+    from rvt_trainer.session.storage import _load_session_summary, _session_data_payload
+
+    sessions_root = tmp_path / "sessions"
+    s_dir = sessions_root / "s01"
+    s_dir.mkdir(parents=True)
+    (s_dir / "session_manifest.json").write_text(
+        '{"session_id": "s01", "tags": ["baseline", "stable"]}',
+        encoding="utf-8",
+    )
+    (s_dir / "radar.csv").write_text(
+        "timestamp_s,timestamp_ms,reported_hr,reported_rr\n"
+        "0.0,0,72.0,15.0\n"
+        "1.0,1000,73.0,16.0\n",
+        encoding="utf-8",
+    )
+    (s_dir / "ref.csv").write_text(
+        "timestamp_ms,ref_hr,ref_rr\n"
+        "50,71.5,14.5\n"
+        "1050,72.5,15.5\n",
+        encoding="utf-8",
+    )
+
+    summary = _load_session_summary(str(s_dir))
+    assert summary["tags"] == ["baseline", "stable"]
+
+    data = _session_data_payload(str(sessions_root), "s01")
+    assert data["ok"] is True
+    assert len(data["rows"]) == 2
+    assert data["rows"][0]["ref_hr"] == 71.5
+    assert data["rows"][0]["ble_hr"] == 71.5
+    assert data["rows"][1]["ref_rr"] == 15.5
+    assert data["rows"][1]["ble_rr"] == 15.5

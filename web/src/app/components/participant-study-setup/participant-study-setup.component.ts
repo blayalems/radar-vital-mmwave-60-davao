@@ -1,15 +1,17 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, output, signal } from '@angular/core';
-import { DecimalPipe, UpperCasePipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, effect, inject, output, signal } from '@angular/core';
+import { DecimalPipe, KeyValuePipe, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import {
   BarrierType,
+  CompletionCell,
   CompletionMatrix,
   CompletionParticipant,
   ParticipantProfile,
@@ -17,7 +19,11 @@ import {
   SetupState,
   StudyMode,
   StudyObjective,
-  StudyReadinessResponse
+  StudyProtocol,
+  StudyProtocolResponse,
+  StudyReadinessResponse,
+  StudyScheduleEntry,
+  StudyScheduleResponse
 } from '../../models/rvt.models';
 import { ApiService } from '../../services/api.service';
 import { StateService } from '../../services/state.service';
@@ -25,10 +31,60 @@ import { StateService } from '../../services/state.service';
 export const CONFIRMATORY_DISTANCES_M = [0.6, 0.8, 1.0, 2.0, 3.0] as const;
 export const STUDY_TRIAL_NUMBERS = [1, 2, 3] as const;
 export const CONFIRMATORY_DURATION_S = 150;
+export const ACCLIMATIZATION_DURATION_S = 300;
+export const NO_SUBJECT_TARGET_TRIALS = 72;
+export const NO_SUBJECT_TARGET_DURATION_S = 10800;
+
+export interface ConditionMatrixRow {
+  order: number;
+  conditionId: string;
+  label: string;
+  distanceM: number;
+  barrierType: BarrierType;
+  validTrials: number;
+  meetsTrialFloor: boolean;
+  cells: Array<{
+    trial: number;
+    status: string;
+    validWindows: number | null;
+    meetsWindowFloor: boolean | null;
+    sessionId: string | null;
+  }>;
+}
+
+interface AcclimatizationStorageState {
+  remaining_s: number;
+  running: boolean;
+  updated_at_ms: number;
+}
 
 export function studyConditionId(_mode: StudyMode, distanceM: number, barrier: BarrierType): string {
   const centimetres = String(Math.round(distanceM * 100)).padStart(3, '0');
   return `d${centimetres}_${barrier}`;
+}
+
+export function parseStudyConditionId(conditionId: string): { distanceM: number; barrierType: BarrierType } | null {
+  const match = /^d(\d{3})_(none|cardboard)$/.exec(String(conditionId || '').trim());
+  if (!match) return null;
+  return {
+    distanceM: Number(match[1]) / 100,
+    barrierType: match[2] as BarrierType
+  };
+}
+
+export function formatConditionLabel(conditionId: string): string {
+  const parsed = parseStudyConditionId(conditionId);
+  if (!parsed) return conditionId;
+  return `${parsed.distanceM.toFixed(1)} m · ${parsed.barrierType === 'cardboard' ? '3-mm cardboard' : 'None'}`;
+}
+
+export function defaultStudyConditionIds(): string[] {
+  const ids: string[] = [];
+  for (const dist of CONFIRMATORY_DISTANCES_M) {
+    ids.push(studyConditionId('confirmatory', dist, 'none'));
+    ids.push(studyConditionId('confirmatory', dist, 'cardboard'));
+  }
+  return ids;
 }
 
 export function studyTrialId(setup: Pick<SetupState, 'participant_id' | 'condition_id' | 'trial_number'>): string {
@@ -60,19 +116,21 @@ export function studySetupError(
   selector: 'app-participant-study-setup',
   imports: [
     DecimalPipe,
+    KeyValuePipe,
     UpperCasePipe,
     FormsModule,
     MatButtonModule,
     MatCardModule,
     MatIconModule,
     MatInputModule,
+    MatProgressBarModule,
     MatProgressSpinnerModule
   ],
   templateUrl: './participant-study-setup.component.html',
   styleUrl: './participant-study-setup.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ParticipantStudySetupComponent implements OnInit {
+export class ParticipantStudySetupComponent implements OnInit, OnDestroy {
   protected readonly state = inject(StateService);
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
@@ -81,6 +139,8 @@ export class ParticipantStudySetupComponent implements OnInit {
   readonly rosterValidityChanged = output<boolean>();
   readonly participants = signal<ParticipantProfile[]>([]);
   readonly completionMatrix = signal<CompletionMatrix | null>(null);
+  readonly scheduleEntries = signal<StudyScheduleEntry[]>([]);
+  readonly studyProtocol = signal<StudyProtocol | null>(null);
   readonly objectives = signal<StudyObjective[]>([]);
   readonly readiness = signal<StudyReadinessResponse | null>(null);
   readonly loading = signal(false);
@@ -91,12 +151,152 @@ export class ParticipantStudySetupComponent implements OnInit {
   protected readonly confirmatoryDistances = CONFIRMATORY_DISTANCES_M;
   protected readonly trials = STUDY_TRIAL_NUMBERS;
 
+  // 0.6 m Unobstructed MLX90614 5-min acclimatization timer state
+  readonly acclimatizationRemainingS = signal(ACCLIMATIZATION_DURATION_S);
+  readonly acclimatizationRunning = signal(false);
+  private acclimatizationTimer: ReturnType<typeof setInterval> | null = null;
+
+  readonly isD060NoneSelected = computed(() => {
+    const setup = this.state.setup();
+    return Math.abs(Number(setup.distance_m) - 0.6) < 0.01 && setup.barrier_type === 'none';
+  });
+
+  readonly acclimatizationDisplay = computed(() => {
+    const total = Math.max(0, Math.round(this.acclimatizationRemainingS()));
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  });
+
+  readonly selectedParticipantCompletion = computed<CompletionParticipant | undefined>(() => {
+    const pid = this.state.setup().participant_id;
+    if (!pid) return undefined;
+    return this.completionMatrix()?.participants?.[pid];
+  });
+
+  readonly conditionMatrixRows = computed<ConditionMatrixRow[]>(() => {
+    const pid = this.state.setup().participant_id;
+    if (!pid) return [];
+    const participantCompletion = this.selectedParticipantCompletion();
+    const cells: Record<string, CompletionCell> = participantCompletion?.cells || {};
+    const condSummary = participantCompletion?.conditions_summary || {};
+    const schedule = this.scheduleEntries().filter(entry => !entry.participant_id || entry.participant_id === pid);
+
+    const orderedEntries: Array<{ order: number; conditionId: string }> = schedule.length > 0
+      ? [...schedule]
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .map((entry, idx) => ({ order: entry.order || idx + 1, conditionId: entry.condition_id }))
+      : defaultStudyConditionIds().map((cid, idx) => ({ order: idx + 1, conditionId: cid }));
+
+    return orderedEntries.map(({ order, conditionId }) => {
+      const parsed = parseStudyConditionId(conditionId);
+      const trialCells = STUDY_TRIAL_NUMBERS.map(trial => {
+        const key = `${conditionId}:t${trial}`;
+        const cell = cells[key];
+        const status = cell?.status || 'missing';
+        const validWindows = cell?.valid_windows ?? null;
+        const meetsWindowFloor = cell?.meets_window_floor ?? (validWindows !== null ? validWindows >= 15 : null);
+        return {
+          trial,
+          status,
+          validWindows,
+          meetsWindowFloor,
+          sessionId: cell?.session_id ?? null
+        };
+      });
+
+      const summary = condSummary[conditionId];
+      const computedValidTrials = summary?.valid_trials ?? trialCells.filter(c =>
+        c.status === 'completed' && c.meetsWindowFloor !== false
+      ).length;
+      const meetsTrialFloor = summary?.meets_trial_floor ?? (computedValidTrials >= 2);
+
+      return {
+        order,
+        conditionId,
+        label: formatConditionLabel(conditionId),
+        distanceM: parsed?.distanceM ?? 0.6,
+        barrierType: parsed?.barrierType ?? 'none',
+        validTrials: computedValidTrials,
+        meetsTrialFloor,
+        cells: trialCells
+      };
+    });
+  });
+
+  readonly noSubjectStats = computed(() => {
+    const matrix = this.completionMatrix();
+    const qualifiedCount = matrix?.no_subject_qualified_count ?? 0;
+    const targetCount = matrix?.no_subject_expected ?? NO_SUBJECT_TARGET_TRIALS;
+    const qualifiedDurationS = matrix?.no_subject_qualified_duration_s ?? (qualifiedCount * CONFIRMATORY_DURATION_S);
+    const targetDurationS = matrix?.no_subject_target_duration_s ?? NO_SUBJECT_TARGET_DURATION_S;
+    const progressPct = targetCount > 0 ? Math.min(100, Math.round((qualifiedCount / targetCount) * 100)) : 0;
+    const frozenConfigLocked = this.studyProtocol()?.no_subject?.frozen_configuration != null;
+    const reasons = matrix?.no_subject_unqualified_reasons || {};
+    return {
+      qualifiedCount,
+      targetCount,
+      qualifiedDurationS,
+      targetDurationS,
+      progressPct,
+      frozenConfigLocked,
+      reasons
+    };
+  });
+
+  constructor() {
+    effect(() => {
+      const pid = this.state.setup().participant_id;
+      const demo = this.state.demoSourceActive();
+      this.restoreAcclimatizationTimer(pid, demo);
+    });
+  }
+
   ngOnInit(): void {
     this.updateCondition({});
     if (this.state.setup().study_mode === 'confirmatory') this.applyConfirmatoryDuration();
     void this.loadParticipants();
     void this.loadObjectives();
     void this.loadReadiness();
+    void this.loadProtocol();
+  }
+
+  ngOnDestroy(): void {
+    this.stopAcclimatizationInterval();
+  }
+
+  async loadProtocol(): Promise<void> {
+    try {
+      const api = this.api as Partial<ApiService>;
+      const response = typeof api.loadStudyProtocol === 'function'
+        ? await api.loadStudyProtocol()
+        : (typeof api.request === 'function'
+            ? await api.request<StudyProtocolResponse>('/api/study/protocol')
+            : null);
+      if (response?.protocol) {
+        this.studyProtocol.set(response.protocol);
+      }
+    } catch (_) {
+      this.studyProtocol.set(null);
+    }
+  }
+
+  async loadSchedule(participantId: string): Promise<void> {
+    if (!participantId) {
+      this.scheduleEntries.set([]);
+      return;
+    }
+    try {
+      const api = this.api as Partial<ApiService>;
+      const response = typeof api.loadStudySchedule === 'function'
+        ? await api.loadStudySchedule(participantId)
+        : (typeof api.request === 'function'
+            ? await api.request<StudyScheduleResponse>(`/api/study/schedule?participant_id=${encodeURIComponent(participantId)}`)
+            : null);
+      this.scheduleEntries.set(response?.entries || []);
+    } catch (_) {
+      this.scheduleEntries.set([]);
+    }
   }
 
   async loadReadiness(): Promise<void> {
@@ -161,6 +361,8 @@ export class ParticipantStudySetupComponent implements OnInit {
       const demo = participants.find(item => item.participant_id === 'P-DEMO');
       if (!this.state.setup().participant_id && demo && this.state.demoSourceActive()) {
         this.selectParticipant(demo);
+      } else if (this.state.setup().participant_id) {
+        void this.loadSchedule(this.state.setup().participant_id);
       }
       this.rosterValidityChanged.emit(this.hasActiveSelection());
     } catch (error: unknown) {
@@ -252,6 +454,121 @@ export class ParticipantStudySetupComponent implements OnInit {
     });
     this.rosterValidityChanged.emit(true);
     this.state.triggerHaptic('tap');
+    void this.loadSchedule(participant.participant_id);
+  }
+
+  selectMatrixCell(row: ConditionMatrixRow, trial: number): void {
+    this.updateSetup({
+      distance_m: row.distanceM,
+      barrier_type: row.barrierType,
+      trial_number: trial,
+      condition_id: row.conditionId
+    });
+    if (this.state.setup().study_mode === 'confirmatory') {
+      this.applyConfirmatoryDuration();
+    }
+    this.state.triggerHaptic('tap');
+  }
+
+  cellStatusIcon(status: string): string {
+    if (status === 'completed') return 'check_circle';
+    if (status === 'aborted' || status === 'failed_start' || status === 'no_output' || status === 'invalid') return 'warning';
+    return 'radio_button_unchecked';
+  }
+
+  // Acclimatization timer controls (strictly non-blocking)
+  startAcclimatizationTimer(): void {
+    if (this.acclimatizationRunning()) return;
+    if (this.acclimatizationRemainingS() <= 0) {
+      this.acclimatizationRemainingS.set(ACCLIMATIZATION_DURATION_S);
+    }
+    this.acclimatizationRunning.set(true);
+    this.persistAcclimatizationTimer();
+    this.stopAcclimatizationInterval();
+    this.acclimatizationTimer = setInterval(() => {
+      const next = Math.max(0, this.acclimatizationRemainingS() - 1);
+      this.acclimatizationRemainingS.set(next);
+      if (next <= 0) {
+        this.acclimatizationRunning.set(false);
+        this.stopAcclimatizationInterval();
+      }
+      this.persistAcclimatizationTimer();
+    }, 1000);
+    this.state.triggerHaptic('tap');
+  }
+
+  pauseAcclimatizationTimer(): void {
+    this.acclimatizationRunning.set(false);
+    this.stopAcclimatizationInterval();
+    this.persistAcclimatizationTimer();
+    this.state.triggerHaptic('tap');
+  }
+
+  resetAcclimatizationTimer(): void {
+    this.acclimatizationRunning.set(false);
+    this.stopAcclimatizationInterval();
+    this.acclimatizationRemainingS.set(ACCLIMATIZATION_DURATION_S);
+    this.persistAcclimatizationTimer();
+    this.state.triggerHaptic('tap');
+  }
+
+  private stopAcclimatizationInterval(): void {
+    if (this.acclimatizationTimer !== null) {
+      clearInterval(this.acclimatizationTimer);
+      this.acclimatizationTimer = null;
+    }
+  }
+
+  private acclimatizationStorageKey(participantId = this.state.setup().participant_id, demo = this.state.demoSourceActive()): string {
+    const prefix = demo ? 'demo:' : '';
+    const pid = participantId.trim() || 'default';
+    return `${prefix}rvt-acclimatization:${pid}`;
+  }
+
+  private persistAcclimatizationTimer(): void {
+    try {
+      if (typeof sessionStorage === 'undefined') return;
+      const payload: AcclimatizationStorageState = {
+        remaining_s: this.acclimatizationRemainingS(),
+        running: this.acclimatizationRunning(),
+        updated_at_ms: Date.now()
+      };
+      sessionStorage.setItem(this.acclimatizationStorageKey(), JSON.stringify(payload));
+    } catch (_) {}
+  }
+
+  private restoreAcclimatizationTimer(participantId: string, demo: boolean): void {
+    this.stopAcclimatizationInterval();
+    this.acclimatizationRunning.set(false);
+    try {
+      if (typeof sessionStorage === 'undefined') {
+        this.acclimatizationRemainingS.set(ACCLIMATIZATION_DURATION_S);
+        return;
+      }
+      const raw = sessionStorage.getItem(this.acclimatizationStorageKey(participantId, demo));
+      if (!raw) {
+        this.acclimatizationRemainingS.set(ACCLIMATIZATION_DURATION_S);
+        return;
+      }
+      const parsed = JSON.parse(raw) as Partial<AcclimatizationStorageState>;
+      const baseRemaining = Number(parsed.remaining_s);
+      if (!Number.isFinite(baseRemaining)) {
+        this.acclimatizationRemainingS.set(ACCLIMATIZATION_DURATION_S);
+        return;
+      }
+      if (parsed.running && Number.isFinite(parsed.updated_at_ms)) {
+        const elapsed = Math.max(0, Math.floor((Date.now() - Number(parsed.updated_at_ms)) / 1000));
+        const adjusted = Math.max(0, baseRemaining - elapsed);
+        this.acclimatizationRemainingS.set(adjusted);
+        if (adjusted > 0) {
+          this.startAcclimatizationTimer();
+        }
+      } else {
+        this.acclimatizationRemainingS.set(Math.max(0, Math.min(ACCLIMATIZATION_DURATION_S, baseRemaining)));
+      }
+    } catch (_) {
+      this.acclimatizationRemainingS.set(ACCLIMATIZATION_DURATION_S);
+    }
   }
 
   setStudyMode(mode: StudyMode): void {
@@ -322,5 +639,6 @@ export class ParticipantStudySetupComponent implements OnInit {
 
   private clearParticipantSelection(): void {
     this.updateSetup({ participant_id: '', subject_label: '' });
+    this.scheduleEntries.set([]);
   }
 }

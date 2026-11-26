@@ -353,6 +353,11 @@ test.describe('v12 dashboard visual baseline', () => {
             });
           }
         }
+        if (view === 'live') {
+          // Wait for the initial live_dashboard.json route fixture so Pin Snapshot
+          // does not race between disabled and enabled across screenshot retries.
+          await expect(page.locator('.command-actions button[aria-label="Pin Snapshot"]')).toBeEnabled();
+        }
         const snapshotName = theme === 'hc' && view === 'live'
           ? 'v12-hc-live-dark-inverse-controls.png'
           : `v12-${theme}-${view}.png`;

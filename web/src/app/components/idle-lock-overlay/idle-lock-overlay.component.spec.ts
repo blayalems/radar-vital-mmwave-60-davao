@@ -114,4 +114,32 @@ describe('IdleLockOverlayComponent first-run display name', () => {
     await component.submitOnboarding();
     expect(createProfile).not.toHaveBeenCalled();
   });
+
+  it('validates initials against 2-5 ASCII letters and preserves recovery code when follow-up login fails', async () => {
+    const dialog = TestBed.inject(MatDialog);
+    createProfile.mockResolvedValue({ success: false, recoveryCode: 'ABCD-EFGH-IJKL' });
+
+    const fixture = TestBed.createComponent(IdleLockOverlayComponent);
+    const component = fixture.componentInstance;
+    component.displayName = 'Dr. Sarah Connor';
+    component.onboardingPin = '123456';
+
+    component.initials = '12';
+    expect(component.isOnboardingValid()).toBe(false);
+
+    component.initials = 'S';
+    expect(component.isOnboardingValid()).toBe(false);
+
+    component.initials = 'ABCDEF';
+    expect(component.isOnboardingValid()).toBe(false);
+
+    component.initials = 'SARAH';
+    expect(component.isOnboardingValid()).toBe(true);
+
+    await component.submitOnboarding();
+    expect(dialog.open).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ data: { recoveryCode: 'ABCD-EFGH-IJKL' } })
+    );
+  });
 });

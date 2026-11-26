@@ -3,6 +3,8 @@
   flex-direction: column;
   height: 100dvh;
   overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+  box-sizing: border-box;
   background: var(--md-sys-color-surface);
 }
 
@@ -86,7 +88,6 @@
   min-height: 0;
   width: 100%;
   overflow: hidden;
-  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .rail.mat-drawer {
@@ -222,11 +223,11 @@
 }
 
 /* ==========================================================================
-   NAVIGATION RAIL — Material 3 Expressive (desktop ≥1024px)
-   Expanded, labeled rail with pill-shaped items and a primary-container
-   active indicator. Reads themed M3 tokens so all palettes/themes work.
+   NAVIGATION RAIL — Material 3 Expressive (tablet & desktop ≥600px)
+   Expanded, labeled rail on ≥1024px desktop; collapsed icon rail on 600–1023px
+   tablet or when explicitly collapsed. Reads themed M3 tokens across themes.
    ========================================================================== */
-@media (min-width: 1024px) {
+@media (min-width: 600px) {
   .rail.mat-drawer {
     background: var(--md-sys-color-surface-container-low) !important;
     border-right: 1px solid var(--md-sys-color-outline-variant) !important;
@@ -444,7 +445,7 @@
   }
 }
 
-@media (min-width: 1024px) and (prefers-reduced-motion: reduce) {
+@media (min-width: 600px) and (prefers-reduced-motion: reduce) {
   .rail .r-item {
     transition: none;
   }
@@ -454,7 +455,13 @@
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 600px) and (max-width: 1023.98px) {
+  .rail .brand .rail-collapse-btn {
+    display: none !important;
+  }
+}
+
+@media (min-width: 600px) {
   /* Deprecated ::ng-deep overrides moved to global styles.scss as non-encapsulated rules */
 
   .app.rail-collapsed .rail .brand {
@@ -728,12 +735,21 @@
   transform: scaleX(1) !important;
 }
 
-:host-context(html[data-theme='hc']) a[mat-navigation-tab].active .mat-navigation-tab-icon-container {
+:host-context(html[data-theme='hc']) a[mat-navigation-tab].active .mat-navigation-tab-icon-container,
+:host-context(html[data-theme='hc']) a[mat-navigation-tab].active [icon],
+:host-context(html[data-theme='hc']) a[mat-navigation-tab].active mat-icon {
   color: #000 !important;
 }
 
-:host-context(html[data-theme='hc']) a[mat-navigation-tab].active .mat-navigation-tab-icon-container .material-symbols-rounded {
+:host-context(html[data-theme='hc']) a[mat-navigation-tab].active .mat-navigation-tab-icon-container .material-symbols-rounded,
+:host-context(html[data-theme='hc']) a[mat-navigation-tab].active .material-symbols-rounded,
+:host-context(html[data-theme='hc']) a[mat-navigation-tab].active mat-icon {
   color: #000 !important;
+}
+
+:host-context(html[data-theme='hc']) .rail .bl-top,
+:host-context(html[data-theme='hc']) .rail .bl-bot {
+  color: #fff !important;
 }
 
 :host-context(html[data-theme='hc']) a[mat-navigation-tab].active .mat-navigation-tab-label {
@@ -925,6 +941,9 @@
   flex-direction: column !important;
   min-width: 0 !important;
   overflow: visible !important;
+}
+.app.rail-collapsed .rail .brand .brand-label {
+  display: none !important;
 }
 .rail .brand .brand-label .bl-top,
 .rail .brand .brand-label .bl-bot {

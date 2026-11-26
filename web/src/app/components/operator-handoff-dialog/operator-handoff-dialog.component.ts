@@ -1,3 +1,4 @@
+import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -12,7 +13,7 @@ const CLIPBOARD_CLEAR_MS = 30_000;
 
 @Component({
   selector: 'app-operator-handoff-dialog',
-  imports: [MatButtonModule, MatDialogModule, MatIconModule, MatSnackBarModule],
+  imports: [DecimalPipe, MatButtonModule, MatDialogModule, MatIconModule, MatSnackBarModule],
   templateUrl: './operator-handoff-dialog.component.html',
   styleUrl: './operator-handoff-dialog.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush

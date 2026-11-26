@@ -2999,7 +2999,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 name = "radar-vital"
 version = "16.9.0"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "btleplug",
  "futures-util",
  "minisign-verify 0.2.5",

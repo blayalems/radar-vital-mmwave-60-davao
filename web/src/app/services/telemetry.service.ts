@@ -1,8 +1,8 @@
-import { Injectable, effect, inject, untracked } from '@angular/core';
+import { DestroyRef, Injectable, effect, inject, untracked } from '@angular/core';
 import { LivePayload } from '../models/rvt.models';
 import { AudioService } from './audio.service';
 import { StateService } from './state.service';
-import { ApiService } from './api.service';
+import { ApiRequestError, ApiService } from './api.service';
 import { AuthService } from './auth.service';
 import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
 import { SourceModeService } from './source-mode.service';
@@ -18,6 +18,7 @@ export class TelemetryService {
   private auth = inject(AuthService);
   private sourceMode = inject(SourceModeService);
   private sseDriver = inject(SseDriverService);
+  private readonly destroyRef = inject(DestroyRef);
 
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private staleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -29,14 +30,21 @@ export class TelemetryService {
   private readonly alertCooldownUntil = new Map<string, number>();
   private readonly handleBrowserOffline = () => this.onBrowserOffline();
   private readonly handleBrowserOnline = () => this.onBrowserOnline();
+  private readonly handleOperatorAuthenticated = () => this.reconnect();
   /** Epoch ms of the next scheduled SSE reconnect attempt (null when connected). */
   readonly nextRetryAtMs = this.sseDriver.nextRetryAtMs;
 
   constructor() {
     window.addEventListener('offline', this.handleBrowserOffline);
     window.addEventListener('online', this.handleBrowserOnline);
+    window.addEventListener('rvt-operator-authenticated', this.handleOperatorAuthenticated);
+    this.destroyRef.onDestroy(() => {
+      window.removeEventListener('offline', this.handleBrowserOffline);
+      window.removeEventListener('online', this.handleBrowserOnline);
+      window.removeEventListener('rvt-operator-authenticated', this.handleOperatorAuthenticated);
+      this.stop();
+    });
     this.start();
-    window.addEventListener('rvt-operator-authenticated', () => this.reconnect());
     effect(() => {
       const simulating = this.state.demoSourceActive();
       const isLocked = this.auth.isLocked();
@@ -140,6 +148,14 @@ export class TelemetryService {
       this.scheduleNextPoll(500);
     } catch (error: unknown) {
       if (!this.browserOnline || transportGeneration !== this.transportGeneration) return;
+      if (error instanceof ApiRequestError && error.status === 401) {
+        this.stopSse();
+        this.clearPollTimer();
+        this.state.telemetryStale.set(true);
+        this.sourceMode.markAuthenticationRequired();
+        this.auth.lock?.();
+        return;
+      }
       const message = error instanceof Error ? error.message : 'poll failed';
       console.warn('Telemetry poll failed', error);
       this.state.telemetryStale.set(true);
@@ -492,7 +508,7 @@ export class TelemetryService {
         schema_warning_count: 0,
         reconnect_attempts: 0,
         funnel_survival_pct: 100,
-        fw_truthfulness: { version: 'v16.8.0-demo', module_version_valid: true },
+        fw_truthfulness: { version: 'v16.9.0-demo', module_version_valid: true },
         gate_audit: { hr_eval_bins: 120, rr_eval_bins: 120 },
         hr_gate_reason_histogram: { OK: 120 },
         rr_gate_reason_histogram: { OK: 120 },
@@ -621,6 +637,11 @@ export class TelemetryService {
 
   private emitAlert(message: string, severity: 'warn' | 'critical', source = 'telemetry'): void {
     const now = Date.now();
+    if (this.alertCooldownUntil.size > 64) {
+      for (const [entryKey, expiry] of this.alertCooldownUntil.entries()) {
+        if (expiry <= now) this.alertCooldownUntil.delete(entryKey);
+      }
+    }
     const key = `${source}:${message}`;
     const cooldownUntil = this.alertCooldownUntil.get(key) || 0;
     if (cooldownUntil > now) return;

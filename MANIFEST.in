@@ -1,0 +1,7 @@
+include README.md
+include LICENSE
+include radar_vital_live_dashboard.html
+include config/protocol_contract.json
+include quality/statistical-analysis-plan.json
+recursive-include assets *
+recursive-include rvt_trainer/assets *

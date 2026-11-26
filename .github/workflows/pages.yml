@@ -1,8 +1,8 @@
 name: Build GitHub Pages preview
 
 # Builds the dashboard PWA shell and verifies that it can preserve an existing
-# release-evidence bundle. Production deployment has one owner: the authorized
-# tag/manual release workflow. This workflow never mutates the live Pages site.
+# release-evidence bundle. PR builds produce a verified preview artifact,
+# while main pushes deploy the verified PWA shell to GitHub Pages.
 
 on:
   push:
@@ -176,3 +176,21 @@ jobs:
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: ./www
+
+  deploy:
+    name: Deploy GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

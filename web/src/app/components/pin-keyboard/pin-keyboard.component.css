@@ -114,3 +114,35 @@
   gap: 12px;
   margin-top: 8px;
 }
+
+@media (max-height: 720px) {
+  .pin-keyboard-container {
+    gap: 8px;
+  }
+
+  .operator-info {
+    gap: 4px;
+    margin-bottom: 2px;
+  }
+
+  .avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 1rem;
+  }
+
+  .pin-display {
+    margin-block: 4px;
+  }
+
+  .keyboard-grid {
+    gap: 8px;
+    max-width: 210px;
+  }
+
+  .keyboard-grid button {
+    height: 44px;
+    width: 44px;
+    font-size: 1.15rem;
+  }
+}

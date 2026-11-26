@@ -54,8 +54,16 @@ import { MatIconModule } from '@angular/material/icon';
       display: inline-flex;
       gap: 4px;
       font-weight: bold;
-      width: 140px;
+      min-width: 164px;
+      width: auto;
+      margin-right: 12px;
       flex-shrink: 0;
+    }
+    @media (max-width: 520px) {
+      .shortcut-key {
+        min-width: 112px;
+        margin-right: 8px;
+      }
     }
     .shortcut-desc {
       display: inline-flex;

@@ -134,6 +134,22 @@ test.describe('Trainer API smoke', () => {
     expect(resp.status()).toBeLessThan(500);
   });
 
+  test('/api/participants and /api/study/objectives/objective_1_rr/export expose v16.9 contracts', async ({ request }) => {
+    const matrixResp = await request.get('/api/study/completion-matrix');
+    if (matrixResp.status() === 200) {
+      const matrix = await matrixResp.json();
+      expect(matrix.no_subject_target_duration_s).toBe(10800);
+    }
+
+    const exportResp = await request.get('/api/study/objectives/objective_1_rr/export?format=latex');
+    if (exportResp.status() === 200) {
+      const payload = await exportResp.json();
+      expect(payload.ok).toBe(true);
+      expect(payload.format).toBe('latex');
+      expect(payload.content).toContain('\\begin{table}[!t]');
+    }
+  });
+
   test('SSE /api/session/events responds with text/event-stream and at least one event', async ({ page }) => {
     // Load a small same-origin document first so the in-page fetch is a same-origin
     // request without paying the dashboard/SW boot cost in an API smoke test.

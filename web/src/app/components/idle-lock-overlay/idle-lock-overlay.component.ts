@@ -148,17 +148,6 @@ export class IdleLockOverlayComponent {
     }
   }
 
-  pressOnboardingPin(key: string): void {
-    this.state.triggerHaptic('tap');
-    if (key === 'clear') {
-      this.onboardingPin = '';
-    } else if (key === 'backspace') {
-      this.onboardingPin = this.onboardingPin.slice(0, -1);
-    } else if (this.onboardingPin.length < 6) {
-      this.onboardingPin += key;
-    }
-  }
-
   async submitOnboarding(): Promise<void> {
     if (!this.isOnboardingValid()) return;
 
@@ -167,12 +156,14 @@ export class IdleLockOverlayComponent {
       this.initials.trim().toUpperCase(),
       this.onboardingPin
     );
+    if (result.recoveryCode) {
+      this.openRecoveryCodeDialog(result.recoveryCode);
+    }
     if (result.success) {
-      if (result.recoveryCode) {
-        this.openRecoveryCodeDialog(result.recoveryCode);
-      }
       this.isAddingNewOperator.set(false);
       this.idleLock.unlock();
+    } else if (result.recoveryCode) {
+      this.isAddingNewOperator.set(false);
     }
   }
 
@@ -181,7 +172,7 @@ export class IdleLockOverlayComponent {
     return (
       displayNameLength >= 3 &&
       displayNameLength <= this.displayNameMaxLength &&
-      this.initials.trim().length === 2 &&
+      /^[A-Za-z]{2,5}$/.test(this.initials.trim()) &&
       this.onboardingPin.length === 6
     );
   }
@@ -222,28 +213,6 @@ export class IdleLockOverlayComponent {
     this.resetNewPin = '';
     this.hostResetPin = '';
     this.resetError.set(null);
-  }
-
-  pressResetNewPin(key: string): void {
-    this.state.triggerHaptic('tap');
-    if (key === 'clear') {
-      this.resetNewPin = '';
-    } else if (key === 'backspace') {
-      this.resetNewPin = this.resetNewPin.slice(0, -1);
-    } else if (this.resetNewPin.length < 6) {
-      this.resetNewPin += key;
-    }
-  }
-
-  pressHostResetPin(key: string): void {
-    this.state.triggerHaptic('tap');
-    if (key === 'clear') {
-      this.hostResetPin = '';
-    } else if (key === 'backspace') {
-      this.hostResetPin = this.hostResetPin.slice(0, -1);
-    } else if (this.hostResetPin.length < 6) {
-      this.hostResetPin += key;
-    }
   }
 
   goToNewPin(): void {

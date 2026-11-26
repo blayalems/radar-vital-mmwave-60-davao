@@ -73,6 +73,7 @@ def test_direct_service_import_keeps_idempotent_stop_schema(tmp_path):
         missing_ok=True,
     )
 
+    assert payload["ok"] is True
     assert payload["schema_version"] == monolith.CONTROL_API_SCHEMA_VERSION
     assert payload["already_stopped"] is True
     assert payload["reason"] == "server_shutdown"

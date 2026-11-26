@@ -464,4 +464,107 @@ describe('ApiService', () => {
 
     expect(invoke).toHaveBeenCalledWith('native_set_paired_origin', { origin: 'http://127.0.0.1:8765' });
   });
+
+  it('invokes native_download with full loopback origin under Tauri', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    await service.whenInitialized();
+    const invoke = vi.fn().mockResolvedValue({
+      status: 200,
+      body_base64: btoa('ok,1\n'),
+      content_type: 'text/csv'
+    });
+    (window as Window & { __TAURI__?: unknown }).__TAURI__ = { core: { invoke } };
+    service.setApiBase('http://127.0.0.1:49222');
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await service.download('/api/sessions/s01/files/radar.csv', 'radar.csv');
+
+    expect(invoke).toHaveBeenCalledWith('native_download', {
+      request: expect.objectContaining({
+        origin: 'http://127.0.0.1:49222',
+        path: '/api/sessions/s01/files/radar.csv',
+        method: 'GET'
+      })
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    createObjectURL.mockRestore();
+    revokeObjectURL.mockRestore();
+  });
+
+  it('guards sandbox mode in download() before calling fetch', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    service.enableSandboxControlMode('Sandbox mode');
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await service.download('/api/report/export?session=sandbox_1', 'report.html');
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    createObjectURL.mockRestore();
+    revokeObjectURL.mockRestore();
+  });
+
+  it('never enables sandbox mode when detectControlMode receives 429 or 403', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    await service.whenInitialized();
+
+    for (const status of [429, 403]) {
+      const pending = service.detectControlMode();
+      const req = httpMock.expectOne('/api/status');
+      req.flush({ ok: false, error: { code: status === 429 ? 'RATE_LIMITED' : 'FORBIDDEN', message: 'Blocked' } }, { status, statusText: 'Error' });
+      await expect(pending).resolves.toBe(false);
+      expect(state.autoDemoActive()).toBe(false);
+      expect(state.ctlStatus()?.mode).toBe('live');
+    }
+  });
+
+  it('cancels the underlying HttpClient request on timeout', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    await service.whenInitialized();
+    vi.useFakeTimers();
+    try {
+      const pending = service.request('/api/sessions', undefined, true, 50);
+      const req = httpMock.expectOne('/api/sessions');
+      expect(req.cancelled).toBe(false);
+      vi.advanceTimersByTime(60);
+      await expect(pending).rejects.toThrow('Request timeout');
+      expect(req.cancelled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('exports objective summary in latex or csv format', async () => {
+    for (const request of httpMock.match('/api/status')) {
+      request.flush({ ok: true, mode: 'live' });
+    }
+    await service.whenInitialized();
+
+    const pending = service.exportObjectiveSummary('objective_1_rr', 'latex');
+    const req = httpMock.expectOne('/api/study/objectives/objective_1_rr/export?format=latex');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      ok: true,
+      objective_id: 'objective_1_rr',
+      format: 'latex',
+      filename: 'objective_1_rr_summary.tex',
+      content_type: 'application/x-tex; charset=utf-8',
+      content: '\\begin{table}[!t]\\end{table}'
+    });
+    await expect(pending).resolves.toMatchObject({ ok: true, format: 'latex' });
+  });
 });

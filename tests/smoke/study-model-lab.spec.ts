@@ -40,4 +40,61 @@ test.describe('Study Model Lab browser contract', () => {
     }));
     expect(dimensions.scrollWidth).toBe(dimensions.clientWidth);
   });
+
+  test('renders 10x3 study matrix and 5-min acclimatization cue on Home without overflow', async ({ page }) => {
+    await page.goto('/home', { waitUntil: 'domcontentloaded' });
+    const matrix = page.getByRole('region', { name: /Participant 10-condition randomized schedule matrix/i });
+    await expect(matrix).toBeVisible();
+    await expect(matrix.locator('tbody tr')).toHaveCount(10);
+
+    await matrix.locator('tbody tr').first().getByRole('button', { name: /trial 2/i }).click();
+    await expect(page.locator('.trial-summary')).toContainText('trial 2');
+
+    await page.getByRole('radio', { name: '0.6 m' }).click();
+    await page.getByRole('radio', { name: 'None' }).click();
+    await expect(page.getByText(/MLX90614 5-min acclimatization cue/i)).toBeVisible();
+    await page.getByRole('button', { name: /Start 5m/i }).click();
+    await expect(page.getByRole('button', { name: /Pause/i })).toBeVisible();
+
+    await expect(page.getByRole('region', { name: /No-subject false-alarm progress/i })).toBeVisible();
+
+    const dimensions = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth
+    }));
+    expect(dimensions.scrollWidth).toBe(dimensions.clientWidth);
+  });
+
+  test('masks first RR observer until second locks and exports IEEE LaTeX/CSV on Report', async ({ page }) => {
+    await page.goto('/report', { waitUntil: 'domcontentloaded' });
+    const refCard = page.locator('mat-card[aria-label="Reference Observations and Blinded RR Adjudication"]');
+    await expect(refCard).toBeVisible();
+
+    await refCard.getByLabel('Observer ID').fill('Obs-1');
+    await refCard.getByLabel('Respiration rate (br/min)').fill('16');
+    await refCard.getByRole('button', { name: /Lock Observer RR/i }).click();
+
+    await expect(refCard.getByText('Locked (blinded)')).toBeVisible();
+    await expect(refCard.getByText(/1 \/ 2 locked/i)).toBeVisible();
+
+    await refCard.getByLabel('Observer ID').fill('Obs-2');
+    await refCard.getByLabel('Respiration rate (br/min)').fill('17');
+    await refCard.getByRole('button', { name: /Lock Observer RR/i }).click();
+
+    await expect(refCard.getByText(/2 \/ 2 locked · Unblinded/i)).toBeVisible();
+    await refCard.getByRole('button', { name: /Adjudicate & Lock Final RR/i }).click();
+    await expect(refCard.getByText(/Final locked RR:/i)).toBeVisible();
+
+    const objCard = page.locator('mat-card[aria-label="Manuscript objective reports"]');
+    await objCard.getByRole('button', { name: /Refresh objective reports/i }).click();
+    await expect(objCard.getByRole('button', { name: /Export IEEE LaTeX/i }).first()).toBeVisible();
+
+    const texDownload = page.waitForEvent('download');
+    await objCard.getByRole('button', { name: /Export IEEE LaTeX/i }).first().click();
+    expect((await texDownload).suggestedFilename()).toMatch(/\.tex$/);
+
+    const csvDownload = page.waitForEvent('download');
+    await objCard.getByRole('button', { name: /Export Condition CSV/i }).first().click();
+    expect((await csvDownload).suggestedFilename()).toMatch(/\.csv$/);
+  });
 });

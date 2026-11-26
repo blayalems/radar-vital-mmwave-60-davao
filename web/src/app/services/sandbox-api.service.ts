@@ -7,6 +7,7 @@ import {
   ParticipantProfile,
   ReferenceObservation,
   StudyAnalysisRequest,
+  StudyObjectiveExportResponse,
   StudyObjectiveReport,
   StudyProtocol,
   SessionRecord,
@@ -21,7 +22,12 @@ interface SandboxOperatorProfile extends OperatorProfile {
   pin: string;
   failed_attempts?: number;
   locked_until?: number;
+  recovery_code?: string;
+  recovery_failed_attempts?: number;
+  recovery_locked_until?: number;
 }
+
+const SANDBOX_RECOVERY_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
 
 const SANDBOX_OPERATOR_SESSIONS_KEY = 'demo:rvt-operator-sessions';
 const SANDBOX_OPERATOR_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -92,6 +98,16 @@ export class SandboxApiService {
       return login;
     }
     if (url.pathname === '/api/auth/logout' && method === 'POST') return this.logoutOperator(init);
+    if (url.pathname === '/api/auth/reset-pin' && method === 'POST') {
+      const reset = this.resetPinWithRecovery(init);
+      if ('error' in reset && reset.error) throw new Error(`${reset.error.message} (${reset.error.code})`);
+      return reset;
+    }
+    if (url.pathname === '/api/auth/host-reset' && method === 'POST') {
+      const reset = this.hostResetPin(init);
+      if ('error' in reset && reset.error) throw new Error(`${reset.error.message} (${reset.error.code})`);
+      return reset;
+    }
     if (url.pathname === '/api/auth/sse-token') return { sse_token: `sandbox_sse_${Date.now().toString(36)}` };
     if (url.pathname === '/api/operator-profiles' && method === 'GET') return this.operatorProfilesResponse();
     if (url.pathname === '/api/operator-profiles' && method === 'POST') {
@@ -123,7 +139,7 @@ export class SandboxApiService {
         : item);
       const profile = participants.find(item => item.participant_id === participantId);
       if (!profile) throw new Error('Participant not found');
-      localStorage.setItem(SANDBOX_PARTICIPANTS_KEY, JSON.stringify(participants.filter(item => item.participant_id !== 'P-DEMO')));
+      localStorage.setItem(SANDBOX_PARTICIPANTS_KEY, JSON.stringify(participants));
       return { ok: true, schema_version: 'rvt-participant-profiles-v16.5.9', profile };
     }
     if (url.pathname === '/api/study/completion-matrix') return this.completionMatrix();
@@ -217,9 +233,16 @@ export class SandboxApiService {
       const objectiveId = decodeURIComponent(url.pathname.split('/')[4] || '');
       return this.sandboxObjectiveReport(objectiveId);
     }
+    if (url.pathname.startsWith('/api/study/objectives/') && url.pathname.endsWith('/export')) {
+      const objectiveId = decodeURIComponent(url.pathname.split('/')[4] || '');
+      const fmt = (url.searchParams.get('format') || 'latex').toLowerCase() === 'csv' ? 'csv' : 'latex';
+      return this.sandboxObjectiveExport(objectiveId, fmt);
+    }
     if (url.pathname === '/api/study/attempts' && method === 'POST') {
       const body = this.parseJsonBody<Record<string, unknown>>(init?.body);
       const attempts = this.readProtocolAttempts();
+      const status = String(body['status'] || 'allocated').toLowerCase();
+      const terminal = ['completed', 'stopped', 'failed_start', 'aborted', 'invalid', 'no_output'].includes(status);
       const attempt = {
         schema_version: 'rvt-protocol-attempt-ledger-v16.5.9',
         attempt_id: `AT-sandbox-${Date.now().toString(36)}`,
@@ -227,12 +250,12 @@ export class SandboxApiService {
         participant_id: body['participant_id'] || null,
         condition_id: body['condition_id'] || null,
         trial_number: body['trial_number'] || null,
-        status: body['status'] || 'allocated',
+        status,
         session_id: body['session_id'] || null,
         duration_s: body['duration_s'] ?? null,
         frozen_configuration_hash: body['frozen_configuration_hash'] || null,
         false_alarm_count: body['false_alarm_count'] ?? null,
-        terminal: true,
+        terminal,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         events: []
@@ -291,15 +314,26 @@ export class SandboxApiService {
       if (url.pathname.endsWith('/references') && method === 'GET') return this.sessionReferences(sessionId);
       if (url.pathname.endsWith('/references') && method === 'POST') {
         const body = this.parseJsonBody<Record<string, unknown>>(init?.body);
-        if (String(body['kind'] || '').toLowerCase() === 'temperature' && String(body['barrier_type'] || 'none').toLowerCase() === 'cardboard') {
+        const kind = String(body['kind'] || 'rr_observer').toLowerCase();
+        if (kind === 'temperature' && String(body['barrier_type'] || 'none').toLowerCase() === 'cardboard') {
           throw new Error('temperature reference capture is limited to unobstructed trials');
         }
         const existing = this.sessionReferences(sessionId);
+        const observerId = String(body['observer_id'] || body['actor'] || '').trim();
+        if (kind === 'rr_observer' && observerId) {
+          const dup = existing.references.some(
+            item => item.kind === 'rr_observer' && String(item.observer_id || '').trim().toLowerCase() === observerId.toLowerCase()
+          );
+          if (dup) {
+            throw new Error(`duplicate rr_observer submission for observer_id ${observerId}`);
+          }
+        }
         const observation = {
           observation_id: `OBS-${Date.now().toString(36)}`,
           session_id: sessionId,
-          kind: String(body['kind'] || 'rr_observer'),
+          kind,
           ...body,
+          ...(observerId ? { observer_id: observerId } : {}),
           locked: true,
           observed_at: body['observed_at'] || new Date().toISOString()
         } as ReferenceObservation;
@@ -317,9 +351,11 @@ export class SandboxApiService {
         return response;
       }
       if (url.pathname.endsWith('/summary')) {
+        const tags = this.readSessionTags(sessionId);
         return {
           ...session,
           sandbox: true,
+          tags,
           signal_quality: { pqi_lock_pct: 84.2, session_quality_score: 8.7, internal_consistency_score: 9.1, coverage_locked: 81.5, coverage_settling: 11.2 },
           hr_metrics: { rmse: 2.41, mae: 1.92, bias: -0.4, coverage_pct: 88.1 },
           rr_metrics: { rmse: 0.82, mae: 0.61, bias: 0.1, coverage_pct: 90.4 },
@@ -337,15 +373,25 @@ export class SandboxApiService {
         };
       }
       if (url.pathname.endsWith('/data')) {
+        const pointsRequested = Math.max(1, Math.min(10000, Number(url.searchParams.get('points') || 1000) || 1000));
+        const rows = [
+          { timestamp_s: 0, timestamp_ms: 0, reported_hr: 72, reported_rr: 14, ref_hr: 72, ble_hr: 72, ref_rr: 14, ble_rr: 14 },
+          { timestamp_s: 1, timestamp_ms: 1000, reported_hr: 73, reported_rr: 15, ref_hr: 73, ble_hr: 73, ref_rr: 15, ble_rr: 15 },
+          { timestamp_s: 2, timestamp_ms: 2000, reported_hr: 71, reported_rr: 14, ref_hr: 71, ble_hr: 71, ref_rr: 14, ble_rr: 14 }
+        ];
         return {
-          rows: [
-            { t: 0, reported_hr: 72, reported_rr: 14 },
-            { t: 1, reported_hr: 73, reported_rr: 15 },
-            { t: 2, reported_hr: 71, reported_rr: 14 }
-          ]
+          ok: true,
+          schema_version: 'rvt-control-api-v12.0',
+          session_id: sessionId,
+          points_requested: pointsRequested,
+          rows_returned: rows.length,
+          rows
         };
       }
       if (url.pathname.endsWith('/compare')) return { selected: session, previous: null, best: session };
+      if (url.pathname.endsWith('/analyse') && method === 'POST') {
+        return { ok: true, session_id: sessionId, status: 'complete', progress_pct: 100, sandbox: true };
+      }
       if (url.pathname.endsWith('/analyse/status')) {
         return { status: 'complete', progress_pct: 100, last_line: 'Sandbox analysis complete.' };
       }
@@ -355,23 +401,80 @@ export class SandboxApiService {
       if (url.pathname.endsWith('/predict')) {
         return { ok: true, session_id: sessionId, summary: { model_family: 'gradient_boosting', status: 'complete', sandbox: true }, path: null };
       }
+      if (url.pathname.includes('/files/')) {
+        const rel = decodeURIComponent(url.pathname.split('/files/')[1] || '');
+        return {
+          ok: true,
+          session_id: sessionId,
+          filename: rel || 'artifact.txt',
+          content: `Sandbox preview artifact for ${sessionId}: ${rel || 'artifact.txt'}`,
+          sandbox: true
+        };
+      }
       if (url.pathname.endsWith('/tags') && method === 'PUT') {
         const body = this.parseJsonBody<{ tags?: string[] }>(init?.body);
-        return { ok: true, session_id: sessionId, tags: Array.isArray(body.tags) ? body.tags : [] };
+        const tags = Array.isArray(body.tags) ? body.tags.map(t => String(t).trim()).filter(Boolean) : [];
+        localStorage.setItem(`demo:rvt-tags:${sessionId}`, JSON.stringify(tags));
+        return { ok: true, session_id: sessionId, tags };
       }
       if (url.pathname.endsWith('/events')) return { ok: true, session_id: sessionId, sandbox: true };
       if (url.pathname.endsWith('/notes')) {
-        const body = method === 'PUT' ? this.parseJsonBody<{ review_summary?: string }>(init?.body) : {};
-        return { review_summary: body.review_summary || session.summary || '', sandbox: true };
+        const notesKey = `demo:rvt-notes:${sessionId}`;
+        if (method === 'PUT') {
+          const body = this.parseJsonBody<{ review_summary?: string; notes?: Array<Record<string, unknown>> }>(init?.body);
+          const stored = {
+            schema_version: 'rvt-session-notes-v12.0',
+            session_id: sessionId,
+            review_summary: String(body.review_summary ?? ''),
+            notes: Array.isArray(body.notes) ? body.notes : this.readJsonStorage<{ notes?: Array<Record<string, unknown>> }>(notesKey)?.notes || [],
+            updated_at: new Date().toISOString(),
+            sandbox: true
+          };
+          localStorage.setItem(notesKey, JSON.stringify(stored));
+          return stored;
+        }
+        const existing = this.readJsonStorage<{ review_summary?: string; notes?: Array<Record<string, unknown>>; updated_at?: string }>(notesKey);
+        return {
+          schema_version: 'rvt-session-notes-v12.0',
+          session_id: sessionId,
+          updated_at: existing?.updated_at ?? null,
+          review_summary: existing?.review_summary ?? (session.summary || ''),
+          notes: Array.isArray(existing?.notes) ? existing.notes : [],
+          sandbox: true
+        };
       }
       if (url.pathname.endsWith('/signoff')) {
-        const body = method === 'PUT' ? this.parseJsonBody<SessionSignoff>(init?.body) : {};
+        const signoffKey = `demo:rvt-signoff:${sessionId}`;
+        if (method === 'PUT') {
+          const body = this.parseJsonBody<SessionSignoff>(init?.body);
+          const operator_name = String(body.operator_name || '').trim();
+          const initials = String(body.initials || '').trim().toUpperCase();
+          if (!operator_name || !/^[A-Z]{2,5}$/.test(initials)) {
+            throw new Error('operator_name and 2-5 uppercase initials are required');
+          }
+          const now = new Date().toISOString();
+          const signoff = {
+            schema_version: 'rvt-session-signoff-v12.0',
+            session_id: sessionId,
+            operator_name,
+            initials,
+            validation_comment: String(body.validation_comment || '').trim(),
+            signed_at: now,
+            updated_at: now,
+            sandbox: true
+          };
+          localStorage.setItem(signoffKey, JSON.stringify(signoff));
+          return signoff;
+        }
+        const existing = this.readJsonStorage<Record<string, unknown>>(signoffKey) || {};
         return {
+          schema_version: 'rvt-session-signoff-v12.0',
           session_id: sessionId,
-          operator_name: body.operator_name || '',
-          initials: body.initials || '',
-          validation_comment: body.validation_comment || '',
-          signed_at: method === 'PUT' ? new Date().toISOString() : null,
+          operator_name: String(existing['operator_name'] || ''),
+          initials: String(existing['initials'] || ''),
+          validation_comment: String(existing['validation_comment'] || ''),
+          signed_at: existing['signed_at'] ?? null,
+          updated_at: existing['updated_at'] ?? null,
           sandbox: true
         };
       }
@@ -382,14 +485,73 @@ export class SandboxApiService {
     }
     if (url.pathname === '/api/defaults' && method === 'POST') return { ...this.sandboxDefaults(), ...this.parseJsonBody<Record<string, unknown>>(init?.body) };
     if (url.pathname === '/api/defaults') return this.sandboxDefaults();
-    if (url.pathname === '/api/preflight') return { ok: true, checks: [
-      { id: 'trainer', label: 'Trainer link', status: 'good', description: 'Demo trainer reachable — simulated control plane.' },
-      { id: 'radar', label: 'Radar serial', status: 'good', description: 'COM4 — XIAO ESP32-C6 detected.' },
-      { id: 'firmware', label: 'Firmware contract', status: 'good', description: 'Simulated 222-column contract intact.' },
-      { id: 'ble', label: 'BLE reference', status: 'good', description: 'AiLink oximeter paired (simulated).' },
-      { id: 'placement', label: 'Subject placement', status: 'good', description: 'Subject within the radar sweet spot.' },
-      { id: 'coverage', label: 'Reference coverage', status: 'warn', description: 'Simulated BLE coverage 72% — review before trusting agreement.', remediation: 'Keep the oximeter within range for the full session.' }
-    ] };
+    if (url.pathname === '/api/serial/ports') {
+      return {
+        ok: true,
+        schema_version: 'rvt-control-api-v12.0',
+        ports: [{ device: 'COM4', label: 'USB Serial Device (Sandbox)' }],
+        selected: 'COM4'
+      };
+    }
+    if (url.pathname === '/api/trainer/log') {
+      return { ok: true, lines: ['[sandbox] Local demo control plane active (no hardware trainer attached).'] };
+    }
+    if (url.pathname === '/api/help/schema') {
+      return { ok: true, version: PRODUCT_VERSION, glossary: [], tooltips: {}, troubleshooting: [], sandbox: true };
+    }
+    if (url.pathname === '/api/update/manifest') {
+      return {
+        product_version: PRODUCT_VERSION,
+        release_tag: `v${PRODUCT_VERSION}`,
+        release_version: PRODUCT_VERSION,
+        minimum_supported: PRODUCT_VERSION,
+        sandbox: true
+      };
+    }
+    if (url.pathname === '/api/server-info') {
+      return {
+        ok: true,
+        origin: window.location.origin,
+        scheme: window.location.protocol.replace(':', ''),
+        bind_mode: 'local',
+        trainer_version: PRODUCT_VERSION,
+        dashboard_version: PRODUCT_VERSION,
+        firmware_expected: `v${PRODUCT_VERSION}`,
+        pair_required: false,
+        sandbox: true
+      };
+    }
+    if (url.pathname === '/api/session/buffer') {
+      const seconds = Math.max(1, Math.min(3600, Number(url.searchParams.get('seconds') || 60) || 60));
+      return {
+        ok: true,
+        schema_version: 'rvt-live-event-v12.0',
+        session_id: this.sessionStore.currentSessionId() || 'sandbox_active',
+        buffer_s: seconds,
+        payload: null,
+        sandbox: true
+      };
+    }
+    if (url.pathname === '/api/report/export') {
+      const sid = url.searchParams.get('session') || 'sandbox_demo';
+      return `<!doctype html><html><head><meta charset="utf-8"><title>RVT Sandbox Report ${sid}</title></head><body><h1>Sandbox Report (${sid})</h1><p>Demo export — not for clinical or manuscript claims.</p></body></html>`;
+    }
+    if (url.pathname === '/api/preflight') {
+      return { ok: true, checks: this.sandboxPreflightChecks() };
+    }
+    if (url.pathname.startsWith('/api/preflight/') && method === 'POST') {
+      const checkId = decodeURIComponent(url.pathname.split('/').pop() || '');
+      const existing = this.sandboxPreflightChecks().find(c => c['id'] === checkId);
+      return existing || {
+        id: checkId,
+        label: checkId,
+        status: 'ok',
+        detail: `Sandbox preflight check ${checkId} passed.`,
+        description: `Sandbox preflight check ${checkId} passed.`,
+        remediation: '',
+        duration_ms: 1.0
+      };
+    }
     if (url.pathname === '/api/ble/scan') return { ok: true, devices: [] };
     return { ok: true, sandbox: true };
   }
@@ -411,7 +573,8 @@ export class SandboxApiService {
       const valid = stored.filter((item): item is ParticipantProfile =>
         Boolean(item && typeof item === 'object' && item.participant_id && item.display_code)
       );
-      return [demo, ...valid.filter(item => item.participant_id !== demo.participant_id)].slice(0, 41);
+      const storedDemo = valid.find(item => item.participant_id === demo.participant_id);
+      return [storedDemo || demo, ...valid.filter(item => item.participant_id !== demo.participant_id)].slice(0, 41);
     } catch {
       return [demo];
     }
@@ -441,15 +604,32 @@ export class SandboxApiService {
     const attempts = this.readProtocolAttempts();
     const participants: CompletionMatrix['participants'] = {};
     for (const participant of this.readParticipants()) {
-      const cells: Record<string, { status: string; attempt_type: string; attempt_id: string | null }> = {};
+      const cells: CompletionMatrix['participants'][string]['cells'] = {};
+      const conditions_summary: NonNullable<CompletionMatrix['participants'][string]['conditions_summary']> = {};
       let completed = 0;
       for (const condition of conditions) {
+        let validTrials = 0;
         for (const trial of trials) {
           const row = [...attempts].reverse().find(item => item['participant_id'] === participant.participant_id && item['condition_id'] === condition && Number(item['trial_number']) === trial);
           const status = String(row?.['status'] || 'missing');
           if (status === 'completed') completed++;
-          cells[`${condition}:t${trial}`] = { status, attempt_type: String(row?.['attempt_type'] || 'subject'), attempt_id: row?.['attempt_id'] ? String(row['attempt_id']) : null };
+          const sessionId = row?.['session_id'] ? String(row['session_id']) : null;
+          const validWindows = typeof row?.['valid_windows'] === 'number' ? Number(row['valid_windows']) : null;
+          const meetsWindowFloor = validWindows !== null ? validWindows >= 15 : null;
+          if (status === 'completed' && meetsWindowFloor === true) validTrials++;
+          cells[`${condition}:t${trial}`] = {
+            status,
+            attempt_type: String(row?.['attempt_type'] || 'subject'),
+            attempt_id: row?.['attempt_id'] ? String(row['attempt_id']) : null,
+            session_id: sessionId,
+            valid_windows: validWindows,
+            meets_window_floor: meetsWindowFloor
+          };
         }
+        conditions_summary[condition] = {
+          valid_trials: validTrials,
+          meets_trial_floor: validTrials >= 2
+        };
       }
       participants[participant.participant_id] = {
         participant_id: participant.participant_id,
@@ -457,8 +637,16 @@ export class SandboxApiService {
         completed_trials: completed,
         expected_trials: conditions.length * trials.length,
         protocol_complete: completed === conditions.length * trials.length,
-        cells
+        cells,
+        conditions_summary
       };
+    }
+    const noSubjectRows = attempts.filter(item => item['attempt_type'] === 'no_subject');
+    const unqualifiedReasons: Record<string, number> = {};
+    for (const row of noSubjectRows) {
+      const status = String(row['status'] || '');
+      const reason = status !== 'completed' ? 'not_completed' : 'missing_interval';
+      unqualifiedReasons[reason] = (unqualifiedReasons[reason] || 0) + 1;
     }
     return {
       schema_version: 'rvt-protocol-attempts-v16.5.9',
@@ -467,12 +655,41 @@ export class SandboxApiService {
       participants,
       participant_count: Object.keys(participants).length,
       protocol_complete_participant_count: Object.values(participants).filter(item => item.protocol_complete).length,
-      no_subject_attempt_count: attempts.filter(item => item['attempt_type'] === 'no_subject').length,
+      no_subject_attempt_count: noSubjectRows.length,
       no_subject_qualified_count: 0,
-      no_subject_unqualified_count: attempts.filter(item => item['attempt_type'] === 'no_subject').length,
+      no_subject_unqualified_count: noSubjectRows.length,
+      no_subject_qualified_duration_s: 0,
+      no_subject_target_duration_s: 10800,
+      no_subject_unqualified_reasons: unqualifiedReasons,
       no_subject_expected: 72,
       attempt_count: attempts.length
     };
+  }
+
+  private sandboxPreflightChecks(): Array<Record<string, unknown>> {
+    return [
+      { id: 'firmware_file_present', label: 'Firmware file', status: 'ok', detail: 'Simulated 222-column contract intact.', description: 'Simulated 222-column contract intact.', remediation: '', duration_ms: 1.0 },
+      { id: 'serial_port_list', label: 'Serial ports', status: 'ok', detail: 'COM4 present (sandbox).', description: 'COM4 present (sandbox).', remediation: '', duration_ms: 1.0 },
+      { id: 'session_folder_writable', label: 'Session folder writable', status: 'ok', detail: 'Local browser sandbox storage writable.', description: 'Local browser sandbox storage writable.', remediation: '', duration_ms: 1.0 },
+      { id: 'disk_space', label: 'Disk space', status: 'ok', detail: 'Sandbox storage available.', description: 'Sandbox storage available.', remediation: '', duration_ms: 1.0 },
+      { id: 'schema_hash_consistency', label: 'Schema hash consistency', status: 'ok', detail: 'Simulated scoring_weights_hash consistent.', description: 'Simulated scoring_weights_hash consistent.', remediation: '', duration_ms: 1.0 },
+      { id: 'ble_adapter', label: 'BLE adapter', status: 'warn', detail: 'Simulated BLE coverage preview — pair hardware for live sessions.', description: 'Simulated BLE coverage preview — pair hardware for live sessions.', remediation: 'Keep the oximeter within range for live sessions.', duration_ms: 1.0 }
+    ];
+  }
+
+  private readJsonStorage<T>(key: string): T | null {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      return JSON.parse(raw) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  private readSessionTags(sessionId: string): string[] {
+    const stored = this.readJsonStorage<unknown>(`demo:rvt-tags:${sessionId}`);
+    return Array.isArray(stored) ? stored.map(item => String(item)).filter(Boolean) : [];
   }
 
   private sandboxDefaults(): Record<string, unknown> {
@@ -686,6 +903,51 @@ export class SandboxApiService {
     }
   }
 
+  private sandboxObjectiveExport(objectiveId: string, format: 'latex' | 'csv'): StudyObjectiveExportResponse {
+    const report = this.sandboxObjectiveReport(objectiveId);
+    const filename = `${objectiveId}_summary.${format === 'latex' ? 'tex' : 'csv'}`;
+    const content_type = format === 'latex' ? 'application/x-tex; charset=utf-8' : 'text/csv; charset=utf-8';
+    if (format === 'latex') {
+      const rows = SANDBOX_CONFIRMATORY_CONDITIONS.map(
+        cid => `${cid.replace(/_/g, '\\_')} & -- & -- & -- & -- & -- & -- & -- & inconclusive \\\\`
+      );
+      const content = [
+        '% SANDBOX DEMO DATA — NOT FOR MANUSCRIPT SUBMISSION',
+        `% Objective: ${objectiveId} (status=${report.status})`,
+        '\\begin{table}[!t]',
+        '\\centering',
+        `\\caption{Sandbox summary for ${objectiveId.replace(/_/g, '\\_')} (${report.status})}`,
+        `\\label{tab:${objectiveId.replace(/_/g, '\\_')}}`,
+        '\\begin{tabular}{lcccccccl}',
+        '\\toprule',
+        'Condition & $n$ & Valid (\\%) & Bias & RMSE & MAE & BA LoA & 90\\% TOST CI & Holm Decision \\\\',
+        '\\midrule',
+        ...rows,
+        '\\bottomrule',
+        '\\end{tabular}',
+        '\\end{table}',
+        ''
+      ].join('\n');
+      return { ok: true, objective_id: objectiveId, format, filename, content_type, content, status: report.status };
+    }
+    const header = 'objective_id,status,condition_id,distance_m,barrier_type,role,n_participants,valid_output_rate_pct,bias,rmse,mae,ba_loa_low,ba_loa_high,tost_ci_low,tost_ci_high,p_value,p_value_holm,holm_decision';
+    const csvRows = SANDBOX_CONFIRMATORY_CONDITIONS.map(cid => {
+      const distanceM = Number(cid.slice(1, 4)) / 100;
+      const barrier = cid.endsWith('cardboard') ? 'cardboard' : 'none';
+      const role = cid === 'd100_none' ? 'primary' : 'secondary';
+      return `${objectiveId},${report.status},${cid},${distanceM},${barrier},${role},--,--,--,--,--,--,--,--,--,--,--,inconclusive`;
+    });
+    return {
+      ok: true,
+      objective_id: objectiveId,
+      format,
+      filename,
+      content_type,
+      content: [header, ...csvRows].join('\n') + '\n',
+      status: report.status
+    };
+  }
+
   private sandboxObjectiveReport(objectiveId: string): StudyObjectiveReport {
     const objective = this.studyObjectives()['objectives'] as Array<Record<string, unknown>>;
     const known = objective.some(item => item['id'] === objectiveId);
@@ -751,7 +1013,10 @@ export class SandboxApiService {
           initials: profile.initials,
           pin: profile.pin,
           failed_attempts: Number(profile.failed_attempts || 0),
-          locked_until: Number(profile.locked_until || 0)
+          locked_until: Number(profile.locked_until || 0),
+          recovery_code: typeof profile.recovery_code === 'string' ? profile.recovery_code : undefined,
+          recovery_failed_attempts: Number(profile.recovery_failed_attempts || 0),
+          recovery_locked_until: Number(profile.recovery_locked_until || 0)
         }));
     } catch (_) {
       return [];
@@ -797,13 +1062,39 @@ export class SandboxApiService {
     };
   }
 
-  private createOperatorProfile(init?: RequestInit): { ok: boolean; operator?: OperatorProfile; error?: { code: string; message: string } } {
+  private mintRecoveryCode(): string {
+    const group = () => {
+      let out = '';
+      for (let i = 0; i < 4; i++) {
+        out += SANDBOX_RECOVERY_ALPHABET[Math.floor(Math.random() * SANDBOX_RECOVERY_ALPHABET.length)];
+      }
+      return out;
+    };
+    return `${group()}-${group()}-${group()}`;
+  }
+
+  private invalidateOperatorSessions(operatorId: string): void {
+    const sessions = this.readOperatorSessions();
+    let changed = false;
+    for (const [tok, sess] of Object.entries(sessions)) {
+      if (sess?.operator_id === operatorId) {
+        delete sessions[tok];
+        changed = true;
+      }
+    }
+    if (changed) this.writeOperatorSessions(sessions);
+  }
+
+  private createOperatorProfile(init?: RequestInit): { ok: boolean; operator?: OperatorProfile; recovery_code?: string; error?: { code: string; message: string } } {
     const body = this.parseJsonBody<{ display_name?: string; initials?: string; pin?: string }>(init?.body);
     const displayName = String(body.display_name || '').trim();
     const initials = String(body.initials || '').trim().toUpperCase();
     const pin = String(body.pin || '').trim();
-    if (displayName.length < 3 || displayName.length > 64) {
-      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'display_name must be 3 to 64 characters' } };
+    if (!displayName) {
+      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'display_name is required' } };
+    }
+    if (displayName.length > 64) {
+      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'display_name must not exceed 64 characters' } };
     }
     if (!/^[A-Z]{2,5}$/.test(initials)) {
       return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'initials must be 2 to 5 uppercase letters' } };
@@ -812,17 +1103,118 @@ export class SandboxApiService {
       return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'pin must be exactly 6 digits' } };
     }
     const profiles = this.readOperatorProfiles();
+    const recoveryCode = this.mintRecoveryCode();
     const operator: SandboxOperatorProfile = {
       operator_id: `sandbox_op_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
       display_name: displayName,
       initials,
       pin,
       failed_attempts: 0,
-      locked_until: 0
+      locked_until: 0,
+      recovery_code: recoveryCode,
+      recovery_failed_attempts: 0,
+      recovery_locked_until: 0
     };
     this.writeOperatorProfiles([...profiles, operator]);
-    const { pin: _pin, failed_attempts: _failed, locked_until: _locked, ...publicOperator } = operator;
-    return { ok: true, operator: publicOperator };
+    const {
+      pin: _pin,
+      failed_attempts: _failed,
+      locked_until: _locked,
+      recovery_code: _rc,
+      recovery_failed_attempts: _rfailed,
+      recovery_locked_until: _rlocked,
+      ...publicOperator
+    } = operator;
+    return { ok: true, operator: publicOperator, recovery_code: recoveryCode };
+  }
+
+  private resetPinWithRecovery(init?: RequestInit): { ok: boolean; recovery_code?: string; error?: { code: string; message: string; retry_after_s?: number } } {
+    const body = this.parseJsonBody<{ operator_id?: string; recovery_code?: string; new_pin?: string }>(init?.body);
+    const operatorId = String(body.operator_id || '').trim();
+    const recoveryCode = String(body.recovery_code || '').trim().toUpperCase();
+    const newPin = String(body.new_pin || '').trim();
+    if (!/^\d{6}$/.test(newPin)) {
+      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'new_pin must be exactly 6 digits' } };
+    }
+    const profiles = this.readOperatorProfiles();
+    const profile = profiles.find(item => item.operator_id === operatorId);
+    if (!profile) {
+      return { ok: false, error: { code: 'UNAUTHORIZED', message: 'Invalid operator ID' } };
+    }
+    const now = Date.now();
+    const lockedUntil = Number(profile.recovery_locked_until || 0);
+    if (lockedUntil > now) {
+      const retryAfter = Math.max(1, Math.ceil((lockedUntil - now) / 1000));
+      return {
+        ok: false,
+        error: {
+          code: 'LOCKOUT_ACTIVE',
+          message: `Too many failed recovery attempts. Try again in ${retryAfter} seconds.`,
+          retry_after_s: retryAfter
+        }
+      };
+    }
+    if (!profile.recovery_code) {
+      return {
+        ok: false,
+        error: {
+          code: 'NO_RECOVERY_CODE',
+          message: 'This operator profile has no recovery code. Use host-reset.'
+        }
+      };
+    }
+    if (profile.recovery_code !== recoveryCode) {
+      profile.recovery_failed_attempts = Number(profile.recovery_failed_attempts || 0) + 1;
+      if (profile.recovery_failed_attempts >= 5) {
+        profile.recovery_locked_until = now + 30_000;
+      }
+      this.writeOperatorProfiles(profiles);
+      if (profile.recovery_failed_attempts >= 5) {
+        return {
+          ok: false,
+          error: {
+            code: 'LOCKOUT_ACTIVE',
+            message: 'Too many failed recovery attempts. Try again in 30 seconds.',
+            retry_after_s: 30
+          }
+        };
+      }
+      return { ok: false, error: { code: 'UNAUTHORIZED', message: 'Invalid recovery code' } };
+    }
+    const newRecoveryCode = this.mintRecoveryCode();
+    profile.pin = newPin;
+    profile.failed_attempts = 0;
+    profile.locked_until = 0;
+    profile.recovery_code = newRecoveryCode;
+    profile.recovery_failed_attempts = 0;
+    profile.recovery_locked_until = 0;
+    this.writeOperatorProfiles(profiles);
+    this.invalidateOperatorSessions(operatorId);
+    return { ok: true, recovery_code: newRecoveryCode };
+  }
+
+  private hostResetPin(init?: RequestInit): { ok: boolean; recovery_code?: string; error?: { code: string; message: string } } {
+    const body = this.parseJsonBody<{ operator_id?: string; new_pin?: string }>(init?.body);
+    const operatorId = String(body.operator_id || '').trim();
+    const newPin = String(body.new_pin || '').trim();
+    if (!/^\d{6}$/.test(newPin)) {
+      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'new_pin must be exactly 6 digits' } };
+    }
+    const profiles = this.readOperatorProfiles();
+    const profile = profiles.find(item => item.operator_id === operatorId);
+    if (!profile) {
+      return { ok: false, error: { code: 'UNAUTHORIZED', message: 'Invalid operator ID' } };
+    }
+    const newRecoveryCode = this.mintRecoveryCode();
+    profile.pin = newPin;
+    profile.failed_attempts = 0;
+    profile.locked_until = 0;
+    profile.recovery_code = newRecoveryCode;
+    profile.recovery_failed_attempts = 0;
+    profile.recovery_locked_until = 0;
+    this.writeOperatorProfiles(profiles);
+    this.invalidateOperatorSessions(operatorId);
+    return { ok: true, recovery_code: newRecoveryCode };
   }
 
   private login(init?: RequestInit): LoginResponse | { ok: false; error: { code: string; message: string; retry_after_s?: number } } {

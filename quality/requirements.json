@@ -2,8 +2,8 @@
   "$schema": "./schemas/requirements.schema.json",
   "schema_version": "rvt-qms-requirements-v1",
   "register_id": "RVT-QMS-REG-002",
-  "register_revision": "R19",
-  "effective_product_version": "16.8.0",
+  "register_revision": "R20",
+  "effective_product_version": "16.9.0",
   "status": "active",
   "owner_role": "quality_manager",
   "requirements": [

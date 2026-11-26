@@ -37,11 +37,11 @@ for (const relativePath of files) {
 
 const requiredTemplateBindings = {
   'web/src/app/components/home/home.component.html': [
-    /\{\{\s*getReadinessPercentage\(\)\s*\}\}/,
+    /\{\{\s*readinessPercentage\(\)\s*\}\}/,
     /\{\{\s*port\s*\}\}/,
     /\{\{\s*check\.label\s*\}\}/,
     /\{\{[\s\S]*?state\.lastPayload\(\)\?\.radar\?\.reported_hr[\s\S]*?\}\}/,
-    /\{\{\s*sessionStartTimeLabel\(session\)\s*\}\}/,
+    /\{\{\s*item\.startTimeLabel\s*\}\}/,
     /\[attr\.aria-pressed\]="selectedDuration === 30"/,
     /translate:i18n\.locale\(\):i18n\.revision\(\)/,
   ],

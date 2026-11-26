@@ -1424,6 +1424,540 @@ def write_statistical_outputs(
     return outputs
 
 
+CANONICAL_CONDITION_IDS: tuple[str, ...] = (
+    "d060_none",
+    "d080_none",
+    "d100_none",
+    "d200_none",
+    "d300_none",
+    "d060_cardboard",
+    "d080_cardboard",
+    "d100_cardboard",
+    "d200_cardboard",
+    "d300_cardboard",
+)
+
+
+def _condition_distance_barrier(condition_id: str) -> tuple[float, str]:
+    match = re.fullmatch(r"d([0-9]{3})_(none|cardboard)", str(condition_id or "").strip().lower())
+    if not match:
+        return (0.0, "unknown")
+    return (int(match.group(1)) / 100.0, match.group(2))
+
+
+def _latex_escape(value: Any) -> str:
+    return (
+        str(value)
+        .replace("\\", "\\textbackslash{}")
+        .replace("&", "\\&")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
+
+
+def _fmt_num(value: Any, decimals: int = 2) -> str:
+    number = _float(value)
+    return "--" if number is None else f"{number:.{decimals}f}"
+
+
+def build_condition_summary_rows(report: Optional[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Build ordered 10-condition summary rows from an objective or statistical report."""
+
+    outer_status = str(report.get("status") or "").lower() if isinstance(report, Mapping) else ""
+    ready = outer_status in {"", "ready"}
+    inner: Optional[Mapping[str, Any]] = None
+    if isinstance(report, Mapping) and ready:
+        candidate = report.get("report") if "objective_id" in report else report
+        if isinstance(candidate, Mapping):
+            stats_report = candidate.get("statistical_report")
+            inner = stats_report if isinstance(stats_report, Mapping) else candidate
+
+    tost_by_condition: dict[str, Mapping[str, Any]] = {}
+    metrics_by_condition: dict[str, Mapping[str, Any]] = {}
+    if isinstance(inner, Mapping):
+        condition_tost = inner.get("condition_tost")
+        if isinstance(condition_tost, Mapping):
+            primary = condition_tost.get("primary")
+            if isinstance(primary, Mapping) and primary.get("condition_id"):
+                tost_by_condition[str(primary["condition_id"])] = primary
+            secondary = condition_tost.get("secondary")
+            if isinstance(secondary, list):
+                for item in secondary:
+                    if isinstance(item, Mapping) and item.get("condition_id"):
+                        tost_by_condition[str(item["condition_id"])] = item
+        for key in ("condition_metrics", "by_condition", "conditions"):
+            raw_map = inner.get(key)
+            if isinstance(raw_map, Mapping):
+                for cid, val in raw_map.items():
+                    if isinstance(val, Mapping):
+                        metrics_by_condition[str(cid)] = val
+
+    rows: list[dict[str, Any]] = []
+    for condition_id in CANONICAL_CONDITION_IDS:
+        distance_m, barrier_type = _condition_distance_barrier(condition_id)
+        role = "primary" if condition_id == "d100_none" else "secondary"
+        tost = tost_by_condition.get(condition_id) if ready else None
+        extra = metrics_by_condition.get(condition_id) if ready else None
+        n_participants = None
+        if isinstance(tost, Mapping) and tost.get("n_participants") is not None:
+            n_participants = int(tost["n_participants"])
+        elif isinstance(extra, Mapping) and extra.get("n_participants") is not None:
+            n_participants = int(extra["n_participants"])
+        valid_rate = _float(extra.get("valid_output_rate_pct")) if isinstance(extra, Mapping) else None
+        if valid_rate is None and isinstance(extra, Mapping):
+            cov = _float(extra.get("coverage"))
+            if cov is not None:
+                valid_rate = cov * 100.0
+        bias = _float(extra.get("bias", extra.get("bias_estimate_minus_reference"))) if isinstance(extra, Mapping) else None
+        if bias is None and isinstance(tost, Mapping):
+            bias = _float(tost.get("mean_difference"))
+        rmse_val = _float(extra.get("rmse")) if isinstance(extra, Mapping) else None
+        mae_val = _float(extra.get("mae")) if isinstance(extra, Mapping) else None
+        ba_low = _float(extra.get("ba_loa_low", extra.get("loa_lower"))) if isinstance(extra, Mapping) else None
+        ba_high = _float(extra.get("ba_loa_high", extra.get("loa_upper"))) if isinstance(extra, Mapping) else None
+        ci_low = _float(tost.get("ci_low")) if isinstance(tost, Mapping) else None
+        ci_high = _float(tost.get("ci_high")) if isinstance(tost, Mapping) else None
+        p_val = _float(tost.get("p_value")) if isinstance(tost, Mapping) else None
+        p_holm = _float(tost.get("p_value_holm")) if isinstance(tost, Mapping) else None
+        if isinstance(tost, Mapping):
+            decision = str(
+                tost.get("decision_holm")
+                or tost.get("decision")
+                or "inconclusive"
+            )
+            if str(tost.get("status") or "").startswith("inconclusive"):
+                decision = "inconclusive"
+        else:
+            decision = "inconclusive"
+        rows.append({
+            "condition_id": condition_id,
+            "distance_m": distance_m,
+            "barrier_type": barrier_type,
+            "role": role,
+            "n_participants": n_participants,
+            "valid_output_rate_pct": valid_rate,
+            "bias": bias,
+            "rmse": rmse_val,
+            "mae": mae_val,
+            "ba_loa_low": ba_low,
+            "ba_loa_high": ba_high,
+            "tost_ci_low": ci_low,
+            "tost_ci_high": ci_high,
+            "p_value": p_val,
+            "p_value_holm": p_holm,
+            "holm_decision": decision,
+        })
+    return rows
+
+
+def format_ieee_latex_table(objective_payload: Mapping[str, Any]) -> str:
+    """Render an IEEE manuscript-ready LaTeX table for a study objective."""
+
+    objective_id = str(objective_payload.get("objective_id") or "objective")
+    status = str(objective_payload.get("status") or "inconclusive")
+    provenance = objective_payload.get("provenance")
+    obj_meta = provenance.get("objective") if isinstance(provenance, Mapping) else None
+    label_text = str(
+        obj_meta.get("label")
+        if isinstance(obj_meta, Mapping) and obj_meta.get("label")
+        else objective_id
+    )
+    is_ready = status == "ready"
+    lines = [
+        f"% Generated by rvt_trainer.statistics for {objective_id} (status={status})",
+        "\\begin{table}[!t]",
+        "\\centering",
+        f"\\caption{{{_latex_escape(label_text)} ({_latex_escape(status)})}}",
+        f"\\label{{tab:{_latex_escape(objective_id)}}}",
+    ]
+    if objective_id == "objective_3_false_alarm":
+        raw_report = objective_payload.get("report")
+        report: Optional[Mapping[str, Any]] = raw_report if is_ready and isinstance(raw_report, Mapping) else None
+        raw_ci = report.get("confidence_interval_95") if isinstance(report, Mapping) else None
+        ci: Mapping[str, Any] = raw_ci if isinstance(raw_ci, Mapping) else {}
+        raw_test = report.get("exact_binomial_test") if isinstance(report, Mapping) else None
+        test_res: Mapping[str, Any] = raw_test if isinstance(raw_test, Mapping) else {}
+        qualified = str(report.get("qualified_trial_count")) if isinstance(report, Mapping) and report.get("qualified_trial_count") is not None else "--"
+        alarms = str(report.get("false_alarm_trial_count")) if isinstance(report, Mapping) and report.get("false_alarm_trial_count") is not None else "--"
+        obs_rate = _float(report.get("observed_false_alarm_rate")) if isinstance(report, Mapping) else None
+        rate = _fmt_num(obs_rate * 100.0, 2) if obs_rate is not None else "--"
+        ci_low_val = _float(ci.get("low")) if is_ready else None
+        ci_high_val = _float(ci.get("high")) if is_ready else None
+        ci_text = (
+            f"[{_fmt_num(ci_low_val * 100.0, 2)}, {_fmt_num(ci_high_val * 100.0, 2)}]\\%"
+            if ci_low_val is not None and ci_high_val is not None
+            else "--"
+        )
+        decision = str(test_res.get("decision") or "inconclusive") if is_ready else "inconclusive"
+        lines.extend([
+            "\\begin{tabular}{lcccc}",
+            "\\toprule",
+            "Outcome & Qualified Trials & False Alarms & Rate (\\%) & 95\\% Clopper--Pearson CI \\\\",
+            "\\midrule",
+            f"No-subject false alarm & {_latex_escape(qualified)} & {_latex_escape(alarms)} & {rate} & {ci_text} \\\\",
+            f"Decision & \\multicolumn{{4}}{{l}}{{{_latex_escape(decision)}}} \\\\",
+            "\\bottomrule",
+            "\\end{tabular}",
+            "\\end{table}",
+            "",
+        ])
+        return "\n".join(lines)
+
+    rows = build_condition_summary_rows(objective_payload)
+    lines.extend([
+        "\\begin{tabular}{lcccccccl}",
+        "\\toprule",
+        "Condition & $n$ & Valid (\\%) & Bias & RMSE & MAE & BA LoA & 90\\% TOST CI & Holm Decision \\\\",
+        "\\midrule",
+    ])
+    for row in rows:
+        n_str = str(row["n_participants"]) if is_ready and row["n_participants"] is not None else "--"
+        valid_str = _fmt_num(row["valid_output_rate_pct"], 1) if is_ready else "--"
+        bias_str = _fmt_num(row["bias"], 2) if is_ready else "--"
+        rmse_str = _fmt_num(row["rmse"], 2) if is_ready else "--"
+        mae_str = _fmt_num(row["mae"], 2) if is_ready else "--"
+        ba_str = (
+            f"[{_fmt_num(row['ba_loa_low'], 2)}, {_fmt_num(row['ba_loa_high'], 2)}]"
+            if is_ready and row["ba_loa_low"] is not None and row["ba_loa_high"] is not None
+            else "--"
+        )
+        tost_str = (
+            f"[{_fmt_num(row['tost_ci_low'], 2)}, {_fmt_num(row['tost_ci_high'], 2)}]"
+            if is_ready and row["tost_ci_low"] is not None and row["tost_ci_high"] is not None
+            else "--"
+        )
+        decision = str(row["holm_decision"] or "inconclusive") if is_ready else "inconclusive"
+        lines.append(
+            f"{_latex_escape(row['condition_id'])} & {n_str} & {valid_str} & {bias_str} & "
+            f"{rmse_str} & {mae_str} & {ba_str} & {tost_str} & {_latex_escape(decision)} \\\\"
+        )
+    lines.extend(["\\bottomrule", "\\end{tabular}", "\\end{table}", ""])
+    return "\n".join(lines)
+
+
+def format_condition_summary_csv(objective_payload: Mapping[str, Any]) -> str:
+    """Render a condition-stratified summary CSV for a study objective."""
+
+    import io
+
+    objective_id = str(objective_payload.get("objective_id") or "objective")
+    status = str(objective_payload.get("status") or "inconclusive")
+    is_ready = status == "ready"
+    buf = io.StringIO()
+    if objective_id == "objective_3_false_alarm":
+        raw_report = objective_payload.get("report")
+        report: Optional[Mapping[str, Any]] = raw_report if is_ready and isinstance(raw_report, Mapping) else None
+        raw_ci = report.get("confidence_interval_95") if isinstance(report, Mapping) else None
+        ci: Mapping[str, Any] = raw_ci if isinstance(raw_ci, Mapping) else {}
+        raw_test = report.get("exact_binomial_test") if isinstance(report, Mapping) else None
+        test_res: Mapping[str, Any] = raw_test if isinstance(raw_test, Mapping) else {}
+        fieldnames = [
+            "objective_id",
+            "status",
+            "planned_trial_count",
+            "qualified_trial_count",
+            "false_alarm_trial_count",
+            "observed_false_alarm_rate_pct",
+            "ci95_low_pct",
+            "ci95_high_pct",
+            "p_value",
+            "decision",
+        ]
+        writer = csv.DictWriter(buf, fieldnames=fieldnames)
+        writer.writeheader()
+        obs_rate = _float(report.get("observed_false_alarm_rate")) if isinstance(report, Mapping) else None
+        ci_low_val = _float(ci.get("low")) if is_ready else None
+        ci_high_val = _float(ci.get("high")) if is_ready else None
+        p_val = _float(test_res.get("p_value")) if is_ready else None
+        writer.writerow({
+            "objective_id": objective_id,
+            "status": status,
+            "planned_trial_count": (
+                str(report.get("planned_trial_count"))
+                if isinstance(report, Mapping) and report.get("planned_trial_count") is not None
+                else "--"
+            ),
+            "qualified_trial_count": (
+                str(report.get("qualified_trial_count"))
+                if isinstance(report, Mapping) and report.get("qualified_trial_count") is not None
+                else "--"
+            ),
+            "false_alarm_trial_count": (
+                str(report.get("false_alarm_trial_count"))
+                if isinstance(report, Mapping) and report.get("false_alarm_trial_count") is not None
+                else "--"
+            ),
+            "observed_false_alarm_rate_pct": _fmt_num(obs_rate * 100.0, 2) if obs_rate is not None else "--",
+            "ci95_low_pct": _fmt_num(ci_low_val * 100.0, 2) if ci_low_val is not None else "--",
+            "ci95_high_pct": _fmt_num(ci_high_val * 100.0, 2) if ci_high_val is not None else "--",
+            "p_value": _fmt_num(p_val, 4) if p_val is not None else "--",
+            "decision": str(test_res.get("decision") or "inconclusive") if is_ready else "inconclusive",
+        })
+        return buf.getvalue()
+
+    rows = build_condition_summary_rows(objective_payload)
+    fieldnames = [
+        "objective_id",
+        "status",
+        "condition_id",
+        "distance_m",
+        "barrier_type",
+        "role",
+        "n_participants",
+        "valid_output_rate_pct",
+        "bias",
+        "rmse",
+        "mae",
+        "ba_loa_low",
+        "ba_loa_high",
+        "tost_ci_low",
+        "tost_ci_high",
+        "p_value",
+        "p_value_holm",
+        "holm_decision",
+    ]
+    writer = csv.DictWriter(buf, fieldnames=fieldnames)
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({
+            "objective_id": objective_id,
+            "status": status,
+            "condition_id": row["condition_id"],
+            "distance_m": row["distance_m"],
+            "barrier_type": row["barrier_type"],
+            "role": row["role"],
+            "n_participants": row["n_participants"] if is_ready and row["n_participants"] is not None else "--",
+            "valid_output_rate_pct": _fmt_num(row["valid_output_rate_pct"], 1) if is_ready else "--",
+            "bias": _fmt_num(row["bias"], 2) if is_ready else "--",
+            "rmse": _fmt_num(row["rmse"], 2) if is_ready else "--",
+            "mae": _fmt_num(row["mae"], 2) if is_ready else "--",
+            "ba_loa_low": _fmt_num(row["ba_loa_low"], 2) if is_ready else "--",
+            "ba_loa_high": _fmt_num(row["ba_loa_high"], 2) if is_ready else "--",
+            "tost_ci_low": _fmt_num(row["tost_ci_low"], 2) if is_ready else "--",
+            "tost_ci_high": _fmt_num(row["tost_ci_high"], 2) if is_ready else "--",
+            "p_value": _fmt_num(row["p_value"], 4) if is_ready else "--",
+            "p_value_holm": _fmt_num(row["p_value_holm"], 4) if is_ready else "--",
+            "holm_decision": row["holm_decision"] if is_ready else "inconclusive",
+        })
+    return buf.getvalue()
+
+
+def _condition_metrics(
+    analysis_frame: Any,
+    *,
+    reference_column: str,
+    estimate_column: str,
+    participant_column: Optional[str],
+    balanced_frame: Any = None,
+    analysis_plan: Optional[Mapping[str, Any]] = None,
+    attempt_ledger: Any = None,
+    confirmatory: bool = False,
+) -> dict[str, dict[str, Any]]:
+    """Compute per-condition coverage, error metrics, and Bland-Altman LoA."""
+
+    try:
+        import pandas as pd
+    except ImportError:  # pragma: no cover - pandas is a trainer dependency
+        return {}
+
+    has_cond_col = hasattr(analysis_frame, "columns") and "condition_id" in analysis_frame.columns
+    has_dist_barrier = hasattr(analysis_frame, "columns") and {"distance_m", "barrier_type"}.issubset(analysis_frame.columns)
+    has_balanced_cond = (
+        balanced_frame is not None
+        and hasattr(balanced_frame, "columns")
+        and "condition_id" in balanced_frame.columns
+    )
+    has_ledger_cond = (
+        confirmatory
+        and attempt_ledger is not None
+        and hasattr(attempt_ledger, "columns")
+        and "condition_id" in attempt_ledger.columns
+    )
+    if not (has_cond_col or has_dist_barrier or has_balanced_cond or has_ledger_cond):
+        return {}
+
+    work_analysis = analysis_frame.copy()
+    if "condition_id" not in work_analysis.columns and {"distance_m", "barrier_type"}.issubset(work_analysis.columns):
+        work_analysis["condition_id"] = [
+            _condition_id(distance, barrier)
+            for distance, barrier in zip(work_analysis["distance_m"], work_analysis["barrier_type"])
+        ]
+
+    ledger_work = None
+    if has_ledger_cond:
+        ledger_work = attempt_ledger.copy()
+        if "eligible" in ledger_work.columns:
+            ledger_work = ledger_work.loc[
+                _strict_bool_mask(ledger_work["eligible"], name="attempt_ledger.eligible")
+            ].copy()
+        if "attempt_type" in ledger_work.columns:
+            ledger_work = ledger_work.loc[
+                _strict_attempt_types(ledger_work["attempt_type"]) == "subject"
+            ].copy()
+
+    raw_cids: set[str] = set()
+    for source_df in (work_analysis, balanced_frame, ledger_work):
+        if source_df is not None and hasattr(source_df, "columns") and "condition_id" in source_df.columns:
+            for value in source_df["condition_id"]:
+                if pd.notna(value):
+                    token = str(value).strip()
+                    if token and token.lower() != "no_subject":
+                        raw_cids.add(token)
+    if not raw_cids:
+        return {}
+
+    ordered_cids = [cid for cid in CANONICAL_CONDITION_IDS if cid in raw_cids]
+    ordered_cids.extend(sorted(cid for cid in raw_cids if cid not in CANONICAL_CONDITION_IDS))
+
+    plan = dict(analysis_plan or DEFAULT_ANALYSIS_PLAN)
+    protocol = dict(plan.get("protocol") or {})
+    min_windows = int(protocol.get("minimum_valid_windows_per_trial", 15))
+    window_duration_s = float(protocol.get("window_duration_s", 30))
+    window_stride_s = float(protocol.get("window_stride_s", 5))
+    participant_present = bool(
+        participant_column
+        and hasattr(work_analysis, "columns")
+        and participant_column in work_analysis.columns
+    )
+
+    results: dict[str, dict[str, Any]] = {}
+    for cid in ordered_cids:
+        if "condition_id" in work_analysis.columns:
+            cond_analysis = work_analysis[work_analysis["condition_id"].astype(str).str.strip() == cid].copy()
+        else:
+            cond_analysis = work_analysis.iloc[0:0].copy()
+
+        cov_info: Optional[dict[str, Any]] = None
+        if ledger_work is not None:
+            cond_ledger = ledger_work[ledger_work["condition_id"].astype(str).str.strip() == cid].copy()
+            if not cond_ledger.empty:
+                cov_info = coverage_report(
+                    cond_analysis,
+                    reference_column=reference_column,
+                    estimate_column=estimate_column,
+                    attempt_ledger=cond_ledger,
+                    minimum_valid_windows_per_trial=min_windows,
+                    window_duration_s=window_duration_s,
+                    window_stride_s=window_stride_s,
+                )
+        if cov_info is None and not cond_analysis.empty:
+            ref_vals = pd.to_numeric(cond_analysis[reference_column], errors="coerce").to_numpy(dtype=float)
+            if bool(np.isfinite(ref_vals).any()):
+                cov_info = coverage_report(
+                    cond_analysis,
+                    reference_column=reference_column,
+                    estimate_column=estimate_column,
+                )
+
+        cov_ratio = _float(cov_info["coverage"]) if cov_info is not None else None
+        entry: dict[str, Any] = {
+            "condition_id": cid,
+            "n_participants": None,
+            "n_pairs": 0,
+            "n_attempted": int(cov_info["n_attempted"]) if cov_info is not None else None,
+            "n_with_output": int(cov_info["n_with_output"]) if cov_info is not None else None,
+            "n_missing_output": int(cov_info["n_missing_output"]) if cov_info is not None else None,
+            "coverage": cov_ratio,
+            "valid_output_rate_pct": _float(cov_ratio * 100.0) if cov_ratio is not None else None,
+            "bias": None,
+            "bias_estimate_minus_reference": None,
+            "rmse": None,
+            "mae": None,
+            "difference_sd": None,
+            "pearson_r": None,
+            "spearman_rho": None,
+            "ba_loa_low": None,
+            "ba_loa_high": None,
+            "loa_lower": None,
+            "loa_upper": None,
+            "agreement_sd": None,
+        }
+
+        if participant_present:
+            if (
+                balanced_frame is not None
+                and not balanced_frame.empty
+                and "condition_id" in balanced_frame.columns
+            ):
+                block = balanced_frame[balanced_frame["condition_id"].astype(str).str.strip() == cid].copy()
+                block[reference_column] = pd.to_numeric(block[reference_column], errors="coerce")
+                block[estimate_column] = pd.to_numeric(block[estimate_column], errors="coerce")
+                finite = np.isfinite(block[reference_column].to_numpy(dtype=float)) & np.isfinite(
+                    block[estimate_column].to_numpy(dtype=float)
+                )
+                participant_block = (
+                    block.loc[finite, [participant_column, reference_column, estimate_column]]
+                    .groupby(participant_column, dropna=False, sort=True, observed=True)[
+                        [reference_column, estimate_column]
+                    ]
+                    .mean()
+                    .reset_index()
+                )
+                n_part = int(len(participant_block))
+                entry["n_participants"] = n_part
+                entry["n_pairs"] = n_part
+                if n_part >= 2:
+                    ref_arr = participant_block[reference_column].to_numpy(dtype=float)
+                    est_arr = participant_block[estimate_column].to_numpy(dtype=float)
+                    m = paired_metrics(ref_arr, est_arr)
+                    agr = _agreement_once(
+                        est_arr - ref_arr,
+                        participant_block[str(participant_column)].astype(str).to_numpy(),
+                    )
+                    entry.update({
+                        "n_pairs": int(m["n_pairs"]),
+                        "bias": _float(m["bias_estimate_minus_reference"]),
+                        "bias_estimate_minus_reference": _float(m["bias_estimate_minus_reference"]),
+                        "rmse": _float(m["rmse"]),
+                        "mae": _float(m["mae"]),
+                        "difference_sd": _float(m["difference_sd"]),
+                        "pearson_r": _float(m["pearson_r"]),
+                        "spearman_rho": _float(m["spearman_rho"]),
+                        "ba_loa_low": _float(agr["loa_lower"]),
+                        "ba_loa_high": _float(agr["loa_upper"]),
+                        "loa_lower": _float(agr["loa_lower"]),
+                        "loa_upper": _float(agr["loa_upper"]),
+                        "agreement_sd": _float(agr["agreement_sd"]),
+                    })
+            else:
+                entry["n_participants"] = 0
+        elif not cond_analysis.empty:
+            pair_block = cond_analysis[[reference_column, estimate_column]].copy()
+            pair_block[reference_column] = pd.to_numeric(pair_block[reference_column], errors="coerce")
+            pair_block[estimate_column] = pd.to_numeric(pair_block[estimate_column], errors="coerce")
+            finite = np.isfinite(pair_block[reference_column].to_numpy(dtype=float)) & np.isfinite(
+                pair_block[estimate_column].to_numpy(dtype=float)
+            )
+            pair_block = pair_block.loc[finite]
+            entry["n_pairs"] = int(len(pair_block))
+            if len(pair_block) >= 2:
+                ref_arr = pair_block[reference_column].to_numpy(dtype=float)
+                est_arr = pair_block[estimate_column].to_numpy(dtype=float)
+                m = paired_metrics(ref_arr, est_arr)
+                bias_val = float(m["bias_estimate_minus_reference"])
+                sd_val = float(m["difference_sd"])
+                loa_low = _float(bias_val - 1.96 * sd_val)
+                loa_high = _float(bias_val + 1.96 * sd_val)
+                entry.update({
+                    "n_pairs": int(m["n_pairs"]),
+                    "bias": _float(bias_val),
+                    "bias_estimate_minus_reference": _float(bias_val),
+                    "rmse": _float(m["rmse"]),
+                    "mae": _float(m["mae"]),
+                    "difference_sd": _float(sd_val),
+                    "pearson_r": _float(m["pearson_r"]),
+                    "spearman_rho": _float(m["spearman_rho"]),
+                    "ba_loa_low": loa_low,
+                    "ba_loa_high": loa_high,
+                    "loa_lower": loa_low,
+                    "loa_upper": loa_high,
+                    "agreement_sd": _float(sd_val),
+                })
+
+        results[cid] = entry
+    return results
+
+
 def analyze_frame(
     frame: Any,
     *,
@@ -1666,6 +2200,18 @@ def analyze_frame(
             balanced_frame[str(participant_column)],
             bootstrap_reps=bootstrap_reps, seed=seed,
         )
+    condition_metrics = _condition_metrics(
+        analysis_frame,
+        reference_column=reference_column,
+        estimate_column=estimate_column,
+        participant_column=str(participant_column) if participant_present else None,
+        balanced_frame=balanced_frame,
+        analysis_plan=plan,
+        attempt_ledger=attempt_ledger,
+        confirmatory=confirmatory,
+    )
+    if condition_metrics:
+        report["condition_metrics"] = condition_metrics
     report["analysis_policy"] = {
         "error_orientation": "estimate_minus_reference",
         "participant_clustered": participant_present,

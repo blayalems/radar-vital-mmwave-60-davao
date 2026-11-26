@@ -124,7 +124,21 @@ describe('StateService', () => {
     service.hxMode.set('on');
     service.triggerHaptic('tap');
     expect(vibrateSpy).toHaveBeenCalled();
-    
+
+    const originalDescriptor = Object.getOwnPropertyDescriptor(navigator, 'userActivation');
+    Object.defineProperty(navigator, 'userActivation', {
+      configurable: true,
+      value: { hasBeenActive: false }
+    });
+    vibrateSpy.mockClear();
+    service.triggerHaptic('tap');
+    expect(vibrateSpy).not.toHaveBeenCalled();
+    if (originalDescriptor) {
+      Object.defineProperty(navigator, 'userActivation', originalDescriptor);
+    } else {
+      delete (navigator as any).userActivation;
+    }
+
     vibrateSpy.mockRestore();
   });
 });

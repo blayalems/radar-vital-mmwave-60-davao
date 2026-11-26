@@ -101,9 +101,7 @@
 }
 
 .advanced-card {
-  background:
-    linear-gradient(115deg, color-mix(in srgb, var(--md-sys-color-tertiary, #00a496) 7%, transparent), transparent 44%),
-    var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface, #ffffff) !important;
 }
 
 .bias-bucket-list,
@@ -188,9 +186,7 @@
 }
 
 .warning-card {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--md-sys-color-error, #ba1a1a) 5%, transparent), transparent),
-    var(--md-sys-color-surface, #ffffff) !important;
+  background: var(--md-sys-color-surface, #ffffff) !important;
 }
 
 .warning-item,

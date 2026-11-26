@@ -1,53 +1,53 @@
 <!-- TELEMETRY REVIEW & REPORT PANEL -->
 <div class="report-container">
 
-  <!-- SESSION SELECTOR — bare "Session" label + chips, matching the prototype -->
+  <!-- SESSION SELECTOR -->
   <div class="session-selector-bar">
     <span class="session-selector-label">Session</span>
-    @if (sessions.length > 0) {
+    @if (recentSessionChips().length > 0) {
       <div class="session-chip-row" aria-label="Recent report sessions">
-        @for (s of sessions.slice(0, 4); track s.session_id) {
+        @for (item of recentSessionChips(); track item.session.session_id) {
           <button
             type="button"
             class="session-chip"
-            [class.selected]="s.session_id === selectedSessionId"
-            [attr.aria-pressed]="s.session_id === selectedSessionId"
-            [disabled]="sessionsLoading"
-            (click)="selectSessionChip(s.session_id)">
-            {{ sessionChipLabel(s) }}
+            [class.selected]="item.session.session_id === selectedSessionIdSignal()"
+            [attr.aria-pressed]="item.session.session_id === selectedSessionIdSignal()"
+            [disabled]="sessionsLoadingSignal()"
+            (click)="selectSessionChip(item.session.session_id)">
+            {{ item.label }}
           </button>
         }
       </div>
     }
-    @if (sessionsLoading) {
+    @if (sessionsLoadingSignal()) {
       <mat-progress-bar mode="indeterminate" aria-label="Loading report sessions"></mat-progress-bar>
     }
   </div>
 
   <!-- REPORT BODY CONTENT -->
-  @if (selectedSession) {
+  @if (selectedSessionSignal(); as activeSession) {
   <div class="report-body-layout">
-    
+
     <!-- CENTRAL QUALITY VERDICT CARD -->
-    <mat-card class="verdict-hero-card" [attr.data-verdict]="reportVerdict()">
+    <mat-card class="verdict-hero-card" [attr.data-verdict]="reportVerdictSignal()">
       <div class="verdict-banner-inner">
         <div class="verdict-meta">
           <span class="eyebrow">Analysis Readiness Outcome</span>
-          <h2>{{ outcomeTitle() }}</h2>
-          <p>{{ outcomeDescription() }}</p>
+          <h2>{{ outcomeTitleSignal() }}</h2>
+          <p>{{ outcomeDescriptionSignal() }}</p>
         </div>
 
         <div class="verdict-badge-box">
           <mat-icon class="verdict-badge-icon" aria-hidden="true">
-            {{ outcomeIcon() }}
+            {{ outcomeIconSignal() }}
           </mat-icon>
-          <strong class="verdict-badge-label">{{ outcomeBadge() }}</strong>
+          <strong class="verdict-badge-label">{{ outcomeBadgeSignal() }}</strong>
         </div>
       </div>
     </mat-card>
 
     <!-- SESSION QUALITY SCORECARD -->
-    @if (hasQualityData()) {
+    @if (hasQualityDataSignal()) {
       <mat-card class="quality-card">
         <mat-card-header>
           <mat-card-title>Session quality</mat-card-title>
@@ -55,7 +55,7 @@
         </mat-card-header>
         <mat-card-content>
           <div class="quality-stat-grid">
-            @for (stat of qualityStatCards(); track stat.label) {
+            @for (stat of qualityStatCardsSignal(); track stat.label) {
               <div class="quality-stat">
                 <span class="quality-stat-label">{{ stat.label }}</span>
                 <strong>{{ stat.value }}</strong>
@@ -63,37 +63,39 @@
             }
           </div>
 
-          @if (hrMetrics() || rrMetrics()) {
-            <table class="quality-metrics-table" aria-label="Accuracy against the reference device">
-              <thead>
-                <tr><th scope="col">Accuracy vs reference</th><th scope="col">RMSE</th><th scope="col">MAE</th><th scope="col">Bias</th><th scope="col">Coverage</th></tr>
-              </thead>
-              <tbody>
-                @if (hrMetrics(); as hr) {
-                  <tr>
-                    <th scope="row">Heart rate (bpm)</th>
-                    <td>{{ qualityStat(hr, 'rmse', 2) }}</td>
-                    <td>{{ qualityStat(hr, 'mae', 2) }}</td>
-                    <td>{{ qualityStat(hr, 'bias', 2) }}</td>
-                    <td>{{ qualityStat(hr, 'coverage_pct', 1, '%') }}</td>
-                  </tr>
-                }
-                @if (rrMetrics(); as rr) {
-                  <tr>
-                    <th scope="row">Respiration (br/min)</th>
-                    <td>{{ qualityStat(rr, 'rmse', 2) }}</td>
-                    <td>{{ qualityStat(rr, 'mae', 2) }}</td>
-                    <td>{{ qualityStat(rr, 'bias', 2) }}</td>
-                    <td>{{ qualityStat(rr, 'coverage_pct', 1, '%') }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+          @if (hrMetricsSignal() || rrMetricsSignal()) {
+            <div class="table-scroll-wrap">
+              <table class="quality-metrics-table" aria-label="Accuracy against the reference device">
+                <thead>
+                  <tr><th scope="col">Accuracy vs reference</th><th scope="col">RMSE</th><th scope="col">MAE</th><th scope="col">Bias</th><th scope="col">Coverage</th></tr>
+                </thead>
+                <tbody>
+                  @if (hrMetricsSignal(); as hr) {
+                    <tr>
+                      <th scope="row">Heart rate (bpm)</th>
+                      <td>{{ qualityStat(hr, 'rmse', 2) }}</td>
+                      <td>{{ qualityStat(hr, 'mae', 2) }}</td>
+                      <td>{{ qualityStat(hr, 'bias', 2) }}</td>
+                      <td>{{ qualityStat(hr, 'coverage_pct', 1, '%') }}</td>
+                    </tr>
+                  }
+                  @if (rrMetricsSignal(); as rr) {
+                    <tr>
+                      <th scope="row">Respiration (br/min)</th>
+                      <td>{{ qualityStat(rr, 'rmse', 2) }}</td>
+                      <td>{{ qualityStat(rr, 'mae', 2) }}</td>
+                      <td>{{ qualityStat(rr, 'bias', 2) }}</td>
+                      <td>{{ qualityStat(rr, 'coverage_pct', 1, '%') }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           }
 
-          @if (qualityGates().length) {
+          @if (qualityGatesSignal().length) {
             <div class="quality-gates-row" role="list" aria-label="Readiness gates">
-              @for (gate of qualityGates(); track gate.id) {
+              @for (gate of qualityGatesSignal(); track gate.id) {
                 <span class="quality-gate-chip" role="listitem" [attr.data-passed]="gate.passed">
                   <mat-icon aria-hidden="true">{{ gate.passed === true ? 'check_circle' : gate.passed === false ? 'cancel' : 'pending' }}</mat-icon>
                   {{ gate.label }}
@@ -102,9 +104,9 @@
             </div>
           }
 
-          @if (verdictCategories().length) {
+          @if (verdictCategoriesSignal().length) {
             <ul class="quality-category-list">
-              @for (cat of verdictCategories(); track cat.id) {
+              @for (cat of verdictCategoriesSignal(); track cat.id) {
                 <li class="quality-category" [attr.data-status]="cat.status">
                   <mat-icon aria-hidden="true">{{ cat.status === 'pass' ? 'check_circle' : cat.status === 'warn' ? 'warning' : 'cancel' }}</mat-icon>
                   <div class="quality-category-copy">
@@ -132,13 +134,13 @@
         <mat-card-content class="attributes-table-wrap">
           <table class="attributes-table">
             <tbody>
-              <tr><td>Session ID</td><td><strong>{{ reportRecord().session_id }}</strong></td></tr>
-              <tr><td>Date / Time</td><td><strong>{{ reportRecord().started_at | date:'medium' }}</strong></td></tr>
-              <tr><td>Duration</td><td><strong>{{ reportRecord().duration_s }} seconds</strong></td></tr>
-              <tr><td>Subject ID</td><td><strong>{{ reportRecord().subject_label || reportRecord().subject || '--' }}</strong></td></tr>
-              <tr><td>Operator</td><td><strong>{{ reportRecord().operator_label || reportRecord().operator || '--' }}</strong></td></tr>
-              <tr><td>Status</td><td><strong>{{ summaryLoading ? 'Loading summary...' : (summaryError || reportRecord().analysis_status || 'Loaded') }}</strong></td></tr>
-              @for (item of primarySessionMetadata(); track item.label) {
+              <tr><td>Session ID</td><td><strong>{{ reportRecordSignal().session_id }}</strong></td></tr>
+              <tr><td>Date / Time</td><td><strong>{{ reportRecordSignal().started_at | date:'medium' }}</strong></td></tr>
+              <tr><td>Duration</td><td><strong>{{ reportRecordSignal().duration_s }} seconds</strong></td></tr>
+              <tr><td>Subject ID</td><td><strong>{{ reportRecordSignal().subject_label || reportRecordSignal().subject || '--' }}</strong></td></tr>
+              <tr><td>Operator</td><td><strong>{{ reportRecordSignal().operator_label || reportRecordSignal().operator || '--' }}</strong></td></tr>
+              <tr><td>Status</td><td><strong>{{ summaryLoadingSignal() ? 'Loading summary...' : (summaryErrorSignal() || reportRecordSignal().analysis_status || 'Loaded') }}</strong></td></tr>
+              @for (item of primarySessionMetadataSignal(); track item.label) {
                 <tr><td>{{ item.label }}</td><td><strong>{{ item.value }}</strong></td></tr>
               }
             </tbody>
@@ -155,19 +157,22 @@
         <mat-card-content class="notes-content-wrap">
           <mat-form-field appearance="outline" class="form-field-full">
             <mat-label>Operator report notes</mat-label>
-            <textarea matInput class="report-textarea" [(ngModel)]="sessionNotesInput" placeholder="Add operator remarks or notes for this report..."></textarea>
+            <textarea matInput class="report-textarea"
+                      [ngModel]="sessionNotesInputSignal()"
+                      (ngModelChange)="sessionNotesInputSignal.set($event)"
+                      placeholder="Add operator remarks or notes for this report..."></textarea>
           </mat-form-field>
-          
+
           <div class="notes-action-row">
-            <button mat-flat-button color="primary" (click)="downloadSummaryJson()" [disabled]="!selectedSummary" class="mat-tonal-button">
+            <button mat-flat-button color="primary" (click)="downloadSummaryJson()" [disabled]="!selectedSummarySignal()" class="mat-tonal-button">
               <mat-icon>download</mat-icon>
               Download Summary JSON
             </button>
-            <button mat-flat-button color="primary" (click)="downloadThesisReport()" [disabled]="!selectedSummary" class="mat-tonal-button">
+            <button mat-flat-button color="primary" (click)="downloadThesisReport()" [disabled]="!selectedSummarySignal()" class="mat-tonal-button">
               <mat-icon>description</mat-icon>
-              {{ selectedSummary?.sandbox ? 'Export Demo Summary' : 'Export Thesis HTML' }}
+              {{ selectedSummarySignal()?.sandbox ? 'Export Demo Summary' : 'Export Thesis HTML' }}
             </button>
-            <button mat-flat-button color="primary" (click)="downloadSessionCsv()" [disabled]="sessionDataRows.length === 0" class="mat-tonal-button">
+            <button mat-flat-button color="primary" (click)="downloadSessionCsv()" [disabled]="sessionDataRowsSignal().length === 0" class="mat-tonal-button">
               <mat-icon>table_view</mat-icon>
               Export Recorded CSV
             </button>
@@ -180,32 +185,190 @@
       </mat-card>
     </div>
 
-    <mat-card class="signoff-card" [class.signed]="!!signoff.signed_at">
+    <mat-card class="signoff-card" [class.signed]="!!signoffSignal().signed_at">
       <mat-card-header>
         <mat-icon mat-card-avatar class="header-avatar-ic">verified_user</mat-icon>
         <mat-card-title>Operator Validation Sign-off</mat-card-title>
         <mat-card-subtitle>
-          {{ signoff.signed_at ? ('Signed ' + (signoff.signed_at | date:'medium')) : 'Unsigned reports display a warning in exports.' }}
+          {{ signoffSignal().signed_at ? ('Signed ' + (signoffSignal().signed_at | date:'medium')) : 'Unsigned reports display a warning in exports.' }}
         </mat-card-subtitle>
       </mat-card-header>
       <mat-card-content class="signoff-fields">
         <mat-form-field appearance="outline">
           <mat-label>Operator name</mat-label>
-          <input matInput [(ngModel)]="signoff.operator_name" maxlength="120">
+          <input matInput [ngModel]="signoffSignal().operator_name" (ngModelChange)="patchSignoff({ operator_name: $event })" maxlength="120">
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Initials</mat-label>
-          <input matInput [(ngModel)]="signoff.initials" maxlength="5" autocapitalize="characters" placeholder="AB">
+          <input matInput [ngModel]="signoffSignal().initials" (ngModelChange)="patchSignoff({ initials: $event })" maxlength="5" autocapitalize="characters" placeholder="AB">
           <mat-hint>2-5 uppercase letters</mat-hint>
         </mat-form-field>
         <mat-form-field appearance="outline" class="signoff-comment">
           <mat-label>Validation comments</mat-label>
-          <textarea matInput [(ngModel)]="signoff.validation_comment" maxlength="500" rows="3"></textarea>
-          <mat-hint align="end">{{ signoff.validation_comment.length }} / 500</mat-hint>
+          <textarea matInput [ngModel]="signoffSignal().validation_comment" (ngModelChange)="patchSignoff({ validation_comment: $event })" maxlength="500" rows="3"></textarea>
+          <mat-hint align="end">{{ (signoffSignal().validation_comment || '').length }} / 500</mat-hint>
         </mat-form-field>
-        <button mat-flat-button type="button" (click)="saveSignoff()" [disabled]="!signoff.operator_name || signoff.initials.length < 2">
+        <button mat-flat-button type="button" (click)="saveSignoff()" [disabled]="!signoffSignal().operator_name || (signoffSignal().initials || '').length < 2">
           <mat-icon>draw</mat-icon>Record sign-off
         </button>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- REFERENCE OBSERVATIONS & BLINDED DUAL-OBSERVER RR ADJUDICATION -->
+    <mat-card class="analysis-card reference-adjudication-card" aria-label="Reference Observations and Blinded RR Adjudication">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="header-avatar-ic">fact_check</mat-icon>
+        <mat-card-title>Reference Observations &amp; Blinded RR Adjudication</mat-card-title>
+        <mat-card-subtitle>
+          Observer A remains masked until a second distinct observer locks a count. IR temperature is restricted to 0.6 m unobstructed (d060_none).
+        </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content class="reference-card-content">
+        @if (referencesError()) {
+          <p class="error-text" role="alert">{{ referencesError() }}</p>
+        }
+        @if (referencesLoading()) {
+          <mat-progress-bar mode="indeterminate" aria-label="Loading reference observations"></mat-progress-bar>
+        }
+
+        <div class="reference-section">
+          <div class="reference-section-header">
+            <strong>Blinded Dual-Observer Respiration Count</strong>
+            <span class="observer-progress-badge" [class.ready]="rrObserverSummary().unblinded">
+              {{ rrObserverSummary().lockedCount }} / 2 locked · {{ rrObserverSummary().unblinded ? 'Unblinded' : 'Blinded' }}
+            </span>
+          </div>
+
+          @if (rrObserverSummary().entries.length) {
+            <div class="observer-slots-grid">
+              @for (entry of rrObserverSummary().entries; track entry.observation_id) {
+                <div class="observer-slot-card" [class.masked]="entry.masked">
+                  <strong>{{ entry.observer_id }}</strong>
+                  <span class="observer-value">{{ entry.displayValue }}</span>
+                  <small>{{ entry.masked ? 'Masked until 2nd distinct observer locks' : (entry.observed_at ? (entry.observed_at | date:'short') : 'Locked') }}</small>
+                </div>
+              }
+            </div>
+          }
+
+          @if (rrObserverSummary().lockedCount < 2) {
+            <div class="observer-entry-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>Observer ID</mat-label>
+                <input matInput [ngModel]="rrObserverIdInput()" (ngModelChange)="rrObserverIdInput.set($event)" placeholder="Obs-A or Obs-B" maxlength="40">
+              </mat-form-field>
+
+              <div class="rr-mode-toggle">
+                <mat-button-toggle-group [value]="rrEntryMode()" (change)="rrEntryMode.set($event.value)" aria-label="Respiration entry mode">
+                  <mat-button-toggle value="rate">br/min</mat-button-toggle>
+                  <mat-button-toggle value="count">Breath count</mat-button-toggle>
+                </mat-button-toggle-group>
+              </div>
+
+              @if (rrEntryMode() === 'rate') {
+                <mat-form-field appearance="outline">
+                  <mat-label>Respiration rate (br/min)</mat-label>
+                  <input matInput type="number" step="0.1" min="1" max="80" [ngModel]="rrRateInput()" (ngModelChange)="rrRateInput.set($event)">
+                </mat-form-field>
+              } @else {
+                <mat-form-field appearance="outline">
+                  <mat-label>Full-trial breaths</mat-label>
+                  <input matInput type="number" step="1" min="1" [ngModel]="rrBreathCountInput()" (ngModelChange)="rrBreathCountInput.set($event)">
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Duration (s)</mat-label>
+                  <input matInput type="number" step="1" min="1" [ngModel]="rrTrialDurationInput()" (ngModelChange)="rrTrialDurationInput.set($event)">
+                  @if (computedBreathCountRate(); as rate) {
+                    <mat-hint>Computed: {{ rate | number:'1.2-2' }} br/min</mat-hint>
+                  }
+                </mat-form-field>
+              }
+
+              <button mat-flat-button type="button" color="primary" (click)="submitRrObserverObservation()" [disabled]="referencesSaving()">
+                <mat-icon>lock</mat-icon>Lock Observer RR
+              </button>
+            </div>
+          }
+
+          @if (rrObserverSummary().unblinded) {
+            <div class="adjudication-panel" [class.discrepancy]="rrObserverSummary().exceedsDiscrepancyThreshold">
+              <div class="adjudication-stats">
+                <span>|RR₁ - RR₂|: <strong>{{ rrObserverSummary().discrepancyBpm ?? '--' }} br/min</strong></span>
+                <span class="discrepancy-badge" [class.warn]="rrObserverSummary().exceedsDiscrepancyThreshold">
+                  {{ rrObserverSummary().exceedsDiscrepancyThreshold ? 'Exceeds 1.0 br/min — rationale required' : 'Within 1.0 br/min agreement' }}
+                </span>
+                @if (rrObserverSummary().adjudicatedFinalValue !== null) {
+                  <span class="locked-final-badge">Final locked RR: {{ rrObserverSummary().adjudicatedFinalValue }} br/min</span>
+                }
+              </div>
+
+              @if (rrObserverSummary().adjudicatedFinalValue === null) {
+                <div class="adjudication-form">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Final RR (br/min)</mat-label>
+                    <input matInput type="number" step="0.01" [ngModel]="adjudicationFinalValueInput()" (ngModelChange)="adjudicationFinalValueInput.set($event)">
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="adjudication-rationale">
+                    <mat-label>Adjudication rationale</mat-label>
+                    <input matInput [ngModel]="adjudicationRationaleInput()" (ngModelChange)="adjudicationRationaleInput.set($event)" placeholder="Agreement mean or consensus note">
+                  </mat-form-field>
+                  <button mat-flat-button type="button" color="primary" (click)="adjudicateRr()" [disabled]="adjudicating()">
+                    <mat-icon>gavel</mat-icon>Adjudicate &amp; Lock Final RR
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="reference-aux-grid">
+          <div class="reference-aux-box" [class.disabled-box]="!isD060NoneAllowed()">
+            <strong>IR Temperature Reference (MLX90614)</strong>
+            @if (!isD060NoneAllowed()) {
+              <p class="ref-hint-note">
+                Line-of-sight IR temperature is excluded for {{ sessionConditionInfo().conditionId || 'non-0.6 m unobstructed' }} sessions (allowed only for d060_none).
+              </p>
+            }
+            <div class="aux-fields">
+              <mat-form-field appearance="outline">
+                <mat-label>Temp (°C)</mat-label>
+                <input matInput type="number" step="0.1" [disabled]="!isD060NoneAllowed()" [ngModel]="tempValueInput()" (ngModelChange)="tempValueInput.set($event)">
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Calibration ID</mat-label>
+                <input matInput [disabled]="!isD060NoneAllowed()" [ngModel]="tempCalibrationIdInput()" (ngModelChange)="tempCalibrationIdInput.set($event)">
+              </mat-form-field>
+              <button mat-flat-button type="button" class="mat-tonal-button" (click)="submitTemperatureReference()" [disabled]="!isD060NoneAllowed() || referencesSaving()">
+                <mat-icon>thermostat</mat-icon>Record Temp
+              </button>
+            </div>
+          </div>
+
+          <div class="reference-aux-box">
+            <strong>Manual HR Reference (radar-only sessions)</strong>
+            <div class="aux-fields">
+              <mat-form-field appearance="outline">
+                <mat-label>Manual HR (bpm)</mat-label>
+                <input matInput type="number" step="0.5" [ngModel]="hrRefValueInput()" (ngModelChange)="hrRefValueInput.set($event)">
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Observer / Device</mat-label>
+                <input matInput [ngModel]="hrRefSourceInput()" (ngModelChange)="hrRefSourceInput.set($event)" placeholder="Optional">
+              </mat-form-field>
+              <button mat-flat-button type="button" class="mat-tonal-button" (click)="submitManualHrReference()" [disabled]="referencesSaving()">
+                <mat-icon>favorite</mat-icon>Record HR
+              </button>
+            </div>
+          </div>
+        </div>
+
+        @if (otherReferences().length) {
+          <div class="recorded-refs-list">
+            @for (ref of otherReferences(); track ref.observation_id) {
+              <span class="ref-pill">{{ ref.kind }}: {{ ref.value }} {{ ref.unit || '' }}</span>
+            }
+          </div>
+        }
       </mat-card-content>
     </mat-card>
 
@@ -216,11 +379,13 @@
         <mat-card-subtitle>Re-run trainer analysis and inspect its recorded status.</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
-        <p>{{ analysisStatus?.last_line || 'Status unavailable.' }}</p>
-        <mat-progress-bar mode="determinate" [value]="analysisStatus?.progress_pct || 0"></mat-progress-bar>
+        <p>{{ analysisStatusSignal()?.last_line || 'Status unavailable.' }}</p>
+        <mat-progress-bar mode="determinate" [value]="analysisStatusSignal()?.progress_pct || 0"></mat-progress-bar>
         <div class="notes-action-row">
-          <button mat-flat-button type="button" (click)="refreshAnalysisStatus()" class="mat-tonal-button"><mat-icon>refresh</mat-icon>Refresh status</button>
-          <button mat-flat-button type="button" (click)="rerunAnalysis()" [disabled]="selectedSummary?.sandbox"><mat-icon>play_arrow</mat-icon>Run analysis</button>
+          <button mat-flat-button type="button" (click)="refreshAnalysisStatus()" [disabled]="analysisStatusLoading()" class="mat-tonal-button">
+            <mat-icon>{{ analysisStatusLoading() ? 'sync' : 'refresh' }}</mat-icon>{{ analysisStatusLoading() ? 'Refreshing...' : 'Refresh status' }}
+          </button>
+          <button mat-flat-button type="button" (click)="rerunAnalysis()" [disabled]="selectedSummarySignal()?.sandbox"><mat-icon>play_arrow</mat-icon>Run analysis</button>
         </div>
       </mat-card-content>
     </mat-card>
@@ -232,29 +397,43 @@
         <mat-card-subtitle>Backend-authoritative reports for the four Objective 4 (Section II-F) functionality-testing endpoints; exploratory outcomes stay descriptive.</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
-        @if (objectiveReportsError) {
-          <p class="error-text">{{ objectiveReportsError }}</p>
-        } @else if (!objectiveReports.length) {
+        @if (objectiveReportsErrorSignal()) {
+          <p class="error-text">{{ objectiveReportsErrorSignal() }}</p>
+        } @else if (!objectiveReportCards().length) {
           <p>No objective report has been loaded yet.</p>
         } @else {
           <div class="compare-grid objective-report-grid">
-            @for (report of objectiveReports; track report.objective_id) {
-              <section class="compare-item" [attr.data-report-status]="report.status">
-                <strong>{{ report.objective_id }}</strong>
-                <span>Status: {{ report.status }}</span>
-                @if (report.status === 'descriptive') {
+            @for (card of objectiveReportCards(); track card.report.objective_id) {
+              <section class="compare-item objective-card-expanded" [attr.data-report-status]="card.report.status">
+                <strong>{{ card.report.objective_id }}</strong>
+                <span>Status: {{ card.report.status }}</span>
+                @for (line of card.lines; track line.label) {
+                  <span>{{ line.label }}: {{ line.value }}</span>
+                }
+                @if (card.report.status === 'descriptive') {
                   <span>Exploratory/descriptive evidence only.</span>
                 }
-                @if (report.exclusions?.length) {
-                  <span>Exclusions: {{ report.exclusions?.length }}</span>
+                @if (card.report.exclusions?.length) {
+                  <span>Exclusions: {{ card.report.exclusions?.length }}</span>
                 }
+                <div class="objective-export-actions">
+                  <button mat-stroked-button type="button" (click)="exportObjective(card.report, 'latex', false)" [disabled]="objectiveExporting()">
+                    <mat-icon>code</mat-icon>Export IEEE LaTeX (.tex)
+                  </button>
+                  <button mat-button type="button" (click)="exportObjective(card.report, 'latex', true)" [disabled]="objectiveExporting()">
+                    <mat-icon>content_copy</mat-icon>Copy LaTeX
+                  </button>
+                  <button mat-stroked-button type="button" (click)="exportObjective(card.report, 'csv', false)" [disabled]="objectiveExporting()">
+                    <mat-icon>table_view</mat-icon>Export Condition CSV
+                  </button>
+                </div>
               </section>
             }
           </div>
         }
         <div class="notes-action-row">
-          <button mat-flat-button type="button" class="mat-tonal-button" (click)="loadObjectiveReports()" [disabled]="objectiveReportsLoading">
-            <mat-icon>refresh</mat-icon>{{ objectiveReportsLoading ? 'Loading reports...' : 'Refresh objective reports' }}
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="loadObjectiveReports()" [disabled]="objectiveReportsLoadingSignal()">
+            <mat-icon>refresh</mat-icon>{{ objectiveReportsLoadingSignal() ? 'Loading reports...' : 'Refresh objective reports' }}
           </button>
         </div>
       </mat-card-content>
@@ -267,26 +446,26 @@
         <mat-card-subtitle>GBR remains the default runtime family; experimental 1-D CNN evidence is shown only when the trainer provides it.</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
-        @if (modelEvidenceLoading) {
+        @if (modelEvidenceLoadingSignal()) {
           <mat-progress-bar mode="indeterminate" aria-label="Loading model evidence"></mat-progress-bar>
         } @else {
           <div class="compare-grid">
             <section class="compare-item">
               <strong>Training status</strong>
-              <span>{{ trainingStatus?.status || 'Unavailable' }}</span>
-              <span>Target: {{ trainingStatus?.target || '--' }}</span>
-              <span>Progress: {{ trainingStatus?.n_estimators_done ?? '--' }} / {{ trainingStatus?.n_estimators_total ?? '--' }}</span>
+              <span>{{ trainingStatusSignal()?.status || 'Unavailable' }}</span>
+              <span>Target: {{ trainingStatusSignal()?.target || '--' }}</span>
+              <span>Progress: {{ trainingStatusSignal()?.n_estimators_done ?? '--' }} / {{ trainingStatusSignal()?.n_estimators_total ?? '--' }}</span>
             </section>
             <section class="compare-item">
               <strong>Prediction evidence</strong>
-              <span>{{ prediction?.ok ? 'Available' : 'Unavailable' }}</span>
-              <span>Family: {{ prediction?.summary?.['model_family'] || reportRecord()['model_family'] || '--' }}</span>
-              <span>Summary: {{ prediction?.summary?.['status'] || '--' }}</span>
+              <span>{{ predictionSignal()?.ok ? 'Available' : 'Unavailable' }}</span>
+              <span>Family: {{ predictionSignal()?.summary?.['model_family'] || reportRecordSignal()['model_family'] || '--' }}</span>
+              <span>Summary: {{ predictionSignal()?.summary?.['status'] || '--' }}</span>
             </section>
           </div>
         }
         <div class="notes-action-row">
-          <button mat-flat-button type="button" class="mat-tonal-button" (click)="loadModelEvidence()" [disabled]="modelEvidenceLoading">
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="loadModelEvidence()" [disabled]="modelEvidenceLoadingSignal()">
             <mat-icon>refresh</mat-icon>Refresh model evidence
           </button>
         </div>
@@ -302,54 +481,54 @@
       <mat-card-content>
         <div class="analysis-choice-row" role="radiogroup" aria-label="Study objective">
           <button mat-stroked-button type="button" role="radio"
-                  [class.selected]="studyAnalysisObjective === 'objective_1_rr'"
-                  [attr.aria-checked]="studyAnalysisObjective === 'objective_1_rr'"
-                  (click)="studyAnalysisObjective = 'objective_1_rr'">RR correction (confirmatory)</button>
+                  [class.selected]="studyAnalysisObjectiveSignal() === 'objective_1_rr'"
+                  [attr.aria-checked]="studyAnalysisObjectiveSignal() === 'objective_1_rr'"
+                  (click)="studyAnalysisObjectiveSignal.set('objective_1_rr')">RR correction (confirmatory)</button>
           <button mat-stroked-button type="button" role="radio"
-                  [class.selected]="studyAnalysisObjective === 'objective_4_hr'"
-                  [attr.aria-checked]="studyAnalysisObjective === 'objective_4_hr'"
-                  (click)="studyAnalysisObjective = 'objective_4_hr'">HR correction (exploratory)</button>
+                  [class.selected]="studyAnalysisObjectiveSignal() === 'objective_4_hr'"
+                  [attr.aria-checked]="studyAnalysisObjectiveSignal() === 'objective_4_hr'"
+                  (click)="studyAnalysisObjectiveSignal.set('objective_4_hr')">HR correction (exploratory)</button>
         </div>
         <div class="analysis-choice-row" role="radiogroup" aria-label="Study model family">
           <button mat-stroked-button type="button" role="radio"
                   class="analysis-family-choice"
-                  [class.selected]="studyAnalysisFamily === 'gradient_boosting'"
-                  [attr.aria-checked]="studyAnalysisFamily === 'gradient_boosting'"
-                  (click)="studyAnalysisFamily = 'gradient_boosting'">GBR (default)</button>
+                  [class.selected]="studyAnalysisFamilySignal() === 'gradient_boosting'"
+                  [attr.aria-checked]="studyAnalysisFamilySignal() === 'gradient_boosting'"
+                  (click)="studyAnalysisFamilySignal.set('gradient_boosting')">GBR (default)</button>
           <button mat-stroked-button type="button" role="radio"
                   class="analysis-family-choice"
-                  [class.selected]="studyAnalysisFamily === 'cnn_1d'"
-                  [attr.aria-checked]="studyAnalysisFamily === 'cnn_1d'"
-                  (click)="studyAnalysisFamily = 'cnn_1d'">1-D CNN (experimental)</button>
+                  [class.selected]="studyAnalysisFamilySignal() === 'cnn_1d'"
+                  [attr.aria-checked]="studyAnalysisFamilySignal() === 'cnn_1d'"
+                  (click)="studyAnalysisFamilySignal.set('cnn_1d')">1-D CNN (experimental)</button>
         </div>
-        @if (studyAnalysisError) {
-          <p class="error-text" role="alert">{{ studyAnalysisError }}</p>
+        @if (studyAnalysisErrorSignal()) {
+          <p class="error-text" role="alert">{{ studyAnalysisErrorSignal() }}</p>
         }
         <p>
-          Job: <strong>{{ studyAnalysisJob?.job_id || 'none' }}</strong>
-          · Status: <strong>{{ studyAnalysisJob?.status || 'not started' }}</strong>
+          Job: <strong>{{ studyAnalysisJobSignal()?.job_id || 'none' }}</strong>
+          · Status: <strong>{{ studyAnalysisJobSignal()?.status || 'not started' }}</strong>
         </p>
-        @if (studyAnalysisJob) {
+        @if (studyAnalysisJobSignal(); as job) {
           <mat-progress-bar mode="determinate" [value]="studyAnalysisProgress()" aria-label="Study analysis progress"></mat-progress-bar>
           <div class="analysis-evidence-grid">
             <span>Progress <strong>{{ studyAnalysisProgress() | number:'1.0-0' }}%</strong></span>
-            <span>Phase <strong>{{ studyAnalysisJob.phase || '--' }}</strong></span>
-            <span>Cohort <strong>{{ studyAnalysisJob.cohort_selection || '--' }}</strong></span>
-            <span>Statistics <strong>{{ studyAnalysisJob.statistics_status || 'not requested' }}</strong></span>
+            <span>Phase <strong>{{ job.phase || '--' }}</strong></span>
+            <span>Cohort <strong>{{ job.cohort_selection || '--' }}</strong></span>
+            <span>Statistics <strong>{{ job.statistics_status || 'not requested' }}</strong></span>
           </div>
-          <p class="analysis-last-line" [class.error-text]="studyAnalysisJob.error" role="status">
-            {{ studyAnalysisJob.error || studyAnalysisJob.last_line || 'No worker message yet.' }}
+          <p class="analysis-last-line" [class.error-text]="job.error" role="status">
+            {{ job.error || job.last_line || 'No worker message yet.' }}
           </p>
         }
         <div class="notes-action-row">
-          <button mat-flat-button type="button" class="mat-tonal-button" (click)="startStudyAnalysis()" [disabled]="studyAnalysisLoading || studyAnalysisIsActive() || selectedSummary?.sandbox">
-            <mat-icon>play_arrow</mat-icon>{{ studyAnalysisLoading ? 'Starting...' : 'Run study analysis' }}
+          <button mat-flat-button type="button" class="mat-tonal-button" (click)="startStudyAnalysis()" [disabled]="studyAnalysisLoadingSignal() || studyAnalysisIsActive() || selectedSummarySignal()?.sandbox">
+            <mat-icon>play_arrow</mat-icon>{{ studyAnalysisLoadingSignal() ? 'Starting...' : 'Run study analysis' }}
           </button>
-          <button mat-button type="button" (click)="refreshStudyAnalysis()" [disabled]="!studyAnalysisJob || studyAnalysisLoading">
+          <button mat-button type="button" (click)="refreshStudyAnalysis()" [disabled]="!studyAnalysisJobSignal() || studyAnalysisLoadingSignal()">
             <mat-icon>refresh</mat-icon>Refresh job
           </button>
           <button mat-button color="warn" type="button" (click)="cancelStudyAnalysis()"
-                  [disabled]="!studyAnalysisJob || !['queued', 'running', 'cancelling'].includes(studyAnalysisJob.status) || studyAnalysisLoading">
+                  [disabled]="!studyAnalysisJobSignal() || !['queued', 'running', 'cancelling'].includes(studyAnalysisJobSignal()!.status) || studyAnalysisLoadingSignal()">
             <mat-icon>cancel</mat-icon>Cancel job
           </button>
         </div>
@@ -366,14 +545,14 @@
       <mat-card-content>
         <mat-form-field appearance="outline" class="form-field-full">
           <mat-label>Session tags</mat-label>
-          <input matInput [(ngModel)]="sessionTagsInput" placeholder="e.g. stable, cardboard, review">
+          <input matInput [ngModel]="sessionTagsInputSignal()" (ngModelChange)="sessionTagsInputSignal.set($event)" placeholder="e.g. stable, cardboard, review">
           <mat-hint>Comma-separated, operator-facing labels only.</mat-hint>
         </mat-form-field>
         <div class="notes-action-row">
           <button mat-flat-button type="button" class="mat-tonal-button" (click)="saveSessionTags()">
             <mat-icon>save</mat-icon>Save tags
           </button>
-          <button mat-button color="warn" type="button" (click)="deleteSelectedSession()" [disabled]="selectedSummary?.sandbox">
+          <button mat-button color="warn" type="button" (click)="deleteSelectedSession()" [disabled]="selectedSummarySignal()?.sandbox">
             <mat-icon>delete_outline</mat-icon>Soft-delete session
           </button>
         </div>
@@ -422,16 +601,12 @@
         <mat-icon mat-card-avatar class="header-avatar-ic">compare_arrows</mat-icon>
         <mat-card-title>Session Comparison</mat-card-title>
         <mat-card-subtitle>Trainer-produced comparison against the preceding and strongest available session.</mat-card-subtitle>
-        <button mat-flat-button type="button" (click)="downloadComparisonJson()" [disabled]="!comparison" class="mat-tonal-button">
+        <button mat-flat-button type="button" (click)="downloadComparisonJson()" [disabled]="!comparisonSignal()" class="mat-tonal-button">
           <mat-icon>download</mat-icon>Export comparison
         </button>
       </mat-card-header>
       <mat-card-content class="compare-grid">
-        @for (entry of [
-          { label: 'Selected', value: comparison?.selected },
-          { label: 'Previous', value: comparison?.previous },
-          { label: 'Best', value: comparison?.best }
-        ]; track entry.label) {
+        @for (entry of comparisonSummaryCardsSignal(); track entry.label) {
           <section class="compare-item">
             <strong>{{ entry.label }}</strong>
             <span>{{ entry.value?.session_id || '--' }}</span>
@@ -445,39 +620,41 @@
       <mat-card-content class="compare-picker-wrap">
         <mat-form-field appearance="outline" class="compare-picker-field">
           <mat-label>Compare against another session</mat-label>
-          <mat-select [value]="compareSessionId" (selectionChange)="loadCompareSession($event.value)" [disabled]="compareLoading || !compareCandidates().length">
+          <mat-select [value]="compareSessionIdSignal()" (selectionChange)="loadCompareSession($event.value)" [disabled]="compareLoadingSignal() || !compareCandidatesSignal().length">
             <mat-option value="">None</mat-option>
-            @for (candidate of compareCandidates(); track candidate.session_id) {
+            @for (candidate of compareCandidatesSignal(); track candidate.session_id) {
               <mat-option [value]="candidate.session_id">{{ candidate.session_id }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
 
-        @if (compareSummary) {
+        @if (compareSummarySignal(); as compSum) {
           <p class="compare-overlay-note">
             <mat-icon aria-hidden="true">show_chart</mat-icon>
-            The trend charts above overlay <strong>{{ compareSummary.session_id }}</strong> as a dashed line on the selected session's axis.
+            The trend charts above overlay <strong>{{ compSum.session_id }}</strong> as a dashed line on the selected session's axis.
           </p>
-          <table class="compare-delta-table" aria-label="Delta between the selected and comparison sessions">
-            <thead>
-              <tr><th scope="col">Metric</th><th scope="col">Selected</th><th scope="col">Comparison</th><th scope="col">Δ</th></tr>
-            </thead>
-            <tbody>
-              @for (row of compareDeltaRows(); track row.label) {
-                <tr>
-                  <th scope="row">{{ row.label }}</th>
-                  <td>{{ row.selected }}</td>
-                  <td>{{ row.compare }}</td>
-                  <td class="delta-cell" [attr.data-tone]="row.tone">{{ row.delta }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
+          <div class="table-scroll-wrap">
+            <table class="compare-delta-table" aria-label="Delta between the selected and comparison sessions">
+              <thead>
+                <tr><th scope="col">Metric</th><th scope="col">Selected</th><th scope="col">Comparison</th><th scope="col">Δ</th></tr>
+              </thead>
+              <tbody>
+                @for (row of compareDeltaRowsSignal(); track row.label) {
+                  <tr>
+                    <th scope="row">{{ row.label }}</th>
+                    <td>{{ row.selected }}</td>
+                    <td>{{ row.compare }}</td>
+                    <td class="delta-cell" [attr.data-tone]="row.tone">{{ row.delta }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         }
       </mat-card-content>
     </mat-card>
 
-    @if ((selectedSummary?.downloads?.length || 0) > 0) {
+    @if ((selectedSummarySignal()?.downloads?.length || 0) > 0) {
       <mat-card class="report-trends-card">
         <mat-card-header>
           <mat-icon mat-card-avatar class="header-avatar-ic">folder_zip</mat-icon>
@@ -485,8 +662,8 @@
         </mat-card-header>
         <mat-card-content>
           <mat-nav-list aria-label="Session artifact downloads">
-            @for (file of selectedSummary?.downloads || []; track file.relpath || file.path || file.label) {
-              <button mat-list-item type="button" (click)="downloadArtifact(file)">
+            @for (file of selectedSummarySignal()?.downloads || []; track file.relpath || file.path || file.label) {
+              <button mat-list-item type="button" (click)="downloadArtifact(file)" [disabled]="artifactDownloading()">
                 <mat-icon matListItemIcon>download</mat-icon>
                 <span matListItemTitle>{{ file.label || file.relpath || file.path }}</span>
               </button>
@@ -500,16 +677,16 @@
     <mat-card class="report-empty-state premium-card" role="status">
       <mat-card-content>
         <mat-icon class="empty-icon animate-pulse" aria-hidden="true">
-          {{ sessionsError ? 'cloud_off' : 'history_toggle_off' }}
+          {{ sessionsErrorSignal() ? 'cloud_off' : 'history_toggle_off' }}
         </mat-icon>
-        <h3>{{ sessionsError ? 'Report history unavailable' : 'No telemetry sessions found' }}</h3>
+        <h3>{{ sessionsErrorSignal() ? 'Report history unavailable' : 'No telemetry sessions found' }}</h3>
         <p>
-          {{ sessionsError || 'Complete a live recording session or enable sandbox simulation in Settings to populate the report history.' }}
+          {{ sessionsErrorSignal() || 'Complete a live recording session or enable sandbox simulation in Settings to populate the report history.' }}
         </p>
         <div class="report-empty-actions">
-          <button mat-flat-button type="button" color="primary" (click)="loadSessions()" [disabled]="sessionsLoading">
-            <mat-icon>{{ sessionsLoading ? 'sync' : 'refresh' }}</mat-icon>
-            {{ sessionsLoading ? 'Loading...' : 'Retry sessions' }}
+          <button mat-flat-button type="button" color="primary" (click)="loadSessions()" [disabled]="sessionsLoadingSignal()">
+            <mat-icon>{{ sessionsLoadingSignal() ? 'sync' : 'refresh' }}</mat-icon>
+            {{ sessionsLoadingSignal() ? 'Loading...' : 'Retry sessions' }}
           </button>
         </div>
       </mat-card-content>

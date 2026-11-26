@@ -99,30 +99,69 @@ describe('SseDriverService', () => {
     expect(sources[1].url).toContain('stream-token-2');
   });
 
-  it('stays polling-only after the fourth error until explicitly reset', async () => {
+  it('aborts connect and schedules reconnect without opening an unauthenticated EventSource when mintToken throws', async () => {
     vi.useFakeTimers();
-    await driver.connect(makeConfig(async () => ''));
-    const source = sources[0];
-    source.onopen?.();
+    const mintToken = vi.fn()
+      .mockRejectedValueOnce(new Error('401 Unauthorized'))
+      .mockResolvedValueOnce('fresh-token');
 
-    source.onerror?.();
-    source.onerror?.();
-    source.onerror?.();
-    source.onerror?.();
+    await driver.connect(makeConfig(mintToken));
 
-    expect(source.closed).toBe(true);
+    expect(sources).toHaveLength(0);
+    expect(driver.transportState()).toBe('backoff');
+    expect(events.at(-1)).toEqual({ type: 'fallback', reason: 'connection_failed' });
+
+    await vi.advanceTimersByTimeAsync(17_000);
+    expect(sources).toHaveLength(1);
+    expect(sources[0].url).toBe('/api/events/subscribe?token=fresh-token');
+  });
+
+  it('closes stale EventSource on error to mint a fresh single-use token, enters polling-only on threshold, and periodically recovers', async () => {
+    vi.useFakeTimers();
+    const mintToken = vi.fn()
+      .mockResolvedValueOnce('token-1')
+      .mockResolvedValueOnce('token-2')
+      .mockResolvedValueOnce('token-3')
+      .mockResolvedValueOnce('token-4')
+      .mockResolvedValueOnce('token-recovered');
+    await driver.connect(makeConfig(mintToken));
+    expect(sources).toHaveLength(1);
+
+    sources[0].onerror?.();
+    expect(sources[0].closed).toBe(true);
+    expect(driver.transportState()).toBe('backoff');
+    await vi.advanceTimersByTimeAsync(17_000);
+    expect(sources).toHaveLength(2);
+    expect(sources[1].url).toContain('token-2');
+
+    sources[1].onerror?.();
+    expect(sources[1].closed).toBe(true);
+    await vi.advanceTimersByTimeAsync(32_000);
+    expect(sources).toHaveLength(3);
+    expect(sources[2].url).toContain('token-3');
+
+    sources[2].onerror?.();
+    expect(sources[2].closed).toBe(true);
+    await vi.advanceTimersByTimeAsync(62_000);
+    expect(sources).toHaveLength(4);
+    expect(sources[3].url).toContain('token-4');
+
+    // Fourth error crosses threshold -> pollingOnly = true
+    sources[3].onerror?.();
+    expect(sources[3].closed).toBe(true);
     expect(driver.transportState()).toBe('idle');
     expect(driver.isPollingOnly()).toBe(true);
     expect(driver.nextRetryAtMs()).toBeNull();
     expect(events.at(-1)).toEqual({ type: 'fallback', reason: 'error_threshold' });
 
     await driver.connect();
-    expect(sources).toHaveLength(1);
+    expect(sources).toHaveLength(4);
 
-    driver.reset();
-    await driver.connect();
+    // Periodic recovery clears pollingOnly and mints a fresh token
+    await vi.advanceTimersByTimeAsync(60_500);
     expect(driver.isPollingOnly()).toBe(false);
-    expect(sources).toHaveLength(2);
+    expect(sources).toHaveLength(5);
+    expect(sources[4].url).toContain('token-recovered');
   });
 
   function makeConfig(mintToken: () => Promise<string>): SseDriverConfig {

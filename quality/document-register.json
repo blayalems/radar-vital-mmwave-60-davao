@@ -2,8 +2,8 @@
   "$schema": "./schemas/document-register.schema.json",
   "schema_version": "rvt-qms-document-register-v1",
   "register_id": "RVT-QMS-REG-001",
-  "register_revision": "R22",
-  "effective_product_version": "16.8.0",
+  "register_revision": "R23",
+  "effective_product_version": "16.9.0",
   "status": "active",
   "owner_role": "quality_manager",
   "approval_method": "protected_pull_request",
@@ -34,14 +34,14 @@
       "title": "Controlled Document Register",
       "path": "quality/document-register.json",
       "record_type": "register",
-      "revision": "R22",
+      "revision": "R23",
       "status": "active",
       "owner_role": "quality_manager",
       "approver_roles": [
         "quality_manager",
         "technical_lead"
       ],
-      "effective_product_version": "16.8.0",
+      "effective_product_version": "16.9.0",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -55,7 +55,7 @@
       "title": "Requirements Traceability Register",
       "path": "quality/requirements.json",
       "record_type": "register",
-      "revision": "R19",
+      "revision": "R20",
       "status": "active",
       "owner_role": "quality_manager",
       "approver_roles": [
@@ -63,7 +63,7 @@
         "technical_lead",
         "research_lead"
       ],
-      "effective_product_version": "16.8.0",
+      "effective_product_version": "16.9.0",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -204,13 +204,13 @@
       "title": "Engineering Handoff Record",
       "path": "HANDOFF.md",
       "record_type": "record",
-      "revision": "R22",
+      "revision": "R23",
       "status": "active",
       "owner_role": "technical_lead",
       "approver_roles": [
         "technical_lead"
       ],
-      "effective_product_version": "16.8.0",
+      "effective_product_version": "16.9.0",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -224,14 +224,14 @@
       "title": "Product Changelog",
       "path": "CHANGELOG.md",
       "record_type": "record",
-      "revision": "R19",
+      "revision": "R20",
       "status": "active",
       "owner_role": "release_manager",
       "approver_roles": [
         "release_manager",
         "quality_manager"
       ],
-      "effective_product_version": "16.8.0",
+      "effective_product_version": "16.9.0",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -245,14 +245,14 @@
       "title": "Project README",
       "path": "README.md",
       "record_type": "guide",
-      "revision": "R18",
+      "revision": "R19",
       "status": "active",
       "owner_role": "technical_lead",
       "approver_roles": [
         "technical_lead",
         "quality_manager"
       ],
-      "effective_product_version": "16.8.0",
+      "effective_product_version": "16.9.0",
       "supersedes": null,
       "retention": {
         "class": "project_lifetime_plus_5_years",
@@ -309,7 +309,7 @@
       "title": "Hardware and Software Feedback Loop",
       "path": "docs/system-feedback-loop.md",
       "record_type": "plan",
-      "revision": "R16",
+      "revision": "R17",
       "status": "active",
       "owner_role": "research_lead",
       "approver_roles": [
@@ -317,7 +317,7 @@
         "technical_lead",
         "quality_manager"
       ],
-      "effective_product_version": "16.8.0",
+      "effective_product_version": "16.9.0",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -353,7 +353,7 @@
       "title": "Physical Acceptance Checklist",
       "path": "docs/physical-acceptance-checklist.md",
       "record_type": "procedure",
-      "revision": "R15",
+      "revision": "R16",
       "status": "active",
       "owner_role": "research_lead",
       "approver_roles": [
@@ -361,7 +361,7 @@
         "firmware_owner",
         "quality_manager"
       ],
-      "effective_product_version": "16.8.0",
+      "effective_product_version": "16.9.0",
       "supersedes": null,
       "retention": {
         "class": "project_lifetime_plus_5_years",
@@ -489,7 +489,7 @@
         "release_manager",
         "technical_lead"
       ],
-      "effective_product_version": "16.8.0",
+      "effective_product_version": "16.9.0",
       "supersedes": null,
       "retention": {
         "class": "permanent",
@@ -556,6 +556,28 @@
       ],
       "effective_product_version": "16.6.3",
       "supersedes": "RVT-QMS-PLN-000",
+      "retention": {
+        "class": "permanent",
+        "disposition": "retain"
+      },
+      "confidentiality": "public",
+      "review_interval_months": 3
+    },
+    {
+      "document_id": "RVT-QMS-PLN-002",
+      "title": "PR #171–#175 Thesis Roadmap (v16.9)",
+      "path": "docs/v16-9-pr171-pr175-roadmap.md",
+      "record_type": "plan",
+      "revision": "R01",
+      "status": "active",
+      "owner_role": "technical_lead",
+      "approver_roles": [
+        "technical_lead",
+        "research_lead",
+        "quality_manager"
+      ],
+      "effective_product_version": "16.9.0",
+      "supersedes": null,
       "retention": {
         "class": "permanent",
         "disposition": "retain"

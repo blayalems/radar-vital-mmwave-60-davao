@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -44,7 +44,6 @@ export class TopbarComponent {
   protected readonly auth = inject(AuthService);
   protected readonly i18n = inject(I18nService);
   protected readonly sourceMode = inject(SourceModeService);
-  protected readonly mobileActionsOpen = signal(false);
   private readonly api = inject(ApiService);
   private readonly telemetry = inject(TelemetryService);
   private readonly dialog = inject(MatDialog);
@@ -53,9 +52,7 @@ export class TopbarComponent {
 
   // 1 Hz tick driving the auto-retry countdown; runs only while disconnected.
   private readonly nowMs = signal(Date.now());
-  private readonly countdownTimer = typeof window !== 'undefined'
-    ? window.setInterval(() => this.nowMs.set(Date.now()), 1000)
-    : null;
+  private countdownTimer: number | null = null;
   protected readonly retryCountdownS = computed<number | null>(() => {
     if (this.state.ctlStatus()?.ok !== false) return null;
     const at = this.telemetry.nextRetryAtMs();
@@ -106,23 +103,25 @@ export class TopbarComponent {
   protected readonly statusAriaLabel = computed(() => `${this.statusLabel()}, ${this.statusSub()}`);
 
   constructor() {
-    this.destroyRef.onDestroy(() => {
-      if (this.countdownTimer !== null) window.clearInterval(this.countdownTimer);
+    effect(() => {
+      const disconnected = this.state.ctlStatus()?.ok === false;
+      if (disconnected && typeof window !== 'undefined') {
+        if (this.countdownTimer === null) {
+          this.nowMs.set(Date.now());
+          this.countdownTimer = window.setInterval(() => this.nowMs.set(Date.now()), 1000);
+        }
+      } else if (this.countdownTimer !== null && typeof window !== 'undefined') {
+        window.clearInterval(this.countdownTimer);
+        this.countdownTimer = null;
+      }
     });
-  }
 
-  toggleMobileActions(): void {
-    this.mobileActionsOpen.update(open => !open);
-    this.state.triggerHaptic('tap');
-  }
-
-  closeMobileActions(): void {
-    this.mobileActionsOpen.set(false);
-  }
-
-  runMobileAction(action: () => void): void {
-    this.closeMobileActions();
-    action();
+    this.destroyRef.onDestroy(() => {
+      if (this.countdownTimer !== null && typeof window !== 'undefined') {
+        window.clearInterval(this.countdownTimer);
+        this.countdownTimer = null;
+      }
+    });
   }
 
   lockProfile(): void {
@@ -164,11 +163,6 @@ export class TopbarComponent {
       this.router.navigate(['/settings']);
     }
     this.state.triggerHaptic('tap');
-  }
-
-  openServerSettings(): void {
-    if (this.serverLifecycle.status() === 'running' || this.serverLifecycle.status() === 'starting') return;
-    this.openSettings();
   }
 
   openAlerts() {

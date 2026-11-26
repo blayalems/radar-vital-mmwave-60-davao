@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Observable } from 'rxjs';
 import {
   BackendDefaults,
   BleScanDevice,
@@ -29,6 +29,7 @@ import {
   StudyAnalysisRequest,
   StudyAnalysisJobsResponse,
   StudyAnalysisResponse,
+  StudyObjectiveExportResponse,
   StudyObjectiveReport,
   SubjectProfileRecord,
   StudyProtocol,
@@ -112,13 +113,53 @@ export class ApiService {
     }
   }
 
-  private withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string, onTimeout?: () => void): Promise<T> {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+      timeoutId = setTimeout(() => {
+        try {
+          onTimeout?.();
+        } catch (_) {}
+        reject(new Error(message));
+      }, timeoutMs);
     });
     return Promise.race([promise, timeoutPromise]).finally(() => {
       if (timeoutId !== undefined) clearTimeout(timeoutId);
+    });
+  }
+
+  private observableWithTimeout<T>(obs: Observable<T>, timeoutMs: number, message: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      let settled = false;
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      const sub = obs.subscribe({
+        next: value => {
+          if (settled) return;
+          settled = true;
+          if (timeoutId !== undefined) clearTimeout(timeoutId);
+          resolve(value);
+        },
+        error: err => {
+          if (settled) return;
+          settled = true;
+          if (timeoutId !== undefined) clearTimeout(timeoutId);
+          reject(err);
+        },
+        complete: () => {
+          if (settled) return;
+          settled = true;
+          if (timeoutId !== undefined) clearTimeout(timeoutId);
+          reject(new Error('HTTP response completed without a value'));
+        }
+      });
+      if (!settled) {
+        timeoutId = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          sub.unsubscribe();
+          reject(new Error(message));
+        }, timeoutMs);
+      }
     });
   }
 
@@ -272,7 +313,7 @@ export class ApiService {
         responseType: 'json',
         observe: 'body'
       });
-      return await this.withTimeout(firstValueFrom(response), timeoutMs, 'Request timeout');
+      return await this.observableWithTimeout(response, timeoutMs, 'Request timeout');
     } catch (err: any) {
       if (err && typeof err === 'object' && 'status' in err) {
         const details = this.errorDetails(err.error, `HTTP ${err.status}`);
@@ -283,16 +324,42 @@ export class ApiService {
   }
 
   async download(path: string, filename: string): Promise<void> {
-    const base = this.currentApiBase();
+    if (this.sourceMode.shouldUseSandboxApi(path)) {
+      const payload = this.sandboxApi.request(path);
+      const content = typeof payload === 'string'
+        ? payload
+        : typeof (payload as { content?: unknown } | null)?.content === 'string'
+          ? String((payload as { content: string }).content)
+          : JSON.stringify(payload ?? {}, null, 2);
+      const lower = path.toLowerCase();
+      const mimeType = lower.endsWith('.csv')
+        ? 'text/csv;charset=utf-8'
+        : lower.includes('/report/export')
+          ? 'text/html;charset=utf-8'
+          : 'text/plain;charset=utf-8';
+      this.downloadBlob(new Blob([content], { type: mimeType }), filename);
+      return;
+    }
+
+    let base = this.currentApiBase();
+    const tauri = (window as Window & { __TAURI__?: TauriBridge }).__TAURI__?.core;
+    if (tauri?.invoke && !base && isTrustedTrainerApiTarget(path, '', { allowTauriLoopback: true })) {
+      try {
+        const status = await tauri.invoke<{ origin?: string; running?: boolean }>('native_trainer_status');
+        if (status?.running !== false) {
+          base = normalizeHttpOrigin(String(status?.origin || ''));
+        }
+      } catch (_) {}
+    }
+
     const target = resolveTrainerRequestTarget(path, base);
-    const trustedTarget = isTrustedTrainerApiTarget(path, base);
+    const trustedTarget = isTrustedTrainerApiTarget(path, base, { allowTauriLoopback: Boolean(tauri?.invoke) });
     const headers = new Headers();
     const token = this.authToken();
     if (trustedTarget && token) {
       headers.set('X-RVT-Auth', token);
       headers.set('Authorization', `Bearer ${token}`);
     }
-    const tauri = (window as Window & { __TAURI__?: TauriBridge }).__TAURI__?.core;
     if (tauri?.invoke && base && trustedTarget) {
       const parsedTarget = new URL(target);
       const response = await this.withTimeout(
@@ -314,7 +381,13 @@ export class ApiService {
       this.downloadBlob(new Blob([bytes], { type: response.content_type || 'application/octet-stream' }), filename);
       return;
     }
-    const response = await this.withTimeout(fetch(target, { headers, cache: 'no-store' }), 10000, 'Download timeout');
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const response = await this.withTimeout(
+      fetch(target, { headers, cache: 'no-store', signal: controller?.signal }),
+      10000,
+      'Download timeout',
+      () => controller?.abort()
+    );
     if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
     this.downloadBlob(await response.blob(), filename);
   }
@@ -343,6 +416,23 @@ export class ApiService {
     } catch (error: unknown) {
       if (attempt !== this.connectionAttempt) return false;
       const message = error instanceof Error ? error.message : 'Control API unavailable';
+      if (error instanceof ApiRequestError) {
+        if (error.status === 401) {
+          this.sourceMode.markAuthenticationRequired();
+          return false;
+        }
+        if (error.status === 403 || error.status === 429) {
+          this.state.ctlOn.set(true);
+          this.state.ctlStatus.set({
+            ok: false,
+            mode: 'live',
+            reason: error.code || (error.status === 429 ? 'rate_limited' : 'forbidden'),
+            error: message
+          });
+          this.connectionLoading.set(false);
+          return false;
+        }
+      }
       if (
         message.includes('401') ||
         message.includes('Unauthorized') ||
@@ -549,6 +639,12 @@ export class ApiService {
 
   loadObjectiveReport(objectiveId: string): Promise<StudyObjectiveReport> {
     return this.request<StudyObjectiveReport>(`/api/study/objectives/${encodeURIComponent(objectiveId)}/report`);
+  }
+
+  exportObjectiveSummary(objectiveId: string, format: 'latex' | 'csv' = 'latex'): Promise<StudyObjectiveExportResponse> {
+    return this.request<StudyObjectiveExportResponse>(
+      `/api/study/objectives/${encodeURIComponent(objectiveId)}/export?format=${encodeURIComponent(format)}`
+    );
   }
 
   createProtocolAttempt(input: ProtocolAttemptInput): Promise<ProtocolAttemptResponse> {

@@ -175,7 +175,13 @@ html[data-theme='hc'] .cdk-overlay-backdrop.cdk-overlay-backdrop-showing:not(.cd
 
 /* Keep legacy Home styling from hiding or over-partitioning Angular content. */
 body[data-view='home'] app-home .sandbox-note {
+  align-items: center !important;
   display: flex !important;
+  gap: 12px !important;
+}
+
+body[data-view='home'] app-home .sandbox-note :is(mat-icon, .material-symbols-rounded) {
+  flex-shrink: 0 !important;
 }
 
 body[data-view='home'] app-home .sandbox-note::before {
@@ -187,6 +193,20 @@ body[data-view='home'] app-home .sandbox-note.connected {
   background: var(--md-sys-color-primary-container) !important;
   border-color: var(--md-sys-color-primary) !important;
   color: var(--md-sys-color-on-primary-container) !important;
+}
+
+body[data-view='home'] app-home .sandbox-note.connected strong {
+  color: var(--md-sys-color-on-primary-container) !important;
+}
+
+html[data-theme='night'] body[data-view='home'] app-home .sandbox-note.connected {
+  background: var(--md-sys-color-success-container) !important;
+  border-color: var(--md-sys-color-success) !important;
+  color: var(--md-sys-color-on-success-container) !important;
+}
+
+html[data-theme='night'] body[data-view='home'] app-home .sandbox-note.connected strong {
+  color: var(--md-sys-color-on-success-container) !important;
 }
 
 /* The compact readiness-confidence bar is a mobile-only affordance (the desktop
@@ -237,36 +257,62 @@ body[data-view='home'] app-home .home-stat-card {
 /*
  * The Angular sidenav already owns the desktop content offset. Keep the
  * topbar inside that content box instead of inheriting the legacy monolith
- * negative margins and grid slots.
+ * negative margins and grid slots. Keep a single horizontal row on mobile too.
  */
+body[data-view] app-topbar .topbar {
+  align-items: center !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  height: auto !important;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+body[data-view] app-topbar .crumbs {
+  align-self: center !important;
+  display: flex !important;
+  flex: 1 1 auto !important;
+  flex-direction: column !important;
+  margin: 0 !important;
+  min-width: 0 !important;
+  order: 0 !important;
+  overflow: visible !important;
+  text-align: left !important;
+}
+
+body[data-view] app-topbar .crumb-eyebrow,
+body[data-view] app-topbar .crumb-title {
+  text-align: left !important;
+}
+
+body[data-view] app-topbar .topbar-actions {
+  align-items: center !important;
+  display: flex !important;
+  flex: 0 0 auto !important;
+  flex-wrap: nowrap !important;
+  grid-area: auto !important;
+  margin: 0 !important;
+  max-width: none !important;
+  order: 1 !important;
+  padding: 0 !important;
+  width: auto !important;
+}
+
 @media (min-width: 761px) {
   body[data-view] app-topbar .topbar {
-    align-items: center !important;
-    display: flex !important;
-    flex-wrap: nowrap !important;
     gap: 14px !important;
-    height: auto !important;
-    margin: 0 !important;
     min-height: 84px !important;
     padding: 12px 24px !important;
     position: sticky !important;
     top: 0 !important;
-    width: 100% !important;
   }
 
   body[data-view] app-topbar .crumbs {
-    align-self: center !important;
-    display: block !important;
     flex: 1 1 300px !important;
-    margin: 0 !important;
     min-width: 250px !important;
-    overflow: visible !important;
-    text-align: left !important;
-  }
-
-  body[data-view] app-topbar .crumb-eyebrow,
-  body[data-view] app-topbar .crumb-title {
-    text-align: left !important;
   }
 
   body[data-view] app-topbar .crumb-title {
@@ -278,29 +324,12 @@ body[data-view='home'] app-home .home-stat-card {
     white-space: normal !important;
   }
 
-  body[data-view] app-topbar .crumb-trail {
-    display: flex !important;
-    justify-content: flex-start !important;
-  }
-
   body[data-view] app-topbar .topbar-status {
     display: flex !important;
     flex: 0 1 auto !important;
     grid-area: auto !important;
     margin-left: auto !important;
     max-width: none !important;
-    width: auto !important;
-  }
-
-  body[data-view] app-topbar .topbar-actions {
-    align-items: center !important;
-    display: flex !important;
-    flex: 0 0 auto !important;
-    flex-wrap: nowrap !important;
-    grid-area: auto !important;
-    margin: 0 !important;
-    max-width: none !important;
-    padding: 0 !important;
     width: auto !important;
   }
 }
@@ -336,18 +365,7 @@ body[data-view='home'] app-home .home-stat-card {
   }
 }
 
-/* Angular shell contracts that were previously keyed only to legacy markup. */
-@media (min-width: 1024px) {
-  body.zen-mode .rail.mat-drawer {
-    display: flex !important;
-  }
-}
-
 @media (max-width: 1023px) {
-  body.zen-mode .bottom-nav {
-    display: block !important;
-  }
-
   .cdk-overlay-pane:has(.rvt-update-snackbar) {
     transform: translateY(calc(-1 * (var(--rvt-mobile-bottom-nav-h, 74px) + 12px)));
   }
@@ -356,12 +374,10 @@ body[data-view='home'] app-home .home-stat-card {
 /* Routed phone content must not scroll actionable controls under sticky shell chrome. */
 @media (max-width: 760px) {
   .main-content-scroll {
-    /* The topbar is in-flow sticky chrome that already occupies its own height,
-       so content only needs a normal gap here — the previous 88px offset
-       double-counted the header and left a large blank band under the title. */
-    padding-top: calc(12px + env(safe-area-inset-top, 0px)) !important;
+    /* Layout host applies env(safe-area-inset-top) once above topbar. */
+    padding-top: 12px !important;
     padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px)) !important;
-    scroll-padding-top: calc(96px + env(safe-area-inset-top, 0px));
+    scroll-padding-top: 96px;
     scroll-padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px));
   }
 
@@ -516,6 +532,16 @@ html[data-theme='hc'] {
   --v11-home-muted: #fff !important;
 }
 
+html[data-theme='hc'] app-topbar .topbar {
+  background: #000 !important;
+  border-bottom: 2px solid #fff !important;
+}
+
+html[data-theme='hc'] .rail .bl-top,
+html[data-theme='hc'] .rail .bl-bot {
+  color: #fff !important;
+}
+
 html[data-theme='hc'] .rail,
 html[data-theme='hc'] .rail .mat-drawer-inner-container,
 html[data-theme='hc'] .rail .operator,
@@ -528,6 +554,7 @@ html[data-theme='hc'] app-topbar .tb-export,
 html[data-theme='hc'] button.mat-mdc-button-base,
 html[data-theme='hc'] a.mat-mdc-button-base {
   background: #000 !important;
+  border: 1px solid #fff !important;
   border-color: #fff !important;
   color: #fff !important;
 }
@@ -571,7 +598,10 @@ html[data-theme='hc'] body[data-view='home'] app-home :is(
   .scope-trend-container,
   .ble-scan-list,
   .preflight-row,
-  .session-log-row.header
+  .session-log-row.header,
+  .sandbox-note,
+  .sandbox-note.connected,
+  .home-ring
 ) {
   background: #000 !important;
   border-color: #fff !important;
@@ -597,9 +627,33 @@ html[data-theme='hc'] body[data-view='home'] app-home :is(
   .scope-metric strong,
   .scope-metric small,
   .trend-header,
-  .pf-text small
+  .pf-text small,
+  .home-ring strong,
+  .home-ring small,
+  .start-gate-hint,
+  .sandbox-note strong,
+  .sandbox-note span
 ) {
   color: #fff !important;
+}
+
+html[data-theme='hc'] body[data-view='home'] app-home .start-gate-hint {
+  background: #000 !important;
+  border: 1px solid #fff !important;
+}
+
+html[data-theme='hc'] :is(
+  app-report .session-selector-label,
+  app-settings .threshold-label,
+  app-kpi-zoom-dialog .thresholds-info-box,
+  app-kpi-zoom-dialog .thresholds-info-box *
+) {
+  color: #fff !important;
+}
+
+html[data-theme='hc'] app-kpi-zoom-dialog .thresholds-info-box {
+  background: #000 !important;
+  border: 1px solid #fff !important;
 }
 
 /* ==========================================================================
@@ -698,7 +752,10 @@ html[data-theme='hc'] body[data-view='home'] app-home :is(
 .home-stat-card,
 .scope-metric,
 .mat-navigation-tab-pill {
-  transition: all var(--dur-emphasized) var(--ease-emphasized) !important;
+  transition: background-color var(--dur-emphasized) var(--ease-emphasized),
+    border-color var(--dur-emphasized) var(--ease-emphasized),
+    transform var(--dur-emphasized) var(--ease-emphasized),
+    opacity var(--dur-emphasized) var(--ease-emphasized) !important;
 }
 
 /* Typography Mappings to Headings and Metrics */
@@ -768,6 +825,31 @@ h1, h2, h3, h4, h5, h6,
    list-item internals here because they sit outside component encapsulation.
    ========================================================================== */
 @media (min-width: 1024px) {
+  .app:not(.rail-collapsed) .rail .r-item.mat-mdc-list-item,
+  .app:not(.rail-collapsed) .rail .rail-action.mat-tonal-button {
+    display: flex !important;
+    grid-template-columns: none !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  .app:not(.rail-collapsed) .rail .r-item .mdc-list-item__content,
+  .app:not(.rail-collapsed) .rail .r-item .mat-mdc-list-item-unscoped-content,
+  .app:not(.rail-collapsed) .rail .rail-action .mdc-button__label {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: flex-start !important;
+  }
+  .app:not(.rail-collapsed) .rail .r-item .r-label,
+  .app:not(.rail-collapsed) .rail .rail-action .r-label {
+    display: inline-block !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    min-width: 0 !important;
+  }
   .rail .r-item.mat-mdc-list-item {
     --mdc-list-list-item-one-line-container-height: 42px;
     --mdc-list-list-item-label-text-size: 13.5px;
@@ -814,6 +896,35 @@ h1, h2, h3, h4, h5, h6,
     font-size: 10.5px !important;
     letter-spacing: 0.6px;
     padding: 8px 12px 4px;
+  }
+}
+
+/* Neutralize legacy 761-1199px narrow-rail overrides when desktop rail is expanded at 1024-1199px. */
+@media (min-width: 1024px) and (max-width: 1199.98px) {
+  .app:not(.rail-collapsed) .rail .brand {
+    width: 100% !important;
+    margin: 0 0 6px !important;
+    padding: 10px 12px 8px !important;
+    gap: 10px !important;
+    justify-content: flex-start !important;
+  }
+  .app:not(.rail-collapsed) .rail .brand .brand-mark {
+    margin: 0 !important;
+  }
+  .app:not(.rail-collapsed) .rail .brand .brand-label {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .app:not(.rail-collapsed) .rail .operator {
+    width: 100% !important;
+    height: auto !important;
+    padding: 10px 12px !important;
+    justify-content: flex-start !important;
+  }
+  .app:not(.rail-collapsed) .rail .operator .op-meta {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
   }
 }
 
@@ -1189,6 +1300,12 @@ html[data-palette] body app-topbar .topbar-actions .tb-more {
   color: var(--md-sys-color-on-surface-variant) !important;
   box-shadow: none !important;
 }
+html[data-palette][data-theme='hc'] body app-topbar .topbar-actions .ic-btn,
+html[data-palette][data-theme='hc'] body app-topbar .topbar-actions .tb-more {
+  background: #000 !important;
+  border: 1px solid #fff !important;
+  color: #fff !important;
+}
 html[data-palette] body app-topbar .topbar-actions .ic-btn .material-symbols-rounded,
 html[data-palette] body app-topbar .topbar-actions .tb-more mat-icon {
   font-size: 20px !important;
@@ -1219,6 +1336,9 @@ html[data-palette] body app-topbar .crumb-eyebrow {
   font-weight: 800 !important;
   letter-spacing: 0.14em !important;
 }
+html[data-palette][data-theme='hc'] body app-topbar .crumb-eyebrow {
+  color: #fff !important;
+}
 
 /* ---- v17 status pill: neutral card pill; only the dot carries state color. */
 html[data-palette] body app-topbar #statusPill {
@@ -1228,6 +1348,11 @@ html[data-palette] body app-topbar #statusPill {
   height: 40px !important;
   border-radius: 999px !important;
   box-shadow: none !important;
+}
+html[data-palette][data-theme='hc'] body app-topbar #statusPill {
+  background: #000 !important;
+  border: 1px solid #fff !important;
+  color: #fff !important;
 }
 
 /* ---- v17: the status chip-set is a bare flex group — the pill itself is the
@@ -1408,6 +1533,12 @@ html[data-palette] body #demoBanner {
   box-shadow: none !important;
   min-height: 0 !important;
 }
+
+html[data-palette][data-theme='hc'] body #demoBanner {
+  background: #000 !important;
+  color: #fff !important;
+  border-bottom: 1px solid #fff !important;
+}
 html[data-palette] body #demoBanner > .material-symbols-rounded {
   font-size: 15px !important;
   color: inherit !important;
@@ -1522,6 +1653,10 @@ html[data-palette] body app-live .live-tabs-group .mdc-tab__ripple {
   display: none !important;
 }
 
+html[data-palette] body app-live .live-tabs-group .mat-mdc-tab-body-wrapper {
+  overflow: hidden !important;
+}
+
 /* ---- v17 KPI cards: sentence-case 12.5px titles, no uppercase tracking. */
 html[data-palette] body app-live .kpi-card .kpi-title,
 html[data-palette] body app-live .kpi-label {
@@ -1546,6 +1681,10 @@ html[data-palette] body .mat-mdc-select-value {
   line-height: normal;
   font-size: 13px;
 }
+html[data-palette] body button.mat-mdc-button-base:not(.mat-mdc-icon-button),
+html[data-palette] body a.mat-mdc-button-base:not(.mat-mdc-icon-button) {
+  gap: 8px;
+}
 html[data-palette] body .mdc-button .mdc-button__label,
 html[data-palette] body .mat-mdc-unelevated-button .mdc-button__label {
   display: inline-flex !important;
@@ -1557,6 +1696,48 @@ html[data-palette] body .mdc-button > mat-icon,
 html[data-palette] body .mat-mdc-unelevated-button > mat-icon {
   margin: 0 !important;
   vertical-align: middle;
+}
+
+/* iOS WebKit zooms the viewport whenever an input/select/textarea computes below 16px.
+   Also enforce >=44x44px hit targets on mobile / coarse-pointer interactive controls. */
+@media (max-width: 760px), (pointer: coarse) {
+  html[data-palette] body :is(
+    input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    select,
+    textarea,
+    .mat-mdc-input-element,
+    .mat-mdc-select,
+    .mat-mdc-select-value,
+    .num-input
+  ) {
+    font-size: 16px !important;
+  }
+
+  html[data-palette] body :is(
+    app-topbar .ic-btn,
+    app-topbar .tb-more,
+    button.mat-mdc-icon-button,
+    .mat-button-toggle-appearance-standard .mat-button-toggle-button,
+    app-live .live-tabs-group .mat-mdc-tab,
+    app-live .tag-btn,
+    app-report .session-chip,
+    app-help .recovery-btn,
+    app-command-palette .pin-cmd-btn,
+    mat-dialog-actions button.mat-mdc-button-base,
+    .duration-chip.mat-mdc-button-base,
+    .filter-chip.mat-mdc-button-base
+  ) {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  html[data-palette] body app-topbar .topbar-actions .ic-btn,
+  html[data-palette] body app-topbar .topbar-actions .tb-more {
+    height: 44px !important;
+    width: 44px !important;
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
 }
 html[data-palette] body app-home .start-session-btn {
   display: inline-flex !important;

@@ -5,17 +5,31 @@
 
 .alerts-filter {
   display: flex;
+  flex-wrap: wrap;
   margin: 0 0 16px;
-  overflow-x: auto;
   width: 100%;
 }
 
 .alerts-filter mat-button-toggle {
-  flex: 1 0 auto;
+  flex: 1 1 auto;
+}
+
+.alert-row {
+  height: auto !important;
+  min-height: 56px;
+  padding-block: 6px;
+}
+
+.alert-row [matListItemTitle],
+.alert-row [matListItemLine] {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .alert-actions {
   display: flex;
+  flex-wrap: wrap;
 }
 
 .alert-row mat-icon[matListItemIcon] {
@@ -48,6 +62,13 @@
   mat-dialog-actions {
     align-items: stretch;
     flex-direction: column;
+    gap: 8px;
+  }
+
+  mat-dialog-actions > button,
+  .alerts-export-inline,
+  .alerts-export-inline > button {
+    width: 100%;
   }
 
   .clear-alerts {

@@ -15,8 +15,10 @@ async function leaveActiveSessionIfPrompted(page: Page): Promise<void> {
 async function waitForUnlockedShell(page: Page): Promise<void> {
   await page.locator('#rvtLoadingOverlay').waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
   const overlay = page.locator('section.idle-lock-overlay');
+  let createdProfile = false;
   for (let attempt = 0; attempt < 2 && await overlay.isVisible({ timeout: 1000 }).catch(() => false); attempt++) {
     if (await overlay.getByRole('heading', { name: /Create Operator/ }).isVisible().catch(() => false)) {
+      createdProfile = true;
       await overlay.getByLabel('Display Name').fill('Operator A');
       await overlay.getByLabel('Initials').fill('OA');
       for (const digit of ['1', '2', '3', '4', '5', '6']) {
@@ -36,6 +38,14 @@ async function waitForUnlockedShell(page: Page): Promise<void> {
     await overlay.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
   }
   await expect(page.locator('section.idle-lock-overlay')).toHaveCount(0, { timeout: 15000 });
+  if (createdProfile) {
+    const recoveryConfirm = page.getByRole('button', { name: /I saved my recovery code/i });
+    if (await recoveryConfirm.isVisible({ timeout: 4000 }).catch(() => false)) {
+      await recoveryConfirm.click();
+      await expect(recoveryConfirm).toBeHidden({ timeout: 5000 });
+      await page.locator('.cdk-overlay-backdrop').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+    }
+  }
 }
 
 async function seedDemoMode(page: Page): Promise<void> {
@@ -529,11 +539,25 @@ test.describe('Dashboard smoke', () => {
           mainRect.left <= railRect.right + 1;
       })).toBe(true);
     } else if (viewportWidth >= 600) {
-      // Tablet band (600–1023px, e.g. iPad): Simple/zen mode removes the
-      // desktop rail and restores bottom navigation so primary routes remain
-      // reachable without reintroducing the desktop shell.
-      await expect(page.locator('.rail')).toBeHidden();
-      await expect(page.locator('.bottom-nav')).toBeVisible();
+      // Tablet band (600–1023px, e.g. iPad): Simple/zen mode keeps the
+      // collapsed M3 icon rail visible without reintroducing bottom nav.
+      const rail = page.locator('.rail');
+      await expect(rail).toBeVisible();
+      await expect(page.locator('.bottom-nav')).toBeHidden();
+      await expect.poll(async () => page.evaluate(() => {
+        const railRect = document.querySelector('.rail')?.getBoundingClientRect();
+        const mainRect = document.querySelector('.main-wrapper')?.getBoundingClientRect();
+        if (!railRect || !mainRect) return false;
+        const hiddenLabels = Array.from(document.querySelectorAll('.rail .r-label'))
+          .every(label => getComputedStyle(label).display === 'none');
+        const visibleIcons = Array.from(document.querySelectorAll('.rail .r-item .material-symbols-rounded'))
+          .every(icon => {
+            const rect = icon.getBoundingClientRect();
+            return rect.width > 0 && rect.left >= railRect.left - 1 && rect.right <= railRect.right + 1;
+          });
+        return railRect.width <= 96 && hiddenLabels && visibleIcons &&
+          mainRect.left >= railRect.right - 2 && mainRect.left <= railRect.right + 2;
+      })).toBe(true);
       await expectNoHorizontalOverflow(page);
     } else {
       await expect(page.locator('.bottom-nav')).toBeVisible();
@@ -1021,17 +1045,15 @@ test.describe('Dashboard smoke', () => {
     await expect(page.locator('.native-ble-result')).toContainText(/trainer telemetry remains the session source/i);
   });
 
-  test('issues a single-use LAN pairing PIN display with QR action', async ({ page }) => {
+  test('exposes trainer LAN pairing controls in Settings', async ({ page }) => {
     await gotoDashboardRoute(page, '/settings');
-    // The prototype shows a generated single-use PIN across six digit boxes
-    // (held in memory only — never a raw token input).
-    const boxes = page.locator('.lan-pin-box');
-    await expect(boxes).toHaveCount(6);
-    const pin = (await boxes.allInnerTexts()).join('');
-    expect(pin).toMatch(/^\d{6}$/);
-    await expect(page.getByText(/expires in \d{2}:\d{2}/)).toBeVisible();
-    await page.getByRole('button', { name: 'Show QR' }).click();
-    await expect(page.locator('simple-snack-bar').last()).toContainText(/pairing PIN/i);
+    await expect(page.getByLabel('Six-digit LAN pairing PIN')).toBeVisible();
+    const pairButton = page.getByRole('button', { name: /Pair with PIN/ });
+    await expect(pairButton).toBeVisible();
+    await expect(pairButton).toBeDisabled();
+    await page.getByLabel('Six-digit LAN pairing PIN').fill('123456');
+    await expect(pairButton).toBeEnabled();
+    await expect(page.locator('.lan-pin-box')).toHaveCount(0);
   });
 
   test('persists demo report review and structured sign-off through Material controls', async ({ page }) => {

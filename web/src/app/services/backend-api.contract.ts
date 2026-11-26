@@ -40,6 +40,7 @@ export const BACKEND_API_ROUTES: readonly BackendApiRoute[] = [
   { name: 'study_analysis_status', methods: ['GET'], path: '/api/study/analysis/*' },
   { name: 'study_analysis_cancel', methods: ['DELETE'], path: '/api/study/analysis/*' },
   { name: 'study_objective_report', methods: ['GET'], path: '/api/study/objectives/*/report' },
+  { name: 'study_objective_export', methods: ['GET'], path: '/api/study/objectives/*/export' },
   { name: 'session_start', methods: ['POST'], path: '/api/session/start' },
   { name: 'session_stop', methods: ['POST'], path: '/api/session/stop' },
   { name: 'session_annotate', methods: ['POST'], path: '/api/session/annotate' },

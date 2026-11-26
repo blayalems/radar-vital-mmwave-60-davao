@@ -109,32 +109,32 @@ def test_service_worker_contract():
     assert "'radar_vital_live_dashboard_v12_for_v16_0.html'" in sw
 
 
-def test_v16_8_0_product_identity_bump_preserves_v12_lineage():
+def test_v16_9_0_product_identity_bump_preserves_v12_lineage():
     trainer = text(TRAINER_CONSTANTS)
     firmware = text(FW)
     app_meta = text(APP_META)
     sandbox_api = text(SANDBOX_API)
     sw = text(SW)
 
-    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.8.0"
-    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.8.0"
-    assert json.loads(text(TAURI_CONF))["version"] == "16.8.0"
-    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.8.0"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.8.0"
-    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.8.0"
-    assert re.search(r'^version = "16\.8\.0"$', text(TAURI_CARGO), re.MULTILINE)
+    assert json.loads(text(ROOT_PACKAGE))["version"] == "16.9.0"
+    assert json.loads(text(ROOT_PACKAGE_LOCK))["version"] == "16.9.0"
+    assert json.loads(text(TAURI_CONF))["version"] == "16.9.0"
+    assert json.loads(text(PACKAGING_TAURI_CONF))["version"] == "16.9.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE))["version"] == "16.9.0"
+    assert json.loads(text(PACKAGING_CAP_PACKAGE_LOCK))["version"] == "16.9.0"
+    assert re.search(r'^version = "16\.9\.0"$', text(TAURI_CARGO), re.MULTILINE)
 
-    assert 'VERSION = "16.8.0"' in trainer
-    assert 'DASHBOARD_VERSION = "16.8.0"' in trainer
-    assert 'FIRMWARE_VERSION_EXPECTED = "v16.8.0"' in trainer
-    assert "PRODUCT_VERSION = '16.8.0';" in app_meta
-    assert "PRODUCT_VERSION_SHORT = 'v16.8';" in app_meta
-    assert "PRODUCT_VERSION_LABEL = 'App v16.8';" in app_meta
+    assert 'VERSION = "16.9.0"' in trainer
+    assert 'DASHBOARD_VERSION = "16.9.0"' in trainer
+    assert 'FIRMWARE_VERSION_EXPECTED = "v16.9.0"' in trainer
+    assert "PRODUCT_VERSION = '16.9.0';" in app_meta
+    assert "PRODUCT_VERSION_SHORT = 'v16.9';" in app_meta
+    assert "PRODUCT_VERSION_LABEL = 'App v16.9';" in app_meta
     assert "import { PRODUCT_VERSION } from './app-meta';" in sandbox_api
     assert "product_version: PRODUCT_VERSION" in sandbox_api
-    assert '#define FW_VERSION "v16.8.0"' in firmware
+    assert '#define FW_VERSION "v16.9.0"' in firmware
     assert "#define SKETCH_VERSION_MAJOR 16" in firmware
-    assert "#define SKETCH_VERSION_SUB 8" in firmware
+    assert "#define SKETCH_VERSION_SUB 9" in firmware
     assert "#define SKETCH_VERSION_MOD 0" in firmware
 
     for schema_id in [
@@ -286,7 +286,7 @@ def test_manifest_payload_is_plain_manifest():
 
 def test_firmware_ble_contract():
     ino = text(FW)
-    assert '#define FW_VERSION "v16.8.0"' in ino
+    assert '#define FW_VERSION "v16.9.0"' in ino
     assert "#define ENABLE_BLE false" in ino
     assert "NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN" in ino
     assert "void onWrite(NimBLECharacteristic* chr, NimBLEConnInfo& connInfo) override" in ino

@@ -24,6 +24,7 @@ export class SseDriverService {
   private config: SseDriverConfig | null = null;
   private source: EventSource | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private pollingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
   private connectGeneration = 0;
   private connecting = false;
   private reconnectAttempts = 0;
@@ -64,11 +65,7 @@ export class SseDriverService {
     this.transportStateSignal.set('connecting');
     let token = '';
     try {
-      try {
-        token = await activeConfig.mintToken();
-      } catch (error) {
-        console.warn('Failed to obtain sse-token', error);
-      }
+      token = await activeConfig.mintToken();
       if (!this.canOpen(generation, activeConfig)) return;
 
       const base = activeConfig.baseUrl().replace(/\/+$/, '');
@@ -107,6 +104,7 @@ export class SseDriverService {
 
   reset(): void {
     this.pollingOnly = false;
+    this.clearPollingRecoveryTimer();
     this.cancel();
   }
 
@@ -116,6 +114,7 @@ export class SseDriverService {
     this.reconnectAttempts = 0;
     this.recentErrors = [];
     this.clearReconnectTimer();
+    this.clearPollingRecoveryTimer();
     this.closeSource();
     this.nextRetryAtMsSignal.set(null);
     this.transportStateSignal.set('idle');
@@ -162,19 +161,46 @@ export class SseDriverService {
 
     source.onerror = () => {
       if (!this.isCurrent(source, generation)) return;
+      // Single-use SSE tokens cannot be replayed by browser auto-reconnect;
+      // close the stale EventSource immediately so the next attempt mints a
+      // fresh token.
+      this.closeSource();
       const now = Date.now();
-      this.recentErrors = this.recentErrors.filter(timestamp => now - timestamp < 60_000);
+      this.recentErrors = this.recentErrors.filter(timestamp => now - timestamp < 180_000);
       this.recentErrors.push(now);
-      if (this.recentErrors.length <= 3) return;
+      if (this.recentErrors.length <= 3) {
+        config.onEvent({ type: 'fallback', reason: 'connection_failed' });
+        this.scheduleReconnect();
+        return;
+      }
 
       console.warn('SSE failure threshold reached. Falling back to polling.');
       this.pollingOnly = true;
-      this.closeSource();
       this.clearReconnectTimer();
       this.nextRetryAtMsSignal.set(null);
       this.transportStateSignal.set('idle');
       config.onEvent({ type: 'fallback', reason: 'error_threshold' });
+      this.schedulePollingRecovery();
     };
+  }
+
+  private schedulePollingRecovery(): void {
+    if (!this.pollingOnly || !this.config || !this.config.canConnect()) return;
+    this.clearPollingRecoveryTimer();
+    this.pollingRecoveryTimer = setTimeout(() => {
+      this.pollingRecoveryTimer = null;
+      if (!this.pollingOnly || !this.config?.canConnect()) return;
+      this.pollingOnly = false;
+      this.recentErrors = [];
+      this.reconnectAttempts = 0;
+      void this.connect();
+    }, 60_000);
+  }
+
+  private clearPollingRecoveryTimer(): void {
+    if (!this.pollingRecoveryTimer) return;
+    clearTimeout(this.pollingRecoveryTimer);
+    this.pollingRecoveryTimer = null;
   }
 
   private scheduleReconnect(): void {

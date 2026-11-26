@@ -17,6 +17,9 @@
   grid-template-columns: minmax(176px, 0.78fr) minmax(0, 1.22fr);
   gap: 24px;
   align-items: center;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   min-height: 268px;
   padding: 28px;
@@ -183,12 +186,13 @@
 }
 
 .tutorial-step-strip {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(88px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .step-pill {
+  flex: 1 1 180px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -197,7 +201,7 @@
   padding: 8px 10px;
   border: 1px solid var(--md-sys-color-outline-variant, #cbd5e1);
   border-radius: 12px;
-  color: var(--md-sys-color-on-surface-variant, #64748b);
+  color: var(--md-sys-color-on-surface-variant, #475569);
   background: var(--md-sys-color-surface-container-lowest, #ffffff);
   text-align: left;
   cursor: pointer;
@@ -223,12 +227,11 @@
 }
 
 .step-pill span {
-  overflow: hidden;
   font-size: 0.75rem;
-  font-weight: 750;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .step-pill:focus-visible,
@@ -281,7 +284,7 @@
 }
 
 .tutorial-skip-btn {
-  color: var(--md-sys-color-outline, #64748b);
+  color: var(--md-sys-color-on-surface-variant, #475569);
   margin-right: auto;
 }
 
@@ -311,14 +314,13 @@
 
   .tutorial-step-strip {
     display: flex;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scroll-snap-type: x proximity;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .step-pill {
-    flex: 0 0 156px;
-    scroll-snap-align: start;
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
   }
 }
 

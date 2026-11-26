@@ -78,12 +78,13 @@ export interface KpiZoomDialogData {
       height: 28px;
     }
     .zoom-dialog-content {
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       gap: 20px;
-      min-width: 320px;
+      min-width: 0;
       max-width: 580px;
-      width: calc(90vw - 32px);
+      width: 100%;
       padding: 8px 24px 20px 24px;
     }
     .zoom-metric-hero {
@@ -235,7 +236,7 @@ export class KpiZoomDialogComponent implements AfterViewInit, OnDestroy {
     if (!payload) return 'no reference';
     switch (this.data.metric) {
       case 'hr': return payload.ble?.hr ? `${Math.round(payload.ble.hr)} bpm` : 'no reference';
-      case 'rr': return payload.ble?.rr ? `${Math.round(payload.ble.rr)} br/m` : 'no reference';
+      case 'rr': return payload.ble?.rr ? `${Math.round(payload.ble.rr)} br/min` : 'no reference';
       default: return 'no reference';
     }
   }
@@ -311,8 +312,12 @@ export class KpiZoomDialogComponent implements AfterViewInit, OnDestroy {
     const diff = Math.max(1, maxV - minV);
 
     // Draw Grid Lines
-    const outlineColor = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-outline-variant').trim() || '#e2e8f0';
+    const rootStyle = getComputedStyle(document.documentElement);
+    const outlineColor = rootStyle.getPropertyValue('--md-sys-color-outline-variant').trim() || '#e2e8f0';
+    const labelColor = rootStyle.getPropertyValue('--md-sys-color-on-surface-variant').trim() || '#64748b';
     ctx.strokeStyle = outlineColor;
+    ctx.fillStyle = labelColor;
+    ctx.font = '10px Roboto, sans-serif';
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       const y = pad + (innerH * i / 4);
@@ -323,8 +328,6 @@ export class KpiZoomDialogComponent implements AfterViewInit, OnDestroy {
 
       // Draw horizontal value labels
       const gridVal = maxV - (diff * i / 4);
-      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-on-surface-variant').trim() || '#64748b';
-      ctx.font = '10px Roboto, sans-serif';
       ctx.fillText(Math.round(gridVal).toString(), 4, y + 3);
     }
 

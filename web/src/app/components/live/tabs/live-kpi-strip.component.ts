@@ -7,9 +7,9 @@ import { LiveKpiStripViewModel } from '../live-tab-view-models';
   selector: 'live-kpi-strip',
   imports: [MatIconModule, OverviewSparklineComponent],
   templateUrl: './live-kpi-strip.component.html',
-  // Keep the extracted controls on the established Live visual contract while
-  // giving their styles an independent emulated-encapsulation scope.
-  styleUrl: '../live.component.css',
+  // Share only the extracted KPI grid and card stylesheet so LiveComponent
+  // and LiveKpiStripComponent do not compile the full Live stylesheet twice.
+  styleUrl: '../live-kpi-shared.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LiveKpiStripComponent {

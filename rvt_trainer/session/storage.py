@@ -314,6 +314,11 @@ def _load_session_summary(session_dir: str) -> Dict[str, object]:
         "operator_label": operator_label,
         "operator": operator_label,
         "notes": (manifest or {}).get("notes"),
+        "tags": (
+            [str(t) for t in manifest.get("tags", []) if str(t).strip()]
+            if isinstance(manifest, dict) and isinstance(manifest.get("tags"), list)
+            else []
+        ),
         "started_at": started_at,
         "started_ms": started_ms,
         "timestamp_source": timestamp_source,
@@ -649,7 +654,69 @@ def _session_data_payload(sessions_root: str, session_id: str, points: int = 100
         return {"ok": False, "session_id": session_id, "rows": [], "error": {"code": "DATA_NOT_FOUND", "message": "no radar csv found"}}
     try:
         df = pd.read_csv(csv_path)
-        keep_cols = [c for c in ["timestamp_s", "timestamp_ms", "reported_hr", "reported_rr", "pqi_heart", "pqi_breath", "distance_cm", "fps"] if c in df.columns]
+        ref_path = root / "ref.csv"
+        if ref_path.is_file() and (
+            "timestamp_s" in df.columns or "timestamp_ms" in df.columns
+        ):
+            try:
+                ref_df = pd.read_csv(ref_path)
+                if not ref_df.empty and (
+                    "timestamp_s" in ref_df.columns or "timestamp_ms" in ref_df.columns
+                ):
+                    rad_ts = (
+                        pd.to_numeric(df["timestamp_s"], errors="coerce")
+                        if "timestamp_s" in df.columns
+                        else pd.to_numeric(df["timestamp_ms"], errors="coerce") / 1000.0
+                    )
+                    ref_ts = (
+                        pd.to_numeric(ref_df["timestamp_s"], errors="coerce")
+                        if "timestamp_s" in ref_df.columns
+                        else pd.to_numeric(ref_df["timestamp_ms"], errors="coerce") / 1000.0
+                    )
+                    rad_work = pd.DataFrame({"_row_idx": np.arange(len(df)), "_ts_s": rad_ts}).dropna(subset=["_ts_s"]).sort_values("_ts_s")
+                    ref_small = pd.DataFrame({"_ts_s": ref_ts})
+                    for src_col, alias_col in (("ref_hr", "ble_hr"), ("ref_rr", "ble_rr")):
+                        if src_col in ref_df.columns:
+                            ref_small[src_col] = pd.to_numeric(ref_df[src_col], errors="coerce")
+                        elif alias_col in ref_df.columns:
+                            ref_small[src_col] = pd.to_numeric(ref_df[alias_col], errors="coerce")
+                    ref_small = ref_small.dropna(subset=["_ts_s"]).sort_values("_ts_s")
+                    if not rad_work.empty and not ref_small.empty and any(c in ref_small.columns for c in ("ref_hr", "ref_rr")):
+                        joined = pd.merge_asof(
+                            rad_work,
+                            ref_small,
+                            on="_ts_s",
+                            direction="nearest",
+                            tolerance=1.25,
+                        ).sort_values("_row_idx")
+                        for src_col, alias_col in (("ref_hr", "ble_hr"), ("ref_rr", "ble_rr")):
+                            if src_col in joined.columns:
+                                aligned = pd.Series(np.nan, index=df.index, dtype=float)
+                                aligned.iloc[joined["_row_idx"].to_numpy(dtype=int)] = joined[src_col].to_numpy(dtype=float)
+                                if src_col not in df.columns:
+                                    df[src_col] = aligned
+                                if alias_col not in df.columns:
+                                    df[alias_col] = aligned
+            except Exception:
+                pass
+        keep_cols = [
+            c
+            for c in [
+                "timestamp_s",
+                "timestamp_ms",
+                "reported_hr",
+                "reported_rr",
+                "pqi_heart",
+                "pqi_breath",
+                "distance_cm",
+                "fps",
+                "ref_hr",
+                "ble_hr",
+                "ref_rr",
+                "ble_rr",
+            ]
+            if c in df.columns
+        ]
         if keep_cols:
             df = df[keep_cols]
         records = df.replace({np.nan: None}).to_dict(orient="records")

@@ -460,14 +460,8 @@ export class CommandPaletteComponent {
     if (!confirmed) return;
     try {
       this.state.ctlStopPending.set(true);
-      const response = await this.api.request<{ ok?: boolean }>('/api/session/stop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: 'command_palette' })
-      });
-      if (response.ok) {
-        this.state.currentSessionId.set(null);
-        this.state.sessionActive.set(false);
+      const response = await this.api.stopSession() as { ok?: boolean; session_id?: string | null };
+      if (Boolean(response?.ok ?? response?.session_id)) {
         await this.router.navigate(['/report']);
       }
     } catch (error: unknown) {

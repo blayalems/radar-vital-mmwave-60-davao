@@ -33,43 +33,19 @@
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Initials</mat-label>
-          <input matInput [value]="initials" (input)="initials = inputValue($event)" placeholder="e.g. SC" autocomplete="off" style="text-transform: uppercase;">
-          <mat-hint>Exactly 2 characters</mat-hint>
+          <input matInput [value]="initials" (input)="initials = inputValue($event)" placeholder="e.g. SC" maxlength="5" autocomplete="off" style="text-transform: uppercase;">
+          <mat-hint>2–5 letters</mat-hint>
         </mat-form-field>
 
         <div class="pin-section">
           <p class="section-label">Choose a 6-Digit PIN</p>
-          <div class="pin-display">
-            <span class="pin-dot" [class.filled]="onboardingPin.length >= 1"></span>
-            <span class="pin-dot" [class.filled]="onboardingPin.length >= 2"></span>
-            <span class="pin-dot" [class.filled]="onboardingPin.length >= 3"></span>
-            <span class="pin-dot" [class.filled]="onboardingPin.length >= 4"></span>
-            <span class="pin-dot" [class.filled]="onboardingPin.length >= 5"></span>
-            <span class="pin-dot" [class.filled]="onboardingPin.length >= 6"></span>
-        </div>
-
-        @if (auth.loginError()) {
-        <div class="error-text">
-          {{ auth.loginError() }}
-        </div>
-        }
-
-          <div class="keyboard-grid">
-            <button mat-button type="button" (click)="pressOnboardingPin('1')">1</button>
-            <button mat-button type="button" (click)="pressOnboardingPin('2')">2</button>
-            <button mat-button type="button" (click)="pressOnboardingPin('3')">3</button>
-            <button mat-button type="button" (click)="pressOnboardingPin('4')">4</button>
-            <button mat-button type="button" (click)="pressOnboardingPin('5')">5</button>
-            <button mat-button type="button" (click)="pressOnboardingPin('6')">6</button>
-            <button mat-button type="button" (click)="pressOnboardingPin('7')">7</button>
-            <button mat-button type="button" (click)="pressOnboardingPin('8')">8</button>
-            <button mat-button type="button" (click)="pressOnboardingPin('9')">9</button>
-            <button mat-button type="button" (click)="pressOnboardingPin('clear')" class="key-clear">C</button>
-            <button mat-button type="button" (click)="pressOnboardingPin('0')">0</button>
-            <button mat-button type="button" (click)="pressOnboardingPin('backspace')" class="key-backspace">
-              <span class="material-symbols-rounded">backspace</span>
-            </button>
-          </div>
+          <app-pin-keyboard
+            [autoSubmit]="false"
+            [keyboardEnabled]="false"
+            [error]="auth.loginError()"
+            [loading]="auth.loading()"
+            (pinChange)="onboardingPin = $event">
+          </app-pin-keyboard>
         </div>
       </div>
 
@@ -171,33 +147,13 @@
           <p class="lock-copy">Choose a new 6-digit PIN for <strong>{{ resetOperator()?.display_name }}</strong>.</p>
         </div>
         <div class="pin-section">
-          <div class="pin-display">
-            <span class="pin-dot" [class.filled]="resetNewPin.length >= 1"></span>
-            <span class="pin-dot" [class.filled]="resetNewPin.length >= 2"></span>
-            <span class="pin-dot" [class.filled]="resetNewPin.length >= 3"></span>
-            <span class="pin-dot" [class.filled]="resetNewPin.length >= 4"></span>
-            <span class="pin-dot" [class.filled]="resetNewPin.length >= 5"></span>
-            <span class="pin-dot" [class.filled]="resetNewPin.length >= 6"></span>
-          </div>
-          @if (resetError()) {
-          <div class="error-text">{{ resetError() }}</div>
-          }
-          <div class="keyboard-grid">
-            <button mat-button type="button" (click)="pressResetNewPin('1')">1</button>
-            <button mat-button type="button" (click)="pressResetNewPin('2')">2</button>
-            <button mat-button type="button" (click)="pressResetNewPin('3')">3</button>
-            <button mat-button type="button" (click)="pressResetNewPin('4')">4</button>
-            <button mat-button type="button" (click)="pressResetNewPin('5')">5</button>
-            <button mat-button type="button" (click)="pressResetNewPin('6')">6</button>
-            <button mat-button type="button" (click)="pressResetNewPin('7')">7</button>
-            <button mat-button type="button" (click)="pressResetNewPin('8')">8</button>
-            <button mat-button type="button" (click)="pressResetNewPin('9')">9</button>
-            <button mat-button type="button" (click)="pressResetNewPin('clear')" class="key-clear">C</button>
-            <button mat-button type="button" (click)="pressResetNewPin('0')">0</button>
-            <button mat-button type="button" (click)="pressResetNewPin('backspace')" class="key-backspace">
-              <span class="material-symbols-rounded">backspace</span>
-            </button>
-          </div>
+          <app-pin-keyboard
+            [autoSubmit]="false"
+            [keyboardEnabled]="true"
+            [error]="resetError()"
+            [loading]="auth.loading()"
+            (pinChange)="resetNewPin = $event">
+          </app-pin-keyboard>
         </div>
         <div class="actions-row">
           <button mat-button type="button" (click)="cancelReset()" [disabled]="auth.loading()">Cancel</button>
@@ -229,33 +185,13 @@
         </div>
         <div class="pin-section">
           <p class="section-label">New PIN</p>
-          <div class="pin-display">
-            <span class="pin-dot" [class.filled]="hostResetPin.length >= 1"></span>
-            <span class="pin-dot" [class.filled]="hostResetPin.length >= 2"></span>
-            <span class="pin-dot" [class.filled]="hostResetPin.length >= 3"></span>
-            <span class="pin-dot" [class.filled]="hostResetPin.length >= 4"></span>
-            <span class="pin-dot" [class.filled]="hostResetPin.length >= 5"></span>
-            <span class="pin-dot" [class.filled]="hostResetPin.length >= 6"></span>
-          </div>
-          @if (resetError()) {
-          <div class="error-text">{{ resetError() }}</div>
-          }
-          <div class="keyboard-grid">
-            <button mat-button type="button" (click)="pressHostResetPin('1')">1</button>
-            <button mat-button type="button" (click)="pressHostResetPin('2')">2</button>
-            <button mat-button type="button" (click)="pressHostResetPin('3')">3</button>
-            <button mat-button type="button" (click)="pressHostResetPin('4')">4</button>
-            <button mat-button type="button" (click)="pressHostResetPin('5')">5</button>
-            <button mat-button type="button" (click)="pressHostResetPin('6')">6</button>
-            <button mat-button type="button" (click)="pressHostResetPin('7')">7</button>
-            <button mat-button type="button" (click)="pressHostResetPin('8')">8</button>
-            <button mat-button type="button" (click)="pressHostResetPin('9')">9</button>
-            <button mat-button type="button" (click)="pressHostResetPin('clear')" class="key-clear">C</button>
-            <button mat-button type="button" (click)="pressHostResetPin('0')">0</button>
-            <button mat-button type="button" (click)="pressHostResetPin('backspace')" class="key-backspace">
-              <span class="material-symbols-rounded">backspace</span>
-            </button>
-          </div>
+          <app-pin-keyboard
+            [autoSubmit]="false"
+            [keyboardEnabled]="true"
+            [error]="resetError()"
+            [loading]="auth.loading()"
+            (pinChange)="hostResetPin = $event">
+          </app-pin-keyboard>
         </div>
         <div class="actions-row">
           <button mat-button type="button" (click)="cancelReset()" [disabled]="auth.loading()">Cancel</button>
@@ -314,6 +250,7 @@
           #pinKeyboard
           [operator]="selectedOperator()"
           [showCancel]="true"
+          [keyboardEnabled]="resetStep() === 'idle'"
           [error]="auth.loginError()"
           [loading]="auth.loading()"
           [lockoutSeconds]="auth.lockoutForOperator(selectedOperator()?.operator_id)"

@@ -53,9 +53,9 @@ def _trainer_command_prefix() -> List[str]:
         return [sys.executable, str(_TRAINER_ENTRYPOINT)]
     return [sys.executable, "-m", "rvt_trainer"]
 
-VERSION = "16.8.0"
-DASHBOARD_VERSION = "16.8.0"
-FIRMWARE_VERSION_EXPECTED = "v16.8.0"
+VERSION = "16.9.0"
+DASHBOARD_VERSION = "16.9.0"
+FIRMWARE_VERSION_EXPECTED = "v16.9.0"
 UPDATE_MANIFEST_URL = "https://blayalems.github.io/radar-vital-mmwave-60-davao/rvt-latest.json"
 
 MAX_JSON_BODY_BYTES = 1_048_576

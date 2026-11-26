@@ -30,10 +30,7 @@ import { LiveKpiStripComponent } from './live-kpi-strip.component';
     UpperCasePipe
   ],
   templateUrl: './live-overview-tab.component.html',
-  // Reuse the established Live visual system under this component's own
-  // emulated scope. A later CSS-only pass can reduce the duplicated rules
-  // without coupling the template boundary back to LiveComponent.
-  styleUrl: '../live.component.css',
+  styleUrls: ['./live-overview-tab.component.css', '../live-diagnostics-shared.css'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LiveOverviewTabComponent {

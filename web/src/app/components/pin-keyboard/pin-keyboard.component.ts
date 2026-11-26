@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, HostListener, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, Output, EventEmitter, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,7 +11,8 @@ import { StateService } from '../../services/state.service';
   standalone: true,
   imports: [CommonModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
   templateUrl: './pin-keyboard.component.html',
-  styleUrl: './pin-keyboard.component.css'
+  styleUrl: './pin-keyboard.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PinKeyboardComponent {
   @Input() operator: OperatorProfile | null = null;
@@ -19,11 +20,15 @@ export class PinKeyboardComponent {
   @Input() error: string | null = null;
   @Input() loading = false;
   @Input() lockoutSeconds = 0;
+  @Input() autoSubmit = true;
+  @Input() keyboardEnabled = true;
 
   @Output() submitPin = new EventEmitter<string>();
+  @Output() pinChange = new EventEmitter<string>();
   @Output() cancel = new EventEmitter<void>();
 
   private readonly state = inject(StateService);
+  private readonly cdr = inject(ChangeDetectorRef);
   pin = '';
 
   pressKey(key: string): void {
@@ -36,19 +41,27 @@ export class PinKeyboardComponent {
       this.pin = this.pin.slice(0, -1);
     } else if (this.pin.length < 6) {
       this.pin += key;
-      if (this.pin.length === 6) {
+      if (this.autoSubmit && this.pin.length === 6) {
         this.submitPin.emit(this.pin);
       }
     }
+    this.pinChange.emit(this.pin);
+    this.cdr.markForCheck();
   }
 
   reset(): void {
     this.pin = '';
+    this.pinChange.emit(this.pin);
+    this.cdr.markForCheck();
   }
 
   @HostListener('window:keydown', ['$event'])
   handleKeyDown(event: KeyboardEvent): void {
-    if (this.loading || this.lockoutSeconds > 0) return;
+    if (!this.keyboardEnabled || this.loading || this.lockoutSeconds > 0) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('input, textarea, select, [contenteditable]')) {
+      return;
+    }
     const key = event.key;
     if (key >= '0' && key <= '9') {
       this.pressKey(key);

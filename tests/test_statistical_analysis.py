@@ -10,8 +10,11 @@ from rvt_trainer.statistics import (
     analysis_plan_sha256,
     aggregate_confirmatory_frame,
     analyze_frame,
+    build_condition_summary_rows,
     coverage_report,
     exact_proportion,
+    format_condition_summary_csv,
+    format_ieee_latex_table,
     holm_adjust,
     paired_metrics,
     paired_tost,
@@ -21,7 +24,7 @@ from rvt_trainer.statistics import (
 )
 
 
-def _confirmatory_provenance(plan, *, run_product_version="16.8.0"):
+def _confirmatory_provenance(plan, *, run_product_version="16.9.0"):
     return {
         "source_commit": "c" * 40,
         "model_family": "gradient_boosting",
@@ -538,7 +541,7 @@ def test_confirmatory_provenance_separates_plan_study_and_run_identities():
     )
 
     assert plan["effective_product_version"] == "16.5.8"
-    assert report["provenance"]["run_product_version"] == "16.8.0"
+    assert report["provenance"]["run_product_version"] == "16.9.0"
     assert report["provenance"]["analysis_plan_id"] == "RVT-STA-PLAN-16.5.8"
     assert len(report["provenance"]["analysis_plan_sha256"]) == 64
     assert report["provenance"]["study_protocol_id"] == "RVT-THESIS-16.5.9"
@@ -729,3 +732,178 @@ def test_coverage_uses_attempt_ledger_for_no_subject_denominator():
 def test_statistical_tools_fail_closed_on_invalid_designs(call):
     with pytest.raises(StatisticalInputError):
         call()
+
+
+def test_condition_summary_rows_and_ieee_exports_remain_truthful_when_unready():
+    unready_payload = {
+        "ok": True,
+        "objective_id": "objective_1_rr",
+        "status": "inconclusive",
+        "report": None,
+        "provenance": {"objective": {"label": "GBR-assisted respiration-rate equivalence"}},
+    }
+    rows = build_condition_summary_rows(unready_payload)
+    assert len(rows) == 10
+    assert all(row["holm_decision"] == "inconclusive" and row["bias"] is None for row in rows)
+
+    latex = format_ieee_latex_table(unready_payload)
+    assert "\\begin{table}[!t]" in latex
+    assert "d100\\_none & -- & -- & -- & -- & -- & -- & -- & inconclusive" in latex
+
+    csv_text = format_condition_summary_csv(unready_payload)
+    assert "d100_none,1.0,none,primary,--,--,--,--,--,--,--,--,--,--,--,inconclusive" in csv_text
+
+    ready_payload = {
+        "ok": True,
+        "objective_id": "objective_1_rr",
+        "status": "ready",
+        "report": {
+            "statistical_report": {
+                "condition_tost": {
+                    "primary": {
+                        "condition_id": "d100_none",
+                        "status": "tested",
+                        "n_participants": 38,
+                        "mean_difference": 0.12,
+                        "ci_low": -0.45,
+                        "ci_high": 0.69,
+                        "decision": "equivalent",
+                    },
+                    "secondary": [],
+                }
+            }
+        },
+        "provenance": {"objective": {"label": "GBR-assisted respiration-rate equivalence"}},
+    }
+    ready_latex = format_ieee_latex_table(ready_payload)
+    assert "d100\\_none & 38 & -- & 0.12 & -- & -- & -- & [-0.45, 0.69] & equivalent" in ready_latex
+
+
+def test_analyze_frame_populates_condition_metrics_for_ready_exports():
+    import csv
+    import io
+
+    records = []
+    d100_offsets = [0.05, 0.15, 0.0, 0.2, 0.1, 0.1, 0.05, 0.15, 0.0, 0.2] * 2
+    d080_offsets = [0.35, 0.45, 0.3, 0.5, 0.4, 0.4, 0.35, 0.45, 0.3, 0.5] * 2
+    offsets_by_condition = {
+        "d100_none": d100_offsets,
+        "d080_cardboard": d080_offsets,
+    }
+    for cond_id, offsets in offsets_by_condition.items():
+        for idx, offset in enumerate(offsets, start=1):
+            pid = f"P-{idx:03d}"
+            ref_val = 15.0 + idx * 0.2
+            records.append({
+                "participant_id": pid,
+                "trial_id": f"{pid}-{cond_id}-t1",
+                "session_id": f"{pid}-{cond_id}-s1",
+                "condition_id": cond_id,
+                "ref_rr": ref_val,
+                "pred_rr": ref_val + offset,
+            })
+    frame = pd.DataFrame(records)
+    stats_report = analyze_frame(
+        frame,
+        reference_column="ref_rr",
+        estimate_column="pred_rr",
+        tost_margin=2.0,
+        bootstrap_reps=200,
+    )
+    cond_metrics = stats_report.get("condition_metrics")
+    assert isinstance(cond_metrics, dict)
+    assert set(cond_metrics.keys()) == {"d100_none", "d080_cardboard"}
+    assert cond_metrics["d100_none"]["n_participants"] == 20
+    assert cond_metrics["d100_none"]["valid_output_rate_pct"] == pytest.approx(100.0)
+    assert cond_metrics["d100_none"]["bias"] == pytest.approx(0.1)
+    assert cond_metrics["d100_none"]["rmse"] is not None
+    assert cond_metrics["d100_none"]["mae"] is not None
+    assert cond_metrics["d100_none"]["ba_loa_low"] < cond_metrics["d100_none"]["ba_loa_high"]
+
+    ready_payload = {
+        "ok": True,
+        "objective_id": "objective_1_rr",
+        "status": "ready",
+        "report": {"statistical_report": stats_report},
+        "provenance": {"objective": {"label": "GBR-assisted respiration-rate equivalence"}},
+    }
+    rows = {row["condition_id"]: row for row in build_condition_summary_rows(ready_payload)}
+    assert rows["d100_none"]["n_participants"] == 20
+    assert rows["d100_none"]["valid_output_rate_pct"] == pytest.approx(100.0)
+    assert rows["d100_none"]["rmse"] == pytest.approx(cond_metrics["d100_none"]["rmse"])
+    assert rows["d080_cardboard"]["mae"] == pytest.approx(cond_metrics["d080_cardboard"]["mae"])
+    assert rows["d100_none"]["holm_decision"] == "equivalent"
+    assert rows["d080_cardboard"]["holm_decision"] == "equivalent"
+    assert rows["d300_cardboard"]["rmse"] is None
+    assert rows["d300_cardboard"]["holm_decision"] == "inconclusive"
+
+    latex = format_ieee_latex_table(ready_payload)
+    d100_latex = next(line for line in latex.splitlines() if line.startswith("d100\\_none"))
+    d080_latex = next(line for line in latex.splitlines() if line.startswith("d080\\_cardboard"))
+    assert "d100\\_none & 20 & 100.0 & 0.10 &" in d100_latex
+    assert "& equivalent \\\\" in d100_latex
+    assert "& -- &" not in d100_latex
+    assert "d080\\_cardboard & 20 & 100.0 & 0.40 &" in d080_latex
+    assert "& equivalent \\\\" in d080_latex
+
+    csv_text = format_condition_summary_csv(ready_payload)
+    csv_rows = {row["condition_id"]: row for row in csv.DictReader(io.StringIO(csv_text))}
+    assert csv_rows["d100_none"]["n_participants"] == "20"
+    assert csv_rows["d100_none"]["valid_output_rate_pct"] == "100.0"
+    assert csv_rows["d100_none"]["bias"] == "0.10"
+    for col in ("rmse", "mae", "ba_loa_low", "ba_loa_high", "tost_ci_low", "tost_ci_high", "p_value"):
+        assert csv_rows["d100_none"][col] != "--"
+    assert csv_rows["d100_none"]["holm_decision"] == "equivalent"
+
+    assert csv_rows["d080_cardboard"]["n_participants"] == "20"
+    assert csv_rows["d080_cardboard"]["bias"] == "0.40"
+    assert csv_rows["d080_cardboard"]["p_value_holm"] != "--"
+    assert csv_rows["d080_cardboard"]["holm_decision"] == "equivalent"
+
+    assert csv_rows["d300_cardboard"]["rmse"] == "--"
+    assert csv_rows["d300_cardboard"]["holm_decision"] == "inconclusive"
+
+
+def test_format_condition_summary_csv_handles_false_alarm_objective():
+    unready_fa = {
+        "ok": True,
+        "objective_id": "objective_3_false_alarm",
+        "status": "inconclusive",
+        "report": None,
+        "provenance": {"objective": {"label": "No-subject false-alarm rate (<5%)"}},
+    }
+    unready_csv = format_condition_summary_csv(unready_fa)
+    unready_lines = unready_csv.strip().splitlines()
+    assert unready_lines[0] == (
+        "objective_id,status,planned_trial_count,qualified_trial_count,"
+        "false_alarm_trial_count,observed_false_alarm_rate_pct,ci95_low_pct,"
+        "ci95_high_pct,p_value,decision"
+    )
+    assert len(unready_lines) == 2
+    assert unready_lines[1] == "objective_3_false_alarm,inconclusive,--,--,--,--,--,--,--,inconclusive"
+    assert "d060_none" not in unready_csv
+
+    ready_fa = {
+        "ok": True,
+        "objective_id": "objective_3_false_alarm",
+        "status": "ready",
+        "report": {
+            "planned_trial_count": 72,
+            "qualified_trial_count": 72,
+            "false_alarm_trial_count": 1,
+            "observed_false_alarm_rate": 1 / 72,
+            "confidence_interval_95": {"low": 0.00036, "high": 0.07504},
+            "exact_binomial_test": {
+                "p_value": 0.11923,
+                "decision": "does_not_support_false_alarm_rate_below_threshold",
+            },
+        },
+        "provenance": {"objective": {"label": "No-subject false-alarm rate (<5%)"}},
+    }
+    ready_csv = format_condition_summary_csv(ready_fa)
+    ready_lines = ready_csv.strip().splitlines()
+    assert len(ready_lines) == 2
+    assert ready_lines[1] == (
+        "objective_3_false_alarm,ready,72,72,1,1.39,0.04,7.50,0.1192,"
+        "does_not_support_false_alarm_rate_below_threshold"
+    )

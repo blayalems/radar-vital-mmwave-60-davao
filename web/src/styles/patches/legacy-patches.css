@@ -458,50 +458,11 @@
 
 /* BEGIN styles/rvt-v11-release-visual-fixes.css */
     @media (max-width: 1199px) {
-      #railResizeHandle,
-      .rail-resize-handle {
-        display: none !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-      }
+      
 
-      button:not(.rail-resize-handle),
-      a[role="button"],
-      [role="button"]:not(.rail-resize-handle),
-      [role="tab"],
-      input,
-      select,
-      textarea,
-      summary,
-      .chip-btn,
-      .quick-action,
-      .settings-tab,
-      .ml-filter-btn,
-      .p-i,
-      .p-pin-btn,
-      .dv-mini-btn,
-      .wave-stepper button,
-      .reset-action,
-      .shortcut-pill,
-      .fw-chip[tabindex] {
-        min-height: 36px !important;
-      }
+      
 
-      .p-pin-btn,
-      .dv-mini-btn,
-      .ca-btn,
-      .rail-collapse-btn,
-      .sess-tag-add,
-      .help-sidebar-collapse,
-      .chart-annotation-del,
-      .kbd-help-head .ic-btn,
-      .set-h .ic-btn,
-      .dv-h .ic-btn {
-        width: 36px !important;
-        min-width: 36px !important;
-        height: 36px !important;
-        min-height: 36px !important;
-      }
+      
 
       #view-help button,
       #view-help a[role="button"],
@@ -631,19 +592,11 @@
         border-radius: 22px 22px 18px 18px !important;
       }
 
-      body[data-view="settings"] #view-settings {
-        padding-top: 14px !important;
-        padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px)) !important;
-        scroll-padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px)) !important;
-      }
+      
 
-      body[data-view="settings"] #view-settings .settings-page {
-        gap: 16px !important;
-      }
+      
 
-      body[data-view="settings"] #view-settings .settings-page-grid {
-        padding-top: 2px !important;
-      }
+      
     }
 /* END styles/rvt-v11-release-visual-fixes.css */
 
@@ -673,11 +626,7 @@
       background-origin: border-box !important;
     }
 
-    #setupCard .rad,
-    #setupCard .rp {
-      width: 100% !important;
-      min-width: 0 !important;
-    }
+    
 
     .sys-preflight .card-header {
       margin: -1px -1px 14px !important;
@@ -799,22 +748,7 @@
         z-index: 720 !important;
       }
 
-      #mobileRailToggle {
-        display: grid !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        z-index: 760 !important;
-        width: 52px !important;
-        height: 58px !important;
-        border-radius: 0 0 14px 0 !important;
-        background: var(--surface-1) !important;
-        color: var(--ink-900) !important;
-        border: 1px solid var(--line) !important;
-        box-shadow: 0 12px 24px -18px rgba(2, 6, 23, .55) !important;
-      }
+      
 
       .topbar .crumbs {
         min-width: 0 !important;
@@ -835,9 +769,7 @@
         padding-left: 14px !important;
       }
 
-      body[data-view="settings"] #view-settings {
-        padding-top: max(16px, env(safe-area-inset-top, 0px)) !important;
-      }
+      
 
       html body[data-view] .main > .topbar {
         position: fixed !important;
@@ -849,16 +781,7 @@
         transform: none !important;
       }
 
-      html body[data-view] > #mobileRailToggle {
-        display: grid !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        z-index: 760 !important;
-        transform: none !important;
-      }
+      
 
       .card.fs {
         inset: max(10px, env(safe-area-inset-top, 0px)) 8px max(10px, env(safe-area-inset-bottom, 0px)) !important;
@@ -956,9 +879,7 @@
       box-shadow: 0 0 0 2px var(--focus-ring, var(--brand-500)) !important;
     }
 
-    #setupCard .setup-reset-btn {
-      isolation: isolate;
-    }
+    
 
     /* PDF #6: live radar preview surfaces should bleed to their rounded edge. */
     .live-radar .preview,
@@ -1008,82 +929,25 @@
         min-width: 0 !important;
       }
 
-      body[data-view="settings"] #view-settings .settings-page {
-        display: grid !important;
-        grid-template-columns: 1fr !important;
-        gap: 12px !important;
-        min-width: 0 !important;
-      }
+      
 
-      body[data-view="settings"] #view-settings .settings-page-toolbar {
-        position: sticky !important;
-        top: calc(64px + env(safe-area-inset-top, 0px)) !important;
-        z-index: 5 !important;
-        display: grid !important;
-        grid-template-columns: 1fr !important;
-        gap: 10px !important;
-        width: 100% !important;
-        min-width: 0 !important;
-      }
+      
 
-      body[data-view="settings"] #view-settings .settings-tabs {
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
-        scroll-snap-type: x mandatory;
-        -webkit-overflow-scrolling: touch;
-      }
+      
 
-      body[data-view="settings"] #view-settings .settings-tab {
-        flex: 0 0 auto !important;
-        scroll-snap-align: start;
-        min-height: 44px !important;
-      }
+      
 
-      body[data-view="settings"] #view-settings .settings-page-grid,
-      body[data-view="settings"] #view-settings .threshold-grid {
-        grid-template-columns: 1fr !important;
-        gap: 12px !important;
-        min-width: 0 !important;
-      }
+      
 
-      body[data-view="settings"] #view-settings .settings-pane,
-      body[data-view="settings"] #view-settings .set-g {
-        min-width: 0 !important;
-        width: 100% !important;
-        padding: 16px !important;
-        border-radius: 18px !important;
-      }
+      
 
-      body[data-view="settings"] #view-settings .set-row,
-      body[data-view="settings"] #view-settings .set-r,
-      body[data-view="settings"] #view-settings .set-row-control {
-        grid-template-columns: 1fr !important;
-        gap: 8px !important;
-        align-items: start !important;
-      }
+      
 
-      body[data-view="settings"] #view-settings .set-row-ic {
-        width: 44px !important;
-        height: 44px !important;
-      }
+      
 
-      body[data-view="settings"] #view-settings .set-row .sw,
-      body[data-view="settings"] #view-settings .settings-checkline {
-        justify-self: start !important;
-      }
+      
 
-      body[data-view="settings"] #view-settings input[type="text"],
-      body[data-view="settings"] #view-settings input[type="number"],
-      body[data-view="settings"] #view-settings select,
-      body[data-view="settings"] #view-settings textarea,
-      body[data-view="settings"] #view-settings .settings-search,
-      body[data-view="settings"] #view-settings .threshold-input {
-        width: 100% !important;
-        max-width: 100% !important;
-        min-height: 44px !important;
-      }
+      
     }
 
     /* PDF #9: tablet topbar should wrap without overlapping the crumb trail. */
@@ -1401,34 +1265,11 @@
     box-sizing: border-box !important;
     z-index: 2 !important;
   }
-  body[data-view="home"] #setupCard #bleAddress {
-    min-width: 17ch !important;
-    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
-    letter-spacing: .01em !important;
-    text-overflow: clip !important;
-  }
-  body[data-view="home"] #setupCard .field:has(#bleAddress) {
-    grid-column: 1 / -1 !important;
-  }
-  body[data-view="home"] #setupCard .field-control:has(#bleAddress) {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto auto !important;
-    align-items: center !important;
-  }
-  body[data-view="home"] #setupCard>.ch .setup-reset-btn,
-  body[data-view="home"] #setupCard>.ch .ca-btn,
-  #setupCard .setup-reset-btn {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    align-self: center !important;
-    line-height: 1 !important;
-  }
-  @media (max-width:760px) {
-    body[data-view="home"] #setupCard .field-control:has(#bleAddress) {
-      grid-template-columns: 1fr !important;
-    }
-  }
+  
+  
+  
+  
+  
 /* END styles/rvt-v11-consistency-fixes-css.css */
 
 /* BEGIN styles/rvt-v11-uiux-consistency-bugfixes.css */
@@ -1820,23 +1661,11 @@
     margin-bottom: auto !important;
   }
 
-  body[data-view="settings"] .settings-page,
-  body[data-view="settings"] .settings-page-grid,
-  body[data-view="settings"] #view-settings .settings-page,
-  body[data-view="settings"] #view-settings .settings-page-grid {
-    width: 100% !important;
-    max-width: none !important;
-  }
+  
 
-  body[data-view="settings"] #view-settings .settings-page-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
+  
 
-  @media (max-width: 960px) {
-    body[data-view="settings"] #view-settings .settings-page-grid {
-      grid-template-columns: 1fr !important;
-    }
-  }
+  
 
   [data-kpi-id="fps"] .k-spark,
   #kpiFpsSpark {
@@ -4627,13 +4456,7 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
       background: #fff !important;
       color: #111827 !important;
     }
-    body.rvt-print-report #view-report {
-      display: block !important;
-      position: static !important;
-      width: auto !important;
-      max-width: none !important;
-      padding: 0 !important;
-    }
+    
     body.rvt-print-report #view-home,
     body.rvt-print-report #view-live,
     body.rvt-print-report #view-help,
@@ -4997,7 +4820,7 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
 
   .rvt-report-export-wrap{display:inline-flex;position:relative}.rvt-report-export-btn{min-height:38px;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--outline-variant,rgba(127,127,127,.24));border-radius:8px;background:var(--surface,#fff);color:inherit;cursor:pointer;padding:8px 14px;font:inherit;font-weight:800}
   .rvt-report-export-btn:focus-visible{outline:2px solid var(--primary,#6750a4);outline-offset:2px}
-  @media print{.rail,.topbar,.rvt-sticky-verdict,.rvt-report-export-wrap,#rvtSnapFab{display:none!important}#view-report{padding:0!important;margin:0!important}}
+  @media print{.rail,.topbar,.rvt-sticky-verdict,.rvt-report-export-wrap,#rvtSnapFab{display:none!important}}
 
   .rvt-alert-sev{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:999px;padding:0 6px;font-size:.72rem;font-weight:800;line-height:1;text-transform:uppercase;letter-spacing:.04em}
   .rvt-alert-sev[data-sev="info"]{background:color-mix(in srgb,var(--info,#2563eb) 16%,transparent);color:var(--info,#2563eb)}
@@ -5485,28 +5308,19 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
   }
 
   [data-theme="night"] {
-    --md-sys-color-primary: #4c8df6 !important;
-    --primary: #4c8df6 !important;
-    --primary-rgb: 76 141 246 !important;
-    --brand-700: #1e3a8a;
-    --brand-600: #2563eb;
-    --brand-500: #3b82f6;
-    --brand-400: #60a5fa;
-    --rv-brand: #60a5fa;
-    --rv-brand-2: #93c5fd;
-    --color-primary-action: var(--night-cta-color);
-    --color-status-ok: #34d399;
+    --color-primary-action: #ffb4ab;
+    --color-status-ok: #8fae93;
     --color-status-warn: #fbbf24;
     --color-status-error: #f87171;
-    --color-vital-hr: #60a5fa;
-    --color-vital-rr: #34d399;
+    --color-vital-hr: #ff9fc0;
+    --color-vital-rr: #5cd6c8;
     --color-vital-fps: #cbd5e1;
-    --color-vital-range: #2dd4bf;
+    --color-vital-range: #5cd6c8;
     --color-demo-badge-bg: #563600;
     --color-demo-badge-text: #fde68a;
     --color-demo-badge-border: #f59e0b;
     --night-outline: #8b817a;
-    --night-on-surface: #f5ece7;
+    --night-on-surface: #ffdad6;
   }
 
   .btn-primary,
@@ -5710,17 +5524,9 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
     filter: brightness(1.35);
   }
 
-  #view-report table tr:nth-child(even),
-  #view-report .session-detail-row:nth-child(even),
-  #view-report .detail-row:nth-child(even) {
-    background: color-mix(in oklab, var(--surface-3) 58%, transparent) !important;
-  }
+  
 
-  #view-report table tr,
-  #view-report .session-detail-row,
-  #view-report .detail-row {
-    border-bottom: 1px solid var(--line) !important;
-  }
+  
 
   [data-theme="hc"] .brand,
   [data-theme="hc"] .brand-label {
@@ -5901,11 +5707,7 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
       white-space: nowrap !important;
     }
 
-    body[data-view="settings"] #view-settings {
-      display: block !important;
-      grid-template-columns: minmax(0, 1fr) !important;
-      overflow-x: hidden !important;
-    }
+    
 
     body[data-view="settings"] #view-settings > *,
     body[data-view="settings"] .set-panel,
@@ -5944,11 +5746,7 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
       max-width: 100% !important;
     }
 
-    .settings-page-toolbar {
-      display: grid !important;
-      grid-template-columns: minmax(0, 1fr) !important;
-      gap: 10px !important;
-    }
+    
 
     .settings-search {
       width: 100% !important;
@@ -5969,10 +5767,7 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
       display: none !important;
     }
 
-    body[data-view="home"] #setupCard:not(.rvt-setup-expanded) .setup-grid,
-    body[data-view="home"] #setupCard:not(.rvt-setup-expanded) .setup {
-      display: none !important;
-    }
+    
 
     body[data-view="home"] #setupCard .rvt-mobile-disclosure-btn,
     body[data-view="home"] .quickcheck .rvt-mobile-disclosure-btn {
@@ -6385,13 +6180,6 @@ body[data-ctl="on"] [id^="view-"]:not(.active) {
 .view-panel {
   display: none !important;
 }
-body[data-view="home"] #view-home,
-body[data-view="live"] #view-live,
-body[data-view="report"] #view-report,
-body[data-view="help"] #view-help,
-body[data-view="settings"] #view-settings {
-  display: block !important;
-}
 
 /* Hide live-only elements on non-live views (no data-ctl gate) */
 body[data-view="home"] .tab,
@@ -6478,39 +6266,13 @@ body[data-view="settings"] .command-strip {
 
 /* END styles/rvt-view-switch-topbar-fix-css.css */
 
-
 /* ============================================================
    MATERIAL 3 EXPRESSIVE SETTINGS VIEW STYLES
    ============================================================ */
 
 /* Re-organized Grid and Spacing */
-.settings-page {
-  padding: 24px !important;
-  border-radius: 28px !important;
-  background: var(--surface-glass, var(--bg, #f4f7fb)) !important;
-  border: 1px solid var(--md-sys-color-outline-variant, rgba(202, 213, 226, 0.4)) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.05) !important;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 24px !important;
-}
 
 /* Header style updates */
-.settings-page .ch {
-  display: flex !important;
-  justify-content: space-between !important;
-  align-items: center !important;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant, rgba(202, 213, 226, 0.4)) !important;
-  padding-bottom: 20px !important;
-  margin-bottom: 8px !important;
-}
-
-.settings-page .tw {
-  display: flex !important;
-  align-items: center !important;
-  gap: 16px !important;
-}
 
 .settings-title-avatar {
   background: linear-gradient(135deg, var(--brand-500, #4f46e5), var(--brand-400, #6366f1)) !important;
@@ -6527,48 +6289,9 @@ body[data-view="settings"] .command-strip {
   font-size: 26px !important;
 }
 
-.settings-page .ct {
-  font-size: 24px !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.5px !important;
-  color: var(--md-sys-color-on-surface, #1e293b) !important;
-  margin: 0 !important;
-}
-
-.settings-page .cs {
-  font-size: 14px !important;
-  color: var(--md-sys-color-on-surface-variant, #64748b) !important;
-  margin-top: 4px !important;
-}
-
 /* Back / Home Button */
-.settings-page .chip-btn.back-home-btn {
-  background: var(--md-sys-color-secondary-container, rgba(79, 70, 229, 0.08)) !important;
-  color: var(--md-sys-color-on-secondary-container, var(--brand-600, #4f46e5)) !important;
-  border: 1px solid var(--md-sys-color-outline-variant, rgba(202, 213, 226, 0.2)) !important;
-  padding: 10px 18px !important;
-  border-radius: 100px !important;
-  font-weight: 600 !important;
-  transition: all 0.25s cubic-bezier(0.2, 0, 0, 1) !important;
-}
-
-.settings-page .chip-btn.back-home-btn:hover {
-  background: var(--md-sys-color-secondary-container-hover, rgba(79, 70, 229, 0.15)) !important;
-  transform: translateY(-1px) scale(1.02) !important;
-}
-
-.settings-page .chip-btn.back-home-btn:active {
-  transform: translateY(1px) scale(0.98) !important;
-}
 
 /* Toolbar & Tabs styling */
-.settings-page-toolbar {
-  display: flex !important;
-  justify-content: space-between !important;
-  align-items: center !important;
-  gap: 16px !important;
-  flex-wrap: wrap !important;
-}
 
 .settings-tabs {
   display: flex !important;
@@ -6644,11 +6367,6 @@ body[data-view="settings"] .command-strip {
 }
 
 /* Settings Grid & Section Layout */
-.settings-page-grid {
-  display: grid !important;
-  grid-template-columns: 1fr !important;
-  gap: 32px !important;
-}
 
 .set-g {
   display: flex !important;
@@ -7049,26 +6767,6 @@ body[data-view="settings"] .command-strip {
   margin-top: 12px !important;
 }
 
-.ghost-btn.danger-btn.reset-thresholds-btn {
-  background: transparent !important;
-  border: 1px solid rgba(239, 68, 68, 0.2) !important;
-  color: #ef4444 !important;
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  padding: 8px 16px !important;
-  border-radius: 100px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  cursor: pointer !important;
-  transition: all 0.2s ease !important;
-}
-
-.ghost-btn.danger-btn.reset-thresholds-btn:hover {
-  background: rgba(239, 68, 68, 0.06) !important;
-  border-color: rgba(239, 68, 68, 0.4) !important;
-}
-
 /* ============================================================
    ALERT DELIVERY & TONE LEVEL INTERACTIVE
    ============================================================ */
@@ -7345,12 +7043,6 @@ body[data-view="settings"] .command-strip {
    PURGING COMPETING CONSOLIDATED STYLES
    ============================================================ */
 /* Suppress double dividers or competing layouts from rvt-consolidated-css */
-.settings-page .set-divider {
-  display: none !important;
-}
-.settings-page .section-label {
-  display: none !important;
-}
 
 /* Dark and Night Themes Card adjustments */
 [data-theme="dark"] .settings-list-card,
@@ -7388,14 +7080,6 @@ body[data-view="settings"] .command-strip {
 }
 
 /* Page alignment grid */
-body[data-view="settings"] #view-settings .settings-page-grid {
-  display: grid !important;
-  grid-template-columns: 1fr !important;
-  gap: 24px !important;
-  padding: 24px 0 !important;
-  max-width: 900px !important;
-  margin: 0 auto !important;
-}
 
 /* Expressive Section titles with modern leading icons */
 .set-gl {
@@ -7688,19 +7372,7 @@ input[type="range"]::-webkit-slider-thumb:active {
 }
 
 /* Settings route header aesthetics */
-.settings-page-head {
-  padding: 24px 0 !important;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant, rgba(202, 213, 226, 0.3)) !important;
-  margin-bottom: 16px !important;
-}
-.settings-page-toolbar {
-  display: flex !important;
-  gap: 8px !important;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant, rgba(202, 213, 226, 0.2)) !important;
-  margin-bottom: 24px !important;
-  padding-bottom: 8px !important;
-  overflow-x: auto !important;
-}
+
 .settings-tab {
   background: transparent !important;
   border: none !important;
@@ -7748,18 +7420,8 @@ input[type="range"]::-webkit-slider-thumb:active {
     flex: 1 !important;
     text-align: center !important;
   }
-  body[data-view="settings"] #view-settings .set-row,
-  body[data-view="settings"] #view-settings .set-r,
-  body[data-view="settings"] #view-settings .set-row-control {
-    grid-template-columns: auto 1fr !important;
-    gap: 12px !important;
-    align-items: start !important;
-  }
-  body[data-view="settings"] #view-settings .set-row .sw,
-  body[data-view="settings"] #view-settings .set-r .sw {
-    grid-column: 1 / -1 !important;
-    justify-self: end !important;
-  }
+  
+  
 }
 
 /* ============================================================

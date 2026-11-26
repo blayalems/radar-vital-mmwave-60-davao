@@ -3,11 +3,12 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { TelemetryService } from './telemetry.service';
 import { StateService } from './state.service';
-import { ApiService } from './api.service';
+import { ApiRequestError, ApiService } from './api.service';
 import { AudioService } from './audio.service';
 import { AuthService } from './auth.service';
 import { PersistenceService } from './persistence.service';
 import { OPERATOR_TOKEN_KEY } from './rvt-storage-keys';
+import { SourceModeService } from './source-mode.service';
 import { SseDriverService } from './sse-driver.service';
 
 let mockEventSourceInstance: MockEventSource | null = null;
@@ -47,7 +48,7 @@ describe('TelemetryService', () => {
   let mockPersistence: Partial<PersistenceService>;
   let mockAudio: Partial<AudioService>;
   let mockApi: Partial<ApiService>;
-  let mockAuth: Pick<AuthService, 'isLocked'>;
+  let mockAuth: Pick<AuthService, 'isLocked' | 'lock'>;
   let originalEventSource: any;
 
   beforeEach(() => {
@@ -77,7 +78,8 @@ describe('TelemetryService', () => {
       pairToken: vi.fn().mockReturnValue('')
     };
     mockAuth = {
-      isLocked: signal(false)
+      isLocked: signal(false),
+      lock: vi.fn()
     };
 
     TestBed.configureTestingModule({
@@ -243,27 +245,35 @@ describe('TelemetryService', () => {
   });
 
   it('stays polling-only after the SSE failure threshold until manual reconnect', async () => {
-    service = TestBed.inject(TelemetryService);
-    await settle();
-    const failedSource = mockEventSourceInstances.at(-1)!;
+    vi.useFakeTimers();
+    try {
+      service = TestBed.inject(TelemetryService);
+      await vi.advanceTimersByTimeAsync(0);
+      const sseDriver = TestBed.inject(SseDriverService);
 
-    failedSource.onerror?.();
-    failedSource.onerror?.();
-    failedSource.onerror?.();
-    failedSource.onerror?.();
-    await settle();
+      for (const delay of [17_000, 32_000, 62_000]) {
+        const failedSource = mockEventSourceInstances.at(-1)!;
+        failedSource.onerror?.();
+        expect(failedSource.closed).toBe(true);
+        await vi.advanceTimersByTimeAsync(delay);
+      }
+      const fourthSource = mockEventSourceInstances.at(-1)!;
+      fourthSource.onerror?.();
 
-    expect(failedSource.closed).toBe(true);
-    expect(TestBed.inject(SseDriverService).isPollingOnly()).toBe(true);
-    const instancesAfterFallback = mockEventSourceInstances.length;
+      expect(fourthSource.closed).toBe(true);
+      expect(sseDriver.isPollingOnly()).toBe(true);
+      const instancesAfterFallback = mockEventSourceInstances.length;
 
-    await (service as any).startSse();
-    expect(mockEventSourceInstances).toHaveLength(instancesAfterFallback);
+      await (service as any).startSse();
+      expect(mockEventSourceInstances).toHaveLength(instancesAfterFallback);
 
-    service.reconnect();
-    await settle();
-    expect(TestBed.inject(SseDriverService).isPollingOnly()).toBe(false);
-    expect(mockEventSourceInstances).toHaveLength(instancesAfterFallback + 1);
+      service.reconnect();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(sseDriver.isPollingOnly()).toBe(false);
+      expect(mockEventSourceInstances).toHaveLength(instancesAfterFallback + 1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('marks live telemetry stale and disconnects transport synchronously when the browser goes offline', async () => {
@@ -347,6 +357,34 @@ describe('TelemetryService', () => {
     expect(state.telemetryStale()).toBe(true);
     expect(state.currentSessionId()).not.toBe('late-session');
     expect(state.lastLivePayload()?.radar.reported_hr).not.toBe(88);
+  });
+
+  it('marks authentication required and locks operator session on HTTP 401 during poll', async () => {
+    service = TestBed.inject(TelemetryService);
+    const state = TestBed.inject(StateService);
+    await settle();
+    service.stop();
+    (service as any).running = true;
+    TestBed.inject(SourceModeService).setAutoDemoOnDisconnect(true);
+    (mockApi.request as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new ApiRequestError('Operator session expired', 401, 'UNAUTHORIZED')
+    );
+
+    await (service as any).poll();
+
+    expect(state.autoDemoActive()).toBe(false);
+    expect(state.ctlStatus()).toMatchObject({ ok: true, mode: 'live', reason: 'unauthenticated' });
+    expect(mockAuth.lock).toHaveBeenCalledOnce();
+  });
+
+  it('removes window listeners when destroyed', () => {
+    const removeSpy = vi.spyOn(window, 'removeEventListener');
+    service = TestBed.inject(TelemetryService);
+
+    TestBed.resetTestingModule();
+
+    const removedEvents = removeSpy.mock.calls.map(call => call[0]);
+    expect(removedEvents).toEqual(expect.arrayContaining(['offline', 'online', 'rvt-operator-authenticated']));
   });
 });
 

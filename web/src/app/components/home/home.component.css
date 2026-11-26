@@ -250,7 +250,7 @@
   gap: 20px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1180px) {
   .home-two-column-layout {
     grid-template-columns: 1fr;
   }
@@ -262,6 +262,7 @@
   box-sizing: border-box;
   box-shadow: none !important;
   min-width: 0;
+  overflow-x: clip;
   padding: 16px;
   width: 100%;
   background: var(--md-sys-color-surface, #ffffff) !important;

@@ -899,6 +899,35 @@ h1, h2, h3, h4, h5, h6,
   }
 }
 
+/* Neutralize legacy 761-1199px narrow-rail overrides when desktop rail is expanded at 1024-1199px. */
+@media (min-width: 1024px) and (max-width: 1199.98px) {
+  .app:not(.rail-collapsed) .rail .brand {
+    width: 100% !important;
+    margin: 0 0 6px !important;
+    padding: 10px 12px 8px !important;
+    gap: 10px !important;
+    justify-content: flex-start !important;
+  }
+  .app:not(.rail-collapsed) .rail .brand .brand-mark {
+    margin: 0 !important;
+  }
+  .app:not(.rail-collapsed) .rail .brand .brand-label {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .app:not(.rail-collapsed) .rail .operator {
+    width: 100% !important;
+    height: auto !important;
+    padding: 10px 12px !important;
+    justify-content: flex-start !important;
+  }
+  .app:not(.rail-collapsed) .rail .operator .op-meta {
+    display: flex !important;
+    flex-direction: column !important;
+    min-width: 0 !important;
+  }
+}
+
 /* ==========================================================================
    DESKTOP CONTROL DENSITY — the mockup's tonal buttons are 12.5px / ~38px and
    its duration/filter chips are small pills. Material defaults render them at

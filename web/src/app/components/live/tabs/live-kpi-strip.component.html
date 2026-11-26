@@ -1,5 +1,5 @@
-<p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ liveStatusAnnouncement() }}</p>
 <div class="kpi-grid">
+  <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ liveStatusAnnouncement() }}</p>
   @for (kpi of kpiOrder(); track kpi) {
     @if (kpi === 'hr') {
       <!-- HEART RATE CARD -->
